@@ -55,6 +55,7 @@ const _inventoryChildren = [
   (key: 'inventory_movements',    icon: Symbols.swap_vert,           label: 'Movements'),
   (key: 'inventory_requisitions', icon: Symbols.assignment,          label: 'Requisitions'),
   (key: 'inventory_orders',       icon: Symbols.receipt_long,        label: 'Purchase Orders'),
+  (key: 'inventory_locations',    icon: Symbols.warehouse,           label: 'Locations'),
 ];
 
 class Sidebar extends StatelessWidget {

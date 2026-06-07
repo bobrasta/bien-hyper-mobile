@@ -2,9 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
+import '../../models/batch_lot.dart';
 import '../../models/inventory_item.dart';
+import '../../models/serial_number.dart';
 import '../../models/stock_movement.dart';
 import '../../models/supplier.dart';
+import '../../services/batch_lot_service.dart';
+import '../../services/serial_number_service.dart';
 import '../../services/stock_movement_service.dart';
 import '../../services/supplier_service.dart';
 import '../../theme/app_colors.dart';
@@ -21,7 +25,7 @@ class InventoryItemDetailScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 4,
+      length: 6,
       child: Scaffold(
         backgroundColor: context.pal.bg,
         appBar: AppBar(
@@ -40,6 +44,8 @@ class InventoryItemDetailScreen extends StatelessWidget {
             ],
           ),
           bottom: TabBar(
+            isScrollable: true,
+            tabAlignment: TabAlignment.start,
             labelColor: AppColors.teal,
             unselectedLabelColor: context.pal.textMute,
             indicatorColor: AppColors.teal,
@@ -49,6 +55,8 @@ class InventoryItemDetailScreen extends StatelessWidget {
             tabs: const [
               Tab(text: 'Overview'),
               Tab(text: 'Movements'),
+              Tab(text: 'Batches'),
+              Tab(text: 'Serials'),
               Tab(text: 'Suppliers'),
               Tab(text: 'Barcode'),
             ],
@@ -58,6 +66,8 @@ class InventoryItemDetailScreen extends StatelessWidget {
           children: [
             _OverviewTab(item: item),
             _MovementsTab(item: item),
+            _BatchesTab(item: item),
+            _SerialsTab(item: item),
             _SuppliersTab(item: item),
             _BarcodeTab(item: item),
           ],
@@ -580,6 +590,354 @@ class _SupplierCard extends StatelessWidget {
         _InfoRow('Notes', supplier.notes!),
     ]),
   );
+}
+
+// ── Batches tab ───────────────────────────────────────────────────────────────
+
+class _BatchesTab extends StatefulWidget {
+  const _BatchesTab({required this.item});
+  final InventoryItem item;
+
+  @override
+  State<_BatchesTab> createState() => _BatchesTabState();
+}
+
+class _BatchesTabState extends State<_BatchesTab>
+    with AutomaticKeepAliveClientMixin {
+  List<BatchLot>? _lots;
+  bool _loading = true;
+  String? _error;
+
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() { _loading = true; _error = null; });
+    try {
+      final data = await BatchLotService.instance.listForItem(widget.item.id);
+      if (mounted) setState(() { _lots = data; _loading = false; });
+    } catch (e) {
+      if (mounted) setState(() { _error = e.toString(); _loading = false; });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    if (_loading) return Padding(padding: const EdgeInsets.all(24), child: shimmerList(count: 5));
+    if (_error != null) return ErrorView(message: _error!, onRetry: _load);
+
+    final lots = _lots ?? [];
+    if (lots.isEmpty) {
+      return Center(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Icon(Symbols.inventory_2, size: 40, color: context.pal.textDim),
+          const SizedBox(height: 12),
+          Text('No batches / lots recorded', style: AppTheme.bodySub),
+          const SizedBox(height: 6),
+          Text('Add batches when stock is received.',
+              style: AppTheme.bodySub.copyWith(fontSize: 11)),
+        ]),
+      );
+    }
+
+    return ListView.separated(
+      padding: const EdgeInsets.all(24),
+      itemCount: lots.length,
+      separatorBuilder: (_, _) => const SizedBox(height: 8),
+      itemBuilder: (_, i) => _BatchCard(lot: lots[i]),
+    );
+  }
+}
+
+class _BatchCard extends StatelessWidget {
+  const _BatchCard({required this.lot});
+  final BatchLot lot;
+
+  Color _statusColor() {
+    if (lot.isExpired)      return AppColors.coral;
+    if (lot.isExpiringSoon) return AppColors.amber;
+    return AppColors.green;
+  }
+
+  String _statusLabel() {
+    if (lot.isExpired)      return 'Expired';
+    if (lot.isExpiringSoon) return 'Expiring soon';
+    return 'Active';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _statusColor();
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: context.pal.surface1,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: lot.isExpired ? AppColors.coral.withValues(alpha: 0.4) : context.pal.border,
+        ),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Expanded(
+            child: Row(children: [
+              Text(lot.batchNumber,
+                  style: AppTheme.bodyStrong.copyWith(fontSize: 13)),
+              if (lot.lotNumber != null) ...[
+                const SizedBox(width: 8),
+                Text('/ ${lot.lotNumber}',
+                    style: AppTheme.monoXs.copyWith(color: context.pal.textMute)),
+              ],
+            ]),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(_statusLabel(),
+                style: AppTheme.monoXs.copyWith(color: color, fontSize: 10.5)),
+          ),
+        ]),
+        const SizedBox(height: 8),
+        Row(children: [
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Remaining', style: AppTheme.bodySub.copyWith(fontSize: 11)),
+            Text('${lot.qtyRemaining} / ${lot.qtyReceived}',
+                style: AppTheme.bodyStrong.copyWith(fontSize: 12.5)),
+          ])),
+          if (lot.expiryDate != null)
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Expiry', style: AppTheme.bodySub.copyWith(fontSize: 11)),
+              Text(formatDate(lot.expiryDate!),
+                  style: AppTheme.bodyStrong.copyWith(
+                      fontSize: 12.5,
+                      color: lot.isExpired ? AppColors.coral
+                          : lot.isExpiringSoon ? AppColors.amber : null)),
+            ])),
+          if (lot.receivedAt != null)
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Received', style: AppTheme.bodySub.copyWith(fontSize: 11)),
+              Text(formatDate(lot.receivedAt!),
+                  style: AppTheme.bodyStrong.copyWith(fontSize: 12.5)),
+            ])),
+        ]),
+        if (lot.supplierName != null || lot.unitCost > 0) ...[
+          const SizedBox(height: 8),
+          Row(children: [
+            if (lot.supplierName != null) ...[
+              Icon(Symbols.business, size: 12, color: context.pal.textDim),
+              const SizedBox(width: 5),
+              Text(lot.supplierName!,
+                  style: AppTheme.bodySub.copyWith(fontSize: 11.5)),
+              const SizedBox(width: 16),
+            ],
+            if (lot.unitCost > 0)
+              Text(tshFromDouble(lot.unitCost),
+                  style: AppTheme.bodySub.copyWith(fontSize: 11.5)),
+          ]),
+        ],
+        if (lot.notes != null && lot.notes!.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Text(lot.notes!, style: AppTheme.bodySub.copyWith(fontSize: 11.5)),
+        ],
+      ]),
+    );
+  }
+}
+
+// ── Serials tab ────────────────────────────────────────────────────────────────
+
+class _SerialsTab extends StatefulWidget {
+  const _SerialsTab({required this.item});
+  final InventoryItem item;
+
+  @override
+  State<_SerialsTab> createState() => _SerialsTabState();
+}
+
+class _SerialsTabState extends State<_SerialsTab>
+    with AutomaticKeepAliveClientMixin {
+  List<SerialNumber>? _serials;
+  bool _loading = true;
+  String? _error;
+  String? _statusFilter;
+
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() { _loading = true; _error = null; });
+    try {
+      final data = await SerialNumberService.instance
+          .listForItem(widget.item.id, status: _statusFilter);
+      if (mounted) setState(() { _serials = data; _loading = false; });
+    } catch (e) {
+      if (mounted) setState(() { _error = e.toString(); _loading = false; });
+    }
+  }
+
+  static const _statuses = [null, 'available', 'assigned', 'in_service', 'damaged', 'disposed'];
+  static const _statusLabels = ['All', 'Available', 'Assigned', 'In Service', 'Damaged', 'Disposed'];
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return Column(children: [
+      // Filter chips
+      SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.fromLTRB(20, 14, 20, 8),
+        child: Row(
+          children: List.generate(_statuses.length, (i) {
+            final selected = _statusFilter == _statuses[i];
+            return Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: GestureDetector(
+                onTap: () {
+                  setState(() => _statusFilter = _statuses[i]);
+                  _load();
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: selected ? AppColors.teal : Colors.transparent,
+                    border: Border.all(
+                      color: selected ? AppColors.teal : context.pal.border,
+                    ),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(_statusLabels[i],
+                      style: AppTheme.bodySm.copyWith(
+                        color: selected ? const Color(0xFF06120F) : context.pal.textMute,
+                        fontSize: 12,
+                      )),
+                ),
+              ),
+            );
+          }),
+        ),
+      ),
+
+      Expanded(
+        child: _loading
+            ? Padding(padding: const EdgeInsets.all(24), child: shimmerList(count: 6))
+            : _error != null
+                ? ErrorView(message: _error!, onRetry: _load)
+                : (_serials ?? []).isEmpty
+                    ? Center(
+                        child: Column(mainAxisSize: MainAxisSize.min, children: [
+                          Icon(Symbols.qr_code, size: 40, color: context.pal.textDim),
+                          const SizedBox(height: 12),
+                          Text('No serial numbers found', style: AppTheme.bodySub),
+                        ]),
+                      )
+                    : ListView.separated(
+                        padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+                        itemCount: (_serials ?? []).length,
+                        separatorBuilder: (_, _) => const SizedBox(height: 8),
+                        itemBuilder: (_, i) => _SerialCard(serial: _serials![i]),
+                      ),
+      ),
+    ]);
+  }
+}
+
+class _SerialCard extends StatelessWidget {
+  const _SerialCard({required this.serial});
+  final SerialNumber serial;
+
+  Color _statusColor() => switch (serial.status) {
+    'available'  => AppColors.green,
+    'assigned'   => AppColors.teal,
+    'in_service' => AppColors.violet,
+    'damaged'    => AppColors.amber,
+    'disposed'   => AppColors.coral,
+    _            => AppColors.textDim,
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _statusColor();
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: context.pal.surface1,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: context.pal.border),
+      ),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Icon(Symbols.qr_code_2, size: 18, color: context.pal.textDim),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(serial.serialNumber,
+                style: AppTheme.monoSm.copyWith(
+                    color: context.pal.text, fontSize: 13, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 4),
+            Wrap(spacing: 14, children: [
+              if (serial.locationName != null)
+                _SerialMeta(Symbols.location_on, serial.locationName!),
+              if (serial.machineName != null)
+                _SerialMeta(Symbols.medical_services, serial.machineName!),
+              if (serial.warrantyExpiresAt != null)
+                _SerialMeta(
+                  Symbols.verified_user,
+                  'Warranty ${serial.isWarrantyExpired ? 'expired' : 'until'} ${formatDate(serial.warrantyExpiresAt!)}',
+                  color: serial.isWarrantyExpired ? AppColors.coral : null,
+                ),
+              if (serial.purchaseDate != null)
+                _SerialMeta(Symbols.calendar_today, formatDate(serial.purchaseDate!)),
+            ]),
+            if (serial.notes != null && serial.notes!.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(serial.notes!, style: AppTheme.bodySub.copyWith(fontSize: 11.5)),
+            ],
+          ]),
+        ),
+        const SizedBox(width: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Text(serial.statusLabel,
+              style: AppTheme.monoXs.copyWith(color: color, fontSize: 10.5)),
+        ),
+      ]),
+    );
+  }
+}
+
+class _SerialMeta extends StatelessWidget {
+  const _SerialMeta(this.icon, this.label, {this.color});
+  final IconData icon;
+  final String label;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) => Row(mainAxisSize: MainAxisSize.min, children: [
+    Icon(icon, size: 11, color: color ?? context.pal.textDim),
+    const SizedBox(width: 4),
+    Text(label, style: AppTheme.bodySub.copyWith(fontSize: 11, color: color)),
+  ]);
 }
 
 // ── Barcode tab ────────────────────────────────────────────────────────────────

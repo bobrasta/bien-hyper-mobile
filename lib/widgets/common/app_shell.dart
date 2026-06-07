@@ -5,6 +5,7 @@ import '../../screens/dashboard/dashboard_screen.dart';
 import '../../screens/email/email_screen.dart';
 import '../../screens/hospitals/hospital_list_screen.dart';
 import '../../screens/inventory/inventory_items_screen.dart';
+import '../../screens/inventory/locations_screen.dart';
 import '../../screens/inventory/suppliers_screen.dart';
 import '../../screens/inventory/stock_movements_screen.dart';
 import '../../screens/inventory/requisitions_screen.dart';
@@ -96,6 +97,7 @@ class _AppShellState extends State<AppShell> {
     'inventory_movements'    => const StockMovementsScreen(),
     'inventory_requisitions' => const RequisitionsScreen(),
     'inventory_orders'       => const PurchaseOrdersScreen(),
+    'inventory_locations'    => const LocationsScreen(),
     'revenue'                => const RevenueScreen(),
     'email'     => const EmailScreen(),
     'sales' || 'sales_leads' => const SalesScreen(),
