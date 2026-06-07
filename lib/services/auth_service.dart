@@ -1,0 +1,115 @@
+import 'dart:convert';
+import 'dart:developer' as dev;
+import 'package:dio/dio.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'api_client.dart';
+
+class AuthException implements Exception {
+  const AuthException(this.message);
+  final String message;
+}
+
+class AuthService {
+  AuthService._();
+  static final instance = AuthService._();
+
+  static const _baseUrl  = ApiClient.baseUrl;
+  static const _tokenKey = 'hypermed_token';
+  static const _storage  = FlutterSecureStorage(
+    wOptions: WindowsOptions(),
+  );
+
+  late final Dio _dio = _buildDio();
+
+  Dio _buildDio() {
+    final dio = Dio(BaseOptions(
+      baseUrl: _baseUrl,
+      connectTimeout: const Duration(seconds: 10),
+      receiveTimeout: const Duration(seconds: 15),
+      headers: {'Accept': 'application/json', 'Content-Type': 'application/json'},
+    ));
+    dio.interceptors.add(LogInterceptor(
+      requestHeader:  true,
+      requestBody:    true,
+      responseHeader: false,
+      responseBody:   true,
+      error:          true,
+      logPrint: (o) => dev.log(o.toString(), name: 'HTTP'),
+    ));
+    return dio;
+  }
+
+  static const _userKey = 'hypermed_user_name';
+  static const _roleKey = 'hypermed_user_role';
+
+  Future<String?> getStoredToken()    => _storage.read(key: _tokenKey);
+  Future<String?> getStoredUserName() => _storage.read(key: _userKey);
+  Future<String?> getStoredRole()     => _storage.read(key: _roleKey);
+
+  Future<Map<String, dynamic>> login(String email, String password) async {
+    try {
+      final res = await _dio.post(
+        '/auth/login',
+        data: jsonEncode({'email': email, 'password': password}),
+        options: Options(headers: {'Content-Type': 'application/json'}),
+      );
+      final payload = res.data['data'] as Map;
+      final token    = payload['token'] as String;
+      final user     = payload['user'] as Map?;
+      final userName = user?['name'] as String? ?? 'User';
+      final userRole = user?['role'] as String? ?? 'staff';
+      await _storage.write(key: _tokenKey, value: token);
+      await _storage.write(key: _userKey,  value: userName);
+      await _storage.write(key: _roleKey,  value: userRole);
+      return Map<String, dynamic>.from(payload);
+    } on DioException catch (e) {
+      dev.log('LOGIN ${e.response?.statusCode} | ${e.type} | ${e.response?.data}', name: 'AUTH');
+      if (e.response?.statusCode == 401 || e.response?.statusCode == 422) {
+        throw const AuthException('Invalid email or password.');
+      }
+      if (e.type == DioExceptionType.connectionTimeout ||
+          e.type == DioExceptionType.receiveTimeout ||
+          e.type == DioExceptionType.connectionError) {
+        throw const AuthException('Cannot reach the server. Check your connection.');
+      }
+      throw const AuthException('Login failed. Please try again later.');
+    } catch (e) {
+      dev.log('LOGIN unexpected: $e', name: 'AUTH');
+      throw const AuthException('Something went wrong. Please try again.');
+    }
+  }
+
+  Future<Map<String, dynamic>?> getProfile() async {
+    try {
+      final res  = await ApiClient.instance.dio.get('/auth/me');
+      final data = ApiClient.unwrap(res);
+      if (data is! Map<String, dynamic>) return null;
+      // Keep storage in sync so role/name survive app restarts.
+      final name = data['name'] as String?;
+      final role = data['role'] as String?;
+      if (name != null) await _storage.write(key: _userKey, value: name);
+      if (role != null) await _storage.write(key: _roleKey, value: role);
+      return data;
+    } catch (_) { return null; }
+  }
+
+  Future<void> updateStoredName(String name) =>
+      _storage.write(key: _userKey, value: name);
+
+  Future<void> clearToken() async {
+    await _storage.delete(key: _tokenKey);
+    await _storage.delete(key: _roleKey);
+  }
+
+  Future<void> logout(String token) async {
+    try {
+      await _dio.post(
+        '/auth/logout',
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+    } catch (_) {}
+    await _storage.delete(key: _tokenKey);
+  }
+
+  Dio get dio => _dio;
+}

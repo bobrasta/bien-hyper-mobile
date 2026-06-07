@@ -1,0 +1,34 @@
+import '../models/sales_lead.dart';
+import 'api_client.dart';
+
+class SalesService {
+  SalesService._();
+  static final instance = SalesService._();
+  final _dio = ApiClient.instance.dio;
+
+  Future<List<SalesLead>> list() async {
+    final res = await _dio.get('/leads');
+    final (data, _) = ApiClient.unwrapList(res);
+    return data.map((j) => SalesLead.fromJson(j as Map<String, dynamic>)).toList();
+  }
+
+  Future<SalesLead> get(int id) async {
+    final res = await _dio.get('/leads/$id');
+    return SalesLead.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+  }
+
+  Future<SalesLead> create(Map<String, dynamic> data) async {
+    final res = await _dio.post('/leads', data: data);
+    return SalesLead.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+  }
+
+  Future<SalesLead> update(int id, Map<String, dynamic> data) async {
+    final res = await _dio.put('/leads/$id', data: data);
+    return SalesLead.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+  }
+
+  Future<SalesLead> moveStage(int id, String stage) async {
+    final res = await _dio.patch('/leads/$id/stage', data: {'stage': stage});
+    return SalesLead.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+  }
+}

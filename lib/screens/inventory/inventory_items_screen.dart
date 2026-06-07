@@ -1,0 +1,1021 @@
+import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
+import '../../models/inventory_item.dart';
+import '../../services/inventory_service.dart';
+import '../../services/stock_movement_service.dart';
+import '../../theme/app_colors.dart';
+import '../../theme/app_palette.dart';
+import '../../theme/app_theme.dart';
+import '../../utils/api_error.dart';
+import '../../utils/csv_export.dart';
+import '../../utils/format.dart';
+import '../../widgets/common/app_button.dart';
+import '../../widgets/common/error_view.dart';
+import '../../widgets/common/shimmer_box.dart';
+import 'inventory_item_detail_screen.dart';
+
+class InventoryItemsScreen extends StatefulWidget {
+  const InventoryItemsScreen({super.key});
+
+  @override
+  State<InventoryItemsScreen> createState() => _InventoryItemsScreenState();
+}
+
+class _InventoryItemsScreenState extends State<InventoryItemsScreen> {
+  String  _stockFilter    = 'all';
+  String? _categoryFilter;
+  String  _search         = '';
+  InventoryItem? _selected;
+  bool _showAdd    = false;
+  bool _showEdit   = false;
+  bool _showMove   = false;
+
+  List<InventoryItem> _allItems = [];
+  bool   _loading  = true;
+  String? _error;
+  int    _showCount = 25;
+  static const _pageSize = 25;
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    setState(() { _loading = true; _error = null; });
+    try {
+      final data = await InventoryService.instance.list();
+      if (mounted) setState(() { _allItems = data; _loading = false; });
+    } catch (e) {
+      if (mounted) setState(() { _error = friendlyError(e); _loading = false; });
+    }
+  }
+
+  Future<void> _deactivate(InventoryItem item) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: context.pal.surface1,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        title: Text('Deactivate ${item.name}?', style: AppTheme.bodyStrong),
+        content: Text('The item will be hidden from active inventory.', style: AppTheme.bodySub),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false),
+              child: Text('Cancel', style: AppTheme.bodySm.copyWith(color: context.pal.textMute))),
+          TextButton(onPressed: () => Navigator.pop(context, true),
+              child: Text('Deactivate', style: AppTheme.bodySm.copyWith(color: AppColors.coral))),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await InventoryService.instance.deactivate(item.id);
+      if (mounted) { setState(() { if (_selected == item) _selected = null; }); _load(); }
+    } catch (_) {}
+  }
+
+  Future<void> _exportCsv() async {
+    try {
+      final path = await CsvExport.inventoryItems(_filtered);
+      if (path != null && mounted) showSuccessToast(context, 'Exported ${_filtered.length} item(s) to CSV');
+    } catch (e) {
+      if (mounted) showErrorToast(context, e);
+    }
+  }
+
+  List<InventoryItem> get _filtered {
+    var list = _allItems;
+    if (_stockFilter == 'low') list = list.where((p) => p.isLowStock && !p.isOutOfStock).toList();
+    if (_stockFilter == 'out') list = list.where((p) => p.isOutOfStock).toList();
+    if (_categoryFilter != null) list = list.where((p) => p.category == _categoryFilter).toList();
+    if (_search.isNotEmpty) {
+      final q = _search.toLowerCase();
+      list = list.where((p) =>
+        p.name.toLowerCase().contains(q) ||
+        p.sku.toLowerCase().contains(q) ||
+        (p.manufacturer?.toLowerCase().contains(q) ?? false)).toList();
+    }
+    return list;
+  }
+
+  static String _catLabel(String cat) => switch (cat) {
+    'biomedical_equipment' => 'Biomedical Equip.',
+    'spare_part'           => 'Spare Part',
+    'consumable'           => 'Consumable',
+    'hospital_furniture'   => 'Furniture',
+    'ppe'                  => 'PPE',
+    'accessory'            => 'Accessory',
+    'machine_part'         => 'Machine Part',
+    'equipment'            => 'Equipment',
+    _                      => 'Other',
+  };
+
+  static Color _catColor(String cat) => switch (cat) {
+    'biomedical_equipment' => AppColors.teal,
+    'spare_part'           => AppColors.blue,
+    'consumable'           => AppColors.violet,
+    'hospital_furniture'   => AppColors.amber,
+    'ppe'                  => AppColors.coral,
+    'accessory'            => AppColors.blue,
+    _                      => AppColors.textDim,
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final allFiltered = _filtered;
+    final items       = allFiltered.take(_showCount).toList();
+    final remaining   = allFiltered.length - items.length;
+    final lowCount    = _allItems.where((p) => p.isLowStock && !p.isOutOfStock).length;
+    final outCount    = _allItems.where((p) => p.isOutOfStock).length;
+
+    final categories = <String, int>{};
+    for (final p in _allItems) { categories[p.category] = (categories[p.category] ?? 0) + 1; }
+
+    return Stack(children: [
+      Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        // ── Header ──
+        Container(
+          padding: const EdgeInsets.fromLTRB(24, 18, 24, 14),
+          decoration: BoxDecoration(border: Border(bottom: BorderSide(color: context.pal.border))),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Text('Inventory Items', style: AppTheme.pageTitle),
+              const Spacer(),
+              AppButton(label: 'Export', icon: Symbols.download, variant: BtnVariant.ghost, onPressed: _exportCsv),
+              const SizedBox(width: 8),
+              AppButton(label: 'Add Item', icon: Symbols.add, variant: BtnVariant.primary,
+                  onPressed: () => setState(() => _showAdd = true)),
+            ]),
+            const SizedBox(height: 4),
+            Text('${_allItems.length} SKUs · $lowCount low · $outCount out of stock',
+                style: AppTheme.bodySub),
+            const SizedBox(height: 12),
+            Row(children: [
+              _Chip(label: 'All',       count: '${_allItems.length}', active: _stockFilter == 'all',
+                  onTap: () => setState(() { _stockFilter = 'all'; _showCount = _pageSize; })),
+              const SizedBox(width: 6),
+              _Chip(label: 'Low Stock', count: '$lowCount', color: AppColors.amber,
+                  active: _stockFilter == 'low',
+                  onTap: () => setState(() { _stockFilter = 'low'; _showCount = _pageSize; })),
+              const SizedBox(width: 6),
+              _Chip(label: 'Out',       count: '$outCount', color: AppColors.coral,
+                  active: _stockFilter == 'out',
+                  onTap: () => setState(() { _stockFilter = 'out'; _showCount = _pageSize; })),
+              const SizedBox(width: 14),
+              if (categories.isNotEmpty) ...[
+                _Chip(label: 'All Categories', count: '', active: _categoryFilter == null,
+                    onTap: () => setState(() { _categoryFilter = null; _showCount = _pageSize; })),
+                const SizedBox(width: 6),
+                ...categories.entries.take(5).map((e) => Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: _Chip(
+                    label: _catLabel(e.key), count: '${e.value}',
+                    active: _categoryFilter == e.key,
+                    onTap: () => setState(() {
+                      _categoryFilter = _categoryFilter == e.key ? null : e.key;
+                      _showCount = _pageSize;
+                    }),
+                  ),
+                )),
+              ],
+              const Spacer(),
+              _SearchBox(onChanged: (v) => setState(() { _search = v; _showCount = _pageSize; })),
+            ]),
+          ]),
+        ),
+        // ── Two-panel body ──
+        Expanded(child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Expanded(flex: 3, child: RefreshIndicator(
+            onRefresh: _load,
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              child: Column(children: [
+                // Table header
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                  decoration: BoxDecoration(border: Border(bottom: BorderSide(color: context.pal.border))),
+                  child: Row(children: [
+                    _Th('SKU', flex: 1), _Th('Name / Manufacturer', flex: 3),
+                    _Th('Category', flex: 2), _Th('Stock', flex: 1),
+                    _Th('Reorder', flex: 1), _Th('Unit Cost', flex: 1),
+                    const SizedBox(width: 64),
+                  ]),
+                ),
+                if (_loading)
+                  shimmerTable(count: 8, cols: 6)
+                else if (_error != null)
+                  ErrorView(message: _error!, onRetry: _load, compact: true)
+                else if (items.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 48),
+                    child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(Symbols.inventory_2, size: 36, color: context.pal.textDim),
+                      const SizedBox(height: 10),
+                      Text('No items found', style: AppTheme.bodySub),
+                    ])),
+                  )
+                else ...[
+                  ...items.map((p) => _ItemRow(
+                    item: p, selected: _selected == p,
+                    catLabel: _catLabel(p.category), catColor: _catColor(p.category),
+                    onTap:    () => setState(() => _selected = _selected == p ? null : p),
+                    onEdit:   () => setState(() { _selected = p; _showEdit = true; }),
+                    onDelete: () => _deactivate(p),
+                  )),
+                  if (remaining > 0)
+                    GestureDetector(
+                      onTap: () => setState(() => _showCount += _pageSize),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        alignment: Alignment.center,
+                        child: Text('Load $remaining more',
+                            style: AppTheme.bodySm.copyWith(color: AppColors.teal, fontSize: 12.5)),
+                      ),
+                    )
+                  else if (items.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      child: Center(child: Text('Showing all ${items.length} items',
+                          style: AppTheme.bodySub.copyWith(fontSize: 12))),
+                    ),
+                ],
+              ]),
+            ),
+          )),
+          // Detail panel
+          if (_selected != null) ...[
+            Container(width: 1, color: context.pal.border),
+            SizedBox(width: 320, child: _ItemDetailPanel(
+              item:    _selected!,
+              catLabel: _catLabel(_selected!.category),
+              catColor: _catColor(_selected!.category),
+              onClose:  () => setState(() => _selected = null),
+              onEdit:   () => setState(() => _showEdit = true),
+              onMove:   () => setState(() => _showMove = true),
+            )),
+          ],
+        ])),
+      ]),
+      if (_showAdd)
+        _ItemFormModal(
+          catLabel: _catLabel, catColor: _catColor,
+          onClose: () => setState(() => _showAdd = false),
+          onSaved: () { setState(() => _showAdd = false); _load(); },
+        ),
+      if (_showEdit && _selected != null)
+        _ItemFormModal(
+          item: _selected!, catLabel: _catLabel, catColor: _catColor,
+          onClose: () => setState(() => _showEdit = false),
+          onSaved: () { setState(() => _showEdit = false); _load(); },
+        ),
+      if (_showMove && _selected != null)
+        _RecordMovementModal(
+          item:    _selected!,
+          onClose: () => setState(() => _showMove = false),
+          onSaved: () { setState(() => _showMove = false); _load(); },
+        ),
+    ]);
+  }
+}
+
+// ── Item row ──────────────────────────────────────────────────────────────────
+
+class _ItemRow extends StatelessWidget {
+  const _ItemRow({
+    required this.item, required this.selected,
+    required this.catLabel, required this.catColor,
+    required this.onTap, this.onEdit, this.onDelete,
+  });
+  final InventoryItem item;
+  final bool selected;
+  final String catLabel;
+  final Color catColor;
+  final VoidCallback onTap;
+  final VoidCallback? onEdit, onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final stockColor = item.isOutOfStock
+        ? AppColors.coral : item.isLowStock ? AppColors.amber : AppColors.teal;
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 11),
+        decoration: BoxDecoration(
+          color: selected ? context.pal.surface2 : Colors.transparent,
+          border: Border(bottom: BorderSide(color: context.pal.divider)),
+        ),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+          Expanded(flex: 1, child: Text(item.sku,
+              style: AppTheme.monoXs.copyWith(color: context.pal.textMute, fontSize: 11))),
+          Expanded(flex: 3, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Expanded(child: Text(item.name, style: AppTheme.bodyStrong.copyWith(fontSize: 12.5))),
+              if (item.hasCe)  _CertBadge('CE'),
+              if (item.hasFda) _CertBadge('FDA'),
+              if (item.hasTbs) _CertBadge('TBS'),
+            ]),
+            if (item.manufacturer != null)
+              Text(item.manufacturer!, style: AppTheme.bodySub.copyWith(fontSize: 11),
+                  overflow: TextOverflow.ellipsis),
+          ])),
+          Expanded(flex: 2, child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: catColor.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(catLabel, style: AppTheme.monoXs.copyWith(color: catColor, fontSize: 10),
+                overflow: TextOverflow.ellipsis),
+          )),
+          Expanded(flex: 1, child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: stockColor.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              if (item.isOutOfStock || item.isLowStock) ...[
+                Icon(item.isOutOfStock ? Symbols.error : Symbols.warning, size: 12, color: stockColor),
+                const SizedBox(width: 3),
+              ],
+              Text('${item.stockQty} ${item.unitOfMeasure}',
+                  style: AppTheme.monoXs.copyWith(color: stockColor, fontWeight: FontWeight.w700)),
+            ]),
+          )),
+          Expanded(flex: 1, child: Text('≥${item.reorderLevel}',
+              style: AppTheme.monoXs.copyWith(color: context.pal.textDim))),
+          Expanded(flex: 1, child: Text(tshFromDouble(item.unitCost),
+              style: AppTheme.bodyStrong.copyWith(fontSize: 12.5))),
+          SizedBox(width: 64, child: Row(children: [
+            const SizedBox(width: 4),
+            GestureDetector(onTap: onEdit,
+                child: Icon(Symbols.edit, size: 15, color: context.pal.textDim)),
+            const SizedBox(width: 12),
+            GestureDetector(onTap: onDelete,
+                child: const Icon(Symbols.delete_outline, size: 15, color: AppColors.coral)),
+          ])),
+        ]),
+      ),
+    );
+  }
+}
+
+// ── Detail panel ───────────────────────────────────────────────────────────────
+
+class _ItemDetailPanel extends StatelessWidget {
+  const _ItemDetailPanel({
+    required this.item, required this.catLabel, required this.catColor,
+    required this.onClose, this.onEdit, this.onMove,
+  });
+  final InventoryItem item;
+  final String catLabel;
+  final Color catColor;
+  final VoidCallback onClose;
+  final VoidCallback? onEdit, onMove;
+
+  @override
+  Widget build(BuildContext context) {
+    final stockColor = item.isOutOfStock
+        ? AppColors.coral : item.isLowStock ? AppColors.amber : AppColors.teal;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Expanded(child: Text(item.name, style: AppTheme.bodyStrong)),
+          GestureDetector(onTap: onClose,
+              child: Icon(Symbols.close, size: 18, color: context.pal.textDim)),
+        ]),
+        const SizedBox(height: 3),
+        Text(item.sku, style: AppTheme.monoXs.copyWith(color: context.pal.textMute)),
+        const SizedBox(height: 14),
+        // Stock status
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: stockColor.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: stockColor.withValues(alpha: 0.3)),
+          ),
+          child: Row(children: [
+            Icon(item.isOutOfStock ? Symbols.error
+                : item.isLowStock ? Symbols.warning : Symbols.check_circle,
+                size: 20, color: stockColor),
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('${item.stockQty} ${item.unitOfMeasure} in stock',
+                  style: AppTheme.bodyStrong.copyWith(color: stockColor)),
+              Text(item.isOutOfStock ? 'Out of stock — reorder now'
+                  : item.isLowStock ? 'Below reorder level (${item.reorderLevel})'
+                  : 'Stock level OK',
+                  style: AppTheme.bodySub.copyWith(fontSize: 11.5, color: stockColor)),
+            ])),
+          ]),
+        ),
+        const SizedBox(height: 14),
+        // Certifications
+        if (item.hasCe || item.hasFda || item.hasTbs) ...[
+          Wrap(spacing: 6, children: [
+            if (item.hasCe)  _CertBadge('CE',  large: true),
+            if (item.hasFda) _CertBadge('FDA', large: true),
+            if (item.hasTbs) _CertBadge('TBS', large: true),
+          ]),
+          const SizedBox(height: 14),
+        ],
+        _Row('SKU',          item.sku),
+        _Row('Category',     catLabel),
+        _Row('Unit',         item.unitOfMeasure),
+        if (item.manufacturer != null) _Row('Manufacturer', item.manufacturer!),
+        if (item.barcode != null)      _Row('Barcode',      item.barcode!),
+        _Row('Unit Cost',    tshFromDouble(item.unitCost)),
+        _Row('Stock Value',  tshFromDouble(item.stockQty * item.unitCost)),
+        _Row('Reorder At',   '${item.reorderLevel} ${item.unitOfMeasure}'),
+        if (item.supplier.isNotEmpty) _Row('Supplier', item.supplier),
+        if (item.compatibleModels.isNotEmpty) ...[
+          const SizedBox(height: 14),
+          Text('Compatible Machines', style: AppTheme.cardTitle.copyWith(fontSize: 12)),
+          const SizedBox(height: 6),
+          ...item.compatibleModels.map((m) => Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Row(children: [
+              Icon(Symbols.medical_services, size: 12, color: context.pal.textDim),
+              const SizedBox(width: 8),
+              Expanded(child: Text(m, style: AppTheme.bodySm.copyWith(fontSize: 12.5))),
+            ]),
+          )),
+        ],
+        const SizedBox(height: 20),
+        SizedBox(width: double.infinity, child: GestureDetector(
+          onTap: onMove,
+          child: Container(height: 38,
+            decoration: BoxDecoration(color: AppColors.teal, borderRadius: BorderRadius.circular(8)),
+            child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              const Icon(Symbols.swap_vert, size: 16, color: Color(0xFF06120F)),
+              const SizedBox(width: 8),
+              Text('Record Movement', style: AppTheme.bodyStrong.copyWith(
+                  color: const Color(0xFF06120F), fontSize: 13)),
+            ]),
+          ),
+        )),
+        const SizedBox(height: 8),
+        SizedBox(width: double.infinity, child: GestureDetector(
+          onTap: onEdit,
+          child: Container(height: 38,
+            decoration: BoxDecoration(border: Border.all(color: context.pal.border),
+                borderRadius: BorderRadius.circular(8)),
+            child: Center(child: Text('Edit Item', style: AppTheme.bodySm)),
+          ),
+        )),
+        const SizedBox(height: 8),
+        SizedBox(width: double.infinity, child: GestureDetector(
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => InventoryItemDetailScreen(item: item),
+            ),
+          ),
+          child: Container(height: 38,
+            decoration: BoxDecoration(border: Border.all(color: context.pal.border),
+                borderRadius: BorderRadius.circular(8)),
+            child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              Icon(Symbols.open_in_full, size: 14, color: context.pal.textMute),
+              const SizedBox(width: 7),
+              Text('Full Details', style: AppTheme.bodySm),
+            ]),
+          ),
+        )),
+      ]),
+    );
+  }
+}
+
+class _Row extends StatelessWidget {
+  const _Row(this.label, this.value);
+  final String label, value;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 5),
+    child: Row(children: [
+      SizedBox(width: 110, child: Text(label, style: AppTheme.bodySub.copyWith(fontSize: 12))),
+      Expanded(child: Text(value, style: AppTheme.bodyStrong.copyWith(fontSize: 12.5))),
+    ]),
+  );
+}
+
+// ── Record Movement modal ──────────────────────────────────────────────────────
+
+class _RecordMovementModal extends StatefulWidget {
+  const _RecordMovementModal({required this.item, required this.onClose, this.onSaved});
+  final InventoryItem item;
+  final VoidCallback  onClose;
+  final VoidCallback? onSaved;
+
+  @override
+  State<_RecordMovementModal> createState() => _RecordMovementModalState();
+}
+
+class _RecordMovementModalState extends State<_RecordMovementModal> {
+  String _type = 'receive';
+  final _qtyCtrl    = TextEditingController(text: '1');
+  final _notesCtrl  = TextEditingController();
+  bool   _saving = false;
+  String? _error;
+
+  static const _types = ['receive', 'issue', 'write_off', 'adjustment', 'return'];
+  static const _typeLabels = ['Receive', 'Issue / Use', 'Write-off', 'Adjustment', 'Return'];
+
+  @override
+  void dispose() { _qtyCtrl.dispose(); _notesCtrl.dispose(); super.dispose(); }
+
+  Future<void> _submit() async {
+    final qty = int.tryParse(_qtyCtrl.text.trim()) ?? 0;
+    if (qty == 0) { setState(() => _error = 'Enter a non-zero quantity.'); return; }
+    setState(() { _saving = true; _error = null; });
+    try {
+      await StockMovementService.instance.record(
+        inventoryItemId: widget.item.id,
+        type:     _type,
+        quantity: qty,
+        notes:    _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
+      );
+      if (mounted) showSuccessToast(context, 'Movement recorded for ${widget.item.name}');
+      widget.onSaved?.call();
+    } catch (e) {
+      if (mounted) setState(() { _saving = false; _error = friendlyError(e); });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: widget.onClose,
+    child: Container(
+      color: const Color(0xAA06070A), alignment: Alignment.center,
+      child: GestureDetector(
+        onTap: () {},
+        child: Container(
+          width: 420,
+          decoration: BoxDecoration(
+            color: context.pal.surface1, borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: context.pal.borderStrong),
+            boxShadow: const [BoxShadow(color: Color(0x70000000), blurRadius: 60)],
+          ),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+              child: Row(children: [
+                const Icon(Symbols.swap_vert, size: 18, color: AppColors.teal),
+                const SizedBox(width: 10),
+                Expanded(child: Text('Record Movement — ${widget.item.name}',
+                    style: AppTheme.bodyStrong, overflow: TextOverflow.ellipsis)),
+                GestureDetector(onTap: widget.onClose,
+                    child: Icon(Symbols.close, size: 18, color: context.pal.textDim)),
+              ]),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('MOVEMENT TYPE', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+                const SizedBox(height: 6),
+                Container(
+                  height: 38,
+                  decoration: BoxDecoration(color: context.pal.surface2,
+                      borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: DropdownButtonHideUnderline(child: DropdownButton<String>(
+                    value: _type, isExpanded: true,
+                    dropdownColor: context.pal.surface2, style: AppTheme.bodySm,
+                    icon: Icon(Symbols.expand_more, size: 16, color: context.pal.textDim),
+                    items: _types.asMap().entries.map((e) => DropdownMenuItem(
+                      value: e.value, child: Text(_typeLabels[e.key]),
+                    )).toList(),
+                    onChanged: (v) { if (v != null) setState(() => _type = v); },
+                  )),
+                ),
+                const SizedBox(height: 12),
+                Text('QUANTITY', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+                const SizedBox(height: 6),
+                Container(height: 38,
+                  decoration: BoxDecoration(color: context.pal.surface2,
+                      borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Center(child: TextField(
+                    controller: _qtyCtrl,
+                    keyboardType: TextInputType.number, style: AppTheme.bodySm,
+                    decoration: InputDecoration(hintText: '1', hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
+                        border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero),
+                  )),
+                ),
+                const SizedBox(height: 12),
+                Text('NOTES (optional)', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+                const SizedBox(height: 6),
+                Container(height: 38,
+                  decoration: BoxDecoration(color: context.pal.surface2,
+                      borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Center(child: TextField(
+                    controller: _notesCtrl, style: AppTheme.bodySm,
+                    decoration: InputDecoration(hintText: 'e.g. received from supplier',
+                        hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
+                        border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero),
+                  )),
+                ),
+                if (_error != null) ...[
+                  const SizedBox(height: 8),
+                  Text(_error!, style: const TextStyle(color: AppColors.coral, fontSize: 12.5)),
+                ],
+              ]),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
+              child: Row(children: [
+                Expanded(child: GestureDetector(
+                  onTap: widget.onClose,
+                  child: Container(height: 38,
+                    decoration: BoxDecoration(border: Border.all(color: context.pal.border),
+                        borderRadius: BorderRadius.circular(8)),
+                    child: Center(child: Text('Cancel', style: AppTheme.bodySm))),
+                )),
+                const SizedBox(width: 12),
+                Expanded(child: GestureDetector(
+                  onTap: _saving ? null : _submit,
+                  child: Container(height: 38,
+                    decoration: BoxDecoration(color: AppColors.teal, borderRadius: BorderRadius.circular(8)),
+                    child: Center(child: _saving
+                      ? const SizedBox(width: 14, height: 14,
+                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                      : Text('Confirm', style: AppTheme.bodyStrong.copyWith(
+                          color: const Color(0xFF06120F), fontSize: 13)))),
+                )),
+              ]),
+            ),
+          ]),
+        ),
+      ),
+    ),
+  );
+}
+
+// ── Add / Edit modal ───────────────────────────────────────────────────────────
+
+class _ItemFormModal extends StatefulWidget {
+  const _ItemFormModal({this.item, required this.catLabel, required this.catColor,
+      required this.onClose, this.onSaved});
+  final InventoryItem? item;
+  final String Function(String) catLabel;
+  final Color  Function(String) catColor;
+  final VoidCallback  onClose;
+  final VoidCallback? onSaved;
+
+  @override
+  State<_ItemFormModal> createState() => _ItemFormModalState();
+}
+
+class _ItemFormModalState extends State<_ItemFormModal> {
+  late final _nameCtrl  = TextEditingController(text: widget.item?.name ?? '');
+  late final _skuCtrl   = TextEditingController(text: widget.item?.sku  ?? '');
+  late final _qtyCtrl   = TextEditingController(text: widget.item != null ? '${widget.item!.stockQty}' : '0');
+  late final _costCtrl  = TextEditingController(text: widget.item != null ? widget.item!.unitCost.toStringAsFixed(0) : '');
+  late final _reorderCtrl = TextEditingController(text: widget.item != null ? '${widget.item!.reorderLevel}' : '2');
+  late final _mfgCtrl   = TextEditingController(text: widget.item?.manufacturer ?? '');
+  late String _category = widget.item?.category ?? 'spare_part';
+  late String _uom      = widget.item?.unitOfMeasure ?? 'piece';
+  late bool   _hasCe    = widget.item?.hasCe  ?? false;
+  late bool   _hasFda   = widget.item?.hasFda ?? false;
+  late bool   _hasTbs   = widget.item?.hasTbs ?? false;
+  bool    _saving = false;
+  String? _error;
+
+  static const _categories = [
+    'biomedical_equipment', 'spare_part', 'consumable', 'hospital_furniture', 'ppe', 'accessory', 'other',
+  ];
+  static const _catLabels = [
+    'Biomedical Equipment', 'Spare Part', 'Consumable', 'Hospital Furniture', 'PPE', 'Accessory', 'Other',
+  ];
+  static const _uoms = ['piece', 'box', 'litre', 'set', 'kg', 'roll', 'pair', 'bottle'];
+
+  bool get _isEdit => widget.item != null;
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose(); _skuCtrl.dispose(); _qtyCtrl.dispose();
+    _costCtrl.dispose(); _reorderCtrl.dispose(); _mfgCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    if (_saving || _nameCtrl.text.trim().isEmpty || _skuCtrl.text.trim().isEmpty) return;
+    setState(() { _saving = true; _error = null; });
+    try {
+      final data = {
+        'name':           _nameCtrl.text.trim(),
+        'sku':            _skuCtrl.text.trim(),
+        'category':       _category,
+        'unit_of_measure': _uom,
+        'unit_cost':      int.tryParse(_costCtrl.text.trim()) ?? 0,
+        'stock_qty':      int.tryParse(_qtyCtrl.text.trim()) ?? 0,
+        'reorder_level':  int.tryParse(_reorderCtrl.text.trim()) ?? 2,
+        'manufacturer':   _mfgCtrl.text.trim().isEmpty ? null : _mfgCtrl.text.trim(),
+        'has_ce':         _hasCe,
+        'has_fda':        _hasFda,
+        'has_tbs':        _hasTbs,
+      };
+      if (_isEdit) {
+        await InventoryService.instance.update(widget.item!.id, data);
+      } else {
+        await InventoryService.instance.create(data);
+      }
+      if (mounted) showSuccessToast(context, _isEdit ? 'Item updated' : 'Item added');
+      widget.onSaved?.call();
+    } catch (e) {
+      if (mounted) setState(() { _saving = false; _error = friendlyError(e); });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: widget.onClose,
+    child: Container(
+      color: const Color(0xAA06070A), alignment: Alignment.center,
+      child: GestureDetector(
+        onTap: () {},
+        child: Container(
+          width: 560,
+          constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.88),
+          decoration: BoxDecoration(
+            color: context.pal.surface1, borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: context.pal.borderStrong),
+            boxShadow: const [BoxShadow(color: Color(0x70000000), blurRadius: 60, offset: Offset(0, 20))],
+          ),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+              child: Row(children: [
+                Icon(_isEdit ? Symbols.edit : Symbols.inventory_2, size: 18, color: AppColors.teal),
+                const SizedBox(width: 10),
+                Text(_isEdit ? 'Edit: ${widget.item!.name}' : 'Add Inventory Item',
+                    style: AppTheme.bodyStrong),
+                const Spacer(),
+                GestureDetector(onTap: widget.onClose,
+                    child: Icon(Symbols.close, size: 18, color: context.pal.textDim)),
+              ]),
+            ),
+            Flexible(child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+              child: Column(children: [
+                Row(children: [
+                  Expanded(child: _Field(label: 'Item Name', ctrl: _nameCtrl, hint: 'e.g. Flow Sensor Module')),
+                  const SizedBox(width: 14),
+                  Expanded(child: _Field(label: 'SKU', ctrl: _skuCtrl, hint: 'e.g. MIN-FS-6800')),
+                ]),
+                const SizedBox(height: 14),
+                _Field(label: 'Manufacturer', ctrl: _mfgCtrl, hint: 'e.g. Mindray Medical'),
+                const SizedBox(height: 14),
+                Row(children: [
+                  Expanded(child: _Dropdown(
+                    label: 'Category', value: _category,
+                    items: _categories, labels: _catLabels,
+                    onChanged: (v) => setState(() => _category = v),
+                  )),
+                  const SizedBox(width: 14),
+                  Expanded(child: _Dropdown(
+                    label: 'Unit of Measure', value: _uom,
+                    items: _uoms,
+                    onChanged: (v) => setState(() => _uom = v),
+                  )),
+                ]),
+                const SizedBox(height: 14),
+                Row(children: [
+                  Expanded(child: _Field(label: 'Qty in Stock', ctrl: _qtyCtrl, hint: '0', numeric: true)),
+                  const SizedBox(width: 14),
+                  Expanded(child: _Field(label: 'Reorder Level', ctrl: _reorderCtrl, hint: '2', numeric: true)),
+                  const SizedBox(width: 14),
+                  Expanded(child: _Field(label: 'Unit Cost (TSh)', ctrl: _costCtrl, hint: '0', numeric: true)),
+                ]),
+                const SizedBox(height: 14),
+                // Certifications
+                Row(children: [
+                  Text('CERTIFICATIONS', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+                  const SizedBox(width: 16),
+                  _CheckChip(label: 'CE',  value: _hasCe,  onChanged: (v) => setState(() => _hasCe = v)),
+                  const SizedBox(width: 8),
+                  _CheckChip(label: 'FDA', value: _hasFda, onChanged: (v) => setState(() => _hasFda = v)),
+                  const SizedBox(width: 8),
+                  _CheckChip(label: 'TBS', value: _hasTbs, onChanged: (v) => setState(() => _hasTbs = v)),
+                ]),
+                if (_error != null) ...[
+                  const SizedBox(height: 10),
+                  Text(_error!, style: const TextStyle(color: AppColors.coral, fontSize: 12.5)),
+                ],
+              ]),
+            )),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 14),
+              child: Row(children: [
+                Expanded(child: GestureDetector(
+                  onTap: widget.onClose,
+                  child: Container(height: 38,
+                    decoration: BoxDecoration(border: Border.all(color: context.pal.border),
+                        borderRadius: BorderRadius.circular(8)),
+                    child: Center(child: Text('Cancel', style: AppTheme.bodySm))),
+                )),
+                const SizedBox(width: 12),
+                Expanded(child: GestureDetector(
+                  onTap: _save,
+                  child: Container(height: 38,
+                    decoration: BoxDecoration(color: AppColors.teal, borderRadius: BorderRadius.circular(8)),
+                    child: Center(child: _saving
+                      ? const SizedBox(width: 16, height: 16,
+                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                      : Text(_isEdit ? 'Save Changes' : 'Add Item',
+                          style: AppTheme.bodyStrong.copyWith(
+                              color: const Color(0xFF06120F), fontSize: 13)))),
+                )),
+              ]),
+            ),
+          ]),
+        ),
+      ),
+    ),
+  );
+}
+
+// ── Shared widgets ─────────────────────────────────────────────────────────────
+
+class _CertBadge extends StatelessWidget {
+  const _CertBadge(this.label, {this.large = false});
+  final String label;
+  final bool large;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    margin: const EdgeInsets.only(left: 4),
+    padding: EdgeInsets.symmetric(horizontal: large ? 7 : 4, vertical: large ? 3 : 1),
+    decoration: BoxDecoration(
+      color: AppColors.tealSoft,
+      borderRadius: BorderRadius.circular(4),
+      border: Border.all(color: AppColors.teal.withValues(alpha: 0.4)),
+    ),
+    child: Text(label, style: AppTheme.monoXs.copyWith(
+        color: AppColors.teal, fontSize: large ? 10.5 : 9, fontWeight: FontWeight.w700)),
+  );
+}
+
+class _CheckChip extends StatelessWidget {
+  const _CheckChip({required this.label, required this.value, required this.onChanged});
+  final String label;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: () => onChanged(!value),
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: value ? AppColors.tealSoft : context.pal.surface2,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: value ? AppColors.teal : context.pal.border),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(value ? Symbols.check_circle : Symbols.radio_button_unchecked,
+            size: 14, color: value ? AppColors.teal : context.pal.textDim),
+        const SizedBox(width: 5),
+        Text(label, style: AppTheme.bodySm.copyWith(
+            color: value ? AppColors.teal : context.pal.textMute,
+            fontWeight: value ? FontWeight.w600 : FontWeight.w400, fontSize: 12)),
+      ]),
+    ),
+  );
+}
+
+class _SearchBox extends StatelessWidget {
+  const _SearchBox({required this.onChanged});
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: 240, height: 32,
+    decoration: BoxDecoration(color: context.pal.surface1,
+        borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
+    padding: const EdgeInsets.symmetric(horizontal: 10),
+    child: Row(children: [
+      Icon(Symbols.search, size: 14, color: context.pal.textDim),
+      const SizedBox(width: 6),
+      Expanded(child: TextField(
+        onChanged: onChanged, style: AppTheme.bodySm,
+        decoration: InputDecoration(
+          hintText: 'Search name, SKU, manufacturer…',
+          hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
+          border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero,
+        ),
+      )),
+    ]),
+  );
+}
+
+class _Field extends StatelessWidget {
+  const _Field({required this.label, required this.ctrl, required this.hint,
+      this.numeric = false});
+  final String label, hint;
+  final TextEditingController ctrl;
+  final bool numeric;
+
+  @override
+  Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+    const SizedBox(height: 6),
+    Container(height: 38,
+      decoration: BoxDecoration(color: context.pal.surface2,
+          borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: Center(child: TextField(
+        controller: ctrl, style: AppTheme.bodySm,
+        keyboardType: numeric ? TextInputType.number : TextInputType.text,
+        decoration: InputDecoration(hintText: hint,
+            hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
+            border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero),
+      )),
+    ),
+  ]);
+}
+
+class _Dropdown extends StatelessWidget {
+  const _Dropdown({required this.label, required this.value, required this.items,
+      this.labels, required this.onChanged});
+  final String label, value;
+  final List<String> items;
+  final List<String>? labels;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+    const SizedBox(height: 6),
+    Container(height: 38,
+      decoration: BoxDecoration(color: context.pal.surface2,
+          borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: DropdownButtonHideUnderline(child: DropdownButton<String>(
+        value: items.contains(value) ? value : items.first, isExpanded: true,
+        dropdownColor: context.pal.surface2, style: AppTheme.bodySm,
+        icon: Icon(Symbols.expand_more, size: 16, color: context.pal.textDim),
+        items: items.asMap().entries.map((e) => DropdownMenuItem(
+          value: e.value, child: Text(labels != null ? labels![e.key] : e.value),
+        )).toList(),
+        onChanged: (v) { if (v != null) onChanged(v); },
+      )),
+    ),
+  ]);
+}
+
+class _Chip extends StatelessWidget {
+  const _Chip({required this.label, required this.count, required this.active,
+      required this.onTap, this.color});
+  final String label, count;
+  final bool active;
+  final VoidCallback onTap;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: onTap,
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: active ? (color ?? AppColors.teal).withValues(alpha: 0.12) : context.pal.surface1,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: active ? (color ?? AppColors.teal) : context.pal.border),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Text(label, style: AppTheme.bodySm.copyWith(
+            color: active ? (color ?? AppColors.teal) : context.pal.textMute, fontSize: 12)),
+        if (count.isNotEmpty) ...[
+          const SizedBox(width: 5),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+            decoration: BoxDecoration(
+              color: (color ?? AppColors.teal).withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(count, style: AppTheme.bodySub.copyWith(
+                color: color ?? AppColors.teal, fontSize: 10.5, fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ]),
+    ),
+  );
+}
+
+class _Th extends StatelessWidget {
+  const _Th(this.label, {required this.flex});
+  final String label;
+  final int flex;
+
+  @override
+  Widget build(BuildContext context) => Expanded(
+    flex: flex,
+    child: Text(label.toUpperCase(),
+        style: AppTheme.monoXs.copyWith(fontWeight: FontWeight.w500, letterSpacing: 0.10)),
+  );
+}

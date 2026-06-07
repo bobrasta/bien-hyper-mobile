@@ -1,0 +1,430 @@
+import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
+import '../../models/inventory_item.dart';
+import '../../models/stock_movement.dart';
+import '../../services/inventory_service.dart';
+import '../../services/stock_movement_service.dart';
+import '../../theme/app_colors.dart';
+import '../../theme/app_palette.dart';
+import '../../theme/app_theme.dart';
+import '../../utils/api_error.dart';
+import '../../utils/format.dart';
+import '../../widgets/common/app_button.dart';
+import '../../widgets/common/error_view.dart';
+import '../../widgets/common/shimmer_box.dart';
+
+class StockMovementsScreen extends StatefulWidget {
+  const StockMovementsScreen({super.key});
+
+  @override
+  State<StockMovementsScreen> createState() => _StockMovementsScreenState();
+}
+
+class _StockMovementsScreenState extends State<StockMovementsScreen> {
+  String? _typeFilter;
+  bool _showRecord = false;
+
+  List<StockMovement> _movements = [];
+  bool   _loading = true;
+  String? _error;
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    setState(() { _loading = true; _error = null; });
+    try {
+      final data = await StockMovementService.instance.list(type: _typeFilter);
+      if (mounted) setState(() { _movements = data; _loading = false; });
+    } catch (e) {
+      if (mounted) setState(() { _error = friendlyError(e); _loading = false; });
+    }
+  }
+
+  static Color _typeColor(String t) => switch (t) {
+    'receive'    => AppColors.teal,
+    'issue'      => AppColors.coral,
+    'transfer'   => AppColors.blue,
+    'write_off'  => AppColors.amber,
+    'adjustment' => AppColors.violet,
+    'return'     => AppColors.teal,
+    _            => AppColors.textDim,
+  };
+
+  static IconData _typeIcon(String t) => switch (t) {
+    'receive'    => Symbols.add_circle,
+    'issue'      => Symbols.remove_circle,
+    'transfer'   => Symbols.swap_horiz,
+    'write_off'  => Symbols.delete_forever,
+    'adjustment' => Symbols.tune,
+    'return'     => Symbols.undo,
+    _            => Symbols.swap_vert,
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    const types = ['receive', 'issue', 'transfer', 'write_off', 'adjustment', 'return'];
+    const typeLabels = ['Receive', 'Issue', 'Transfer', 'Write-off', 'Adjustment', 'Return'];
+
+    return Stack(children: [
+      Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        // ── Header ──
+        Container(
+          padding: const EdgeInsets.fromLTRB(24, 18, 24, 14),
+          decoration: BoxDecoration(border: Border(bottom: BorderSide(color: context.pal.border))),
+          child: Row(children: [
+            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Stock Movements', style: AppTheme.pageTitle),
+              const SizedBox(height: 2),
+              Text('Full audit trail of all stock in/out', style: AppTheme.bodySub),
+            ]),
+            const SizedBox(width: 24),
+            // Type chips
+            Wrap(spacing: 6, children: [
+              _TypeChip(label: 'All', active: _typeFilter == null,
+                  onTap: () { setState(() => _typeFilter = null); _load(); }),
+              ...types.asMap().entries.map((e) => _TypeChip(
+                label: typeLabels[e.key],
+                active: _typeFilter == e.value,
+                color: _typeColor(e.value),
+                onTap: () {
+                  setState(() => _typeFilter = _typeFilter == e.value ? null : e.value);
+                  _load();
+                },
+              )),
+            ]),
+            const Spacer(),
+            AppButton(label: 'Record Movement', icon: Symbols.add, variant: BtnVariant.primary,
+                onPressed: () => setState(() => _showRecord = true)),
+          ]),
+        ),
+        // ── Table ──
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+          decoration: BoxDecoration(border: Border(bottom: BorderSide(color: context.pal.border))),
+          child: Row(children: [
+            _Th('Date/Time', flex: 2), _Th('Item', flex: 3),
+            _Th('Type', flex: 1), _Th('Qty Change', flex: 1),
+            _Th('Before → After', flex: 2), _Th('Notes / Reference', flex: 3),
+            _Th('By', flex: 2),
+          ]),
+        ),
+        Expanded(child: RefreshIndicator(
+          onRefresh: _load,
+          child: _loading
+            ? shimmerTable(count: 10, cols: 7)
+            : _error != null
+              ? ErrorView(message: _error!, onRetry: _load)
+              : _movements.isEmpty
+                ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(Symbols.history, size: 40, color: context.pal.textDim),
+                    const SizedBox(height: 12),
+                    Text('No movements recorded yet', style: AppTheme.bodySub),
+                  ]))
+                : ListView.builder(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    itemCount: _movements.length,
+                    itemBuilder: (_, i) => _MovementRow(
+                      movement: _movements[i],
+                      typeColor: _typeColor(_movements[i].type),
+                      typeIcon:  _typeIcon(_movements[i].type),
+                    ),
+                  ),
+        )),
+      ]),
+      if (_showRecord)
+        _RecordMovementModal(
+          onClose: () => setState(() => _showRecord = false),
+          onSaved: () { setState(() => _showRecord = false); _load(); },
+        ),
+    ]);
+  }
+}
+
+// ── Movement row ───────────────────────────────────────────────────────────────
+
+class _MovementRow extends StatelessWidget {
+  const _MovementRow({required this.movement, required this.typeColor, required this.typeIcon});
+  final StockMovement movement;
+  final Color typeColor;
+  final IconData typeIcon;
+
+  @override
+  Widget build(BuildContext context) {
+    final sign   = movement.isInbound ? '+' : '';
+    final color  = movement.isInbound ? AppColors.teal : AppColors.coral;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: context.pal.divider))),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+        // Date/time
+        Expanded(flex: 2, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(formatDate(movement.createdAt), style: AppTheme.bodyStrong.copyWith(fontSize: 12.5)),
+          Text(formatTime(movement.createdAt), style: AppTheme.bodySub.copyWith(fontSize: 11)),
+        ])),
+        // Item
+        Expanded(flex: 3, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(movement.itemName ?? '—', style: AppTheme.bodyStrong.copyWith(fontSize: 12.5),
+              overflow: TextOverflow.ellipsis),
+          if (movement.itemSku != null)
+            Text(movement.itemSku!, style: AppTheme.monoXs.copyWith(
+                color: context.pal.textMute, fontSize: 10.5)),
+        ])),
+        // Type badge
+        Expanded(flex: 1, child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(typeIcon, size: 13, color: typeColor),
+          const SizedBox(width: 4),
+          Flexible(child: Text(movement.typeLabel,
+              style: AppTheme.monoXs.copyWith(color: typeColor, fontSize: 10.5),
+              overflow: TextOverflow.ellipsis)),
+        ])),
+        // Qty change
+        Expanded(flex: 1, child: Text('$sign${movement.quantity}',
+            style: AppTheme.bodyStrong.copyWith(
+                color: color, fontSize: 13, fontFeatures: const [FontFeature.tabularFigures()]))),
+        // Before → After
+        Expanded(flex: 2, child: Row(children: [
+          Text('${movement.quantityBefore}', style: AppTheme.monoXs.copyWith(color: context.pal.textDim)),
+          Icon(Symbols.arrow_forward, size: 12, color: context.pal.textDim),
+          Text('${movement.quantityAfter}', style: AppTheme.monoXs.copyWith(color: context.pal.text)),
+        ])),
+        // Notes / reference
+        Expanded(flex: 3, child: Text(movement.notes ?? movement.referenceType ?? '—',
+            style: AppTheme.bodySub.copyWith(fontSize: 12), overflow: TextOverflow.ellipsis)),
+        // Performed by
+        Expanded(flex: 2, child: Text(movement.performedByName ?? '—',
+            style: AppTheme.bodySub.copyWith(fontSize: 12), overflow: TextOverflow.ellipsis)),
+      ]),
+    );
+  }
+}
+
+// ── Record Movement modal ──────────────────────────────────────────────────────
+
+class _RecordMovementModal extends StatefulWidget {
+  const _RecordMovementModal({required this.onClose, this.onSaved});
+  final VoidCallback  onClose;
+  final VoidCallback? onSaved;
+
+  @override
+  State<_RecordMovementModal> createState() => _RecordMovementModalState();
+}
+
+class _RecordMovementModalState extends State<_RecordMovementModal> {
+  List<InventoryItem> _items = [];
+  int?    _selectedItemId;
+  String  _type = 'receive';
+  final _qtyCtrl   = TextEditingController(text: '1');
+  final _notesCtrl = TextEditingController();
+  bool   _saving = false;
+  String? _error;
+
+  static const _types      = ['receive', 'issue', 'write_off', 'adjustment', 'return'];
+  static const _typeLabels = ['Receive', 'Issue / Use', 'Write-off', 'Adjustment', 'Return'];
+
+  @override
+  void initState() {
+    super.initState();
+    InventoryService.instance.list().then((list) {
+      if (mounted) setState(() => _items = list);
+    });
+  }
+
+  @override
+  void dispose() { _qtyCtrl.dispose(); _notesCtrl.dispose(); super.dispose(); }
+
+  Future<void> _submit() async {
+    final qty = int.tryParse(_qtyCtrl.text.trim()) ?? 0;
+    if (_selectedItemId == null) { setState(() => _error = 'Select an inventory item.'); return; }
+    if (qty == 0) { setState(() => _error = 'Enter a non-zero quantity.'); return; }
+    setState(() { _saving = true; _error = null; });
+    try {
+      await StockMovementService.instance.record(
+        inventoryItemId: _selectedItemId!,
+        type:    _type,
+        quantity: qty,
+        notes:   _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
+      );
+      if (mounted) showSuccessToast(context, 'Movement recorded successfully');
+      widget.onSaved?.call();
+    } catch (e) {
+      if (mounted) setState(() { _saving = false; _error = friendlyError(e); });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: widget.onClose,
+    child: Container(
+      color: const Color(0xAA06070A), alignment: Alignment.center,
+      child: GestureDetector(
+        onTap: () {},
+        child: Container(
+          width: 440,
+          decoration: BoxDecoration(
+            color: context.pal.surface1, borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: context.pal.borderStrong),
+            boxShadow: const [BoxShadow(color: Color(0x70000000), blurRadius: 60)],
+          ),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+              child: Row(children: [
+                const Icon(Symbols.swap_vert, size: 18, color: AppColors.teal),
+                const SizedBox(width: 10),
+                Text('Record Stock Movement', style: AppTheme.bodyStrong),
+                const Spacer(),
+                GestureDetector(onTap: widget.onClose,
+                    child: Icon(Symbols.close, size: 18, color: context.pal.textDim)),
+              ]),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                // Item picker
+                Text('ITEM', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+                const SizedBox(height: 6),
+                Container(height: 38,
+                  decoration: BoxDecoration(color: context.pal.surface2,
+                      borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: DropdownButtonHideUnderline(child: DropdownButton<int?>(
+                    value: _selectedItemId, isExpanded: true,
+                    dropdownColor: context.pal.surface2, style: AppTheme.bodySm,
+                    hint: Text('Select item…', style: AppTheme.bodySm.copyWith(color: context.pal.textDim)),
+                    icon: Icon(Symbols.expand_more, size: 16, color: context.pal.textDim),
+                    items: _items.map((item) => DropdownMenuItem(
+                      value: item.id,
+                      child: Text('${item.sku} — ${item.name}',
+                          overflow: TextOverflow.ellipsis),
+                    )).toList(),
+                    onChanged: (v) => setState(() => _selectedItemId = v),
+                  )),
+                ),
+                const SizedBox(height: 12),
+                // Type + qty row
+                Row(children: [
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('TYPE', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+                    const SizedBox(height: 6),
+                    Container(height: 38,
+                      decoration: BoxDecoration(color: context.pal.surface2,
+                          borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: DropdownButtonHideUnderline(child: DropdownButton<String>(
+                        value: _type, isExpanded: true,
+                        dropdownColor: context.pal.surface2, style: AppTheme.bodySm,
+                        icon: Icon(Symbols.expand_more, size: 16, color: context.pal.textDim),
+                        items: _types.asMap().entries.map((e) => DropdownMenuItem(
+                          value: e.value, child: Text(_typeLabels[e.key]),
+                        )).toList(),
+                        onChanged: (v) { if (v != null) setState(() => _type = v); },
+                      )),
+                    ),
+                  ])),
+                  const SizedBox(width: 14),
+                  SizedBox(width: 100, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('QUANTITY', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+                    const SizedBox(height: 6),
+                    Container(height: 38,
+                      decoration: BoxDecoration(color: context.pal.surface2,
+                          borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: Center(child: TextField(
+                        controller: _qtyCtrl, keyboardType: TextInputType.number,
+                        style: AppTheme.bodySm,
+                        decoration: InputDecoration(hintText: '1',
+                            hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
+                            border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero),
+                      )),
+                    ),
+                  ])),
+                ]),
+                const SizedBox(height: 12),
+                Text('NOTES', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+                const SizedBox(height: 6),
+                Container(height: 38,
+                  decoration: BoxDecoration(color: context.pal.surface2,
+                      borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Center(child: TextField(
+                    controller: _notesCtrl, style: AppTheme.bodySm,
+                    decoration: InputDecoration(hintText: 'Optional reason or reference',
+                        hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
+                        border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero),
+                  )),
+                ),
+                if (_error != null) ...[
+                  const SizedBox(height: 8),
+                  Text(_error!, style: const TextStyle(color: AppColors.coral, fontSize: 12.5)),
+                ],
+              ]),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
+              child: Row(children: [
+                Expanded(child: GestureDetector(
+                  onTap: widget.onClose,
+                  child: Container(height: 38,
+                    decoration: BoxDecoration(border: Border.all(color: context.pal.border),
+                        borderRadius: BorderRadius.circular(8)),
+                    child: Center(child: Text('Cancel', style: AppTheme.bodySm))),
+                )),
+                const SizedBox(width: 12),
+                Expanded(child: GestureDetector(
+                  onTap: _saving ? null : _submit,
+                  child: Container(height: 38,
+                    decoration: BoxDecoration(color: AppColors.teal, borderRadius: BorderRadius.circular(8)),
+                    child: Center(child: _saving
+                      ? const SizedBox(width: 14, height: 14,
+                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                      : Text('Record', style: AppTheme.bodyStrong.copyWith(
+                          color: const Color(0xFF06120F), fontSize: 13)))),
+                )),
+              ]),
+            ),
+          ]),
+        ),
+      ),
+    ),
+  );
+}
+
+// ── Shared widgets ─────────────────────────────────────────────────────────────
+
+class _TypeChip extends StatelessWidget {
+  const _TypeChip({required this.label, required this.active, required this.onTap, this.color});
+  final String label;
+  final bool active;
+  final VoidCallback onTap;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: onTap,
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: active ? (color ?? AppColors.teal).withValues(alpha: 0.12) : context.pal.surface1,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: active ? (color ?? AppColors.teal) : context.pal.border),
+      ),
+      child: Text(label, style: AppTheme.bodySm.copyWith(
+          color: active ? (color ?? AppColors.teal) : context.pal.textMute, fontSize: 12)),
+    ),
+  );
+}
+
+class _Th extends StatelessWidget {
+  const _Th(this.label, {required this.flex});
+  final String label;
+  final int flex;
+
+  @override
+  Widget build(BuildContext context) => Expanded(
+    flex: flex,
+    child: Text(label.toUpperCase(),
+        style: AppTheme.monoXs.copyWith(fontWeight: FontWeight.w500, letterSpacing: 0.10)),
+  );
+}
