@@ -10,6 +10,7 @@ class ContactService {
     final res = await _dio.get('/contacts', queryParameters: {
       'hospital': ?hospital,
       'tag': ?tag,
+      'per_page': 120,
     });
     final (data, _) = ApiClient.unwrapList(res);
     return data.map((j) => Contact.fromJson(j as Map<String, dynamic>)).toList();

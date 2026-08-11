@@ -11,6 +11,7 @@ class MachineService {
       'status':      ?status,
       'hospital_id': ?hospitalId,
       'type':        ?type,
+      'per_page':    120,
     });
     final (data, _) = ApiClient.unwrapList(res);
     return data.map((j) => Machine.fromJson(j as Map<String, dynamic>)).toList();

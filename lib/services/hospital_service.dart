@@ -11,6 +11,7 @@ class HospitalService {
       queryParameters: {
         'type': ?type,
         'region': ?region,
+        'per_page': 120,
       },
       options: ApiClient.cachingOptions(const Duration(minutes: 30)),
     );

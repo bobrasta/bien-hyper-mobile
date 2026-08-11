@@ -15,6 +15,7 @@ class TicketService {
         'hospital': ?hospital,
         'machine_id': ?machineId,
         'assigned_to': ?assignedTo,
+        'per_page': 120,
       },
       options: noCache ? ApiClient.noCache : null,
     );
