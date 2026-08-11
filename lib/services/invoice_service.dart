@@ -62,6 +62,13 @@ class InvoiceService {
     }
   }
 
+  /// Returns a signed, no-login-required URL to the invoice PDF — valid 7 days.
+  Future<String> shareLink(int id) async {
+    final res = await _dio.post('/invoices/$id/share-link');
+    final data = ApiClient.unwrap(res) as Map<String, dynamic>;
+    return data['share_url'] as String;
+  }
+
   Future<List<Map<String, dynamic>>> revenueByHospital() async {
     try {
       final res = await _dio.get('/revenue/by-hospital');

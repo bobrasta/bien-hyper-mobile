@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
+import '../../models/category.dart';
 import '../../models/inventory_item.dart';
+import '../../models/location.dart';
+import '../../services/category_service.dart';
 import '../../services/inventory_service.dart';
+import '../../services/location_service.dart';
 import '../../services/stock_movement_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_palette.dart';
@@ -96,27 +100,17 @@ class _InventoryItemsScreenState extends State<InventoryItemsScreen> {
     return list;
   }
 
-  static String _catLabel(String cat) => switch (cat) {
-    'biomedical_equipment' => 'Biomedical Equip.',
-    'spare_part'           => 'Spare Part',
-    'consumable'           => 'Consumable',
-    'hospital_furniture'   => 'Furniture',
-    'ppe'                  => 'PPE',
-    'accessory'            => 'Accessory',
-    'machine_part'         => 'Machine Part',
-    'equipment'            => 'Equipment',
-    _                      => 'Other',
-  };
+  // Categories are now a real, admin-managed list (not a fixed enum), so
+  // `item.category` already IS the display name — just show it as-is and
+  // pick a stable color by hashing the name across a small fixed palette.
+  static String _catLabel(String cat) => cat;
 
-  static Color _catColor(String cat) => switch (cat) {
-    'biomedical_equipment' => AppColors.teal,
-    'spare_part'           => AppColors.blue,
-    'consumable'           => AppColors.violet,
-    'hospital_furniture'   => AppColors.amber,
-    'ppe'                  => AppColors.coral,
-    'accessory'            => AppColors.blue,
-    _                      => AppColors.textDim,
-  };
+  static const _catPalette = [
+    AppColors.teal, AppColors.blue, AppColors.violet,
+    AppColors.amber, AppColors.coral, AppColors.info,
+  ];
+  static Color _catColor(String cat) =>
+      cat.isEmpty ? AppColors.textDim : _catPalette[cat.hashCode.abs() % _catPalette.length];
 
   @override
   Widget build(BuildContext context) {
@@ -160,22 +154,12 @@ class _InventoryItemsScreenState extends State<InventoryItemsScreen> {
                   active: _stockFilter == 'out',
                   onTap: () => setState(() { _stockFilter = 'out'; _showCount = _pageSize; })),
               const SizedBox(width: 14),
-              if (categories.isNotEmpty) ...[
-                _Chip(label: 'All Categories', count: '', active: _categoryFilter == null,
-                    onTap: () => setState(() { _categoryFilter = null; _showCount = _pageSize; })),
-                const SizedBox(width: 6),
-                ...categories.entries.take(5).map((e) => Padding(
-                  padding: const EdgeInsets.only(right: 6),
-                  child: _Chip(
-                    label: _catLabel(e.key), count: '${e.value}',
-                    active: _categoryFilter == e.key,
-                    onTap: () => setState(() {
-                      _categoryFilter = _categoryFilter == e.key ? null : e.key;
-                      _showCount = _pageSize;
-                    }),
-                  ),
-                )),
-              ],
+              if (categories.isNotEmpty)
+                _CategoryFilterDropdown(
+                  categories: categories,
+                  value: _categoryFilter,
+                  onChanged: (v) => setState(() { _categoryFilter = v; _showCount = _pageSize; }),
+                ),
               const Spacer(),
               _SearchBox(onChanged: (v) => setState(() { _search = v; _showCount = _pageSize; })),
             ]),
@@ -318,7 +302,7 @@ class _ItemRow extends StatelessWidget {
               Text(item.manufacturer!, style: AppTheme.bodySub.copyWith(fontSize: 11),
                   overflow: TextOverflow.ellipsis),
           ])),
-          Expanded(flex: 2, child: Container(
+          Expanded(flex: 2, child: Align(alignment: Alignment.centerLeft, child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
             decoration: BoxDecoration(
               color: catColor.withValues(alpha: 0.12),
@@ -326,8 +310,8 @@ class _ItemRow extends StatelessWidget {
             ),
             child: Text(catLabel, style: AppTheme.monoXs.copyWith(color: catColor, fontSize: 10),
                 overflow: TextOverflow.ellipsis),
-          )),
-          Expanded(flex: 1, child: Container(
+          ))),
+          Expanded(flex: 1, child: Align(alignment: Alignment.centerLeft, child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
             decoration: BoxDecoration(
               color: stockColor.withValues(alpha: 0.12),
@@ -341,7 +325,7 @@ class _ItemRow extends StatelessWidget {
               Text('${item.stockQty} ${item.unitOfMeasure}',
                   style: AppTheme.monoXs.copyWith(color: stockColor, fontWeight: FontWeight.w700)),
             ]),
-          )),
+          ))),
           Expanded(flex: 1, child: Text('≥${item.reorderLevel}',
               style: AppTheme.monoXs.copyWith(color: context.pal.textDim))),
           Expanded(flex: 1, child: Text(tshFromDouble(item.unitCost),
@@ -420,6 +404,22 @@ class _ItemDetailPanel extends StatelessWidget {
             if (item.hasFda) _CertBadge('FDA', large: true),
             if (item.hasTbs) _CertBadge('TBS', large: true),
           ]),
+          const SizedBox(height: 14),
+        ],
+        if (item.stockLevels.isNotEmpty) ...[
+          Text('Stock by Location', style: AppTheme.cardTitle.copyWith(fontSize: 12)),
+          const SizedBox(height: 6),
+          ...item.stockLevels.map((l) => Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(children: [
+              Icon(Symbols.location_on, size: 12, color: context.pal.textDim),
+              const SizedBox(width: 6),
+              Expanded(child: Text(l.locationName,
+                  style: AppTheme.bodySm.copyWith(fontSize: 12.5), overflow: TextOverflow.ellipsis)),
+              Text('${l.quantityOnHand.toStringAsFixed(0)} ${item.unitOfMeasure}',
+                  style: AppTheme.bodyStrong.copyWith(fontSize: 12)),
+            ]),
+          )),
           const SizedBox(height: 14),
         ],
         _Row('SKU',          item.sku),
@@ -522,8 +522,33 @@ class _RecordMovementModalState extends State<_RecordMovementModal> {
   bool   _saving = false;
   String? _error;
 
-  static const _types = ['receive', 'issue', 'write_off', 'adjustment', 'return'];
-  static const _typeLabels = ['Receive', 'Issue / Use', 'Write-off', 'Adjustment', 'Return'];
+  int? _locationId;
+  int? _toLocationId;
+  List<Location> _locations = [];
+  bool _loadingLocations = true;
+
+  static const _types = ['receive', 'issue', 'transfer', 'write_off', 'adjustment', 'return'];
+  static const _typeLabels = ['Receive', 'Issue / Use', 'Transfer', 'Write-off', 'Adjustment', 'Return'];
+  bool get _isTransfer => _type == 'transfer';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadLocations();
+  }
+
+  Future<void> _loadLocations() async {
+    try {
+      final locs = await LocationService.instance.list();
+      if (mounted){ setState(() {
+        _locations = locs;
+        _locationId ??= locs.isNotEmpty ? locs.first.id : null;
+        _loadingLocations = false;
+      });}
+    } catch (_) {
+      if (mounted) setState(() => _loadingLocations = false);
+    }
+  }
 
   @override
   void dispose() { _qtyCtrl.dispose(); _notesCtrl.dispose(); super.dispose(); }
@@ -531,10 +556,15 @@ class _RecordMovementModalState extends State<_RecordMovementModal> {
   Future<void> _submit() async {
     final qty = int.tryParse(_qtyCtrl.text.trim()) ?? 0;
     if (qty == 0) { setState(() => _error = 'Enter a non-zero quantity.'); return; }
+    if (_locationId == null) { setState(() => _error = 'Select a location.'); return; }
+    if (_isTransfer && _toLocationId == null) { setState(() => _error = 'Select a destination location.'); return; }
+    if (_isTransfer && _toLocationId == _locationId) { setState(() => _error = 'Source and destination must differ.'); return; }
     setState(() { _saving = true; _error = null; });
     try {
       await StockMovementService.instance.record(
         inventoryItemId: widget.item.id,
+        locationId: _locationId!,
+        toLocationId: _isTransfer ? _toLocationId : null,
         type:     _type,
         quantity: qty,
         notes:    _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
@@ -592,6 +622,55 @@ class _RecordMovementModalState extends State<_RecordMovementModal> {
                     onChanged: (v) { if (v != null) setState(() => _type = v); },
                   )),
                 ),
+                const SizedBox(height: 12),
+                Text(_isTransfer ? 'FROM LOCATION' : 'LOCATION', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+                const SizedBox(height: 6),
+                if (_loadingLocations)
+                  const ShimmerBox(height: 38, radius: 8)
+                else
+                  Container(
+                    height: 38,
+                    decoration: BoxDecoration(color: context.pal.surface2,
+                        borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: DropdownButtonHideUnderline(child: DropdownButton<int>(
+                      value: _locationId, isExpanded: true,
+                      dropdownColor: context.pal.surface2, style: AppTheme.bodySm,
+                      icon: Icon(Symbols.expand_more, size: 16, color: context.pal.textDim),
+                      items: _locations.map((l) => DropdownMenuItem(
+                        value: l.id, child: Text(l.name),
+                      )).toList(),
+                      onChanged: (v) { if (v != null) setState(() {
+                        _locationId = v;
+                        if (_toLocationId == v) _toLocationId = null;
+                      }); },
+                    )),
+                  ),
+                if (_isTransfer) ...[
+                  const SizedBox(height: 12),
+                  Text('TO LOCATION', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+                  const SizedBox(height: 6),
+                  if (_loadingLocations)
+                    const ShimmerBox(height: 38, radius: 8)
+                  else
+                    Container(
+                      height: 38,
+                      decoration: BoxDecoration(color: context.pal.surface2,
+                          borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: DropdownButtonHideUnderline(child: DropdownButton<int>(
+                        value: _toLocationId, isExpanded: true,
+                        dropdownColor: context.pal.surface2, style: AppTheme.bodySm,
+                        icon: Icon(Symbols.expand_more, size: 16, color: context.pal.textDim),
+                        hint: Text('Select destination', style: AppTheme.bodySm.copyWith(color: context.pal.textDim)),
+                        items: _locations
+                            .where((l) => l.id != _locationId)
+                            .map((l) => DropdownMenuItem(value: l.id, child: Text(l.name)))
+                            .toList(),
+                        onChanged: (v) { if (v != null) setState(() => _toLocationId = v); },
+                      )),
+                    ),
+                ],
                 const SizedBox(height: 12),
                 Text('QUANTITY', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
                 const SizedBox(height: 6),
@@ -678,28 +757,51 @@ class _ItemFormModalState extends State<_ItemFormModal> {
   late final _costCtrl  = TextEditingController(text: widget.item != null ? widget.item!.unitCost.toStringAsFixed(0) : '');
   late final _reorderCtrl = TextEditingController(text: widget.item != null ? '${widget.item!.reorderLevel}' : '2');
   late final _mfgCtrl   = TextEditingController(text: widget.item?.manufacturer ?? '');
-  late String _category = widget.item?.category ?? 'spare_part';
+  int?    _categoryId;
   late String _uom      = widget.item?.unitOfMeasure ?? 'piece';
   late bool   _hasCe    = widget.item?.hasCe  ?? false;
   late bool   _hasFda   = widget.item?.hasFda ?? false;
   late bool   _hasTbs   = widget.item?.hasTbs ?? false;
+  late bool   _createsMachineRecord = widget.item?.createsMachineRecord ?? false;
+  late final _warrantyCtrl = TextEditingController(
+      text: widget.item?.warrantyMonths?.toString() ?? '');
   bool    _saving = false;
   String? _error;
 
-  static const _categories = [
-    'biomedical_equipment', 'spare_part', 'consumable', 'hospital_furniture', 'ppe', 'accessory', 'other',
-  ];
-  static const _catLabels = [
-    'Biomedical Equipment', 'Spare Part', 'Consumable', 'Hospital Furniture', 'PPE', 'Accessory', 'Other',
-  ];
+  List<Category> _categories = [];
+  bool _loadingCategories = true;
+
   static const _uoms = ['piece', 'box', 'litre', 'set', 'kg', 'roll', 'pair', 'bottle'];
 
   bool get _isEdit => widget.item != null;
 
   @override
+  void initState() {
+    super.initState();
+    _categoryId = widget.item?.categoryId;
+    _loadCategories();
+  }
+
+  Future<void> _loadCategories() async {
+    try {
+      final cats = await CategoryService.instance.list();
+      if (mounted) {setState(() {
+        _categories = cats;
+        // Match what the dropdown will visually show — it falls back to the
+        // first item when the current value isn't in the list.
+        _categoryId ??= cats.isNotEmpty ? cats.first.id : null;
+        _loadingCategories = false;
+      });}
+    } catch (_) {
+      if (mounted) setState(() => _loadingCategories = false);
+    }
+  }
+
+  @override
   void dispose() {
     _nameCtrl.dispose(); _skuCtrl.dispose(); _qtyCtrl.dispose();
     _costCtrl.dispose(); _reorderCtrl.dispose(); _mfgCtrl.dispose();
+    _warrantyCtrl.dispose();
     super.dispose();
   }
 
@@ -710,7 +812,7 @@ class _ItemFormModalState extends State<_ItemFormModal> {
       final data = {
         'name':           _nameCtrl.text.trim(),
         'sku':            _skuCtrl.text.trim(),
-        'category':       _category,
+        'category_id':    _categoryId,
         'unit_of_measure': _uom,
         'unit_cost':      int.tryParse(_costCtrl.text.trim()) ?? 0,
         'stock_qty':      int.tryParse(_qtyCtrl.text.trim()) ?? 0,
@@ -719,6 +821,8 @@ class _ItemFormModalState extends State<_ItemFormModal> {
         'has_ce':         _hasCe,
         'has_fda':        _hasFda,
         'has_tbs':        _hasTbs,
+        'creates_machine_record': _createsMachineRecord,
+        'warranty_months': _warrantyCtrl.text.trim().isEmpty ? null : int.tryParse(_warrantyCtrl.text.trim()),
       };
       if (_isEdit) {
         await InventoryService.instance.update(widget.item!.id, data);
@@ -772,11 +876,15 @@ class _ItemFormModalState extends State<_ItemFormModal> {
                 _Field(label: 'Manufacturer', ctrl: _mfgCtrl, hint: 'e.g. Mindray Medical'),
                 const SizedBox(height: 14),
                 Row(children: [
-                  Expanded(child: _Dropdown(
-                    label: 'Category', value: _category,
-                    items: _categories, labels: _catLabels,
-                    onChanged: (v) => setState(() => _category = v),
-                  )),
+                  Expanded(child: _loadingCategories
+                    ? const _DropdownSkeleton(label: 'Category')
+                    : _Dropdown(
+                        label: 'Category',
+                        value: _categoryId != null ? '$_categoryId' : '',
+                        items: _categories.map((c) => '${c.id}').toList(),
+                        labels: _categories.map((c) => c.name).toList(),
+                        onChanged: (v) => setState(() => _categoryId = int.tryParse(v)),
+                      )),
                   const SizedBox(width: 14),
                   Expanded(child: _Dropdown(
                     label: 'Unit of Measure', value: _uom,
@@ -802,6 +910,19 @@ class _ItemFormModalState extends State<_ItemFormModal> {
                   _CheckChip(label: 'FDA', value: _hasFda, onChanged: (v) => setState(() => _hasFda = v)),
                   const SizedBox(width: 8),
                   _CheckChip(label: 'TBS', value: _hasTbs, onChanged: (v) => setState(() => _hasTbs = v)),
+                ]),
+                const SizedBox(height: 14),
+                // Equipment tracking — when on, delivering this item to a
+                // hospital-linked sales order registers a Machine record
+                // (one per unit) for Service to pick up.
+                Row(children: [
+                  _CheckChip(label: 'Installable Equipment', value: _createsMachineRecord,
+                      onChanged: (v) => setState(() => _createsMachineRecord = v)),
+                  if (_createsMachineRecord) ...[
+                    const SizedBox(width: 14),
+                    SizedBox(width: 140, child: _Field(
+                        label: 'Warranty (months)', ctrl: _warrantyCtrl, hint: '12', numeric: true)),
+                  ],
                 ]),
                 if (_error != null) ...[
                   const SizedBox(height: 10),
@@ -967,6 +1088,55 @@ class _Dropdown extends StatelessWidget {
       )),
     ),
   ]);
+}
+
+class _DropdownSkeleton extends StatelessWidget {
+  const _DropdownSkeleton({required this.label});
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+    const SizedBox(height: 6),
+    const ShimmerBox(height: 38, radius: 8),
+  ]);
+}
+
+class _CategoryFilterDropdown extends StatelessWidget {
+  const _CategoryFilterDropdown({required this.categories, required this.value, required this.onChanged});
+  final Map<String, int> categories;
+  final String? value;
+  final ValueChanged<String?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final total = categories.values.fold(0, (a, b) => a + b);
+    return Container(
+      height: 32,
+      width: 220,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      decoration: BoxDecoration(
+        color: context.pal.surface2,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: value != null ? AppColors.teal : context.pal.border),
+      ),
+      child: DropdownButtonHideUnderline(child: DropdownButton<String?>(
+        value: value,
+        isDense: true,
+        isExpanded: true,
+        dropdownColor: context.pal.surface2,
+        icon: Icon(Symbols.expand_more, size: 16, color: context.pal.textDim),
+        style: AppTheme.bodySm.copyWith(
+            color: value != null ? AppColors.teal : context.pal.textMute, fontSize: 12),
+        items: [
+          DropdownMenuItem(value: null, child: Text('All Categories ($total)')),
+          ...categories.entries.map((e) =>
+              DropdownMenuItem(value: e.key, child: Text('${e.key} (${e.value})'))),
+        ],
+        onChanged: onChanged,
+      )),
+    );
+  }
 }
 
 class _Chip extends StatelessWidget {

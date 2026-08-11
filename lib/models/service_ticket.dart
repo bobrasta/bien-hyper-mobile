@@ -138,11 +138,7 @@ class ServiceTicket {
                 checked: c['checked'] as bool? ?? false,
               )).toList(),
       partsUsed:   (j['parts_used'] as List?)
-          ?.map((p) => PartUsed(
-                name:     p['name']     as String? ?? '—',
-                qty:      (p['qty']     as num? ?? 1).toInt(),
-                unitCost: (p['unit_cost'] as num? ?? p['cost'] as num? ?? 0).toInt(),
-              )).toList(),
+          ?.map((p) => PartUsed.fromJson(p as Map<String, dynamic>)).toList(),
       attachments: (j['attachments'] as List?)
           ?.map((a) => TicketAttachment.fromJson(a as Map<String, dynamic>))
           .toList(),
@@ -157,8 +153,30 @@ class ChecklistItem {
 }
 
 class PartUsed {
-  final String name;
-  final int qty;
-  final int unitCost;
-  const PartUsed({required this.name, required this.qty, required this.unitCost});
+  final int?    id;
+  final int?    inventoryItemId;
+  final String  name;
+  final int     qty;
+  final int     unitCost;
+
+  const PartUsed({
+    this.id,
+    this.inventoryItemId,
+    required this.name,
+    required this.qty,
+    required this.unitCost,
+  });
+
+  factory PartUsed.fromJson(Map<String, dynamic> j) {
+    // Backend nests the item as `inventory_item: {...}` — some older/adjacent
+    // payloads may send a flat `name`, so fall back to that too.
+    final item = j['inventory_item'] as Map<String, dynamic>?;
+    return PartUsed(
+      id:              j['id'] != null ? (j['id'] as num).toInt() : null,
+      inventoryItemId: item?['id'] != null ? (item!['id'] as num).toInt() : null,
+      name:            item?['name'] as String? ?? j['name'] as String? ?? '—',
+      qty:             (j['qty'] as num? ?? 1).toInt(),
+      unitCost:        (j['unit_cost'] as num? ?? j['cost'] as num? ?? 0).toInt(),
+    );
+  }
 }

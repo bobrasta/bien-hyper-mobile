@@ -28,9 +28,13 @@ class AppTheme {
         ? ThemeData.dark()
         : ThemeData.light();
 
-    final textTheme = GoogleFonts.interTextTheme(base.textTheme).copyWith(
-      bodyMedium: GoogleFonts.inter(color: p.text,     fontSize: 13),
-      bodySmall:  GoogleFonts.inter(color: p.textMute, fontSize: 11.5),
+    final textTheme = base.textTheme.apply(
+      fontFamily: 'TildaSans',
+      bodyColor: p.text,
+      displayColor: p.text,
+    ).copyWith(
+      bodyMedium: TextStyle(fontFamily: 'TildaSans', color: p.text,     fontSize: 13),
+      bodySmall:  TextStyle(fontFamily: 'TildaSans', color: p.textMute, fontSize: 11.5),
     );
 
     final onPrimary = p.isDark ? const Color(0xFF0A1119) : Colors.white;
@@ -104,26 +108,32 @@ class AppTheme {
   static TextStyle get monoXs => GoogleFonts.jetBrainsMono(
     fontSize: 10.5, color: AppColors.textDim, letterSpacing: 0.04,
   );
-  static TextStyle get labelCaps => GoogleFonts.inter(
+  static TextStyle get labelCaps => const TextStyle(
+    fontFamily: 'TildaSans',
     fontSize: 10.5, color: AppColors.textDim, fontWeight: FontWeight.w500,
     letterSpacing: 0.13, height: 1,
   );
-  static TextStyle get kpiValue => GoogleFonts.inter(
+  static TextStyle get kpiValue => const TextStyle(
+    fontFamily: 'TildaSans',
     fontSize: 30, fontWeight: FontWeight.w700,
     letterSpacing: -0.02, height: 1,
-    fontFeatures: [const FontFeature.tabularFigures()],
+    fontFeatures: [FontFeature.tabularFigures()],
   );
-  static TextStyle get pageTitle => GoogleFonts.inter(
+  static TextStyle get pageTitle => const TextStyle(
+    fontFamily: 'TildaSans',
     fontSize: 22, fontWeight: FontWeight.w600, letterSpacing: -0.01,
   );
-  static TextStyle get cardTitle => GoogleFonts.inter(
+  static TextStyle get cardTitle => const TextStyle(
+    fontFamily: 'TildaSans',
     fontSize: 14, fontWeight: FontWeight.w600, letterSpacing: -0.005,
   );
-  static TextStyle get bodyStrong => GoogleFonts.inter(
+  static TextStyle get bodyStrong => const TextStyle(
+    fontFamily: 'TildaSans',
     fontSize: 13, fontWeight: FontWeight.w500,
   );
-  static TextStyle get bodySm => GoogleFonts.inter(fontSize: 12.5);
-  static TextStyle get bodySub => GoogleFonts.inter(
+  static TextStyle get bodySm => const TextStyle(fontFamily: 'TildaSans', fontSize: 12.5);
+  static TextStyle get bodySub => const TextStyle(
+    fontFamily: 'TildaSans',
     fontSize: 11.5, color: AppColors.textMute,
   );
 }

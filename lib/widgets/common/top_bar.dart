@@ -296,23 +296,39 @@ class _NotificationPanel extends StatelessWidget {
   final VoidCallback? onViewAll;
 
   IconData _icon(NotificationType t) => switch (t) {
-    NotificationType.serviceDue       => Symbols.build,
-    NotificationType.ticketAssigned   => Symbols.confirmation_number,
-    NotificationType.ticketUpdated    => Symbols.update,
-    NotificationType.paymentOverdue   => Symbols.warning,
-    NotificationType.warrantyExpiring => Symbols.workspace_premium,
-    NotificationType.dealUpdated      => Symbols.trending_up,
-    NotificationType.system           => Symbols.info,
+    NotificationType.serviceDue        => Symbols.build,
+    NotificationType.ticketAssigned    => Symbols.confirmation_number,
+    NotificationType.ticketUpdated     => Symbols.update,
+    NotificationType.paymentOverdue    => Symbols.warning,
+    NotificationType.warrantyExpiring  => Symbols.workspace_premium,
+    NotificationType.dealUpdated       => Symbols.trending_up,
+    NotificationType.leadFollowUp      => Symbols.hourglass_top,
+    NotificationType.taskAssigned      => Symbols.assignment_ind,
+    NotificationType.taskCompleted     => Symbols.task_alt,
+    NotificationType.stockPullRequired => Symbols.inventory_2,
+    NotificationType.leaveRequested    => Symbols.event_busy,
+    NotificationType.leaveApproved     => Symbols.event_available,
+    NotificationType.leaveRejected     => Symbols.event_busy,
+    NotificationType.lateArrival       => Symbols.schedule,
+    NotificationType.system            => Symbols.info,
   };
 
   Color _color(NotificationType t) => switch (t) {
-    NotificationType.serviceDue       => AppColors.amber,
-    NotificationType.ticketAssigned   => AppColors.teal,
-    NotificationType.ticketUpdated    => AppColors.blue,
-    NotificationType.paymentOverdue   => AppColors.coral,
-    NotificationType.warrantyExpiring => AppColors.amber,
-    NotificationType.dealUpdated      => AppColors.violet,
-    NotificationType.system           => AppColors.textMute,
+    NotificationType.serviceDue        => AppColors.amber,
+    NotificationType.ticketAssigned    => AppColors.teal,
+    NotificationType.ticketUpdated     => AppColors.blue,
+    NotificationType.paymentOverdue    => AppColors.coral,
+    NotificationType.warrantyExpiring  => AppColors.amber,
+    NotificationType.dealUpdated       => AppColors.violet,
+    NotificationType.leadFollowUp      => AppColors.amber,
+    NotificationType.taskAssigned      => AppColors.blue,
+    NotificationType.taskCompleted     => AppColors.teal,
+    NotificationType.stockPullRequired => AppColors.violet,
+    NotificationType.leaveRequested    => AppColors.amber,
+    NotificationType.leaveApproved     => AppColors.teal,
+    NotificationType.leaveRejected     => AppColors.coral,
+    NotificationType.lateArrival       => AppColors.amber,
+    NotificationType.system            => AppColors.textMute,
   };
 
   @override

@@ -3,6 +3,7 @@ class SerialNumber {
   final int     inventoryItemId;
   final String  serialNumber;
   final String  status;        // available|assigned|in_service|damaged|disposed
+  final bool    hasMissingParts;
   final int?    locationId;
   final String? locationName;
   final int?    assignedToMachineId;
@@ -17,6 +18,7 @@ class SerialNumber {
     required this.inventoryItemId,
     required this.serialNumber,
     required this.status,
+    this.hasMissingParts = false,
     this.locationId,
     this.locationName,
     this.assignedToMachineId,
@@ -32,6 +34,7 @@ class SerialNumber {
     inventoryItemId:  (j['inventory_item_id'] as num).toInt(),
     serialNumber:     j['serial_number']       as String? ?? '—',
     status:           j['status']              as String? ?? 'available',
+    hasMissingParts:  j['has_missing_parts']   as bool? ?? false,
     locationId:       j['location_id'] != null ? (j['location_id'] as num).toInt() : null,
     locationName:     j['location_name']           as String?,
     assignedToMachineId: j['assigned_to_machine_id'] != null

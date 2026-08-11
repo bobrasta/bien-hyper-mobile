@@ -195,7 +195,7 @@ class _PORow extends StatelessWidget {
             style: AppTheme.monoXs.copyWith(color: AppColors.teal, fontSize: 12))),
         Expanded(flex: 3, child: Text(po.supplierName ?? '—',
             style: AppTheme.bodyStrong.copyWith(fontSize: 13), overflow: TextOverflow.ellipsis)),
-        Expanded(flex: 2, child: Container(
+        Expanded(flex: 2, child: Align(alignment: Alignment.centerLeft, child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
           decoration: BoxDecoration(
             color: statusColor.withValues(alpha: 0.12),
@@ -203,7 +203,7 @@ class _PORow extends StatelessWidget {
           ),
           child: Text(po.statusLabel, style: AppTheme.monoXs.copyWith(
               color: statusColor, fontSize: 11), overflow: TextOverflow.ellipsis),
-        )),
+        ))),
         Expanded(flex: 2, child: Text('${po.currency} ${po.totalAmount.toStringAsFixed(0)}',
             style: AppTheme.bodyStrong.copyWith(fontSize: 12.5))),
         Expanded(flex: 2, child: Text(formatDate(po.createdAt),

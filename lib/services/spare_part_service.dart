@@ -17,6 +17,10 @@ class SparePartService {
       if (lowStock == true) 'low_stock': 'true',
       'supplier':  ?supplier,
       'search':    ?search,
+      // Same reasoning as InventoryService.list() — callers (POS catalog/scan,
+      // Add Part dialog) need the whole catalog, not the backend's default
+      // 20-per-page page.
+      'per_page': 1000,
     });
     final (data, _) = ApiClient.unwrapList(res);
     return data.map((j) => SparePart.fromJson(j as Map<String, dynamic>)).toList();

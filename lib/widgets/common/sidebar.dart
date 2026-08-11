@@ -27,22 +27,39 @@ const _operations = [
   // 'inventory' key triggers the expandable group — rendered separately below
   NavDestination(icon: Symbols.inventory_2,             label: 'Inventory',  key: 'inventory'),
   NavDestination(icon: Symbols.badge,                   label: 'Staff',      key: 'staff'),
+  NavDestination(icon: Symbols.event,                   label: 'My Leave',   key: 'my_leave'),
 ];
 const _business = [
   NavDestination(icon: Symbols.payments,                label: 'Revenue',    key: 'revenue'),
   // 'sales' key triggers the expandable group — rendered separately below
   NavDestination(icon: Symbols.trending_up,             label: 'Sales',      key: 'sales'),
+  // 'finance' key triggers the expandable group — rendered separately below
+  NavDestination(icon: Symbols.account_balance,         label: 'Finance',    key: 'finance'),
   NavDestination(icon: Symbols.groups,                  label: 'Customers',  key: 'customers'),
   NavDestination(icon: Symbols.mail,                    label: 'Email',      key: 'email'),
+  NavDestination(icon: Symbols.how_to_reg,              label: 'HR',         key: 'hr_approvals'),
 ];
 
 // Sub-items shown when Sales group is expanded
 const _salesChildren = [
+  (key: 'sales_dashboard',   icon: Symbols.bar_chart,     label: 'Dashboard'),
   (key: 'sales_leads',       icon: Symbols.trending_up,   label: 'Leads'),
+  (key: 'sales_pos',         icon: Symbols.point_of_sale, label: 'Point of Sale'),
   (key: 'sales_quotations',  icon: Symbols.request_quote, label: 'Quotations'),
   (key: 'sales_orders',      icon: Symbols.shopping_cart, label: 'Sales Orders'),
   (key: 'sales_invoices',    icon: Symbols.receipt_long,  label: 'Invoices'),
+  (key: 'sales_history',     icon: Symbols.history,       label: 'History'),
 ];
+// Sub-items shown when Finance group is expanded
+const _financeChildren = [
+  (key: 'finance_dashboard', icon: Symbols.bar_chart,             label: 'Dashboard'),
+  (key: 'finance_expenses',  icon: Symbols.receipt_long,          label: 'Expenses'),
+  (key: 'finance_bills',     icon: Symbols.account_balance_wallet, label: 'Vendor Bills'),
+  (key: 'finance_ledger',    icon: Symbols.book,                  label: 'Chart of Accounts'),
+  (key: 'finance_reports',   icon: Symbols.assessment,            label: 'Reports'),
+  (key: 'finance_bank_rec',  icon: Symbols.sync_alt,              label: 'Bank Reconciliation'),
+];
+
 const _system = [
   NavDestination(icon: Symbols.assessment,              label: 'Reports',    key: 'reports'),
   NavDestination(icon: Symbols.settings,                label: 'Settings',   key: 'settings'),
@@ -56,6 +73,7 @@ const _inventoryChildren = [
   (key: 'inventory_requisitions', icon: Symbols.assignment,          label: 'Requisitions'),
   (key: 'inventory_orders',       icon: Symbols.receipt_long,        label: 'Purchase Orders'),
   (key: 'inventory_locations',    icon: Symbols.warehouse,           label: 'Locations'),
+  (key: 'inventory_flagged',      icon: Symbols.warning,             label: 'Flagged Units'),
 ];
 
 class Sidebar extends StatelessWidget {
@@ -81,6 +99,7 @@ class Sidebar extends StatelessWidget {
           if (allowed == null) return true;
           if (key.startsWith('inventory_')) return allowed.contains('inventory');
           if (key.startsWith('sales_'))     return allowed.contains('sales');
+          if (key.startsWith('finance_'))   return allowed.contains('finance');
           return allowed.contains(key);
         }
 
@@ -116,12 +135,11 @@ class Sidebar extends StatelessWidget {
                       ],
                       if (biz.isNotEmpty) ...[
                         _SectionLabel('Business'),
-                        ...biz.map((d) => d.key == 'sales'
-                          ? _SalesGroup(
-                              activeKey: activeKey,
-                              onSelect: onSelect,
-                            )
-                          : _NavItem(d, active: d.key == activeKey, onTap: () => onSelect(d.key))),
+                        ...biz.map((d) => switch (d.key) {
+                          'sales'   => _SalesGroup(activeKey: activeKey, onSelect: onSelect),
+                          'finance' => _FinanceGroup(activeKey: activeKey, onSelect: onSelect),
+                          _         => _NavItem(d, active: d.key == activeKey, onTap: () => onSelect(d.key)),
+                        }),
                       ],
                       if (sys.isNotEmpty) ...[
                         _SectionLabel('System'),
@@ -338,6 +356,109 @@ class _SalesGroupState extends State<_SalesGroup> {
           child: _open
             ? Column(
                 children: _salesChildren.map((c) => _SubNavItem(
+                  icon:   c.icon,
+                  label:  c.label,
+                  active: widget.activeKey == c.key,
+                  onTap:  () => widget.onSelect(c.key),
+                )).toList(),
+              )
+            : const SizedBox.shrink(),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Expandable Finance group ────────────────────────────────────────────────────
+
+class _FinanceGroup extends StatefulWidget {
+  const _FinanceGroup({required this.activeKey, required this.onSelect});
+  final String activeKey;
+  final ValueChanged<String> onSelect;
+
+  @override
+  State<_FinanceGroup> createState() => _FinanceGroupState();
+}
+
+class _FinanceGroupState extends State<_FinanceGroup> {
+  late bool _open;
+
+  @override
+  void initState() {
+    super.initState();
+    _open = widget.activeKey.startsWith('finance_') || widget.activeKey == 'finance';
+  }
+
+  @override
+  void didUpdateWidget(_FinanceGroup old) {
+    super.didUpdateWidget(old);
+    if (widget.activeKey.startsWith('finance_')) _open = true;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        GestureDetector(
+          onTap: () {
+            if (_open) {
+              setState(() => _open = false);
+            } else {
+              setState(() => _open = true);
+              widget.onSelect('finance_dashboard');
+            }
+          },
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 1),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              color: _open ? context.pal.surface2 : Colors.transparent,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Stack(children: [
+              if (_open)
+                Positioned(
+                  left: -22, top: 4, bottom: 4,
+                  child: Container(
+                    width: 3,
+                    decoration: BoxDecoration(
+                      color: AppColors.teal,
+                      borderRadius: const BorderRadius.horizontal(right: Radius.circular(2)),
+                      boxShadow: [BoxShadow(color: AppColors.tealGlow, blurRadius: 8)],
+                    ),
+                  ),
+                ),
+              Row(children: [
+                Icon(Symbols.account_balance,
+                  size: 19,
+                  color: _open ? context.pal.text : context.pal.textMute,
+                ),
+                const SizedBox(width: 11),
+                Expanded(
+                  child: Text('Finance',
+                    style: AppTheme.bodySm.copyWith(
+                      color: _open ? context.pal.text : context.pal.textMute,
+                      fontWeight: FontWeight.w500,
+                      fontSize: 13.5,
+                    )),
+                ),
+                AnimatedRotation(
+                  turns: _open ? 0.25 : 0,
+                  duration: const Duration(milliseconds: 160),
+                  child: Icon(Symbols.chevron_right,
+                      size: 16, color: context.pal.textDim),
+                ),
+              ]),
+            ]),
+          ),
+        ),
+        AnimatedSize(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeInOut,
+          child: _open
+            ? Column(
+                children: _financeChildren.map((c) => _SubNavItem(
                   icon:   c.icon,
                   label:  c.label,
                   active: widget.activeKey == c.key,

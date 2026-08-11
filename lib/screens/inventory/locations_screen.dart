@@ -287,7 +287,7 @@ class _LocationRow extends StatelessWidget {
           if (loc.code != null)
             Text(loc.code!, style: AppTheme.monoXs.copyWith(color: context.pal.textMute, fontSize: 10.5)),
         ])),
-        Expanded(flex: 1, child: Container(
+        Expanded(flex: 1, child: Align(alignment: Alignment.centerLeft, child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
           decoration: BoxDecoration(
             color: typeColor.withValues(alpha: 0.12),
@@ -296,12 +296,12 @@ class _LocationRow extends StatelessWidget {
           child: Text(loc.typeLabel,
               style: AppTheme.monoXs.copyWith(color: typeColor, fontSize: 10),
               overflow: TextOverflow.ellipsis),
-        )),
+        ))),
         Expanded(flex: 2, child: Text(
             loc.address ?? '—',
             style: AppTheme.bodySub.copyWith(fontSize: 12),
             overflow: TextOverflow.ellipsis)),
-        Expanded(flex: 1, child: Container(
+        Expanded(flex: 1, child: Align(alignment: Alignment.centerLeft, child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
           decoration: BoxDecoration(
             color: (loc.isActive ? AppColors.green : AppColors.textDim)
@@ -312,7 +312,7 @@ class _LocationRow extends StatelessWidget {
               style: AppTheme.monoXs.copyWith(
                   color: loc.isActive ? AppColors.green : context.pal.textDim,
                   fontSize: 10.5)),
-        )),
+        ))),
         SizedBox(width: 64, child: Row(children: [
           const SizedBox(width: 4),
           GestureDetector(onTap: onEdit,

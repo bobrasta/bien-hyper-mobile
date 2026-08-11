@@ -43,6 +43,10 @@ class Quotation {
     required this.clientContact,
     required this.clientEmail,
     required this.status,
+    required this.approvalStatus,
+    required this.approvalReason,
+    required this.approvedByName,
+    required this.rejectionReason,
     required this.validUntil,
     required this.currency,
     required this.subtotal,
@@ -65,6 +69,10 @@ class Quotation {
   final String? clientContact;
   final String? clientEmail;
   final String status;
+  final String approvalStatus;
+  final String? approvalReason;
+  final String? approvedByName;
+  final String? rejectionReason;
   final String? validUntil;
   final String currency;
   final int subtotal;
@@ -88,6 +96,8 @@ class Quotation {
     'converted': 'Converted',
   }[status] ?? status;
 
+  bool get needsApproval => approvalStatus == 'pending';
+
   factory Quotation.fromJson(Map<String, dynamic> j) => Quotation(
     id:              j['id'] as int,
     quotationNumber: j['quotation_number'] as String,
@@ -96,6 +106,10 @@ class Quotation {
     clientContact:   j['client_contact'] as String?,
     clientEmail:     j['client_email'] as String?,
     status:          j['status'] as String,
+    approvalStatus:  j['approval_status'] as String? ?? 'not_required',
+    approvalReason:  j['approval_reason'] as String?,
+    approvedByName:  j['approved_by_name'] as String?,
+    rejectionReason: j['rejection_reason'] as String?,
     validUntil:      j['valid_until'] as String?,
     currency:        j['currency'] as String? ?? 'TZS',
     subtotal:        j['subtotal'] as int? ?? 0,

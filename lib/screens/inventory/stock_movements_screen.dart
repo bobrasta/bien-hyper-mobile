@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import '../../models/inventory_item.dart';
+import '../../models/location.dart';
 import '../../models/stock_movement.dart';
 import '../../services/inventory_service.dart';
+import '../../services/location_service.dart';
 import '../../services/stock_movement_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_palette.dart';
@@ -104,9 +106,9 @@ class _StockMovementsScreenState extends State<StockMovementsScreen> {
           decoration: BoxDecoration(border: Border(bottom: BorderSide(color: context.pal.border))),
           child: Row(children: [
             _Th('Date/Time', flex: 2), _Th('Item', flex: 3),
-            _Th('Type', flex: 1), _Th('Qty Change', flex: 1),
-            _Th('Before → After', flex: 2), _Th('Notes / Reference', flex: 3),
-            _Th('By', flex: 2),
+            _Th('Type', flex: 1), _Th('Location', flex: 2), _Th('Qty Change', flex: 1),
+            _Th('Before → After', flex: 2), _Th('Notes / Reference', flex: 2),
+            _Th('By', flex: 1),
           ]),
         ),
         Expanded(child: RefreshIndicator(
@@ -179,6 +181,9 @@ class _MovementRow extends StatelessWidget {
               style: AppTheme.monoXs.copyWith(color: typeColor, fontSize: 10.5),
               overflow: TextOverflow.ellipsis)),
         ])),
+        // Location (from → to for transfers)
+        Expanded(flex: 2, child: Text(movement.locationLabel,
+            style: AppTheme.bodySub.copyWith(fontSize: 12), overflow: TextOverflow.ellipsis)),
         // Qty change
         Expanded(flex: 1, child: Text('$sign${movement.quantity}',
             style: AppTheme.bodyStrong.copyWith(
@@ -190,10 +195,10 @@ class _MovementRow extends StatelessWidget {
           Text('${movement.quantityAfter}', style: AppTheme.monoXs.copyWith(color: context.pal.text)),
         ])),
         // Notes / reference
-        Expanded(flex: 3, child: Text(movement.notes ?? movement.referenceType ?? '—',
+        Expanded(flex: 2, child: Text(movement.notes ?? movement.referenceType ?? '—',
             style: AppTheme.bodySub.copyWith(fontSize: 12), overflow: TextOverflow.ellipsis)),
         // Performed by
-        Expanded(flex: 2, child: Text(movement.performedByName ?? '—',
+        Expanded(flex: 1, child: Text(movement.performedByName ?? '—',
             style: AppTheme.bodySub.copyWith(fontSize: 12), overflow: TextOverflow.ellipsis)),
       ]),
     );
@@ -214,20 +219,30 @@ class _RecordMovementModal extends StatefulWidget {
 class _RecordMovementModalState extends State<_RecordMovementModal> {
   List<InventoryItem> _items = [];
   int?    _selectedItemId;
+  List<Location> _locations = [];
+  int?    _locationId;
+  int?    _toLocationId;
   String  _type = 'receive';
   final _qtyCtrl   = TextEditingController(text: '1');
   final _notesCtrl = TextEditingController();
   bool   _saving = false;
   String? _error;
 
-  static const _types      = ['receive', 'issue', 'write_off', 'adjustment', 'return'];
-  static const _typeLabels = ['Receive', 'Issue / Use', 'Write-off', 'Adjustment', 'Return'];
+  static const _types      = ['receive', 'issue', 'transfer', 'write_off', 'adjustment', 'return'];
+  static const _typeLabels = ['Receive', 'Issue / Use', 'Transfer', 'Write-off', 'Adjustment', 'Return'];
+  bool get _isTransfer => _type == 'transfer';
 
   @override
   void initState() {
     super.initState();
     InventoryService.instance.list().then((list) {
       if (mounted) setState(() => _items = list);
+    });
+    LocationService.instance.list().then((locs) {
+      if (mounted) {setState(() {
+        _locations = locs;
+        _locationId ??= locs.isNotEmpty ? locs.first.id : null;
+      });}
     });
   }
 
@@ -237,11 +252,16 @@ class _RecordMovementModalState extends State<_RecordMovementModal> {
   Future<void> _submit() async {
     final qty = int.tryParse(_qtyCtrl.text.trim()) ?? 0;
     if (_selectedItemId == null) { setState(() => _error = 'Select an inventory item.'); return; }
+    if (_locationId == null) { setState(() => _error = 'Select a location.'); return; }
     if (qty == 0) { setState(() => _error = 'Enter a non-zero quantity.'); return; }
+    if (_isTransfer && _toLocationId == null) { setState(() => _error = 'Select a destination location.'); return; }
+    if (_isTransfer && _toLocationId == _locationId) { setState(() => _error = 'Source and destination must differ.'); return; }
     setState(() { _saving = true; _error = null; });
     try {
       await StockMovementService.instance.record(
         inventoryItemId: _selectedItemId!,
+        locationId: _locationId!,
+        toLocationId: _isTransfer ? _toLocationId : null,
         type:    _type,
         quantity: qty,
         notes:   _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
@@ -302,6 +322,48 @@ class _RecordMovementModalState extends State<_RecordMovementModal> {
                     onChanged: (v) => setState(() => _selectedItemId = v),
                   )),
                 ),
+                const SizedBox(height: 12),
+                // Location picker
+                Text(_isTransfer ? 'FROM LOCATION' : 'LOCATION', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+                const SizedBox(height: 6),
+                Container(height: 38,
+                  decoration: BoxDecoration(color: context.pal.surface2,
+                      borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: DropdownButtonHideUnderline(child: DropdownButton<int?>(
+                    value: _locationId, isExpanded: true,
+                    dropdownColor: context.pal.surface2, style: AppTheme.bodySm,
+                    hint: Text('Select location…', style: AppTheme.bodySm.copyWith(color: context.pal.textDim)),
+                    icon: Icon(Symbols.expand_more, size: 16, color: context.pal.textDim),
+                    items: _locations.map((l) => DropdownMenuItem(
+                      value: l.id, child: Text(l.name, overflow: TextOverflow.ellipsis),
+                    )).toList(),
+                    onChanged: (v) => setState(() {
+                      _locationId = v;
+                      if (_toLocationId == v) _toLocationId = null;
+                    }),
+                  )),
+                ),
+                if (_isTransfer) ...[
+                  const SizedBox(height: 12),
+                  Text('TO LOCATION', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+                  const SizedBox(height: 6),
+                  Container(height: 38,
+                    decoration: BoxDecoration(color: context.pal.surface2,
+                        borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: DropdownButtonHideUnderline(child: DropdownButton<int?>(
+                      value: _toLocationId, isExpanded: true,
+                      dropdownColor: context.pal.surface2, style: AppTheme.bodySm,
+                      hint: Text('Select destination…', style: AppTheme.bodySm.copyWith(color: context.pal.textDim)),
+                      icon: Icon(Symbols.expand_more, size: 16, color: context.pal.textDim),
+                      items: _locations.where((l) => l.id != _locationId).map((l) => DropdownMenuItem(
+                        value: l.id, child: Text(l.name, overflow: TextOverflow.ellipsis),
+                      )).toList(),
+                      onChanged: (v) => setState(() => _toLocationId = v),
+                    )),
+                  ),
+                ],
                 const SizedBox(height: 12),
                 // Type + qty row
                 Row(children: [

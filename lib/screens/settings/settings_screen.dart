@@ -241,7 +241,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: AppColors.tealSoft, borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: const Color(0x4000D4AA)),
+                  border: Border.all(color: AppColors.teal.withValues(alpha: 0.25)),
                 ),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text('Enterprise Plan', style: AppTheme.bodyStrong.copyWith(
@@ -876,8 +876,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF0D3B2E), Color(0xFF0A2A1F)],
+        gradient: LinearGradient(
+          colors: [AppColors.teal.withValues(alpha: 0.16), AppColors.teal.withValues(alpha: 0.04)],
           begin: Alignment.topLeft, end: Alignment.bottomRight),
         borderRadius: BorderRadius.circular(AppColors.rLg),
         border: Border.all(color: AppColors.teal.withValues(alpha: 0.3)),

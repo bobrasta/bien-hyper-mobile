@@ -5,10 +5,12 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../models/hospital.dart';
 import '../../utils/csv_export.dart';
 import '../../models/machine.dart';
+import '../../models/serial_number.dart';
 import '../../models/service_ticket.dart';
 import '../../models/spare_part.dart';
 import '../../services/hospital_service.dart';
 import '../../services/machine_service.dart';
+import '../../services/serial_number_service.dart';
 import '../../services/spare_part_service.dart';
 import '../../services/staff_service.dart';
 import '../../services/ticket_service.dart';
@@ -20,6 +22,7 @@ import '../../utils/responsive.dart';
 import '../../widgets/common/app_button.dart';
 import '../../widgets/common/avatar_widget.dart';
 import '../../widgets/common/error_view.dart';
+import '../../widgets/common/scan_or_type_field.dart';
 import '../../widgets/common/shimmer_box.dart';
 import '../../widgets/common/status_badge.dart';
 
@@ -205,19 +208,22 @@ class _ServiceTicketScreenState extends State<ServiceTicketScreen> {
     showDialog<void>(
       context: context,
       builder: (_) => _AddPartDialog(
-        onSave: (name, qty, cost) async {
-          final updated = [
-            ..._parts,
-            {'name': name, 'qty': qty, 'cost': cost},
-          ];
+        onSave: (inventoryItemId, qty, cost, sourceSerialNumberId) async {
           try {
-            await TicketService.instance.update(ticket.dbId, {
-              'parts_used': updated.map((p) => {
-                'name': p['name'], 'qty': p['qty'], 'unit_cost': p['cost'],
-              }).toList(),
-            });
-            if (mounted) setState(() => _parts = updated);
-          } catch (_) {}
+            final updatedTicket = await TicketService.instance.addPart(
+              ticket.dbId,
+              inventoryItemId: inventoryItemId,
+              qty: qty,
+              unitCost: cost,
+              sourceSerialNumberId: sourceSerialNumberId,
+            );
+            if (mounted) {
+              setState(() => _parts = (updatedTicket.partsUsed ?? [])
+                  .map((p) => {'name': p.name, 'qty': p.qty, 'cost': p.unitCost}).toList());
+            }
+          } catch (e) {
+            if (mounted) showErrorToast(this.context, e);
+          }
         },
       ),
     );
@@ -1618,26 +1624,29 @@ class _ResolveDialogState extends State<_ResolveDialog> {
 
 // ── Add Part Dialog ─────────────────────────────────────────────────────────────
 
-// Sentinel id used to represent a "custom" (not from inventory) part entry.
-const _kCustomPartId = -1;
-
 class _AddPartDialog extends StatefulWidget {
   const _AddPartDialog({required this.onSave});
-  final Future<void> Function(String name, int qty, int cost) onSave;
+  final Future<void> Function(int inventoryItemId, int qty, int cost, int? sourceSerialNumberId) onSave;
   @override
   State<_AddPartDialog> createState() => _AddPartDialogState();
 }
 
 class _AddPartDialogState extends State<_AddPartDialog> {
-  final _qtyCtrl        = TextEditingController(text: '1');
-  final _costCtrl       = TextEditingController();
-  final _customNameCtrl = TextEditingController();
+  final _qtyCtrl    = TextEditingController(text: '1');
+  final _costCtrl   = TextEditingController();
+  final _serialCtrl = TextEditingController();
   bool     _saving      = false;
   String?  _error;
 
   List<SparePart> _parts        = [];
-  int?            _selectedId;   // null = nothing chosen yet; _kCustomPartId = custom
+  int?            _selectedId;
   bool            _loadingParts = true;
+
+  // Cannibalization source
+  bool                  _cannibalized     = false;
+  List<SerialNumber>    _availableSerials = [];
+  int?                  _selectedSerialId;
+  bool                  _loadingSerials   = false;
 
   @override
   void initState() {
@@ -1652,49 +1661,74 @@ class _AddPartDialogState extends State<_AddPartDialog> {
 
   @override
   void dispose() {
-    _qtyCtrl.dispose(); _costCtrl.dispose(); _customNameCtrl.dispose();
+    _qtyCtrl.dispose(); _costCtrl.dispose(); _serialCtrl.dispose();
     super.dispose();
   }
 
   void _onPartSelected(int? id) {
     setState(() {
       _selectedId = id;
-      if (id != null && id != _kCustomPartId) {
+      _selectedSerialId = null;
+      _availableSerials = [];
+      if (id != null) {
         final p = _parts.firstWhere((p) => p.id == id);
         _costCtrl.text = p.unitCost.toInt().toString();
-      } else if (id == _kCustomPartId) {
-        _costCtrl.clear();
+        if (_cannibalized) _loadSerials(id);
       }
     });
   }
 
+  void _toggleCannibalized(bool value) {
+    setState(() {
+      _cannibalized = value;
+      _selectedSerialId = null;
+      _serialCtrl.clear();
+      if (value && _selectedId != null) _loadSerials(_selectedId!);
+    });
+  }
+
+  Future<void> _loadSerials(int inventoryItemId) async {
+    setState(() => _loadingSerials = true);
+    try {
+      final list = await SerialNumberService.instance.listForItem(inventoryItemId, status: 'available');
+      if (mounted) setState(() { _availableSerials = list; _loadingSerials = false; });
+    } catch (_) {
+      if (mounted) setState(() => _loadingSerials = false);
+    }
+  }
+
+  void _onScannedSerial(String code) {
+    final match = _availableSerials.where((s) => s.serialNumber.trim().toLowerCase() == code.trim().toLowerCase()).firstOrNull;
+    if (match != null) {
+      setState(() => _selectedSerialId = match.id);
+    } else {
+      setState(() => _error = 'No available unit matches "$code" for this item.');
+    }
+  }
+
   Future<void> _submit() async {
-    final isCustom = _selectedId == _kCustomPartId;
-    final name = isCustom
-        ? _customNameCtrl.text.trim()
-        : (_selectedId != null
-            ? _parts.firstWhere((p) => p.id == _selectedId).name
-            : '');
     final qty  = int.tryParse(_qtyCtrl.text.trim()) ?? 0;
     final cost = int.tryParse(_costCtrl.text.trim().replaceAll(',', '')) ?? 0;
-    if (name.isEmpty) {
-      setState(() => _error = 'Select a part or enter a custom part name.');
+    if (_selectedId == null) {
+      setState(() => _error = 'Select a part from inventory.');
       return;
     }
     if (qty <= 0) {
       setState(() => _error = 'Quantity must be at least 1.');
       return;
     }
+    if (_cannibalized && _selectedSerialId == null) {
+      setState(() => _error = 'Select which stocked unit this part was taken from.');
+      return;
+    }
     setState(() { _saving = true; _error = null; });
-    await widget.onSave(name, qty, cost);
+    await widget.onSave(_selectedId!, qty, cost, _cannibalized ? _selectedSerialId : null);
     if (mounted) Navigator.of(context).pop();
   }
 
   @override
   Widget build(BuildContext context) {
-    final selectedPart = (_selectedId != null && _selectedId != _kCustomPartId)
-        ? _parts.where((p) => p.id == _selectedId).firstOrNull
-        : null;
+    final selectedPart = _selectedId != null ? _parts.where((p) => p.id == _selectedId).firstOrNull : null;
 
     return AlertDialog(
       backgroundColor: context.pal.surface1,
@@ -1708,8 +1742,8 @@ class _AddPartDialogState extends State<_AddPartDialog> {
         Text('Add Part Used', style: AppTheme.bodyStrong),
       ]),
       content: SizedBox(
-        width: 420,
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
+        width: 440,
+        child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
           // Part selector
           Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text('SPARE PART', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
@@ -1735,37 +1769,26 @@ class _AddPartDialogState extends State<_AddPartDialog> {
                     dropdownColor: context.pal.surface2,
                     style: AppTheme.bodySm,
                     icon: Icon(Symbols.expand_more, size: 16, color: context.pal.textDim),
-                    items: [
-                      ..._parts.map((p) => DropdownMenuItem<int?>(
-                        value: p.id,
-                        child: Row(children: [
-                          Expanded(child: Text(p.name, overflow: TextOverflow.ellipsis)),
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                            decoration: BoxDecoration(
-                              color: p.isLowStock
-                                  ? AppColors.amber.withValues(alpha: 0.15)
-                                  : AppColors.tealSoft,
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text('${p.stockQty} in stock',
-                              style: AppTheme.monoXs.copyWith(
-                                fontSize: 9.5,
-                                color: p.isLowStock ? AppColors.amber : AppColors.teal)),
+                    items: _parts.map((p) => DropdownMenuItem<int?>(
+                      value: p.id,
+                      child: Row(children: [
+                        Expanded(child: Text(p.name, overflow: TextOverflow.ellipsis)),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: p.isLowStock
+                                ? AppColors.amber.withValues(alpha: 0.15)
+                                : AppColors.tealSoft,
+                            borderRadius: BorderRadius.circular(4),
                           ),
-                        ]),
-                      )),
-                      DropdownMenuItem<int?>(
-                        value: _kCustomPartId,
-                        child: Row(children: [
-                          Icon(Symbols.add, size: 13, color: context.pal.textDim),
-                          const SizedBox(width: 6),
-                          Text('Custom / not in inventory',
-                              style: AppTheme.bodySm.copyWith(color: context.pal.textMute)),
-                        ]),
-                      ),
-                    ],
+                          child: Text('${p.stockQty} in stock',
+                            style: AppTheme.monoXs.copyWith(
+                              fontSize: 9.5,
+                              color: p.isLowStock ? AppColors.amber : AppColors.teal)),
+                        ),
+                      ]),
+                    )).toList(),
                     onChanged: _onPartSelected,
                   )),
                 ),
@@ -1792,23 +1815,71 @@ class _AddPartDialogState extends State<_AddPartDialog> {
             ),
           ],
 
-          // Custom name field (only when Custom is selected)
-          if (_selectedId == _kCustomPartId) ...[
-            const SizedBox(height: 12),
-            _ticketField('Part Name', _customNameCtrl, 'e.g. Flow Sensor', context),
-          ],
-
           const SizedBox(height: 12),
           Row(children: [
             Expanded(child: _ticketField('Quantity', _qtyCtrl, '1', context, numeric: true)),
             const SizedBox(width: 12),
             Expanded(child: _ticketField('Unit Cost (TSh)', _costCtrl, '0', context, numeric: true)),
           ]),
+
+          const SizedBox(height: 14),
+          // Source toggle: from generic stock vs cannibalized from a specific unit
+          GestureDetector(
+            onTap: () => _toggleCannibalized(!_cannibalized),
+            child: Row(children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                width: 20, height: 20,
+                decoration: BoxDecoration(
+                  color: _cannibalized ? AppColors.amber : Colors.transparent,
+                  borderRadius: BorderRadius.circular(5),
+                  border: Border.all(color: _cannibalized ? AppColors.amber : context.pal.borderStrong),
+                ),
+                child: _cannibalized ? const Icon(Symbols.check, size: 14, color: Color(0xFF06120F)) : null,
+              ),
+              const SizedBox(width: 10),
+              Expanded(child: Text('Cannibalized from a stocked unit (not general stock)',
+                  style: AppTheme.bodySm.copyWith(fontSize: 12.5))),
+            ]),
+          ),
+
+          if (_cannibalized) ...[
+            const SizedBox(height: 10),
+            if (_selectedId == null)
+              Text('Select a part above first.', style: AppTheme.bodySub.copyWith(color: AppColors.amber, fontSize: 12))
+            else ...[
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('SOURCE UNIT SERIAL', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+                const SizedBox(height: 6),
+                ScanOrTypeField(controller: _serialCtrl, hint: 'Scan or type serial number…', onScanned: _onScannedSerial),
+              ]),
+              const SizedBox(height: 8),
+              _loadingSerials
+                ? const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Center(child: SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))))
+                : _availableSerials.isEmpty
+                  ? Text('No available tracked units for this item — cannibalization needs a real serial-tracked unit in stock.',
+                      style: AppTheme.bodySub.copyWith(color: AppColors.coral, fontSize: 11.5))
+                  : Wrap(spacing: 8, runSpacing: 8, children: _availableSerials.map((s) => GestureDetector(
+                      onTap: () => setState(() { _selectedSerialId = s.id; _serialCtrl.text = s.serialNumber; }),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: _selectedSerialId == s.id ? AppColors.amberSoft : context.pal.surface2,
+                          borderRadius: BorderRadius.circular(7),
+                          border: Border.all(color: _selectedSerialId == s.id ? AppColors.amber : context.pal.border),
+                        ),
+                        child: Text(s.serialNumber, style: AppTheme.monoXs.copyWith(
+                            color: _selectedSerialId == s.id ? AppColors.amber : context.pal.textMute)),
+                      ),
+                    )).toList()),
+            ],
+          ],
+
           if (_error != null) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             Text(_error!, style: const TextStyle(color: AppColors.coral, fontSize: 12.5)),
           ],
-        ]),
+        ])),
       ),
       actions: [
         TextButton(

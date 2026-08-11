@@ -1093,6 +1093,8 @@ class _EditHospitalDialogState extends State<_EditHospitalDialog> {
       text: widget.hospital.latitude  != 0.0 ? widget.hospital.latitude.toString()  : '');
   late final _lngCtrl      = TextEditingController(
       text: widget.hospital.longitude != 0.0 ? widget.hospital.longitude.toString() : '');
+  late final _creditLimitCtrl = TextEditingController(
+      text: widget.hospital.creditLimit?.toString() ?? '');
   late String _type        = widget.hospital.type;
   late String _region      = widget.hospital.region;
   bool        _saving      = false;
@@ -1105,7 +1107,7 @@ class _EditHospitalDialogState extends State<_EditHospitalDialog> {
   void dispose() {
     _nameCtrl.dispose(); _codeCtrl.dispose(); _districtCtrl.dispose();
     _contactCtrl.dispose(); _phoneCtrl.dispose();
-    _latCtrl.dispose(); _lngCtrl.dispose();
+    _latCtrl.dispose(); _lngCtrl.dispose(); _creditLimitCtrl.dispose();
     super.dispose();
   }
 
@@ -1125,6 +1127,8 @@ class _EditHospitalDialogState extends State<_EditHospitalDialog> {
         'contact_phone': _phoneCtrl.text.trim(),
         'latitude':      lat ?? widget.hospital.latitude,
         'longitude':     lng ?? widget.hospital.longitude,
+        'credit_limit':  _creditLimitCtrl.text.trim().isEmpty
+            ? null : int.tryParse(_creditLimitCtrl.text.trim()),
       });
       widget.onClose();
     } catch (e) {
@@ -1203,6 +1207,13 @@ class _EditHospitalDialogState extends State<_EditHospitalDialog> {
                   const SizedBox(width: 14),
                   Expanded(child: _HField('Longitude', _lngCtrl, 'e.g. 39.2083',
                       numeric: true)),
+                ]),
+                const SizedBox(height: 14),
+                Row(children: [
+                  Expanded(child: _HField('Credit Limit (TZS, blank = unlimited)',
+                      _creditLimitCtrl, 'e.g. 5000000', numeric: true)),
+                  const SizedBox(width: 14),
+                  const Expanded(child: SizedBox()),
                 ]),
                 if (_error != null) ...[
                   const SizedBox(height: 10),

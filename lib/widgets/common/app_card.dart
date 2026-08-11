@@ -1,9 +1,15 @@
-﻿import 'package:flutter/material.dart';
+﻿import 'dart:ui';
+
+import 'package:flutter/material.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
 
 import '../../theme/app_palette.dart';
-/// Generic card — mirrors the CSS `.card` class
+/// Generic card — mirrors the CSS `.card` class.
+///
+/// Set [glass] to true for the gwgps-style translucent, backdrop-blurred
+/// panel (mirrors `.panel { backdrop-filter: blur(16px) }` in
+/// fleet-command.css) instead of the default opaque surface.
 class AppCard extends StatelessWidget {
   const AppCard({
     super.key,
@@ -11,36 +17,79 @@ class AppCard extends StatelessWidget {
     this.padding = const EdgeInsets.all(20),
     this.header,
     this.trailing,
+    this.glass = false,
   });
 
   final Widget child;
   final EdgeInsetsGeometry padding;
   final Widget? header;
   final Widget? trailing;
+  final bool glass;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: context.pal.surface1,
-        borderRadius: BorderRadius.circular(AppColors.rLg),
-        border: Border.all(color: context.pal.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (header != null)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 16, 0),
-              child: Row(
-                children: [
-                  Expanded(child: header!),
-                  trailing ?? const SizedBox.shrink(),
-                ],
-              ),
+    final pal = context.pal;
+    final radius = BorderRadius.circular(AppColors.rLg);
+
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (header != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 16, 0),
+            child: Row(
+              children: [
+                Expanded(child: header!),
+                trailing ?? const SizedBox.shrink(),
+              ],
             ),
-          Padding(padding: padding, child: child),
-        ],
+          ),
+        Padding(padding: padding, child: child),
+      ],
+    );
+
+    if (!glass) {
+      return Container(
+        decoration: BoxDecoration(
+          color: pal.surface1,
+          borderRadius: radius,
+          border: Border.all(color: pal.border),
+        ),
+        child: content,
+      );
+    }
+
+    // Glass variant: translucent panel fill + backdrop blur + hairline
+    // border + soft shadow, tuned separately per theme so it reads as glass
+    // rather than muddy (matches gwgps's --panel / --shadow tokens).
+    final panelFill = pal.isDark
+        ? pal.surface1.withValues(alpha: 0.72)
+        : Colors.white.withValues(alpha: 0.82);
+    final shadow = pal.isDark
+        ? const <BoxShadow>[]
+        : [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 24,
+              offset: const Offset(0, 8),
+            ),
+          ];
+
+    return Container(
+      decoration: BoxDecoration(borderRadius: radius, boxShadow: shadow),
+      child: ClipRRect(
+        borderRadius: radius,
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+          child: Container(
+            decoration: BoxDecoration(
+              color: panelFill,
+              borderRadius: radius,
+              border: Border.all(color: pal.border),
+            ),
+            child: content,
+          ),
+        ),
       ),
     );
   }

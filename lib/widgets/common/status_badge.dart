@@ -50,18 +50,18 @@ class StatusBadge extends StatelessWidget {
   (Color, Color, Color, String) _resolve() {
     if (_machineStatus != null) {
       return switch (_machineStatus) {
-        MachineStatus.operational  => (AppColors.teal,     AppColors.tealSoft,   const Color(0x4000D4AA), 'Operational'),
+        MachineStatus.operational  => (AppColors.teal,     AppColors.tealSoft,   AppColors.teal.withValues(alpha: 0.25), 'Operational'),
         MachineStatus.needsService => (AppColors.amber,    AppColors.amberSoft,  const Color(0x40F59E0B), 'Service'),
-        MachineStatus.down         => (AppColors.coral,    AppColors.coralSoft,  const Color(0x40FF5252), 'Down'),
-        MachineStatus.warranty     => (AppColors.blue,     AppColors.blueSoft,   const Color(0x4D5B8DEF), 'Warranty'),
+        MachineStatus.down         => (AppColors.coral,    AppColors.coralSoft,  AppColors.coral.withValues(alpha: 0.25), 'Down'),
+        MachineStatus.warranty     => (AppColors.blue,     AppColors.blueSoft,   AppColors.blue.withValues(alpha: 0.3), 'Warranty'),
         MachineStatus.idle         => (AppColors.textMute, const Color(0x0AFFFFFF), AppColors.border, 'Idle'),
       };
     }
     return switch (_ticketStatus) {
       TicketStatus.open       => (AppColors.amber,    AppColors.amberSoft,  const Color(0x40F59E0B), 'Open'),
-      TicketStatus.inProgress => (AppColors.blue,     AppColors.blueSoft,   const Color(0x4D5B8DEF), 'Active'),
-      TicketStatus.resolved   => (AppColors.teal,     AppColors.tealSoft,   const Color(0x4000D4AA), 'Resolved'),
-      TicketStatus.overdue    => (AppColors.coral,    AppColors.coralSoft,  const Color(0x40FF5252), 'Overdue'),
+      TicketStatus.inProgress => (AppColors.blue,     AppColors.blueSoft,   AppColors.blue.withValues(alpha: 0.3), 'Active'),
+      TicketStatus.resolved   => (AppColors.teal,     AppColors.tealSoft,   AppColors.teal.withValues(alpha: 0.25), 'Resolved'),
+      TicketStatus.overdue    => (AppColors.coral,    AppColors.coralSoft,  AppColors.coral.withValues(alpha: 0.25), 'Overdue'),
       null                    => (AppColors.textMute, const Color(0x0AFFFFFF), AppColors.border, '—'),
     };
   }

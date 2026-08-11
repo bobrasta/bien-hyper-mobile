@@ -408,7 +408,7 @@ class _PartRow extends StatelessWidget {
                 overflow: TextOverflow.ellipsis),
           ])),
           // Category
-          Expanded(flex: 1, child: Container(
+          Expanded(flex: 1, child: Align(alignment: Alignment.centerLeft, child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
             decoration: BoxDecoration(
               color: _catColor(part.category).withValues(alpha: 0.12),
@@ -418,12 +418,12 @@ class _PartRow extends StatelessWidget {
                 style: AppTheme.monoXs.copyWith(
                     color: _catColor(part.category), fontSize: 9.5),
                 overflow: TextOverflow.ellipsis),
-          )),
+          ))),
           // Supplier
           Expanded(flex: 2, child: Text(part.supplier,
               style: AppTheme.bodySub.copyWith(fontSize: 12), overflow: TextOverflow.ellipsis)),
           // Stock qty
-          Expanded(flex: 1, child: Container(
+          Expanded(flex: 1, child: Align(alignment: Alignment.centerLeft, child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
             decoration: BoxDecoration(
               color: stockColor.withValues(alpha: 0.12),
@@ -438,7 +438,7 @@ class _PartRow extends StatelessWidget {
               Text('${part.stockQty} ${part.unitOfMeasure}',
                   style: AppTheme.monoXs.copyWith(color: stockColor, fontWeight: FontWeight.w700)),
             ]),
-          )),
+          ))),
           // Reorder level
           Expanded(flex: 1, child: Text('≥${part.reorderLevel}',
               style: AppTheme.monoXs.copyWith(color: context.pal.textDim))),

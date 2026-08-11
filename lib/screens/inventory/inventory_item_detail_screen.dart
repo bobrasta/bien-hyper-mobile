@@ -79,21 +79,17 @@ class InventoryItemDetailScreen extends StatelessWidget {
 
 // ── Shared helpers ─────────────────────────────────────────────────────────────
 
-String _catLabel(String cat) => switch (cat) {
-  'consumable' => 'Consumable',
-  'reagent'    => 'Reagent',
-  'spare_part' => 'Spare Part',
-  'equipment'  => 'Equipment',
-  _            => 'Other',
-};
+// Categories are a real, admin-managed list now — item.category is already
+// the resolved display name, so just show it and pick a stable color by
+// hashing the name across a small fixed palette.
+String _catLabel(String cat) => cat;
 
-Color _catColor(String cat) => switch (cat) {
-  'consumable' => AppColors.teal,
-  'reagent'    => AppColors.violet,
-  'spare_part' => AppColors.amber,
-  'equipment'  => AppColors.green,
-  _            => AppColors.textDim,
-};
+const _catPalette = [
+  AppColors.teal, AppColors.blue, AppColors.violet,
+  AppColors.amber, AppColors.coral, AppColors.info,
+];
+Color _catColor(String cat) =>
+    cat.isEmpty ? AppColors.textDim : _catPalette[cat.hashCode.abs() % _catPalette.length];
 
 class _InfoRow extends StatelessWidget {
   const _InfoRow(this.label, this.value);
@@ -237,6 +233,29 @@ class _OverviewTab extends StatelessWidget {
               ),
             ]),
             const SizedBox(height: 16),
+
+            // Stock by location
+            if (item.stockLevels.isNotEmpty) ...[
+              _Section(
+                title: 'STOCK BY LOCATION',
+                child: Column(children: item.stockLevels.map((l) => Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 5),
+                  child: Row(children: [
+                    Icon(Symbols.location_on, size: 14, color: context.pal.textDim),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text(l.locationName, style: AppTheme.bodyStrong.copyWith(fontSize: 12.5))),
+                    if (l.quantityReserved > 0) ...[
+                      Text('${l.quantityReserved.toStringAsFixed(0)} reserved',
+                          style: AppTheme.bodySub.copyWith(fontSize: 11)),
+                      const SizedBox(width: 10),
+                    ],
+                    Text('${l.quantityOnHand.toStringAsFixed(0)} ${item.unitOfMeasure}',
+                        style: AppTheme.bodyStrong.copyWith(fontSize: 13)),
+                  ]),
+                )).toList()),
+              ),
+              const SizedBox(height: 16),
+            ],
 
             // Specifications
             if (item.specifications.isNotEmpty) ...[

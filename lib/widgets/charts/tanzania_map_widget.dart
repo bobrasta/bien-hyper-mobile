@@ -184,7 +184,7 @@ class _TanzaniaPainter extends CustomPainter {
       ).createShader(Rect.fromLTWH(0, 0, size.width, size.height))
       ..style = PaintingStyle.fill;
     final borderPaint = Paint()
-      ..color = const Color(0x59009D7B)
+      ..color = AppColors.teal.withValues(alpha: 0.35)
       ..strokeWidth = 1.5
       ..style = PaintingStyle.stroke;
 
@@ -199,7 +199,7 @@ class _TanzaniaPainter extends CustomPainter {
       ..color = pal.bg
       ..style = PaintingStyle.fill;
     final lakeBorderPaint = Paint()
-      ..color = const Color(0x665B8DEF)
+      ..color = AppColors.info.withValues(alpha: 0.4)
       ..strokeWidth = 1
       ..style = PaintingStyle.stroke;
     canvas.drawOval(
@@ -217,7 +217,7 @@ class _TanzaniaPainter extends CustomPainter {
         text: 'TANZANIA',
         style: TextStyle(
           fontSize: 44 * sx, fontWeight: FontWeight.w700,
-          color: const Color(0x0FE8EAF6), letterSpacing: 6 * sx,
+          color: AppColors.text.withValues(alpha: 0.06), letterSpacing: 6 * sx,
         ),
       ),
       textDirection: TextDirection.ltr,

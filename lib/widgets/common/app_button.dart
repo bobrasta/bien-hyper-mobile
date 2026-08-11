@@ -42,7 +42,7 @@ class AppButton extends StatelessWidget {
       BtnVariant.danger => (
         AppColors.coral,
         AppColors.coralSoft,
-        const Color(0x4DFF5252),
+        AppColors.coral.withValues(alpha: 0.3),
       ),
       BtnVariant.normal => (
         context.pal.text,

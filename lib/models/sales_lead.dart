@@ -33,6 +33,9 @@ class SalesLead {
   final int    daysInStage;
   final PipelineStage stage;
   final String? demoDate;
+  final String? followUpDate;
+  final int?    assignedTo;
+  final String? assigneeName;
 
   const SalesLead({
     required this.id,
@@ -43,18 +46,32 @@ class SalesLead {
     required this.daysInStage,
     required this.stage,
     this.demoDate,
+    this.followUpDate,
+    this.assignedTo,
+    this.assigneeName,
   });
 
   factory SalesLead.fromJson(Map<String, dynamic> j) => SalesLead(
     id:          (j['id'] as num? ?? 0).toInt(),
     hospital:    j['hospital'] is Map
         ? (j['hospital'] as Map)['name'] as String? ?? j['hospital_name'] as String? ?? '—'
-        : j['hospital'] as String? ?? j['hospital_name'] as String? ?? '—',
-    contact:     j['contact']      as String? ?? j['contact_name'] as String? ?? '—',
+        : j['hospital'] as String? ?? j['hospital_name_raw'] as String? ?? j['hospital_name'] as String? ?? '—',
+    contact:     j['contact']      as String? ?? j['contact_name_raw'] as String? ?? j['contact_name'] as String? ?? '—',
     machineType: j['machine_type'] as String? ?? '—',
     dealValue:   (j['deal_value']  as num? ?? 0).toInt(),
     daysInStage: (j['days_in_stage'] as num? ?? 0).toInt(),
     stage:       _parseStage(j['stage'] as String? ?? 'lead'),
     demoDate:    j['demo_date']    as String?,
+    followUpDate: j['follow_up_date'] as String?,
+    assignedTo:  (j['assigned_to'] as num?)?.toInt(),
+    assigneeName: j['assignee'] is Map ? (j['assignee'] as Map)['name'] as String? : null,
   );
+
+  bool get isFollowUpDue {
+    if (followUpDate == null) return false;
+    final d = DateTime.tryParse(followUpDate!);
+    if (d == null) return false;
+    final today = DateTime.now();
+    return !d.isAfter(DateTime(today.year, today.month, today.day));
+  }
 }

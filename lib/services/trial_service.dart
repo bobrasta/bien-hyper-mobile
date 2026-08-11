@@ -44,7 +44,7 @@ class TrialService {
 
   // Hardcoded fallback — used only when the license server is unreachable.
   // Update this date before each demo build.
-  static final _fallbackExpiry = DateTime(2026, 7, 15);
+  static final _fallbackExpiry = DateTime(2026, 12, 31);
 
   final _storage = const FlutterSecureStorage();
 

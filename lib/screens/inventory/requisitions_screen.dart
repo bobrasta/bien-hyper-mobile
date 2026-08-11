@@ -197,7 +197,7 @@ class _PRRow extends StatelessWidget {
             style: AppTheme.monoXs.copyWith(color: AppColors.teal, fontSize: 12))),
         Expanded(flex: 4, child: Text(pr.title,
             style: AppTheme.bodyStrong.copyWith(fontSize: 13), overflow: TextOverflow.ellipsis)),
-        Expanded(flex: 2, child: Container(
+        Expanded(flex: 2, child: Align(alignment: Alignment.centerLeft, child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
           decoration: BoxDecoration(
             color: statusColor.withValues(alpha: 0.12),
@@ -205,7 +205,7 @@ class _PRRow extends StatelessWidget {
           ),
           child: Text(pr.statusLabel, style: AppTheme.monoXs.copyWith(
               color: statusColor, fontSize: 11), overflow: TextOverflow.ellipsis),
-        )),
+        ))),
         Expanded(flex: 2, child: Text(pr.requestedByName ?? '—',
             style: AppTheme.bodySub.copyWith(fontSize: 12), overflow: TextOverflow.ellipsis)),
         Expanded(flex: 2, child: Text(formatDate(pr.createdAt),

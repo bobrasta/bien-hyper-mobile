@@ -37,6 +37,21 @@ class TicketService {
     return ServiceTicket.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
   }
 
+  Future<ServiceTicket> addPart(int id, {
+    required int inventoryItemId,
+    required int qty,
+    int? unitCost,
+    int? sourceSerialNumberId,
+  }) async {
+    final res = await _dio.post('/tickets/$id/parts', data: {
+      'inventory_item_id': inventoryItemId,
+      'qty': qty,
+      'unit_cost': unitCost,
+      'source_serial_number_id': sourceSerialNumberId,
+    });
+    return ServiceTicket.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+  }
+
   Future<void> resolve(int id, {String? resolutionNotes}) =>
       _dio.post('/tickets/$id/resolve', data: {
         if (resolutionNotes != null && resolutionNotes.isNotEmpty)

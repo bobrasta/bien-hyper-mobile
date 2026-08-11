@@ -47,11 +47,31 @@ class QuotationService {
     return Quotation.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
   }
 
-  Future<Map<String, dynamic>> convert(int id, {String? expectedDeliveryDate, String? notes}) async {
+  Future<Quotation> approve(int id) async {
+    final res = await _dio.post('/quotations/$id/approve');
+    return Quotation.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+  }
+
+  Future<Quotation> rejectApproval(int id, {String? reason}) async {
+    final res = await _dio.post('/quotations/$id/reject-approval', data: {
+      'rejection_reason': ?reason,
+    });
+    return Quotation.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+  }
+
+  Future<Map<String, dynamic>> convert(int id, {required int locationId, String? expectedDeliveryDate, String? notes}) async {
     final res = await _dio.post('/quotations/$id/convert', data: {
+      'location_id':            locationId,
       'expected_delivery_date': ?expectedDeliveryDate,
       'notes':                  ?notes,
     });
     return ApiClient.unwrap(res) as Map<String, dynamic>;
+  }
+
+  /// Returns a signed, no-login-required URL to the quotation PDF — valid 7 days.
+  Future<String> shareLink(int id) async {
+    final res = await _dio.post('/quotations/$id/share-link');
+    final data = ApiClient.unwrap(res) as Map<String, dynamic>;
+    return data['share_url'] as String;
   }
 }

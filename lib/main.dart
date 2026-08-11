@@ -26,24 +26,34 @@ final userRoleNotifier = ValueNotifier<String>('');
 final notificationCountNotifier = ValueNotifier<int>(0);
 
 /// Returns the set of screen keys accessible for [role].
-/// Returns null for admin/manager (full access).
+/// Returns null for super_admin/admin (full access).
 Set<String>? allowedScreenKeys(String role) => switch (role) {
-  'admin'   || 'manager' => null,
-  'technician' => {'dashboard', 'machines', 'detail', 'hospitals', 'service', 'inventory', 'staff', 'reports', 'settings'},
-  'sales'      => {'dashboard', 'machines', 'detail', 'sales', 'customers', 'revenue', 'email', 'staff', 'reports', 'settings'},
-  'finance'    => {'dashboard', 'revenue', 'staff', 'reports', 'settings'},
-  'cs'         => {'dashboard', 'customers', 'service', 'email', 'staff', 'reports', 'settings'},
-  _            => {'dashboard', 'staff', 'reports', 'settings'},
+  'super_admin' || 'admin' => null,
+  'technician'     => {'dashboard', 'machines', 'detail', 'hospitals', 'service', 'inventory', 'staff', 'my_leave', 'reports', 'settings'},
+  'sales_manager' || 'sales' => {'dashboard', 'machines', 'detail', 'sales', 'customers', 'revenue', 'email', 'staff', 'my_leave', 'reports', 'settings'},
+  'finance_manager' || 'finance' => {'dashboard', 'revenue', 'finance', 'staff', 'my_leave', 'reports', 'settings'},
+  'cs'             => {'dashboard', 'customers', 'service', 'email', 'staff', 'my_leave', 'reports', 'settings'},
+  'storekeeper'    => {'dashboard', 'inventory', 'staff', 'my_leave', 'reports', 'settings'},
+  'hr'             => {'dashboard', 'my_leave', 'hr_approvals', 'staff', 'reports', 'settings'},
+  _                => {'dashboard', 'staff', 'my_leave', 'reports', 'settings'},
 };
 
 /// Returns the default landing screen key for [role].
 String defaultScreenKey(String role) => switch (role) {
-  'technician' => 'service',
-  'sales'      => 'sales',
-  'finance'    => 'revenue',
-  'cs'         => 'customers',
-  _            => 'dashboard',
+  'technician'                    => 'service',
+  'sales_manager' || 'sales'      => 'sales',
+  'finance_manager' || 'finance'  => 'finance_dashboard',
+  'cs'                             => 'customers',
+  'storekeeper'                    => 'inventory',
+  'hr'                             => 'hr_approvals',
+  _                                => 'dashboard',
 };
+
+/// Roles with authority to approve/reject quotations and sales orders that
+/// exceeded a rep's discount limits — mirrors User::SALES_APPROVAL_ROLES on
+/// the backend (which is the actual enforcement; this only toggles the button).
+bool hasSalesApprovalAuthority(String role) =>
+    const {'super_admin', 'admin', 'sales_manager'}.contains(role);
 
 /// Derive initials from a display name (e.g. "Joseph Mwakasege" → "JM").
 String nameInitials(String name) {

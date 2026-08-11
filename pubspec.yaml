@@ -47,6 +47,7 @@ dependencies:
   local_notifier: ^0.1.6
   shimmer: ^3.0.0
   dio_cache_interceptor: ^3.5.0
+  mobile_scanner: ^6.0.2
 
 dev_dependencies:
   flutter_test:
@@ -72,6 +73,11 @@ flutter:
 
   assets:
     - assets/images/hypermed_logo.png
+
+  fonts:
+    - family: TildaSans
+      fonts:
+        - asset: assets/fonts/TildaSans.ttf
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

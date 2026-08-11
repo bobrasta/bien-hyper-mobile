@@ -15,6 +15,9 @@ class StockMovement {
   final String? expiryDate;
   final String? notes;
   final String? performedByName;
+  final String? locationName;
+  final String? locationFromName;
+  final String? locationToName;
   final DateTime createdAt;
 
   const StockMovement({
@@ -34,12 +37,18 @@ class StockMovement {
     this.expiryDate,
     this.notes,
     this.performedByName,
+    this.locationName,
+    this.locationFromName,
+    this.locationToName,
     required this.createdAt,
   });
 
   factory StockMovement.fromJson(Map<String, dynamic> j) {
     final item = j['inventory_item'] as Map<String, dynamic>?;
     final perf = j['performed_by']  as Map<String, dynamic>?;
+    final loc      = j['location']      as Map<String, dynamic>?;
+    final locFrom  = j['location_from'] as Map<String, dynamic>?;
+    final locTo    = j['location_to']   as Map<String, dynamic>?;
 
     return StockMovement(
       id:               (j['id'] as num).toInt(),
@@ -58,11 +67,22 @@ class StockMovement {
       expiryDate:       j['expiry_date']       as String?,
       notes:            j['notes']             as String?,
       performedByName:  perf?['name']          as String?,
+      locationName:     loc?['name']           as String?,
+      locationFromName: locFrom?['name']       as String?,
+      locationToName:   locTo?['name']         as String?,
       createdAt:        DateTime.tryParse(j['created_at'] as String? ?? '') ?? DateTime.now(),
     );
   }
 
   bool get isInbound => quantity > 0;
+
+  /// "Main Warehouse" for a normal movement, "Main Warehouse → Branch" for a transfer.
+  String get locationLabel {
+    if (type == 'transfer' && (locationFromName != null || locationToName != null)) {
+      return '${locationFromName ?? '—'} → ${locationToName ?? '—'}';
+    }
+    return locationName ?? '—';
+  }
 
   String get typeLabel => switch (type) {
     'receive'    => 'Receive',

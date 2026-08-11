@@ -17,8 +17,10 @@ class StockMovementService {
 
   Future<StockMovement> record({
     required int inventoryItemId,
+    required int locationId,
     required String type,
     required int quantity,
+    int?    toLocationId, // required by the API when type == 'transfer'
     int?    unitCost,
     String? currency,
     String? notes,
@@ -27,6 +29,8 @@ class StockMovementService {
   }) async {
     final res = await _dio.post('/stock-movements', data: {
       'inventory_item_id': inventoryItemId,
+      'location_id':       locationId,
+      'to_location_id': ?toLocationId,
       'type':              type,
       'quantity':          quantity,
       'unit_cost':    ?unitCost,

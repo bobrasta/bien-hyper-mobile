@@ -15,6 +15,10 @@ class InventoryService {
       'category': ?category,
       if (lowStock == true) 'low_stock': 'true',
       'search':   ?search,
+      // Screens that call this load the full catalog once and paginate/filter
+      // locally — request it all in one shot rather than the backend's default
+      // 20-per-page (which silently truncated the real ~340-item catalog).
+      'per_page': 1000,
     });
     final (data, _) = ApiClient.unwrapList(res);
     return data.map((j) => InventoryItem.fromJson(j as Map<String, dynamic>)).toList();

@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../models/invoice.dart';
 import '../../services/invoice_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_palette.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/api_error.dart';
+import '../../utils/whatsapp_share.dart';
 import '../../widgets/common/app_button.dart';
 import '../../widgets/common/error_view.dart';
 
@@ -36,11 +38,10 @@ class InvoicesScreen extends StatefulWidget {
 }
 
 class _InvoicesScreenState extends State<InvoicesScreen> {
-  List<Invoice> _all      = [];
-  List<Invoice> _filtered = [];
-  Invoice?      _selected;
-  bool          _loading  = true;
-  String?       _error;
+  List<Invoice>  _all      = [];
+  List<Invoice>  _filtered = [];
+  bool           _loading  = true;
+  String?        _error;
   PaymentStatus? _statusFilter;
   final _searchCtrl = TextEditingController();
 
@@ -79,34 +80,20 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
             (inv.displayName).toLowerCase().contains(q);
         return matchStatus && matchSearch;
       }).toList();
-      if (_selected != null && !_filtered.any((inv) => inv.id == _selected!.id)) {
-        _selected = null;
-      }
     });
   }
 
-  Future<void> _doAction(Future<Invoice> Function() action) async {
-    try {
-      final updated = await action();
-      await _load();
-      if (!mounted) return;
-      setState(() => _selected = updated);
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(friendlyError(e))),
-      );
-    }
-  }
-
-  Future<void> _showPaymentModal(Invoice inv) async {
-    await showDialog<void>(
+  Future<void> _showDetailModal(Invoice inv) async {
+    final full = (inv.lineItems.isEmpty || inv.payments.isEmpty)
+        ? await InvoiceService.instance.get(inv.id)
+        : inv;
+    if (!mounted) return;
+    final reload = await showDialog<bool>(
       context: context,
-      builder: (_) => _PaymentModal(invoice: inv, onSaved: () {
-        _load();
-        setState(() => _selected = null);
-      }),
+      barrierDismissible: true,
+      builder: (_) => _InvoiceDetailDialog(inv: full),
     );
+    if (reload == true && mounted) _load();
   }
 
   @override
@@ -162,56 +149,7 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
       else if (_error != null)
         Expanded(child: ErrorView(message: _error!, onRetry: _load))
       else
-        Expanded(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (_selected != null)
-                SizedBox(
-                  width: 440,
-                  child: _InvoiceTable(
-                    items: _filtered,
-                    selected: _selected,
-                    onSelect: (inv) async {
-                      if (inv.lineItems.isEmpty || inv.payments.isEmpty) {
-                        final full = await InvoiceService.instance.get(inv.id);
-                        if (!mounted) return;
-                        setState(() => _selected = full);
-                      } else {
-                        setState(() => _selected = inv);
-                      }
-                    },
-                  ),
-                )
-              else
-                Expanded(
-                  child: _InvoiceTable(
-                    items: _filtered,
-                    selected: null,
-                    onSelect: (inv) async {
-                      if (inv.lineItems.isEmpty || inv.payments.isEmpty) {
-                        final full = await InvoiceService.instance.get(inv.id);
-                        if (!mounted) return;
-                        setState(() => _selected = full);
-                      } else {
-                        setState(() => _selected = inv);
-                      }
-                    },
-                  ),
-                ),
-              if (_selected != null) ...[
-                VerticalDivider(width: 1, color: context.pal.border),
-                Expanded(child: _DetailPanel(
-                  inv: _selected!,
-                  onClose:  () => setState(() => _selected = null),
-                  onSend:   () => _doAction(() => InvoiceService.instance.send(_selected!.id)),
-                  onCancel: () => _doAction(() => InvoiceService.instance.cancel(_selected!.id)),
-                  onPay:    () => _showPaymentModal(_selected!),
-                )),
-              ],
-            ],
-          ),
-        ),
+        Expanded(child: _InvoiceTable(items: _filtered, onSelect: _showDetailModal)),
     ]);
   }
 }
@@ -276,10 +214,9 @@ class _StatusChips extends StatelessWidget {
 // ── Invoice table ──────────────────────────────────────────────────────────────
 
 class _InvoiceTable extends StatelessWidget {
-  const _InvoiceTable({required this.items, required this.selected, required this.onSelect});
-  final List<Invoice>  items;
-  final Invoice?       selected;
-  final ValueChanged<Invoice> onSelect;
+  const _InvoiceTable({required this.items, required this.onSelect});
+  final List<Invoice>          items;
+  final ValueChanged<Invoice>  onSelect;
 
   @override
   Widget build(BuildContext context) {
@@ -293,11 +230,10 @@ class _InvoiceTable extends StatelessWidget {
       itemBuilder: (_, i) {
         if (i == 0) return _header(context);
         final inv = items[i - 1];
-        final isActive = selected?.id == inv.id;
         return GestureDetector(
           onTap: () => onSelect(inv),
           child: Container(
-            color: isActive ? context.pal.surface2 : Colors.transparent,
+            color: Colors.transparent,
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
             child: Row(children: [
               SizedBox(width: 140, child: Text(inv.invoiceNumber,
@@ -358,192 +294,347 @@ class _StatusBadge extends StatelessWidget {
   }
 }
 
-// ── Detail panel ───────────────────────────────────────────────────────────────
+// ── Invoice detail dialog ──────────────────────────────────────────────────────
 
-class _DetailPanel extends StatelessWidget {
-  const _DetailPanel({
-    required this.inv,
-    required this.onClose,
-    required this.onSend,
-    required this.onCancel,
-    required this.onPay,
-  });
-  final Invoice      inv;
-  final VoidCallback onClose;
-  final VoidCallback onSend;
-  final VoidCallback onCancel;
-  final VoidCallback onPay;
+class _InvoiceDetailDialog extends StatefulWidget {
+  const _InvoiceDetailDialog({required this.inv});
+  final Invoice inv;
+  @override
+  State<_InvoiceDetailDialog> createState() => _InvoiceDetailDialogState();
+}
+
+class _InvoiceDetailDialogState extends State<_InvoiceDetailDialog> {
+  bool _acting = false;
+  bool _sharing = false;
+
+  Future<void> _viewPdf() async {
+    if (_sharing) return;
+    setState(() => _sharing = true);
+    try {
+      final url = await InvoiceService.instance.shareLink(widget.inv.id);
+      await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));
+      }
+    } finally {
+      if (mounted) setState(() => _sharing = false);
+    }
+  }
+
+  Future<void> _shareWhatsApp() async {
+    if (_sharing) return;
+    setState(() => _sharing = true);
+    try {
+      final inv = widget.inv;
+      final url = await InvoiceService.instance.shareLink(inv.id);
+      final message = 'Hello, here is invoice ${inv.invoiceNumber} from Hypermed Health Care.\n'
+          'Total: ${_fmt(inv.total)}${inv.balanceDue > 0 ? ' (Balance due: ${_fmt(inv.balanceDue)})' : ' — Paid'}\n\n'
+          'View / download: $url';
+      await shareViaWhatsApp(phone: phoneDigitsFrom(inv.clientContact), message: message);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));
+      }
+    } finally {
+      if (mounted) setState(() => _sharing = false);
+    }
+  }
+
+  Future<void> _act(Future<dynamic> Function() fn) async {
+    setState(() => _acting = true);
+    try {
+      await fn();
+      if (mounted) Navigator.pop(context, true);
+    } catch (e) {
+      if (mounted) {
+        setState(() => _acting = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(friendlyError(e))),
+        );
+      }
+    }
+  }
+
+  Future<void> _pay() async {
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (_) => _PaymentModal(invoice: widget.inv),
+    );
+    if (saved == true && mounted) Navigator.pop(context, true);
+  }
+
+  Widget _infoTile(String label, String value) => SizedBox(
+    width: 240,
+    child: Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+        const SizedBox(height: 3),
+        Text(value, style: AppTheme.bodySm),
+      ]),
+    ),
+  );
+
+  Widget _finRow(String label, int amount, {bool isTotal = false}) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 3),
+    child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+      Text(label, style: isTotal ? AppTheme.bodyStrong : AppTheme.bodySub),
+      Text(_fmt(amount), style: isTotal
+          ? AppTheme.bodyStrong.copyWith(color: AppColors.amber, fontSize: 15)
+          : AppTheme.bodySub),
+    ]),
+  );
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        // Header row
-        Row(children: [
-          Expanded(child: Text(inv.invoiceNumber,
-              style: AppTheme.pageTitle.copyWith(fontSize: 18))),
-          GestureDetector(onTap: onClose,
-              child: Icon(Symbols.close, size: 18, color: context.pal.textDim)),
-        ]),
-        const SizedBox(height: 4),
-        _StatusBadge(inv.status),
-        const SizedBox(height: 20),
+    final inv = widget.inv;
+    final collectionPct = inv.total > 0 ? (inv.amountPaid / inv.total).clamp(0.0, 1.0) : 0.0;
 
-        // Client / SO info
-        _row('Client', inv.displayName),
-        if (inv.salesOrderNumber != null) _row('Sales Order', inv.salesOrderNumber!),
-        if (inv.clientContact != null)    _row('Contact', inv.clientContact!),
-        if (inv.clientEmail != null)      _row('Email', inv.clientEmail!),
-        _row('Issue Date', inv.issueDate.length >= 10 ? inv.issueDate.substring(0, 10) : inv.issueDate),
-        _row('Due Date',   inv.dueDate.length >= 10   ? inv.dueDate.substring(0, 10)   : inv.dueDate),
-        _row('Currency',   inv.currency),
-        const SizedBox(height: 16),
-
-        // Financials
-        Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: context.pal.surface2,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: context.pal.border),
-          ),
-          child: Column(children: [
-            _fin('Subtotal', inv.subtotal, context),
-            if (inv.taxAmount > 0) _fin('Tax', inv.taxAmount, context),
-            const Divider(height: 16),
-            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              Text('Total', style: AppTheme.bodyStrong),
-              Text(_fmt(inv.total),
-                  style: AppTheme.bodyStrong.copyWith(color: AppColors.amber, fontSize: 15)),
-            ]),
-            if (inv.amountPaid > 0) ...[
-              const SizedBox(height: 6),
-              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                Text('Paid', style: AppTheme.bodySub),
-                Text(_fmt(inv.amountPaid),
-                    style: AppTheme.bodySub.copyWith(color: AppColors.teal)),
-              ]),
-              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                Text('Balance Due', style: AppTheme.bodyStrong.copyWith(fontSize: 13)),
-                Text(_fmt(inv.balanceDue),
-                    style: AppTheme.bodyStrong.copyWith(
-                      color: inv.balanceDue > 0 ? AppColors.coral : AppColors.teal,
-                      fontSize: 13,
-                    )),
-              ]),
-            ],
-          ]),
+    return Dialog(
+      backgroundColor: context.pal.surface1,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: 580,
+          maxHeight: MediaQuery.of(context).size.height * 0.88,
         ),
-        const SizedBox(height: 20),
-
-        // Line items
-        Text('Line Items', style: AppTheme.bodyStrong),
-        const SizedBox(height: 8),
-        if (inv.lineItems.isEmpty)
-          Text('Load detail to view items', style: AppTheme.bodySub)
-        else
-          ...inv.lineItems.map((item) => Container(
-            margin: const EdgeInsets.only(bottom: 6),
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: context.pal.surface2,
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: context.pal.border),
-            ),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          // ── Header ──
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 20, 20, 0),
             child: Row(children: [
-              Expanded(child: Text(item.description,
-                  style: AppTheme.bodySm.copyWith(fontWeight: FontWeight.w500))),
-              Text('${item.quantity.toStringAsFixed(item.quantity == item.quantity.truncate() ? 0 : 1)}'
-                   ' × ${_fmt(item.unitPrice)}',
-                  style: AppTheme.bodySub.copyWith(fontSize: 11)),
+              Container(
+                width: 36, height: 36,
+                decoration: BoxDecoration(
+                  color: _statusColor(inv.status).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(Symbols.receipt_long, size: 18, color: _statusColor(inv.status)),
+              ),
               const SizedBox(width: 12),
-              Text(_fmt(item.total),
-                  style: AppTheme.bodySm.copyWith(color: AppColors.amber, fontWeight: FontWeight.w600)),
-            ]),
-          )),
-
-        // Payment history
-        if (inv.payments.isNotEmpty) ...[
-          const SizedBox(height: 20),
-          Text('Payment History', style: AppTheme.bodyStrong),
-          const SizedBox(height: 8),
-          ...inv.payments.map((p) => Container(
-            margin: const EdgeInsets.only(bottom: 6),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: context.pal.surface2,
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: context.pal.border),
-            ),
-            child: Row(children: [
-              Icon(Symbols.payments, size: 14, color: AppColors.teal),
-              const SizedBox(width: 8),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(p.paymentNumber,
-                    style: AppTheme.monoXs.copyWith(color: context.pal.textDim, fontSize: 11)),
-                Text('${p.methodLabel}${p.reference != null ? ' · ${p.reference}' : ''}',
-                    style: AppTheme.bodySub.copyWith(fontSize: 11)),
+                Text(inv.invoiceNumber,
+                    style: AppTheme.pageTitle.copyWith(fontSize: 16)),
+                const SizedBox(height: 2),
+                Text(inv.displayName, style: AppTheme.bodySub.copyWith(fontSize: 12)),
               ])),
-              Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                Text(_fmt(p.amount),
-                    style: AppTheme.bodySm.copyWith(color: AppColors.teal, fontWeight: FontWeight.w600)),
-                Text(p.paidAt.length >= 10 ? p.paidAt.substring(0, 10) : p.paidAt,
-                    style: AppTheme.bodySub.copyWith(fontSize: 10)),
+              _StatusBadge(inv.status),
+              const SizedBox(width: 12),
+              if (_sharing)
+                const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+              else ...[
+                Tooltip(
+                  message: 'View / download PDF',
+                  child: GestureDetector(
+                    onTap: _viewPdf,
+                    child: Icon(Symbols.picture_as_pdf, size: 18, color: context.pal.textDim),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Tooltip(
+                  message: 'Share via WhatsApp',
+                  child: GestureDetector(
+                    onTap: _shareWhatsApp,
+                    child: const Icon(Symbols.share, size: 18, color: AppColors.teal),
+                  ),
+                ),
+              ],
+              const SizedBox(width: 14),
+              GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: Icon(Symbols.close, size: 18, color: context.pal.textDim),
+              ),
+            ]),
+          ),
+
+          // ── Collection progress ──
+          if (inv.total > 0) Padding(
+            padding: const EdgeInsets.fromLTRB(24, 14, 24, 0),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                Text('Collected ${(collectionPct * 100).toStringAsFixed(0)}%',
+                    style: AppTheme.bodySub.copyWith(fontSize: 11)),
+                Text('${_fmt(inv.amountPaid)} of ${_fmt(inv.total)}',
+                    style: AppTheme.bodySub.copyWith(fontSize: 11)),
               ]),
+              const SizedBox(height: 4),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: collectionPct,
+                  minHeight: 6,
+                  backgroundColor: context.pal.surface3,
+                  color: collectionPct >= 1 ? AppColors.teal : AppColors.amber,
+                ),
+              ),
+            ]),
+          ),
+
+          Divider(height: 24, color: context.pal.border),
+
+          // ── Body ──
+          Flexible(child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              // Info grid
+              Wrap(spacing: 0, runSpacing: 0, children: [
+                _infoTile('Client', inv.displayName),
+                if (inv.salesOrderNumber != null)
+                  _infoTile('Sales Order', inv.salesOrderNumber!),
+                if (inv.clientContact != null)
+                  _infoTile('Contact', inv.clientContact!),
+                if (inv.clientEmail != null)
+                  _infoTile('Email', inv.clientEmail!),
+                _infoTile('Issue Date',
+                    inv.issueDate.length >= 10 ? inv.issueDate.substring(0, 10) : inv.issueDate),
+                _infoTile('Due Date',
+                    inv.dueDate.length >= 10 ? inv.dueDate.substring(0, 10) : inv.dueDate),
+                _infoTile('Currency', inv.currency),
+              ]),
+
+              // Financials card
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: context.pal.surface2,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: context.pal.border),
+                ),
+                child: Column(children: [
+                  _finRow('Subtotal', inv.subtotal),
+                  if (inv.taxAmount > 0) _finRow('Tax', inv.taxAmount),
+                  const Divider(height: 16),
+                  _finRow('Total', inv.total, isTotal: true),
+                  if (inv.amountPaid > 0) ...[
+                    const SizedBox(height: 4),
+                    Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                      Text('Paid', style: AppTheme.bodySub),
+                      Text(_fmt(inv.amountPaid),
+                          style: AppTheme.bodySub.copyWith(color: AppColors.teal)),
+                    ]),
+                    Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                      Text('Balance Due', style: AppTheme.bodyStrong.copyWith(fontSize: 13)),
+                      Text(_fmt(inv.balanceDue),
+                          style: AppTheme.bodyStrong.copyWith(
+                            color: inv.balanceDue > 0 ? AppColors.coral : AppColors.teal,
+                            fontSize: 13,
+                          )),
+                    ]),
+                  ],
+                ]),
+              ),
+              const SizedBox(height: 20),
+
+              // Line items
+              Text('Line Items', style: AppTheme.bodyStrong),
+              const SizedBox(height: 8),
+              ...inv.lineItems.map((item) => Container(
+                margin: const EdgeInsets.only(bottom: 6),
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: context.pal.surface2,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: context.pal.border),
+                ),
+                child: Row(children: [
+                  Expanded(child: Text(item.description,
+                      style: AppTheme.bodySm.copyWith(fontWeight: FontWeight.w500))),
+                  Text(
+                    '${item.quantity.toStringAsFixed(item.quantity == item.quantity.truncate() ? 0 : 1)}'
+                    ' × ${_fmt(item.unitPrice)}',
+                    style: AppTheme.bodySub.copyWith(fontSize: 11),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(_fmt(item.total),
+                      style: AppTheme.bodySm.copyWith(
+                          color: AppColors.amber, fontWeight: FontWeight.w600)),
+                ]),
+              )),
+
+              // Payment history
+              if (inv.payments.isNotEmpty) ...[
+                const SizedBox(height: 20),
+                Text('Payment History', style: AppTheme.bodyStrong),
+                const SizedBox(height: 8),
+                ...inv.payments.map((p) => Container(
+                  margin: const EdgeInsets.only(bottom: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: context.pal.surface2,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: context.pal.border),
+                  ),
+                  child: Row(children: [
+                    Icon(Symbols.payments, size: 14, color: AppColors.teal),
+                    const SizedBox(width: 8),
+                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(p.paymentNumber,
+                          style: AppTheme.monoXs.copyWith(color: context.pal.textDim, fontSize: 11)),
+                      Text('${p.methodLabel}${p.reference != null ? ' · ${p.reference}' : ''}',
+                          style: AppTheme.bodySub.copyWith(fontSize: 11)),
+                    ])),
+                    Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                      Text(_fmt(p.amount),
+                          style: AppTheme.bodySm.copyWith(
+                              color: AppColors.teal, fontWeight: FontWeight.w600)),
+                      Text(p.paidAt.length >= 10 ? p.paidAt.substring(0, 10) : p.paidAt,
+                          style: AppTheme.bodySub.copyWith(fontSize: 10)),
+                    ]),
+                  ]),
+                )),
+              ],
+
+              if (inv.notes != null) ...[
+                const SizedBox(height: 16),
+                Text('Notes', style: AppTheme.bodyStrong),
+                const SizedBox(height: 4),
+                Text(inv.notes!, style: AppTheme.bodySub),
+              ],
             ]),
           )),
-        ],
 
-        if (inv.notes != null) ...[
-          const SizedBox(height: 16),
-          Text('Notes', style: AppTheme.bodyStrong),
-          const SizedBox(height: 4),
-          Text(inv.notes!, style: AppTheme.bodySub),
-        ],
-
-        const SizedBox(height: 24),
-
-        // Actions
-        Wrap(spacing: 8, runSpacing: 8, children: [
-          if (inv.canSend)
-            AppButton(label: 'Send Invoice', icon: Symbols.send,
-                variant: BtnVariant.primary, onPressed: onSend),
-          if (inv.canPay)
-            AppButton(label: 'Record Payment', icon: Symbols.payments,
-                variant: BtnVariant.primary, onPressed: onPay),
-          if (inv.canCancel)
-            AppButton(label: 'Cancel', icon: Symbols.cancel,
-                variant: BtnVariant.ghost, onPressed: onCancel),
+          // ── Footer actions ──
+          if (inv.canSend || inv.canPay || inv.canCancel)
+            Container(
+              padding: const EdgeInsets.fromLTRB(24, 12, 24, 20),
+              decoration: BoxDecoration(
+                border: Border(top: BorderSide(color: context.pal.border)),
+              ),
+              child: Wrap(spacing: 8, runSpacing: 8, children: [
+                if (inv.canSend)
+                  AppButton(
+                    label: 'Send Invoice', icon: Symbols.send,
+                    variant: BtnVariant.primary,
+                    onPressed: _acting ? null
+                        : () => _act(() => InvoiceService.instance.send(inv.id)),
+                  ),
+                if (inv.canPay)
+                  AppButton(
+                    label: 'Record Payment', icon: Symbols.payments,
+                    variant: BtnVariant.primary,
+                    onPressed: _acting ? null : _pay,
+                  ),
+                if (inv.canCancel)
+                  AppButton(
+                    label: 'Cancel Invoice', icon: Symbols.cancel,
+                    variant: BtnVariant.ghost,
+                    onPressed: _acting ? null
+                        : () => _act(() => InvoiceService.instance.cancel(inv.id)),
+                  ),
+              ]),
+            ),
         ]),
-      ]),
+      ),
     );
   }
 }
 
-Widget _row(String label, String value) => Padding(
-  padding: const EdgeInsets.only(bottom: 6),
-  child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    SizedBox(width: 110, child: Text(label, style: const TextStyle(
-        fontSize: 11, fontWeight: FontWeight.w500, color: AppColors.textDim))),
-    Expanded(child: Text(value, style: const TextStyle(fontSize: 12))),
-  ]),
-);
-
-Widget _fin(String label, int amount, BuildContext ctx) => Padding(
-  padding: const EdgeInsets.symmetric(vertical: 3),
-  child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-    Text(label, style: AppTheme.bodySub),
-    Text(_fmt(amount), style: AppTheme.bodySub),
-  ]),
-);
-
 // ── Record Payment modal ───────────────────────────────────────────────────────
 
 class _PaymentModal extends StatefulWidget {
-  const _PaymentModal({required this.invoice, required this.onSaved});
-  final Invoice      invoice;
-  final VoidCallback onSaved;
+  const _PaymentModal({required this.invoice});
+  final Invoice invoice;
   @override
   State<_PaymentModal> createState() => _PaymentModalState();
 }
@@ -582,8 +673,7 @@ class _PaymentModalState extends State<_PaymentModal> {
         'paid_at':        _datCtrl.text.trim(),
         'notes':          _noteCtrl.text.trim().isNotEmpty ? _noteCtrl.text.trim() : null,
       });
-      widget.onSaved();
-      if (mounted) Navigator.of(context).pop();
+      if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       if (mounted) {
         setState(() => _saving = false);

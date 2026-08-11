@@ -3,7 +3,16 @@ import 'package:material_symbols_icons/symbols.dart';
 import '../../screens/customers/customers_screen.dart';
 import '../../screens/dashboard/dashboard_screen.dart';
 import '../../screens/email/email_screen.dart';
+import '../../screens/finance/bank_reconciliation_screen.dart';
+import '../../screens/finance/chart_of_accounts_screen.dart';
+import '../../screens/finance/expenses_screen.dart';
+import '../../screens/finance/finance_dashboard_screen.dart';
+import '../../screens/finance/finance_reports_screen.dart';
+import '../../screens/finance/vendor_bills_screen.dart';
 import '../../screens/hospitals/hospital_list_screen.dart';
+import '../../screens/hr/hr_approval_screen.dart';
+import '../../screens/hr/my_leave_screen.dart';
+import '../../screens/inventory/flagged_units_screen.dart';
 import '../../screens/inventory/inventory_items_screen.dart';
 import '../../screens/inventory/locations_screen.dart';
 import '../../screens/inventory/suppliers_screen.dart';
@@ -16,8 +25,11 @@ import '../../screens/reports/reports_screen.dart';
 import '../../screens/revenue/revenue_screen.dart';
 import '../../screens/sales/sales_screen.dart';
 import '../../screens/sales/invoices_screen.dart';
+import '../../screens/sales/pos_screen.dart';
 import '../../screens/sales/quotations_screen.dart';
+import '../../screens/sales/sales_dashboard_screen.dart';
 import '../../screens/sales/sales_orders_screen.dart';
+import '../../screens/sales/sales_history_screen.dart';
 import '../../screens/service/service_ticket_screen.dart';
 import '../../screens/settings/settings_screen.dart';
 import '../../screens/notifications/notifications_screen.dart';
@@ -72,6 +84,7 @@ class _AppShellState extends State<AppShell> {
     String permKey = key;
     if (key.startsWith('inventory_')) permKey = 'inventory';
     if (key.startsWith('sales_'))     permKey = 'sales';
+    if (key.startsWith('finance_'))   permKey = 'finance';
     final target = (allowed == null || allowed.contains(permKey))
         ? key
         : defaultScreenKey(userRoleNotifier.value);
@@ -98,14 +111,26 @@ class _AppShellState extends State<AppShell> {
     'inventory_requisitions' => const RequisitionsScreen(),
     'inventory_orders'       => const PurchaseOrdersScreen(),
     'inventory_locations'    => const LocationsScreen(),
+    'inventory_flagged'      => const FlaggedUnitsScreen(),
     'revenue'                => const RevenueScreen(),
+    'finance' || 'finance_dashboard' => FinanceDashboardScreen(onNavigateTo: _navigate),
+    'finance_expenses'       => const ExpensesScreen(),
+    'finance_bills'          => const VendorBillsScreen(),
+    'finance_ledger'         => const ChartOfAccountsScreen(),
+    'finance_reports'        => const FinanceReportsScreen(),
+    'finance_bank_rec'       => const BankReconciliationScreen(),
     'email'     => const EmailScreen(),
     'sales' || 'sales_leads' => const SalesScreen(),
+    'sales_dashboard'         => const SalesDashboardScreen(),
+    'sales_pos'               => const PosScreen(),
     'sales_quotations'       => const QuotationsScreen(),
     'sales_orders'           => const SalesOrdersScreen(),
     'sales_invoices'         => const InvoicesScreen(),
+    'sales_history'          => const SalesHistoryScreen(),
     'customers' => const CustomersScreen(),
     'staff'          => const StaffScreen(),
+    'my_leave'       => const MyLeaveScreen(),
+    'hr_approvals'   => const HrApprovalScreen(),
     'notifications'  => const NotificationsScreen(),
     'reports'        => ReportsScreen(onNavigateTo: _navigate),
     'settings'  => const SettingsScreen(),
@@ -119,6 +144,7 @@ class _AppShellState extends State<AppShell> {
     if (_activeKey == 'detail')    return 'machines';
     if (_activeKey == 'inventory') return 'inventory_items';
     if (_activeKey == 'sales')     return 'sales_leads';
+    if (_activeKey == 'finance')   return 'finance_dashboard';
     return _activeKey;
   }
 

@@ -10,6 +10,7 @@ class Hospital {
   final int    machineCount;
   final int    machinesOperational;
   final double revenueMonthly;
+  final int?   creditLimit;
   final String contactName;
   final String contactPhone;
   final String contactEmail;
@@ -27,6 +28,7 @@ class Hospital {
     required this.machineCount,
     required this.machinesOperational,
     required this.revenueMonthly,
+    this.creditLimit,
     required this.contactName,
     required this.contactPhone,
     required this.contactEmail,
@@ -45,6 +47,7 @@ class Hospital {
     machineCount:        (j['machine_count']        as num? ?? 0).toInt(),
     machinesOperational: (j['machines_operational'] as num? ?? 0).toInt(),
     revenueMonthly:      (j['revenue_monthly']      as num? ?? 0).toDouble(),
+    creditLimit:         (j['credit_limit'] as num?)?.toInt(),
     contactName:         j['contact_name']  as String? ?? '—',
     contactPhone:        j['contact_phone'] as String? ?? '—',
     contactEmail:        j['contact_email'] as String? ?? '—',

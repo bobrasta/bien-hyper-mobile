@@ -62,6 +62,63 @@ class AppPalette extends ThemeExtension<AppPalette> {
 
   static const dark = AppPalette(
     isDark:         true,
+    bg:             Color(0xFF08090B),
+    surface1:       Color(0xFF111418), // panel-solid
+    surface2:       Color(0xFF1B1F27),
+    surface3:       Color(0xFF20242D),
+    sidebarBg:      Color(0xFF08090B),
+    topbarBg:       Color(0xFF08090B),
+    border:         Color(0x14FFFFFF), // rgba(255,255,255,.08)
+    borderStrong:   Color(0x29FFFFFF), // rgba(255,255,255,.16)
+    divider:        Color(0x14FFFFFF),
+    text:           Color(0xFFF3F5F7),
+    textMute:       Color(0xFFA3ABB4), // gwgps --text-dim (1st tier)
+    textDim:        Color(0xFF6A727B), // gwgps --text-mute (2nd tier)
+    blue:           Color(0xFF22C55E), // brand accent green
+    blue700:        Color(0xFF4ADE80), // hover / pressed
+    blue50:         Color(0xFF13291B), // selected-row / info tint (dark green surface)
+    green:          Color(0xFF22C55E), // same as accent — gwgps uses one green for both
+    green50:        Color(0xFF13291B),
+    statusNormal:   Color(0xFF22C55E),
+    statusInfo:     Color(0xFF38BDF8),
+    statusWarning:  Color(0xFFF59E0B),
+    statusCritical: Color(0xFFF04438),
+  );
+
+  // ── Light ────────────────────────────────────────────────────────────────────
+
+  static const light = AppPalette(
+    isDark:         false,
+    bg:             Color(0xFFEEF1F4),
+    surface1:       Color(0xFFFFFFFF), // panel-solid
+    surface2:       Color(0xFFF6F7F9),
+    surface3:       Color(0xFFEFF1F3),
+    sidebarBg:      Color(0xFFFFFFFF),
+    topbarBg:       Color(0xFFFFFFFF),
+    border:         Color(0x1A0F1720), // rgba(15,23,32,.1)
+    borderStrong:   Color(0x2E0F1720), // rgba(15,23,32,.18)
+    divider:        Color(0x1A0F1720),
+    text:           Color(0xFF10151B),
+    textMute:       Color(0xFF586069), // gwgps --text-dim (1st tier)
+    textDim:        Color(0xFF8B939C), // gwgps --text-mute (2nd tier)
+    blue:           Color(0xFF22C55E), // brand accent green (same across themes in gwgps)
+    blue700:        Color(0xFF16A34A), // accent-2 / pressed
+    blue50:         Color(0xFFE8F9EE), // selected-row / info tint
+    green:          Color(0xFF22C55E),
+    green50:        Color(0xFFE8F9EE),
+    statusNormal:   Color(0xFF22C55E),
+    statusInfo:     Color(0xFF38BDF8),
+    statusWarning:  Color(0xFFF59E0B),
+    statusCritical: Color(0xFFF04438),
+  );
+
+  // ── Dormant fallback: original "BioTrack" blue theme, pre-gwgps port ──────────
+  // Not wired into the theme switcher. Kept only so the old look can be restored
+  // quickly if ever wanted again — not actively designed/maintained alongside
+  // the gwgps palette above, so treat as a snapshot, not a supported option.
+
+  static const classicBlueDark = AppPalette(
+    isDark:         true,
     bg:             Color(0xFF0E1622),
     surface1:       Color(0xFF162133),
     surface2:       Color(0xFF1B273B),
@@ -85,33 +142,6 @@ class AppPalette extends ThemeExtension<AppPalette> {
     statusCritical: Color(0xFFF0726F),
   );
 
-  // ── Light ────────────────────────────────────────────────────────────────────
-
-  static const light = AppPalette(
-    isDark:         false,
-    bg:             Color(0xFFF6F8FB),
-    surface1:       Color(0xFFFFFFFF),
-    surface2:       Color(0xFFFBFCFE),
-    surface3:       Color(0xFFF0F2F5),
-    sidebarBg:      Color(0xFFFFFFFF),
-    topbarBg:       Color(0xFFFFFFFF),
-    border:         Color(0xFFE4E9F0),
-    borderStrong:   Color(0xFFD2DAE5),
-    divider:        Color(0xFFECF0F5),
-    text:           Color(0xFF16202E),
-    textMute:       Color(0xFF5A6678),
-    textDim:        Color(0xFF8A95A6),
-    blue:           Color(0xFF2F7FC2),
-    blue700:        Color(0xFF225F92),
-    blue50:         Color(0xFFEAF2FB),
-    green:          Color(0xFF1F9E4D),
-    green50:        Color(0xFFE8F6ED),
-    statusNormal:   Color(0xFF1F9E4D),
-    statusInfo:     Color(0xFF2F7FC2),
-    statusWarning:  Color(0xFFE0A82E),
-    statusCritical: Color(0xFFD64545),
-  );
-
   // ── Neutral (color-rich, cool-tinted surfaces) ────────────────────────────────
 
   static const neutral = AppPalette(
@@ -128,15 +158,15 @@ class AppPalette extends ThemeExtension<AppPalette> {
     text:           Color(0xFF14222C),
     textMute:       Color(0xFF51636E),
     textDim:        Color(0xFF8499A3),
-    blue:           Color(0xFF1F7AD4),
-    blue700:        Color(0xFF145EA8),
-    blue50:         Color(0xFFDCEBFB),
-    green:          Color(0xFF15A84F),
+    blue:           Color(0xFF22C55E),
+    blue700:        Color(0xFF16A34A),
+    blue50:         Color(0xFFDBF3E2),
+    green:          Color(0xFF22C55E),
     green50:        Color(0xFFDBF3E2),
-    statusNormal:   Color(0xFF15A84F),
-    statusInfo:     Color(0xFF1F7AD4),
-    statusWarning:  Color(0xFFEFB02E),
-    statusCritical: Color(0xFFE0453F),
+    statusNormal:   Color(0xFF22C55E),
+    statusInfo:     Color(0xFF38BDF8),
+    statusWarning:  Color(0xFFF59E0B),
+    statusCritical: Color(0xFFF04438),
   );
 
   // ── Accessor ──────────────────────────────────────────────────────────────────

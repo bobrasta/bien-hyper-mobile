@@ -6,6 +6,7 @@ class SalesOrderItem {
     required this.unitOfMeasure,
     required this.quantityOrdered,
     required this.quantityDelivered,
+    required this.quantityInvoiced,
     required this.unitPrice,
     required this.totalPrice,
     required this.itemSku,
@@ -17,6 +18,7 @@ class SalesOrderItem {
   final String unitOfMeasure;
   final int quantityOrdered;
   final int quantityDelivered;
+  final int quantityInvoiced;
   final int unitPrice;
   final int totalPrice;
   final String? itemSku;
@@ -31,6 +33,7 @@ class SalesOrderItem {
     unitOfMeasure:       j['unit_of_measure'] as String? ?? 'pcs',
     quantityOrdered:     j['quantity_ordered'] as int,
     quantityDelivered:   j['quantity_delivered'] as int? ?? 0,
+    quantityInvoiced:    j['quantity_invoiced'] as int? ?? 0,
     unitPrice:           j['unit_price'] as int,
     totalPrice:          j['total_price'] as int,
     itemSku:             j['item_sku'] as String?,
@@ -45,7 +48,13 @@ class SalesOrder {
     required this.quotationNumber,
     required this.clientName,
     required this.clientContact,
+    required this.locationId,
+    required this.locationName,
     required this.status,
+    required this.approvalStatus,
+    required this.approvalReason,
+    required this.approvedByName,
+    required this.rejectionReason,
     required this.currency,
     required this.subtotal,
     required this.discountAmount,
@@ -55,6 +64,9 @@ class SalesOrder {
     required this.expectedDeliveryDate,
     required this.createdByName,
     required this.confirmedByName,
+    this.commissionAgentName,
+    this.commissionPercent,
+    this.commissionAmount,
     required this.confirmedAt,
     required this.deliveredAt,
     required this.createdAt,
@@ -67,7 +79,13 @@ class SalesOrder {
   final String? quotationNumber;
   final String clientName;
   final String? clientContact;
+  final int? locationId;
+  final String? locationName;
   final String status;
+  final String approvalStatus;
+  final String? approvalReason;
+  final String? approvedByName;
+  final String? rejectionReason;
   final String currency;
   final int subtotal;
   final int discountAmount;
@@ -77,6 +95,9 @@ class SalesOrder {
   final String? expectedDeliveryDate;
   final String? createdByName;
   final String? confirmedByName;
+  final String? commissionAgentName;
+  final double? commissionPercent;
+  final int? commissionAmount;
   final String? confirmedAt;
   final String? deliveredAt;
   final String createdAt;
@@ -93,6 +114,7 @@ class SalesOrder {
   bool get canConfirm   => status == 'pending';
   bool get canDeliver   => status == 'confirmed' || status == 'delivering';
   bool get canCancel    => status != 'delivered' && status != 'cancelled';
+  bool get needsApproval => approvalStatus == 'pending';
 
   factory SalesOrder.fromJson(Map<String, dynamic> j) => SalesOrder(
     id:                   j['id'] as int,
@@ -101,6 +123,12 @@ class SalesOrder {
     quotationNumber:      j['quotation_number'] as String?,
     clientName:           j['client_name'] as String,
     clientContact:        j['client_contact'] as String?,
+    locationId:           j['location_id'] as int?,
+    locationName:         j['location_name'] as String?,
+    approvalStatus:       j['approval_status'] as String? ?? 'not_required',
+    approvalReason:       j['approval_reason'] as String?,
+    approvedByName:       j['approved_by_name'] as String?,
+    rejectionReason:      j['rejection_reason'] as String?,
     status:               j['status'] as String,
     currency:             j['currency'] as String? ?? 'TZS',
     subtotal:             j['subtotal'] as int? ?? 0,
@@ -111,6 +139,9 @@ class SalesOrder {
     expectedDeliveryDate: j['expected_delivery_date'] as String?,
     createdByName:        j['created_by_name'] as String?,
     confirmedByName:      j['confirmed_by_name'] as String?,
+    commissionAgentName:  j['commission_agent_name'] as String?,
+    commissionPercent:    (j['commission_percent'] as num?)?.toDouble(),
+    commissionAmount:     (j['commission_amount'] as num?)?.toInt(),
     confirmedAt:          j['confirmed_at'] as String?,
     deliveredAt:          j['delivered_at'] as String?,
     createdAt:            j['created_at'] as String,

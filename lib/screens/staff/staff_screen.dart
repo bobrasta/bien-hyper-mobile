@@ -79,6 +79,7 @@ class _StaffScreenState extends State<StaffScreen> {
   bool _loadingTeam  = true;
   bool _loadingTasks = true;
   bool _showNewTask  = false;
+  bool _showNewStaff = false;
 
   int?    _filterStaffId;
   String? _filterStaffName;
@@ -355,9 +356,11 @@ class _StaffScreenState extends State<StaffScreen> {
         onAssign: _assignTask,
         filterStaffId:   _filterStaffId,
         onFilterByStaff: _filterByStaff,
+        onAddStaff: () => setState(() => _showNewStaff = true),
       )),
     ]),
     if (_showNewTask) _newTaskOverlay(),
+    if (_showNewStaff) _newStaffOverlay(),
   ]);
 
   Widget _buildMedium() => Stack(children: [
@@ -403,6 +406,7 @@ class _StaffScreenState extends State<StaffScreen> {
           onAssign: (m) { _assignTask(m); setState(() => _narrowPane = 1); },
           filterStaffId:   _filterStaffId,
           onFilterByStaff: _filterByStaff,
+          onAddStaff: () => setState(() => _showNewStaff = true),
         )),
       ]),
       _ => _TaskListPane(
@@ -418,6 +422,7 @@ class _StaffScreenState extends State<StaffScreen> {
     return Stack(children: [
       content,
       if (_showNewTask) _newTaskOverlay(),
+      if (_showNewStaff) _newStaffOverlay(),
     ]);
   }
 
@@ -434,6 +439,15 @@ class _StaffScreenState extends State<StaffScreen> {
     teamMembers: _liveTeam,
     onClose: () => setState(() => _showNewTask = false),
     onSaved: () { setState(() => _showNewTask = false); _loadGeneralTasks(); },
+  );
+
+  Widget _newStaffOverlay() => _NewStaffDialog(
+    onClose: () => setState(() => _showNewStaff = false),
+    onSaved: () {
+      setState(() => _showNewStaff = false);
+      StaffService.instance.invalidateCache();
+      _loadStaff();
+    },
   );
 
   void _showTeamSheet(BuildContext ctx) {
@@ -1034,7 +1048,7 @@ class _TeamAvailabilityPane extends StatelessWidget {
   const _TeamAvailabilityPane({
     required this.task, required this.team, required this.onAssign,
     this.loadingTeam = false, this.scrollController,
-    this.filterStaffId, this.onFilterByStaff,
+    this.filterStaffId, this.onFilterByStaff, this.onAddStaff,
   });
   final _Task? task;
   final List<_TeamMember> team;
@@ -1043,6 +1057,7 @@ class _TeamAvailabilityPane extends StatelessWidget {
   final ScrollController? scrollController;
   final int?                          filterStaffId;
   final void Function(int, String)?   onFilterByStaff;
+  final VoidCallback?                 onAddStaff;
 
   static const _groups = [
     ('office', 'Office & Sales'),
@@ -1066,6 +1081,17 @@ class _TeamAvailabilityPane extends StatelessWidget {
             child: Row(children: [
               Text('Team Availability', style: AppTheme.bodyStrong.copyWith(fontSize: 13)),
               const Spacer(),
+              if (onAddStaff != null) ...[
+                GestureDetector(
+                  onTap: onAddStaff,
+                  child: Container(
+                    width: 22, height: 22,
+                    decoration: BoxDecoration(color: AppColors.tealSoft, borderRadius: BorderRadius.circular(6)),
+                    child: const Icon(Symbols.person_add, size: 13, color: AppColors.teal),
+                  ),
+                ),
+                const SizedBox(width: 10),
+              ],
               Container(width: 8, height: 8,
                 decoration: BoxDecoration(color: AppColors.teal, shape: BoxShape.circle,
                   boxShadow: [BoxShadow(color: AppColors.tealGlow, blurRadius: 6)]),
@@ -1765,6 +1791,176 @@ class _NewTaskDialogState extends State<_NewTaskDialog> {
       ),
     ]);
   }
+}
+
+// ── New staff dialog ────────────────────────────────────────────────────────────
+
+class _NewStaffDialog extends StatefulWidget {
+  const _NewStaffDialog({required this.onClose, this.onSaved});
+  final VoidCallback  onClose;
+  final VoidCallback? onSaved;
+
+  @override
+  State<_NewStaffDialog> createState() => _NewStaffDialogState();
+}
+
+class _NewStaffDialogState extends State<_NewStaffDialog> {
+  final _nameCtrl  = TextEditingController();
+  final _emailCtrl = TextEditingController();
+  final _phoneCtrl = TextEditingController();
+  final _zoneCtrl  = TextEditingController();
+  String  _role   = 'sales';
+  bool    _saving = false;
+  String? _error;
+
+  // Ordered so the manager tiers sit next to their department's staff tier.
+  static const _roleOrder = [
+    'super_admin', 'admin',
+    'sales_manager', 'sales',
+    'finance_manager', 'finance',
+    'technician', 'cs', 'storekeeper',
+  ];
+  static const _roleLabels = {
+    'super_admin':     'Super Admin',
+    'admin':           'Director',
+    'sales_manager':   'Sales Manager',
+    'sales':           'Sales Staff',
+    'finance_manager': 'Finance Manager',
+    'finance':         'Accountant',
+    'technician':      'Technician',
+    'cs':              'Customer Service',
+    'storekeeper':     'Storekeeper',
+  };
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose(); _emailCtrl.dispose();
+    _phoneCtrl.dispose(); _zoneCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    if (_saving) return;
+    if (_nameCtrl.text.trim().isEmpty) {
+      setState(() => _error = 'Name is required.');
+      return;
+    }
+    if (_emailCtrl.text.trim().isEmpty || !_emailCtrl.text.contains('@')) {
+      setState(() => _error = 'A valid email is required.');
+      return;
+    }
+    setState(() { _saving = true; _error = null; });
+    try {
+      await StaffService.instance.create({
+        'name':  _nameCtrl.text.trim(),
+        'email': _emailCtrl.text.trim(),
+        'phone': _phoneCtrl.text.trim().isNotEmpty ? _phoneCtrl.text.trim() : null,
+        'role':  _role,
+        'zone':  _zoneCtrl.text.trim().isNotEmpty ? _zoneCtrl.text.trim() : null,
+      });
+      widget.onSaved?.call();
+    } catch (e) {
+      if (mounted) setState(() { _saving = false; _error = friendlyError(e); });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: widget.onClose,
+    child: Container(
+      color: const Color(0xAA06070A),
+      alignment: Alignment.center,
+      child: GestureDetector(
+        onTap: () {},
+        child: Container(
+          width: 480,
+          decoration: BoxDecoration(
+            color: context.pal.surface1, borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: context.pal.borderStrong),
+            boxShadow: const [BoxShadow(
+                color: Color(0x70000000), blurRadius: 60, offset: Offset(0, 20))],
+          ),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+              child: Row(children: [
+                const Icon(Symbols.person_add, size: 18, color: AppColors.teal),
+                const SizedBox(width: 10),
+                Text('Add Staff Member', style: AppTheme.bodyStrong),
+                const Spacer(),
+                GestureDetector(onTap: widget.onClose,
+                    child: Icon(Symbols.close, size: 18, color: context.pal.textDim)),
+              ]),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+              child: Column(children: [
+                _TF('Full Name', _nameCtrl, 'e.g. Amina Juma'),
+                const SizedBox(height: 14),
+                Row(children: [
+                  Expanded(child: _TF('Email', _emailCtrl, 'amina@hypermed.tz')),
+                  const SizedBox(width: 14),
+                  Expanded(child: _TF('Phone (optional)', _phoneCtrl, '+255…')),
+                ]),
+                const SizedBox(height: 14),
+                Row(children: [
+                  Expanded(child: _TDrop(
+                    label: 'Role',
+                    value: _role,
+                    items: _roleOrder,
+                    display: _roleOrder.map((r) => _roleLabels[r]!).toList(),
+                    onChanged: (v) => setState(() => _role = v),
+                  )),
+                  const SizedBox(width: 14),
+                  Expanded(child: _TF('Zone (optional)', _zoneCtrl, 'Dar es Salaam')),
+                ]),
+                const SizedBox(height: 10),
+                Row(children: [
+                  Icon(Symbols.info, size: 13, color: context.pal.textDim),
+                  const SizedBox(width: 6),
+                  Expanded(child: Text('A temporary password is generated — the new user should change it on first login.',
+                      style: AppTheme.bodySub.copyWith(fontSize: 11, color: context.pal.textDim))),
+                ]),
+                if (_error != null) ...[
+                  const SizedBox(height: 10),
+                  Row(children: [
+                    const Icon(Icons.error_outline, size: 14, color: AppColors.coral),
+                    const SizedBox(width: 6),
+                    Expanded(child: Text(_error!,
+                      style: AppTheme.bodySub.copyWith(color: AppColors.coral, fontSize: 12))),
+                  ]),
+                ],
+              ]),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+              child: Row(children: [
+                Expanded(child: GestureDetector(
+                  onTap: widget.onClose,
+                  child: Container(height: 38,
+                    decoration: BoxDecoration(border: Border.all(color: context.pal.border),
+                        borderRadius: BorderRadius.circular(8)),
+                    child: Center(child: Text('Cancel', style: AppTheme.bodySm))),
+                )),
+                const SizedBox(width: 12),
+                Expanded(child: GestureDetector(
+                  onTap: _save,
+                  child: Container(height: 38,
+                    decoration: BoxDecoration(
+                        color: AppColors.teal, borderRadius: BorderRadius.circular(8)),
+                    child: Center(child: _saving
+                      ? const SizedBox(width: 16, height: 16,
+                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                      : Text('Add Staff', style: AppTheme.bodyStrong.copyWith(
+                          color: const Color(0xFF06120F), fontSize: 13)))),
+                )),
+              ]),
+            ),
+          ]),
+        ),
+      ),
+    ),
+  );
 }
 
 // ── Dialog field helpers ──────────────────────────────────────────────────────

@@ -388,8 +388,8 @@ class _LoginButtonState extends State<_LoginButton> {
               begin: Alignment.centerLeft,
               end:   Alignment.centerRight,
               colors: _hover && !widget.loading
-                  ? [const Color(0xFF00EFBF), AppColors.teal]
-                  : [AppColors.teal, const Color(0xFF00A882)],
+                  ? [AppColors.blueStrong, AppColors.teal]
+                  : [AppColors.teal, AppColors.teal],
             ),
             borderRadius: BorderRadius.circular(10),
             boxShadow: [
@@ -469,7 +469,7 @@ class _BrandPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Stack(fit: StackFit.expand, children: [
       // Background
-      const ColoredBox(color: Color(0xFF080B12)),
+      const ColoredBox(color: AppColors.bg),
       // Decorative background
       CustomPaint(painter: _BrandPainter()),
       // Content
@@ -489,9 +489,9 @@ class _BrandPanel extends StatelessWidget {
       Container(
         width: 60, height: 60,
         decoration: BoxDecoration(
-          color: const Color(0x1800D4AA),
+          color: AppColors.tealSoft,
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: const Color(0x3500D4AA)),
+          border: Border.all(color: AppColors.teal.withValues(alpha: 0.3)),
         ),
         child: const Icon(Symbols.medical_services, size: 30, color: AppColors.teal),
       ),
@@ -501,7 +501,7 @@ class _BrandPanel extends StatelessWidget {
       const Text(
         'Hypermed',
         style: TextStyle(
-          color: Color(0xFFE8EAF6),
+          color: AppColors.text,
           fontSize: 30,
           fontWeight: FontWeight.w700,
           letterSpacing: -0.6,
@@ -513,7 +513,7 @@ class _BrandPanel extends StatelessWidget {
       const Text(
         'Medical Equipment\nManagement Platform',
         style: TextStyle(
-          color: Color(0x99E8EAF6),
+          color: AppColors.textMute,
           fontSize: 15.5,
           height: 1.55,
         ),
@@ -525,16 +525,16 @@ class _BrandPanel extends StatelessWidget {
       const Text(
         'Designed & built by Bob Temu · Neville Temu',
         style: TextStyle(
-          color: Color(0x44E8EAF6),
+          color: AppColors.textDim,
           fontSize: 10,
           letterSpacing: 0.3,
         ),
       ),
       const SizedBox(height: 4),
-      const Text(
+      Text(
         'Powered by BobLabs',
         style: TextStyle(
-          color: Color(0x2800D4AA),
+          color: AppColors.teal.withValues(alpha: 0.35),
           fontSize: 10,
           letterSpacing: 0.5,
         ),
@@ -546,9 +546,9 @@ class _BrandPanel extends StatelessWidget {
     Container(
       width: 42, height: 42,
       decoration: BoxDecoration(
-        color: const Color(0x1800D4AA),
+        color: AppColors.tealSoft,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0x3500D4AA)),
+        border: Border.all(color: AppColors.teal.withValues(alpha: 0.3)),
       ),
       child: const Icon(Symbols.medical_services, size: 22, color: AppColors.teal),
     ),
@@ -559,14 +559,14 @@ class _BrandPanel extends StatelessWidget {
       children: [
         Text('Hypermed',
           style: TextStyle(
-            color: Color(0xFFE8EAF6),
+            color: AppColors.text,
             fontSize: 20,
             fontWeight: FontWeight.w700,
           )),
         SizedBox(height: 2),
         Text('Medical Equipment Platform',
           style: TextStyle(
-            color: Color(0x88E8EAF6),
+            color: AppColors.textMute,
             fontSize: 12,
           )),
       ],
@@ -593,16 +593,16 @@ class _BrandPainter extends CustomPainter {
     // Teal radial glow — top right
     final glow1 = Paint()
       ..shader = RadialGradient(
-        colors: [const Color(0x1800D4AA), const Color(0x0000D4AA)],
+        colors: [AppColors.teal.withValues(alpha: 0.094), AppColors.teal.withValues(alpha: 0)],
       ).createShader(Rect.fromCircle(
           center: Offset(size.width * 0.85, size.height * 0.12), radius: 220));
     canvas.drawCircle(
         Offset(size.width * 0.85, size.height * 0.12), 220, glow1);
 
-    // Blue radial glow — bottom left
+    // Violet radial glow — bottom left (secondary accent, keeps the panel from reading as flat single-hue)
     final glow2 = Paint()
       ..shader = RadialGradient(
-        colors: [const Color(0x0E5B8DEF), const Color(0x005B8DEF)],
+        colors: [AppColors.violet.withValues(alpha: 0.055), AppColors.violet.withValues(alpha: 0)],
       ).createShader(Rect.fromCircle(
           center: Offset(size.width * 0.05, size.height * 0.85), radius: 190));
     canvas.drawCircle(
@@ -610,7 +610,7 @@ class _BrandPainter extends CustomPainter {
 
     // Concentric corner arcs — top right
     final arc = Paint()
-      ..color = const Color(0x0900D4AA)
+      ..color = AppColors.teal.withValues(alpha: 0.035)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1;
     for (double r = 80; r <= 320; r += 60) {

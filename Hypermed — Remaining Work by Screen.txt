@@ -1,0 +1,98 @@
+Hypermed — Remaining Work by Screen
+✅ Login
+ UI built
+ API auth working
+ Token storage & auto-login on relaunch
+ Logout flow (token cleared on 401)
+🔲 Dashboard
+ Load real KPI numbers from GET /api/v1/dashboard
+ Real recent tickets list (currently SampleData)
+ Real top hospitals ranking (currently SampleData)
+ Revenue chart using real 12-month data
+ Machine status donut using real counts
+ Tanzania map widget pins from real machine locations
+🟡 Machine List (in progress)
+ Load machines from API
+ Filter by status (client-side on loaded data)
+ Search works on loaded data
+ Add Machine dialog calls API + refreshes list
+ Fix Laravel parts_used table error (your side)
+ Status chip counts from API summary (currently computed from loaded page)
+ Hospital / Type / Date filter chips wired to API query params
+ Pagination — currently loads all, needs page-by-page for large datasets
+🟡 Machine Detail (in progress)
+ Header card loads from API
+ Tabs, modals UI intact
+ Fix Laravel 500 (part_useds table) so machine detail loads
+ Service history tab — load from GET /api/v1/tickets?machine_id=X
+ Revenue tab — load from GET /api/v1/invoices?machine_id=X
+ Edit Machine modal — wire Save to PUT /api/v1/machines/{id}
+ Log Service modal — wire Save to POST /api/v1/tickets
+ Raise Ticket modal — wire Save to POST /api/v1/tickets
+🔲 Machine Map
+ Load real machine locations from GET /api/v1/machines/map
+ Map pins show real hospital/machine data
+ Zone filter panel wired to real data
+🔲 Hospitals
+ Load hospitals from GET /api/v1/hospitals
+ Hospital detail sheet shows real data
+ Filter by type / region wired to API
+ Add Hospital dialog calls API
+ Edit Hospital calls PUT /api/v1/hospitals/{id}
+ Machine list in detail sheet from GET /api/v1/machines?hospital={id}
+🔲 Service Tickets
+ Load tickets from GET /api/v1/tickets
+ Filter by status / hospital wired to API
+ Ticket detail shows real data
+ Resolve ticket calls POST /api/v1/tickets/{id}/resolve
+ Create ticket dialog calls API
+ Checklist items toggle calls API
+🔲 Revenue / Invoices
+ Load invoices from GET /api/v1/invoices
+ Revenue summary chart from GET /api/v1/revenue/summary
+ Top hospitals chart from GET /api/v1/revenue/by-hospital
+ Invoice detail sheet shows real data
+ Filter by status / date wired to API
+ Create / edit invoice calls API
+🔲 Sales Pipeline
+ Load leads from GET /api/v1/leads
+ Kanban columns grouped by stage from real data
+ Move stage calls PATCH /api/v1/leads/{id}/stage
+ Add Lead dialog calls API
+ Deal value totals per column computed from real data
+🔲 Inventory / Spare Parts
+ Load parts from GET /api/v1/spare-parts
+ Low stock filter wired to ?low_stock=1
+ Add / edit part calls API
+ Reorder level indicator uses real stock_qty vs reorder_level
+🔲 Customers / Contacts
+ Load contacts from GET /api/v1/contacts
+ Contact detail sheet shows real data + interaction history
+ Add interaction calls POST /api/v1/contacts/{id}/interactions
+ Filter by hospital / tag wired to API
+ Add / edit contact calls API
+🔲 Staff
+ Load staff from GET /api/v1/staff
+ Task list — currently mock data (no API endpoint yet; add to Laravel)
+ Availability status from real avail_status field
+ Team assignment in task detail calls PUT /api/v1/tickets/{id}
+🔲 Reports
+ Load report aggregates from GET /api/v1/reports
+ Charts use real data
+ Export to PDF/CSV (future feature)
+🔲 Notifications (Top Bar)
+ Load from GET /api/v1/notifications
+ Mark read calls PATCH /api/v1/notifications/{id}/read
+ Mark all read calls POST /api/v1/notifications/read-all
+ Unread badge count from real data
+🔲 Settings
+ Load current user profile from GET /api/v1/auth/me
+ Update profile calls API
+ Change password (needs endpoint)
+ Theme toggle (already working — local only)
+🔲 Cross-cutting
+ Logout button in top bar / settings
+ Pull-to-refresh on all list screens
+ Proper error toasts (not inline error text)
+ Empty state widgets when API returns 0 results
+Priority order I'd suggest: Dashboard → Hospitals → Tickets → Revenue → Notifications → Sales → Inventory → Contacts → Staff → Reports → Settings

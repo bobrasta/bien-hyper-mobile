@@ -30,7 +30,9 @@ class SalesOrderService {
     return SalesOrder.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
   }
 
-  Future<SalesOrder> deliver(int id, {
+  /// Returns the updated order plus how many Machine records this delivery
+  /// registered (equipment items delivered to a hospital-linked order).
+  Future<(SalesOrder, int machinesCreated)> deliver(int id, {
     required List<Map<String, dynamic>> items,
     String? notes,
   }) async {
@@ -38,11 +40,26 @@ class SalesOrderService {
       'items': items,
       'notes': ?notes,
     });
-    return SalesOrder.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+    final body = res.data as Map<String, dynamic>;
+    final order = SalesOrder.fromJson(body['data'] as Map<String, dynamic>);
+    final machinesCreated = (body['machines_created'] as List?)?.length ?? 0;
+    return (order, machinesCreated);
   }
 
   Future<SalesOrder> cancel(int id) async {
     final res = await _dio.post('/sales-orders/$id/cancel');
+    return SalesOrder.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+  }
+
+  Future<SalesOrder> approve(int id) async {
+    final res = await _dio.post('/sales-orders/$id/approve');
+    return SalesOrder.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+  }
+
+  Future<SalesOrder> rejectApproval(int id, {String? reason}) async {
+    final res = await _dio.post('/sales-orders/$id/reject-approval', data: {
+      'rejection_reason': ?reason,
+    });
     return SalesOrder.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
   }
 }

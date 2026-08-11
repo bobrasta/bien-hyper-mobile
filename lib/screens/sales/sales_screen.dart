@@ -2,12 +2,16 @@
 import 'package:material_symbols_icons/symbols.dart';
 import '../../models/sales_lead.dart';
 import '../../services/sales_service.dart';
+import '../../services/staff_service.dart';
 import '../../theme/app_colors.dart';
 import '../../utils/api_error.dart';
 import '../../widgets/common/error_view.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common/app_button.dart';
 import '../../theme/app_palette.dart';
+
+String _isoDate(DateTime d) =>
+    '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
 class SalesScreen extends StatefulWidget {
   const SalesScreen({super.key});
@@ -103,7 +107,7 @@ class _SalesScreenState extends State<SalesScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: PipelineStage.values.map((stage) {
                       final stageLeads = grouped[stage] ?? [];
-                      return _KanbanColumn(stage: stage, leads: stageLeads);
+                      return _KanbanColumn(stage: stage, leads: stageLeads, onChanged: _load);
                     }).toList(),
                   ),
                 ),
@@ -123,9 +127,10 @@ class _SalesScreenState extends State<SalesScreen> {
 }
 
 class _KanbanColumn extends StatelessWidget {
-  const _KanbanColumn({required this.stage, required this.leads});
+  const _KanbanColumn({required this.stage, required this.leads, required this.onChanged});
   final PipelineStage stage;
   final List<SalesLead> leads;
+  final VoidCallback onChanged;
 
   Color get _dotColor => switch (stage) {
     PipelineStage.lead          => AppColors.textDim,
@@ -144,8 +149,8 @@ class _KanbanColumn extends StatelessWidget {
   };
 
   Color? get _columnBorder => switch (stage) {
-    PipelineStage.won  => const Color(0x4000D4AA),
-    PipelineStage.lost => const Color(0x40FF5252),
+    PipelineStage.won  => AppColors.teal.withValues(alpha: 0.25),
+    PipelineStage.lost => AppColors.coral.withValues(alpha: 0.25),
     _                  => null,
   };
 
@@ -186,7 +191,7 @@ class _KanbanColumn extends StatelessWidget {
             ]),
           ),
           // Cards
-          ...leads.map((l) => _KanbanCard(lead: l, dotColor: _dotColor)),
+          ...leads.map((l) => _KanbanCard(lead: l, dotColor: _dotColor, onChanged: onChanged)),
           // Add card placeholder
           if (stage != PipelineStage.won && stage != PipelineStage.lost)
             Container(
@@ -208,25 +213,38 @@ class _KanbanColumn extends StatelessWidget {
 }
 
 class _KanbanCard extends StatelessWidget {
-  const _KanbanCard({required this.lead, required this.dotColor});
+  const _KanbanCard({required this.lead, required this.dotColor, required this.onChanged});
   final SalesLead lead;
   final Color dotColor;
+  final VoidCallback onChanged;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return GestureDetector(
+      onTap: () async {
+        final changed = await showDialog<bool>(
+          context: context,
+          builder: (_) => _LeadEditDialog(lead: lead),
+        );
+        if (changed == true) onChanged();
+      },
+      child: Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: context.pal.surface1,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: context.pal.border),
+        border: Border.all(color: lead.isFollowUpDue ? AppColors.amber.withValues(alpha: 0.5) : context.pal.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(lead.hospital,
-            style: AppTheme.bodyStrong.copyWith(fontSize: 13)),
+          Row(children: [
+            Expanded(child: Text(lead.hospital,
+              style: AppTheme.bodyStrong.copyWith(fontSize: 13))),
+            if (lead.isFollowUpDue)
+              Icon(Symbols.hourglass_top, size: 13, color: AppColors.amber),
+          ]),
           const SizedBox(height: 2),
           Text(lead.contact,
             style: AppTheme.bodySub.copyWith(fontSize: 11.5)),
@@ -260,10 +278,197 @@ class _KanbanCard extends StatelessWidget {
               )),
             ],
           ]),
+          if (lead.followUpDate != null) ...[
+            const SizedBox(height: 4),
+            Row(children: [
+              Icon(Symbols.hourglass_top, size: 12,
+                  color: lead.isFollowUpDue ? AppColors.amber : context.pal.textDim),
+              const SizedBox(width: 4),
+              Text('Follow up ${lead.followUpDate}', style: AppTheme.bodySub.copyWith(
+                fontSize: 11, color: lead.isFollowUpDue ? AppColors.amber : context.pal.textDim,
+              )),
+            ]),
+          ],
         ],
+      ),
       ),
     );
   }
+}
+
+// ── Lead edit dialog ────────────────────────────────────────────────────────────
+
+class _LeadEditDialog extends StatefulWidget {
+  const _LeadEditDialog({required this.lead});
+  final SalesLead lead;
+
+  @override
+  State<_LeadEditDialog> createState() => _LeadEditDialogState();
+}
+
+class _LeadEditDialogState extends State<_LeadEditDialog> {
+  late String _stage;
+  int? _assignedTo;
+  DateTime? _followUpDate;
+  List<StaffMember> _staff = [];
+  bool _saving = false;
+  bool _loadingStaff = true;
+
+  static const _stageValues = [
+    'lead', 'qualified', 'demo_scheduled', 'proposal_sent', 'negotiation', 'won', 'lost',
+  ];
+  static const _stageLabels = [
+    'Lead', 'Qualified', 'Demo Scheduled', 'Proposal Sent', 'Negotiation', 'Won', 'Lost',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _stage = switch (widget.lead.stage) {
+      PipelineStage.lead          => 'lead',
+      PipelineStage.qualified     => 'qualified',
+      PipelineStage.demoScheduled => 'demo_scheduled',
+      PipelineStage.proposalSent  => 'proposal_sent',
+      PipelineStage.negotiation   => 'negotiation',
+      PipelineStage.won           => 'won',
+      PipelineStage.lost          => 'lost',
+    };
+    _assignedTo = widget.lead.assignedTo;
+    _followUpDate = widget.lead.followUpDate != null ? DateTime.tryParse(widget.lead.followUpDate!) : null;
+    _loadStaff();
+  }
+
+  Future<void> _loadStaff() async {
+    try {
+      final staff = await StaffService.instance.list();
+      if (mounted) setState(() { _staff = staff; _loadingStaff = false; });
+    } catch (_) {
+      if (mounted) setState(() => _loadingStaff = false);
+    }
+  }
+
+  Future<void> _save() async {
+    if (_saving) return;
+    setState(() => _saving = true);
+    try {
+      await SalesService.instance.update(widget.lead.id, {
+        'stage': _stage,
+        'assigned_to': _assignedTo,
+        'follow_up_date': _followUpDate != null ? _isoDate(_followUpDate!) : null,
+      });
+      if (mounted) Navigator.pop(context, true);
+    } catch (e) {
+      if (mounted) {
+        setState(() => _saving = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Dialog(
+    backgroundColor: context.pal.surface1,
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+    child: Container(
+      width: 460,
+      padding: const EdgeInsets.all(20),
+      child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const Icon(Symbols.trending_up, size: 18, color: AppColors.teal),
+          const SizedBox(width: 10),
+          Expanded(child: Text(widget.lead.hospital, style: AppTheme.bodyStrong)),
+          GestureDetector(onTap: () => Navigator.pop(context),
+              child: Icon(Symbols.close, size: 18, color: context.pal.textDim)),
+        ]),
+        const SizedBox(height: 4),
+        Text('${widget.lead.contact} · ${widget.lead.machineType} · TSh ${(widget.lead.dealValue / 1e6).toStringAsFixed(0)}M',
+            style: AppTheme.bodySub.copyWith(fontSize: 11.5)),
+        const SizedBox(height: 18),
+
+        _SDrop(label: 'Stage', value: _stage, items: _stageValues, display: _stageLabels,
+            onChanged: (v) => setState(() => _stage = v)),
+        const SizedBox(height: 14),
+
+        Text('SALES REP', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+        const SizedBox(height: 6),
+        Container(
+          height: 38,
+          decoration: BoxDecoration(color: context.pal.surface2,
+              borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: _loadingStaff
+              ? const Center(child: SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)))
+              : DropdownButtonHideUnderline(child: DropdownButton<int?>(
+                  value: _assignedTo, isExpanded: true,
+                  hint: Text('Unassigned', style: AppTheme.bodySub.copyWith(fontSize: 12)),
+                  dropdownColor: context.pal.surface2, style: AppTheme.bodySm,
+                  icon: Icon(Symbols.expand_more, size: 14, color: context.pal.textDim),
+                  items: [
+                    const DropdownMenuItem<int?>(value: null, child: Text('Unassigned')),
+                    ..._staff.map((s) => DropdownMenuItem<int?>(value: s.id, child: Text(s.name))),
+                  ],
+                  onChanged: (v) => setState(() => _assignedTo = v),
+                )),
+        ),
+        const SizedBox(height: 14),
+
+        Text('FOLLOW-UP DATE', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+        const SizedBox(height: 6),
+        GestureDetector(
+          onTap: () async {
+            final now = DateTime.now();
+            final picked = await showDatePicker(
+              context: context,
+              initialDate: _followUpDate ?? now,
+              firstDate: now.subtract(const Duration(days: 365)),
+              lastDate: now.add(const Duration(days: 365 * 2)),
+            );
+            if (picked != null) setState(() => _followUpDate = picked);
+          },
+          child: Container(
+            height: 38,
+            decoration: BoxDecoration(color: context.pal.surface2,
+                borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Row(children: [
+              Icon(Symbols.event, size: 14, color: context.pal.textDim),
+              const SizedBox(width: 8),
+              Expanded(child: Text(
+                _followUpDate != null ? _isoDate(_followUpDate!) : 'No follow-up scheduled',
+                style: AppTheme.bodySm.copyWith(color: _followUpDate != null ? null : context.pal.textDim),
+              )),
+              if (_followUpDate != null)
+                GestureDetector(onTap: () => setState(() => _followUpDate = null),
+                    child: Icon(Symbols.close, size: 13, color: context.pal.textDim)),
+            ]),
+          ),
+        ),
+        const SizedBox(height: 20),
+
+        Row(children: [
+          Expanded(child: GestureDetector(
+            onTap: () => Navigator.pop(context),
+            child: Container(height: 38,
+              decoration: BoxDecoration(border: Border.all(color: context.pal.border),
+                  borderRadius: BorderRadius.circular(8)),
+              child: Center(child: Text('Cancel', style: AppTheme.bodySm))),
+          )),
+          const SizedBox(width: 12),
+          Expanded(child: GestureDetector(
+            onTap: _save,
+            child: Container(height: 38,
+              decoration: BoxDecoration(color: AppColors.teal,
+                  borderRadius: BorderRadius.circular(8)),
+              child: Center(child: _saving
+                ? const SizedBox(width: 16, height: 16,
+                    child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                : Text('Save', style: AppTheme.bodyStrong.copyWith(
+                    color: const Color(0xFF06120F), fontSize: 13)))),
+          )),
+        ]),
+      ]),
+    ),
+  );
 }
 
 // ── New Deal Dialog ────────────────────────────────────────────────────────────
@@ -281,10 +486,28 @@ class _NewDealDialogState extends State<_NewDealDialog> {
   final _hospCtrl  = TextEditingController();
   final _contCtrl  = TextEditingController();
   final _valueCtrl = TextEditingController();
-  String _machine  = 'Hematology Analyzer';
-  String _stage    = 'lead';
-  String _rep      = 'Elias Mtui';
+  String  _machine = 'Hematology Analyzer';
+  String  _stage   = 'lead';
+  int?    _assignedTo;
+  DateTime? _followUpDate;
+  List<StaffMember> _staff = [];
+  bool   _loadingStaff = true;
   bool   _saving   = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadStaff();
+  }
+
+  Future<void> _loadStaff() async {
+    try {
+      final staff = await StaffService.instance.list();
+      if (mounted) setState(() { _staff = staff; _loadingStaff = false; });
+    } catch (_) {
+      if (mounted) setState(() => _loadingStaff = false);
+    }
+  }
 
   @override
   void dispose() {
@@ -297,16 +520,20 @@ class _NewDealDialogState extends State<_NewDealDialog> {
     setState(() => _saving = true);
     try {
       await SalesService.instance.create({
-        'hospital':    _hospCtrl.text.trim(),
-        'contact':     _contCtrl.text.trim(),
+        'hospital_name_raw': _hospCtrl.text.trim(),
+        'contact_name_raw':  _contCtrl.text.trim(),
         'machine_type': _machine,
         'deal_value':  int.tryParse(_valueCtrl.text.replaceAll(',', '')) ?? 0,
         'stage':       _stage,
-        'assigned_to': _rep,
+        'assigned_to': _assignedTo,
+        'follow_up_date': _followUpDate != null ? _isoDate(_followUpDate!) : null,
       });
       widget.onSaved?.call();
-    } catch (_) {
-      if (mounted) setState(() => _saving = false);
+    } catch (e) {
+      if (mounted) {
+        setState(() => _saving = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));
+      }
     }
   }
 
@@ -366,12 +593,66 @@ class _NewDealDialogState extends State<_NewDealDialog> {
                     onChanged: (v) => setState(() => _stage = v),
                   )),
                   const SizedBox(width: 14),
-                  Expanded(child: _SDrop(
-                    label: 'Sales Rep',
-                    value: _rep,
-                    items: const ['Elias Mtui', 'Grace Nkomo', 'Joseph Mwakasege'],
-                    onChanged: (v) => setState(() => _rep = v),
-                  )),
+                  Expanded(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text('SALES REP', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+                      const SizedBox(height: 6),
+                      Container(
+                        height: 38,
+                        decoration: BoxDecoration(color: context.pal.surface2,
+                            borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: _loadingStaff
+                            ? const Center(child: SizedBox(width: 14, height: 14,
+                                child: CircularProgressIndicator(strokeWidth: 2)))
+                            : DropdownButtonHideUnderline(child: DropdownButton<int?>(
+                                value: _assignedTo, isExpanded: true,
+                                hint: Text('Unassigned', style: AppTheme.bodySub.copyWith(fontSize: 12)),
+                                dropdownColor: context.pal.surface2, style: AppTheme.bodySm,
+                                icon: Icon(Symbols.expand_more, size: 14, color: context.pal.textDim),
+                                items: [
+                                  const DropdownMenuItem<int?>(value: null, child: Text('Unassigned')),
+                                  ..._staff.map((s) => DropdownMenuItem<int?>(value: s.id, child: Text(s.name))),
+                                ],
+                                onChanged: (v) => setState(() => _assignedTo = v),
+                              )),
+                      ),
+                    ]),
+                  ),
+                ]),
+                const SizedBox(height: 14),
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('FOLLOW-UP DATE (OPTIONAL)', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+                  const SizedBox(height: 6),
+                  GestureDetector(
+                    onTap: () async {
+                      final now = DateTime.now();
+                      final picked = await showDatePicker(
+                        context: context,
+                        initialDate: _followUpDate ?? now,
+                        firstDate: now.subtract(const Duration(days: 30)),
+                        lastDate: now.add(const Duration(days: 365 * 2)),
+                      );
+                      if (picked != null) setState(() => _followUpDate = picked);
+                    },
+                    child: Container(
+                      height: 38,
+                      decoration: BoxDecoration(color: context.pal.surface2,
+                          borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: Row(children: [
+                        Icon(Symbols.event, size: 14, color: context.pal.textDim),
+                        const SizedBox(width: 8),
+                        Expanded(child: Text(
+                          _followUpDate != null ? _isoDate(_followUpDate!) : 'No follow-up scheduled',
+                          style: AppTheme.bodySm.copyWith(color: _followUpDate != null ? null : context.pal.textDim),
+                        )),
+                        if (_followUpDate != null)
+                          GestureDetector(onTap: () => setState(() => _followUpDate = null),
+                              child: Icon(Symbols.close, size: 13, color: context.pal.textDim)),
+                      ]),
+                    ),
+                  ),
                 ]),
               ]),
             ),

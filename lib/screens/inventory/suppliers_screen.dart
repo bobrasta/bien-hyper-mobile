@@ -211,7 +211,7 @@ class _SupplierRow extends StatelessWidget {
                   color: context.pal.textMute, fontSize: 10)),
           ])),
           // Type
-          Expanded(flex: 1, child: Container(
+          Expanded(flex: 1, child: Align(alignment: Alignment.centerLeft, child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
             decoration: BoxDecoration(
               color: typeColor.withValues(alpha: 0.12),
@@ -219,7 +219,7 @@ class _SupplierRow extends StatelessWidget {
             ),
             child: Text(supplier.typeLabel, style: AppTheme.monoXs.copyWith(
                 color: typeColor, fontSize: 9.5), overflow: TextOverflow.ellipsis),
-          )),
+          ))),
           // Location
           Expanded(flex: 2, child: Text(supplier.location,
               style: AppTheme.bodySub.copyWith(fontSize: 12), overflow: TextOverflow.ellipsis)),

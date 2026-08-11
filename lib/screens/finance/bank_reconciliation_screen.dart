@@ -1,0 +1,518 @@
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
+import '../../models/bank_reconciliation.dart';
+import '../../services/bank_reconciliation_service.dart';
+import '../../theme/app_colors.dart';
+import '../../theme/app_theme.dart';
+import '../../theme/app_palette.dart';
+import '../../utils/api_error.dart';
+import '../../utils/format.dart';
+import '../../utils/responsive.dart';
+import '../../widgets/common/app_button.dart';
+import '../../widgets/common/error_view.dart';
+
+class BankReconciliationScreen extends StatefulWidget {
+  const BankReconciliationScreen({super.key});
+
+  @override
+  State<BankReconciliationScreen> createState() => _BankReconciliationScreenState();
+}
+
+class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
+  List<BankReconciliation> _recons = [];
+  bool    _loading = true;
+  String? _error;
+  bool    _showCreate = false;
+  BankReconciliation? _selected;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() { _loading = true; _error = null; });
+    try {
+      final recons = await BankReconciliationService.instance.list();
+      if (!mounted) return;
+      setState(() { _recons = recons; _loading = false; });
+    } catch (e) {
+      if (mounted) setState(() { _error = friendlyError(e); _loading = false; });
+    }
+  }
+
+  Future<void> _openDetail(BankReconciliation r) async {
+    try {
+      final fresh = await BankReconciliationService.instance.get(r.id);
+      if (mounted) setState(() => _selected = fresh);
+    } catch (e) {
+      if (mounted) showErrorToast(context, e);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_selected != null) {
+      return _ReconciliationDetail(
+        recon: _selected!,
+        onBack: () => setState(() => _selected = null),
+        onChanged: (r) => setState(() => _selected = r),
+      );
+    }
+
+    return Stack(children: [
+      LayoutBuilder(builder: (ctx, cst) {
+        final pad = cst.maxWidth < 560 ? 16.0 : 28.0;
+        return RefreshIndicator(
+          onRefresh: _load,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: EdgeInsets.all(pad),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              LayoutBuilder(builder: (ctx, cst) {
+                final narrow = cst.maxWidth < 560;
+                final titleBlock = Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Bank Reconciliation', style: AppTheme.pageTitle),
+                  const SizedBox(height: 4),
+                  Text('Match bank statements to system records', style: AppTheme.bodySub),
+                ]);
+                final action = AppButton(label: 'New Reconciliation', icon: Symbols.add, variant: BtnVariant.primary,
+                    onPressed: () => setState(() => _showCreate = true));
+                if (narrow) {
+                  return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [titleBlock, const SizedBox(height: 12), action]);
+                }
+                return Row(crossAxisAlignment: CrossAxisAlignment.end, children: [titleBlock, const Spacer(), action]);
+              }),
+              const SizedBox(height: 24),
+              if (_loading)
+                const Center(child: Padding(padding: EdgeInsets.symmetric(vertical: 48), child: CircularProgressIndicator(strokeWidth: 2)))
+              else if (_error != null)
+                ErrorView(message: _error!, onRetry: _load)
+              else if (_recons.isEmpty)
+                const Padding(padding: EdgeInsets.symmetric(vertical: 32), child: Center(child: Text('No reconciliations yet', style: TextStyle(color: AppColors.textMute))))
+              else
+                AdaptiveColumns(wideCols: 2, mediumCols: 2, narrowCols: 1, children: _recons.map((r) => _ReconCard(
+                  recon: r, onTap: () => _openDetail(r),
+                )).toList()),
+            ]),
+          ),
+        );
+      }),
+      if (_showCreate)
+        _NewReconDialog(
+          onClose: () => setState(() => _showCreate = false),
+          onSaved: () { setState(() => _showCreate = false); _load(); },
+        ),
+    ]);
+  }
+}
+
+class _ReconCard extends StatelessWidget {
+  const _ReconCard({required this.recon, required this.onTap});
+  final BankReconciliation recon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final diff = recon.totals.difference;
+    final ok = diff == 0;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: context.pal.surface1,
+          borderRadius: BorderRadius.circular(AppColors.rLg),
+          border: Border.all(color: context.pal.border),
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Icon(Symbols.account_balance, size: 16, color: context.pal.textMute),
+            const SizedBox(width: 8),
+            Expanded(child: Text('${recon.periodFrom} → ${recon.periodTo}', style: AppTheme.bodyStrong.copyWith(fontSize: 13))),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: (recon.isComplete ? AppColors.teal : AppColors.amber).withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(recon.isComplete ? 'Complete' : 'Draft', style: AppTheme.bodySub.copyWith(
+                  fontSize: 11, color: recon.isComplete ? AppColors.teal : AppColors.amber, fontWeight: FontWeight.w600)),
+            ),
+          ]),
+          const SizedBox(height: 14),
+          Row(children: [
+            Expanded(child: _MiniStat(label: 'Statement', value: tshFromDouble(recon.statementClosingBalance))),
+            Expanded(child: _MiniStat(label: 'Reconciled', value: tshFromDouble(recon.totals.reconciledBalance))),
+          ]),
+          const SizedBox(height: 10),
+          Row(children: [
+            Icon(ok ? Symbols.check_circle : Symbols.error, size: 14, color: ok ? AppColors.teal : AppColors.coral),
+            const SizedBox(width: 6),
+            Text(ok ? 'Matches' : 'Off by ${tshFromDouble(diff.abs())}',
+                style: AppTheme.bodySub.copyWith(fontSize: 12, color: ok ? AppColors.teal : AppColors.coral)),
+          ]),
+        ]),
+      ),
+    );
+  }
+}
+
+class _MiniStat extends StatelessWidget {
+  const _MiniStat({required this.label, required this.value});
+  final String label, value;
+
+  @override
+  Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 9.5)),
+    const SizedBox(height: 3),
+    Text(value, style: AppTheme.monoSm.copyWith(fontSize: 12.5)),
+  ]);
+}
+
+// ── New Reconciliation Dialog ─────────────────────────────────────────────────
+
+class _NewReconDialog extends StatefulWidget {
+  const _NewReconDialog({required this.onClose, required this.onSaved});
+  final VoidCallback onClose;
+  final VoidCallback onSaved;
+
+  @override
+  State<_NewReconDialog> createState() => _NewReconDialogState();
+}
+
+class _NewReconDialogState extends State<_NewReconDialog> {
+  DateTime _from = DateTime(DateTime.now().year, DateTime.now().month, 1);
+  DateTime _to   = DateTime.now();
+  final _balanceCtrl = TextEditingController();
+  bool    _saving = false;
+  String? _error;
+
+  @override
+  void dispose() { _balanceCtrl.dispose(); super.dispose(); }
+
+  String _iso(DateTime d) => d.toIso8601String().substring(0, 10);
+
+  Future<void> _save() async {
+    if (_saving) return;
+    final balance = int.tryParse(_balanceCtrl.text.replaceAll(',', ''));
+    if (balance == null) { setState(() => _error = 'Enter the statement closing balance.'); return; }
+    setState(() { _saving = true; _error = null; });
+    try {
+      await BankReconciliationService.instance.create({
+        'period_from': _iso(_from), 'period_to': _iso(_to),
+        'currency': 'TZS', 'statement_closing_balance': balance,
+      });
+      widget.onSaved();
+    } catch (e) {
+      if (mounted) setState(() { _error = friendlyError(e); _saving = false; });
+    }
+  }
+
+  Future<void> _pickDate(bool isFrom) async {
+    final picked = await showDatePicker(
+      context: context, initialDate: isFrom ? _from : _to,
+      firstDate: DateTime(2020), lastDate: DateTime(2100),
+    );
+    if (picked != null) setState(() => isFrom ? _from = picked : _to = picked);
+  }
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: widget.onClose,
+    child: Container(
+      color: const Color(0xAA06070A),
+      alignment: Alignment.center,
+      child: GestureDetector(
+        onTap: () {},
+        child: Container(
+          width: 440,
+          decoration: BoxDecoration(
+            color: context.pal.surface1,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: context.pal.borderStrong),
+            boxShadow: const [BoxShadow(color: Color(0x70000000), blurRadius: 60, offset: Offset(0, 20))],
+          ),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+              child: Row(children: [
+                const Icon(Symbols.account_balance, size: 18, color: AppColors.teal),
+                const SizedBox(width: 10),
+                Text('New Reconciliation', style: AppTheme.bodyStrong),
+                const Spacer(),
+                GestureDetector(onTap: widget.onClose, child: Icon(Symbols.close, size: 18, color: context.pal.textDim)),
+              ]),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(children: [
+                if (_error != null) ...[
+                  Container(
+                    width: double.infinity, padding: const EdgeInsets.all(10), margin: const EdgeInsets.only(bottom: 12),
+                    decoration: BoxDecoration(color: AppColors.coralSoft, borderRadius: BorderRadius.circular(8)),
+                    child: Text(_error!, style: const TextStyle(color: AppColors.coral, fontSize: 12)),
+                  ),
+                ],
+                Row(children: [
+                  Expanded(child: _DateField(label: 'Period From', date: _from, onTap: () => _pickDate(true))),
+                  const SizedBox(width: 14),
+                  Expanded(child: _DateField(label: 'Period To', date: _to, onTap: () => _pickDate(false))),
+                ]),
+                const SizedBox(height: 14),
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('STATEMENT CLOSING BALANCE (TSh)', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+                  const SizedBox(height: 6),
+                  Container(
+                    height: 38,
+                    decoration: BoxDecoration(color: context.pal.surface2, borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Center(child: TextField(controller: _balanceCtrl, keyboardType: TextInputType.number, style: AppTheme.bodySm,
+                        decoration: const InputDecoration(border: InputBorder.none, isDense: true, hintText: '0'))),
+                  ),
+                ]),
+              ]),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              child: Row(children: [
+                Expanded(child: GestureDetector(onTap: widget.onClose,
+                  child: Container(height: 38,
+                    decoration: BoxDecoration(border: Border.all(color: context.pal.border), borderRadius: BorderRadius.circular(8)),
+                    child: Center(child: Text('Cancel', style: AppTheme.bodySm))))),
+                const SizedBox(width: 12),
+                Expanded(child: GestureDetector(onTap: _save,
+                  child: Container(height: 38,
+                    decoration: BoxDecoration(color: AppColors.teal, borderRadius: BorderRadius.circular(8)),
+                    child: Center(child: _saving
+                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                      : Text('Create', style: AppTheme.bodyStrong.copyWith(color: const Color(0xFF06120F), fontSize: 13)))))),
+              ]),
+            ),
+          ]),
+        ),
+      ),
+    ),
+  );
+}
+
+class _DateField extends StatelessWidget {
+  const _DateField({required this.label, required this.date, required this.onTap});
+  final String label;
+  final DateTime date;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+    const SizedBox(height: 6),
+    GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 38,
+        decoration: BoxDecoration(color: context.pal.surface2, borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        child: Row(children: [
+          Expanded(child: Text(formatDate(date), style: AppTheme.bodySm)),
+          Icon(Symbols.calendar_month, size: 15, color: context.pal.textDim),
+        ]),
+      ),
+    ),
+  ]);
+}
+
+// ── Reconciliation Detail ─────────────────────────────────────────────────────
+
+class _ReconciliationDetail extends StatefulWidget {
+  const _ReconciliationDetail({required this.recon, required this.onBack, required this.onChanged});
+  final BankReconciliation recon;
+  final VoidCallback onBack;
+  final ValueChanged<BankReconciliation> onChanged;
+
+  @override
+  State<_ReconciliationDetail> createState() => _ReconciliationDetailState();
+}
+
+class _ReconciliationDetailState extends State<_ReconciliationDetail> {
+  bool _busy = false;
+
+  Future<void> _importCsv() async {
+    final result = await FilePicker.platform.pickFiles(allowMultiple: false, withData: false, type: FileType.custom, allowedExtensions: ['csv']);
+    if (result == null || result.files.isEmpty || result.files.first.path == null) return;
+    final file = result.files.first;
+    setState(() => _busy = true);
+    try {
+      await BankReconciliationService.instance.importStatement(widget.recon.id, file.path!, file.name);
+      final fresh = await BankReconciliationService.instance.get(widget.recon.id);
+      widget.onChanged(fresh);
+      if (mounted) showSuccessToast(context, 'Statement imported and auto-matched.');
+    } catch (e) {
+      if (mounted) showErrorToast(context, e);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _autoMatch() async {
+    setState(() => _busy = true);
+    try {
+      final fresh = await BankReconciliationService.instance.autoMatch(widget.recon.id);
+      widget.onChanged(fresh);
+    } catch (e) {
+      if (mounted) showErrorToast(context, e);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _unmatch(int lineId) async {
+    try {
+      final fresh = await BankReconciliationService.instance.unmatchLine(widget.recon.id, lineId);
+      widget.onChanged(fresh);
+    } catch (e) {
+      if (mounted) showErrorToast(context, e);
+    }
+  }
+
+  Future<void> _complete() async {
+    setState(() => _busy = true);
+    try {
+      final fresh = await BankReconciliationService.instance.complete(widget.recon.id);
+      widget.onChanged(fresh);
+      if (mounted) showSuccessToast(context, 'Reconciliation completed.');
+    } catch (e) {
+      if (mounted) showErrorToast(context, e);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _reopen() async {
+    setState(() => _busy = true);
+    try {
+      final fresh = await BankReconciliationService.instance.reopen(widget.recon.id);
+      widget.onChanged(fresh);
+    } catch (e) {
+      if (mounted) showErrorToast(context, e);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final recon = widget.recon;
+    final t = recon.totals;
+    final ok = t.difference == 0;
+
+    return LayoutBuilder(builder: (ctx, cst) {
+      final pad = cst.maxWidth < 560 ? 16.0 : 28.0;
+      return SingleChildScrollView(
+        padding: EdgeInsets.all(pad),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            GestureDetector(onTap: widget.onBack, child: Icon(Symbols.arrow_back, size: 20, color: context.pal.textMute)),
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('${recon.periodFrom} → ${recon.periodTo}', style: AppTheme.pageTitle.copyWith(fontSize: 18)),
+              Text(recon.isComplete ? 'Complete' : 'Draft', style: AppTheme.bodySub),
+            ])),
+            if (!recon.isComplete) ...[
+              AppButton(label: 'Import CSV', icon: Symbols.upload_file, variant: BtnVariant.normal, onPressed: _busy ? null : _importCsv),
+              const SizedBox(width: 8),
+              AppButton(label: 'Auto-Match', icon: Symbols.auto_awesome, variant: BtnVariant.normal, onPressed: _busy ? null : _autoMatch),
+              const SizedBox(width: 8),
+              AppButton(label: 'Complete', icon: Symbols.check, variant: BtnVariant.primary, onPressed: (_busy || !ok) ? null : _complete),
+            ] else
+              AppButton(label: 'Reopen', icon: Symbols.lock_open, variant: BtnVariant.ghost, onPressed: _busy ? null : _reopen),
+          ]),
+          const SizedBox(height: 20),
+          AdaptiveColumns(wideCols: 4, mediumCols: 2, narrowCols: 2, children: [
+            _MiniStat(label: 'System Balance', value: tshFromDouble(t.cashBookBalance)),
+            _MiniStat(label: 'Reconciled Balance', value: tshFromDouble(t.reconciledBalance)),
+            _MiniStat(label: 'Statement Balance', value: tshFromDouble(t.statementClosingBalance)),
+            _MiniStat(label: 'Difference', value: tshFromDouble(t.difference)),
+          ]),
+          const SizedBox(height: 8),
+          Row(children: [
+            Icon(ok ? Symbols.check_circle : Symbols.error, size: 15, color: ok ? AppColors.teal : AppColors.coral),
+            const SizedBox(width: 6),
+            Text(ok ? 'Matches statement — ready to complete' : 'Off by ${tshFromDouble(t.difference.abs())} — match remaining lines',
+                style: AppTheme.bodySub.copyWith(color: ok ? AppColors.teal : AppColors.coral)),
+          ]),
+          const SizedBox(height: 20),
+          Container(
+            decoration: BoxDecoration(
+              color: context.pal.surface1,
+              borderRadius: BorderRadius.circular(AppColors.rLg),
+              border: Border.all(color: context.pal.border),
+            ),
+            child: HScrollTable(minWidth: 700, child: _LinesTable(
+              lines: recon.lines,
+              onUnmatch: _unmatch,
+            )),
+          ),
+        ]),
+      );
+    });
+  }
+}
+
+class _LinesTable extends StatelessWidget {
+  const _LinesTable({required this.lines, required this.onUnmatch});
+  final List<BankStatementLine> lines;
+  final ValueChanged<int> onUnmatch;
+
+  @override
+  Widget build(BuildContext context) {
+    if (lines.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 32),
+        child: Center(child: Text('No statement lines imported yet', style: TextStyle(color: AppColors.textMute))),
+      );
+    }
+    return Table(
+      columnWidths: const {0: FixedColumnWidth(90), 1: FlexColumnWidth(2.5), 2: FlexColumnWidth(1), 3: FlexColumnWidth(1), 4: FlexColumnWidth(1), 5: FixedColumnWidth(80)},
+      children: [
+        TableRow(
+          decoration: BoxDecoration(border: Border(bottom: BorderSide(color: context.pal.border))),
+          children: ['Date', 'Description', 'Debit', 'Credit', 'Match', ''].map((h) => Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            child: Text(h.toUpperCase(), style: AppTheme.monoXs.copyWith(fontWeight: FontWeight.w500)),
+          )).toList(),
+        ),
+        ...lines.asMap().entries.map((e) {
+          final l = e.value;
+          return TableRow(
+            decoration: BoxDecoration(border: e.key == lines.length - 1 ? null : Border(bottom: BorderSide(color: context.pal.divider))),
+            children: [
+              Padding(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10), child: Text(l.txnDate, style: AppTheme.monoXs)),
+              Padding(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10), child: Text(l.description, style: AppTheme.bodySm.copyWith(fontSize: 12), overflow: TextOverflow.ellipsis)),
+              Padding(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10), child: Text(l.debit > 0 ? tshFromDouble(l.debit) : '—', style: AppTheme.monoSm.copyWith(fontSize: 12, color: AppColors.coral))),
+              Padding(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10), child: Text(l.credit > 0 ? tshFromDouble(l.credit) : '—', style: AppTheme.monoSm.copyWith(fontSize: 12, color: AppColors.teal))),
+              Padding(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10), child: Icon(
+                l.isMatched ? Symbols.check_circle : Symbols.radio_button_unchecked, size: 16,
+                color: l.isMatched ? AppColors.teal : context.pal.textDim,
+              )),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                child: l.isMatched
+                    ? GestureDetector(
+                        onTap: () => onUnmatch(l.id),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(border: Border.all(color: context.pal.border), borderRadius: BorderRadius.circular(6)),
+                          child: Text('Unmatch', style: AppTheme.bodySub.copyWith(fontSize: 10.5)),
+                        ),
+                      )
+                    : const SizedBox.shrink(),
+              ),
+            ],
+          );
+        }),
+      ],
+    );
+  }
+}
