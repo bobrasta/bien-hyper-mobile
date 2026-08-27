@@ -186,7 +186,7 @@ class _LocationsScreenState extends State<LocationsScreen> {
 
         // Table header
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
           decoration: BoxDecoration(
             color: context.pal.surface2,
             border: Border(bottom: BorderSide(color: context.pal.border)),
@@ -258,7 +258,7 @@ class _LocationsScreenState extends State<LocationsScreen> {
   }
 }
 
-// ── Row ────────────────────────────────────────────────────────────────────────
+// ── Row ──────────────────────────────────────────────────────────────────────
 
 class _LocationRow extends StatelessWidget {
   const _LocationRow({
@@ -319,14 +319,14 @@ class _LocationRow extends StatelessWidget {
               child: Icon(Symbols.edit, size: 15, color: context.pal.textDim)),
           const SizedBox(width: 12),
           GestureDetector(onTap: onDelete,
-              child: const Icon(Symbols.delete_outline, size: 15, color: AppColors.coral)),
+              child: Icon(Symbols.delete_outline, size: 15, color: AppColors.coral)),
         ])),
       ]),
     ),
   );
 }
 
-// ── Detail panel ───────────────────────────────────────────────────────────────
+// ── Detail panel ─────────────────────────────────────────────────────────────
 
 class _DetailPanel extends StatelessWidget {
   const _DetailPanel({
@@ -391,7 +391,7 @@ class _Row extends StatelessWidget {
   );
 }
 
-// ── Form modal ─────────────────────────────────────────────────────────────────
+// ── Form modal ───────────────────────────────────────────────────────────────
 
 class _LocationFormModal extends StatefulWidget {
   const _LocationFormModal({this.location, required this.onClose, this.onSaved});
@@ -508,12 +508,12 @@ class _LocationFormModalState extends State<_LocationFormModal> {
                 Text('TYPE', style: AppTheme.labelCaps),
                 const SizedBox(height: 6),
                 Container(
-                  height: 38,
                   decoration: BoxDecoration(
                     color: context.pal.surface2,
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(color: context.pal.border),
                   ),
+                  height: 38,
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   child: DropdownButtonHideUnderline(
                     child: DropdownButton<String>(

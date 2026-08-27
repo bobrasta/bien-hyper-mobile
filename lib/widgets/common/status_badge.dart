@@ -50,6 +50,8 @@ class StatusBadge extends StatelessWidget {
   (Color, Color, Color, String) _resolve() {
     if (_machineStatus != null) {
       return switch (_machineStatus) {
+        MachineStatus.pendingInstallation => (AppColors.violet, AppColors.violetSoft, AppColors.violet.withValues(alpha: 0.25), 'Pending Install'),
+        MachineStatus.pendingSignoff      => (AppColors.violet, AppColors.violetSoft, AppColors.violet.withValues(alpha: 0.25), 'Pending Sign-off'),
         MachineStatus.operational  => (AppColors.teal,     AppColors.tealSoft,   AppColors.teal.withValues(alpha: 0.25), 'Operational'),
         MachineStatus.needsService => (AppColors.amber,    AppColors.amberSoft,  const Color(0x40F59E0B), 'Service'),
         MachineStatus.down         => (AppColors.coral,    AppColors.coralSoft,  AppColors.coral.withValues(alpha: 0.25), 'Down'),

@@ -164,9 +164,9 @@ class _ExpensesTable extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (expenses.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 32),
-        child: Center(child: Text('No expenses recorded', style: TextStyle(color: AppColors.textMute))),
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 32),
+        child: Center(child: Text('No expenses recorded', style: TextStyle(color: context.pal.textMute))),
       );
     }
     return Table(
@@ -219,7 +219,7 @@ class _TCell extends StatelessWidget {
   );
 }
 
-// ── New Expense Dialog ──────────────────────────────────────────────────────────
+// ── New Expense Dialog ───────────────────────────────────────────────────────
 
 class _NewExpenseDialog extends StatefulWidget {
   const _NewExpenseDialog({required this.categories, required this.onClose, required this.onSaved});
@@ -297,7 +297,7 @@ class _NewExpenseDialogState extends State<_NewExpenseDialog> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
               child: Row(children: [
-                const Icon(Symbols.receipt_long, size: 18, color: AppColors.coral),
+                Icon(Symbols.receipt_long, size: 18, color: AppColors.coral),
                 const SizedBox(width: 10),
                 Text('New Expense', style: AppTheme.bodyStrong),
                 const Spacer(),
@@ -313,7 +313,7 @@ class _NewExpenseDialogState extends State<_NewExpenseDialog> {
                     padding: const EdgeInsets.all(10),
                     margin: const EdgeInsets.only(bottom: 12),
                     decoration: BoxDecoration(color: AppColors.coralSoft, borderRadius: BorderRadius.circular(8)),
-                    child: Text(_error!, style: const TextStyle(color: AppColors.coral, fontSize: 12)),
+                    child: Text(_error!, style: TextStyle(color: AppColors.coral, fontSize: 12)),
                   ),
                 ],
                 _LabeledField('Description', TextField(controller: _nameCtrl, style: AppTheme.bodySm,
@@ -392,10 +392,9 @@ class _LabeledField extends StatelessWidget {
     Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10)),
     const SizedBox(height: 6),
     Container(
-      height: 38,
       decoration: BoxDecoration(color: context.pal.surface2, borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: Center(child: field),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      child: field,
     ),
   ]);
 }
@@ -412,8 +411,8 @@ class _LabeledDropdown<T> extends StatelessWidget {
     Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10)),
     const SizedBox(height: 6),
     Container(
-      height: 38,
       decoration: BoxDecoration(color: context.pal.surface2, borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
+      height: 38,
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: DropdownButtonHideUnderline(child: DropdownButton<T>(
         value: value, isExpanded: true, dropdownColor: context.pal.surface2, style: AppTheme.bodySm,

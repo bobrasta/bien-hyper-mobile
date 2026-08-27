@@ -4,10 +4,12 @@ import 'package:material_symbols_icons/symbols.dart';
 
 import '../../models/batch_lot.dart';
 import '../../models/inventory_item.dart';
+import '../../models/inventory_item_history.dart';
 import '../../models/serial_number.dart';
 import '../../models/stock_movement.dart';
 import '../../models/supplier.dart';
 import '../../services/batch_lot_service.dart';
+import '../../services/inventory_service.dart';
 import '../../services/serial_number_service.dart';
 import '../../services/stock_movement_service.dart';
 import '../../services/supplier_service.dart';
@@ -25,7 +27,7 @@ class InventoryItemDetailScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 6,
+      length: 7,
       child: Scaffold(
         backgroundColor: context.pal.bg,
         appBar: AppBar(
@@ -57,6 +59,7 @@ class InventoryItemDetailScreen extends StatelessWidget {
               Tab(text: 'Movements'),
               Tab(text: 'Batches'),
               Tab(text: 'Serials'),
+              Tab(text: 'History'),
               Tab(text: 'Suppliers'),
               Tab(text: 'Barcode'),
             ],
@@ -68,6 +71,7 @@ class InventoryItemDetailScreen extends StatelessWidget {
             _MovementsTab(item: item),
             _BatchesTab(item: item),
             _SerialsTab(item: item),
+            _HistoryTab(item: item),
             _SuppliersTab(item: item),
             _BarcodeTab(item: item),
           ],
@@ -84,7 +88,7 @@ class InventoryItemDetailScreen extends StatelessWidget {
 // hashing the name across a small fixed palette.
 String _catLabel(String cat) => cat;
 
-const _catPalette = [
+List<Color> get _catPalette => [
   AppColors.teal, AppColors.blue, AppColors.violet,
   AppColors.amber, AppColors.coral, AppColors.info,
 ];
@@ -957,6 +961,159 @@ class _SerialMeta extends StatelessWidget {
     const SizedBox(width: 4),
     Text(label, style: AppTheme.bodySub.copyWith(fontSize: 11, color: color)),
   ]);
+}
+
+// ── History tab ────────────────────────────────────────────────────────────────
+// Per-serial chain of custody: received → sold (which sale/hospital) →
+// installed (by whom) → signed off (by whom) — one row per physical unit,
+// oldest received first, until the count reaches zero. Distinct from the
+// Movements tab (raw item-level stock ledger) and Serials tab (current
+// snapshot only, no timeline).
+class _HistoryTab extends StatefulWidget {
+  const _HistoryTab({required this.item});
+  final InventoryItem item;
+
+  @override
+  State<_HistoryTab> createState() => _HistoryTabState();
+}
+
+class _HistoryTabState extends State<_HistoryTab> with AutomaticKeepAliveClientMixin {
+  List<SerialHistoryEntry>? _entries;
+  bool _loading = true;
+  String? _error;
+
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() { _loading = true; _error = null; });
+    try {
+      final data = await InventoryService.instance.history(widget.item.id);
+      if (mounted) setState(() { _entries = data; _loading = false; });
+    } catch (e) {
+      if (mounted) setState(() { _error = e.toString(); _loading = false; });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    if (_loading) return Padding(padding: const EdgeInsets.all(24), child: shimmerList(count: 6));
+    if (_error != null) return ErrorView(message: _error!, onRetry: _load);
+    if ((_entries ?? []).isEmpty) {
+      return Center(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Icon(Symbols.history, size: 40, color: context.pal.textDim),
+          const SizedBox(height: 12),
+          Text('No individually tracked units for this item', style: AppTheme.bodySub),
+        ]),
+      );
+    }
+    return ListView.separated(
+      padding: const EdgeInsets.all(20),
+      itemCount: _entries!.length,
+      separatorBuilder: (_, _) => const SizedBox(height: 10),
+      itemBuilder: (_, i) => _HistoryCard(entry: _entries![i]),
+    );
+  }
+}
+
+class _HistoryCard extends StatelessWidget {
+  const _HistoryCard({required this.entry});
+  final SerialHistoryEntry entry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: context.pal.surface1,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: context.pal.border),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(Symbols.qr_code_2, size: 16, color: context.pal.textDim),
+          const SizedBox(width: 8),
+          Text(entry.serialNumber, style: AppTheme.monoSm.copyWith(
+              fontSize: 13, fontWeight: FontWeight.w600, color: context.pal.text)),
+        ]),
+        const SizedBox(height: 10),
+        _HistoryStep(
+          icon: Symbols.inventory_2,
+          label: 'Received',
+          done: true,
+          detail: entry.receivedAt != null ? formatDate(entry.receivedAt!) : '—',
+        ),
+        _HistoryStep(
+          icon: Symbols.sell,
+          label: entry.isEquipment ? 'Sold' : 'Sold / Issued',
+          done: entry.sold != null,
+          detail: entry.sold != null
+              ? [entry.sold!.salesOrderNumber, entry.sold!.hospitalName]
+                  .whereType<String>().join(' · ')
+              : 'Still in stock',
+          isLast: !entry.isEquipment,
+        ),
+        if (entry.isEquipment) ...[
+          _HistoryStep(
+            icon: Symbols.construction,
+            label: 'Installed',
+            done: entry.installed != null,
+            detail: entry.installed != null
+                ? '${entry.installed!.by ?? '—'} · ${entry.installed!.at != null ? formatDate(entry.installed!.at!) : ''}'
+                : 'Awaiting installation',
+          ),
+          _HistoryStep(
+            icon: Symbols.verified,
+            label: 'Signed off',
+            done: entry.signedOff != null,
+            detail: entry.signedOff != null
+                ? '${entry.signedOff!.by ?? '—'} · ${entry.signedOff!.at != null ? formatDate(entry.signedOff!.at!) : ''}'
+                : 'Awaiting sign-off',
+            isLast: true,
+          ),
+        ],
+      ]),
+    );
+  }
+}
+
+class _HistoryStep extends StatelessWidget {
+  const _HistoryStep({
+    required this.icon, required this.label, required this.done,
+    required this.detail, this.isLast = false,
+  });
+  final IconData icon;
+  final String label;
+  final bool done;
+  final String detail;
+  final bool isLast;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = done ? AppColors.teal : context.pal.textDim;
+    return Padding(
+      padding: EdgeInsets.only(bottom: isLast ? 0 : 4),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Icon(done ? Symbols.check_circle : icon, size: 15, color: color),
+        const SizedBox(width: 8),
+        SizedBox(
+          width: 78,
+          child: Text(label, style: AppTheme.bodySm.copyWith(
+              fontSize: 11.5, fontWeight: FontWeight.w600,
+              color: done ? context.pal.text : context.pal.textMute)),
+        ),
+        Expanded(child: Text(detail, style: AppTheme.bodySub.copyWith(fontSize: 11.5))),
+      ]),
+    );
+  }
 }
 
 // ── Barcode tab ────────────────────────────────────────────────────────────────

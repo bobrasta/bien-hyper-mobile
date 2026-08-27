@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import '../models/staff_member.dart';
 import 'api_client.dart';
 
@@ -8,26 +9,31 @@ class StaffService {
   static final instance = StaffService._();
   final _dio = ApiClient.instance.dio;
 
-  // In-memory cache — staff rarely changes within a session.
-  List<StaffMember>? _cache;
+  /// Live staff list — the real source of truth. `update()`/`create()`/
+  /// `delete()` patch this immediately on success, so every screen that
+  /// renders from it (via ValueListenableBuilder) reflects a change the
+  /// instant it happens, without needing to navigate away and back.
+  final ValueNotifier<List<StaffMember>> staffNotifier = ValueNotifier<List<StaffMember>>([]);
+
+  bool _loaded = false;
   Future<List<StaffMember>>? _inflight;
 
-  /// Returns cached staff list; fetches only once per session.
-  /// Pass [force] to bypass the cache (e.g. after creating/editing a member).
+  /// Returns the live list; fetches once per session unless [force].
+  /// Pass [group] for a one-off filtered fetch that bypasses/doesn't
+  /// affect the shared cache (used sparingly — most callers want the
+  /// unfiltered live list and filter client-side).
   Future<List<StaffMember>> list({String? group, bool force = false}) async {
-    if (group == null && !force && _cache != null) return _cache!;
-    // Deduplicate concurrent callers — if a fetch is already in flight, reuse it
-    if (group == null && !force && _inflight != null) return _inflight!;
+    if (group != null) return _fetch(group: group);
+    if (!force && _loaded) return staffNotifier.value;
+    if (!force && _inflight != null) return _inflight!;
 
-    final future = _fetch(group: group);
-    if (group == null) _inflight = future;
-
+    final future = _fetch();
+    _inflight = future;
     try {
       final result = await future;
-      if (group == null) {
-        _cache    = result;
-        _inflight = null;
-      }
+      staffNotifier.value = result;
+      _loaded = true;
+      _inflight = null;
       return result;
     } catch (_) {
       _inflight = null;
@@ -43,8 +49,11 @@ class StaffService {
     return data.map((j) => StaffMember.fromJson(j as Map<String, dynamic>)).toList();
   }
 
-  /// Call after adding/editing a member so the next list() re-fetches.
-  void invalidateCache() { _cache = null; _inflight = null; }
+  /// Forces the next list() to re-fetch. Rarely needed now that
+  /// create/update/delete patch staffNotifier directly — kept for callers
+  /// that mutate staff through some other path (e.g. role/permission
+  /// changes made via the Role Builder, not this service).
+  void invalidateCache() { _loaded = false; }
 
   Future<StaffMember> get(int id) async {
     final res = await _dio.get('/staff/$id');
@@ -53,13 +62,25 @@ class StaffService {
 
   Future<StaffMember> create(Map<String, dynamic> data) async {
     final res = await _dio.post('/staff', data: data);
-    return StaffMember.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+    final created = StaffMember.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+    staffNotifier.value = [...staffNotifier.value, created];
+    return created;
   }
 
   Future<StaffMember> update(int id, Map<String, dynamic> data) async {
     final res = await _dio.put('/staff/$id', data: data);
-    return StaffMember.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+    final updated = StaffMember.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+    staffNotifier.value = [
+      for (final m in staffNotifier.value) if (m.id == id) updated else m,
+    ];
+    return updated;
   }
 
-  Future<void> delete(int id) => _dio.delete('/staff/$id');
+  Future<void> delete(int id) async {
+    await _dio.delete('/staff/$id');
+    staffNotifier.value = staffNotifier.value.where((m) => m.id != id).toList();
+  }
+
+  /// Resets the member's password back to the default they were invited with.
+  Future<void> resetPassword(int id) => _dio.post('/staff/$id/reset-password');
 }

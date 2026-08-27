@@ -24,7 +24,7 @@ class TrialExpiredScreen extends StatelessWidget {
               shape: BoxShape.circle,
               border: Border.all(color: AppColors.coral.withValues(alpha: 0.3)),
             ),
-            child: const Icon(Symbols.lock, size: 32, color: AppColors.coral),
+            child: Icon(Symbols.lock, size: 32, color: AppColors.coral),
           ),
           const SizedBox(height: 24),
 
@@ -95,7 +95,7 @@ class TrialPendingScreen extends StatelessWidget {
               shape: BoxShape.circle,
               border: Border.all(color: AppColors.amber.withValues(alpha: 0.3)),
             ),
-            child: const Icon(Symbols.schedule, size: 32, color: AppColors.amber),
+            child: Icon(Symbols.schedule, size: 32, color: AppColors.amber),
           ),
           const SizedBox(height: 24),
           Text('Awaiting Activation',

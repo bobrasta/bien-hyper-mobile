@@ -1,3 +1,4 @@
+import 'dart:io' show Platform;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -91,7 +92,7 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
               else if (_error != null)
                 ErrorView(message: _error!, onRetry: _load)
               else if (_recons.isEmpty)
-                const Padding(padding: EdgeInsets.symmetric(vertical: 32), child: Center(child: Text('No reconciliations yet', style: TextStyle(color: AppColors.textMute))))
+                Padding(padding: const EdgeInsets.symmetric(vertical: 32), child: Center(child: Text('No reconciliations yet', style: TextStyle(color: context.pal.textMute))))
               else
                 AdaptiveColumns(wideCols: 2, mediumCols: 2, narrowCols: 1, children: _recons.map((r) => _ReconCard(
                   recon: r, onTap: () => _openDetail(r),
@@ -172,7 +173,7 @@ class _MiniStat extends StatelessWidget {
   ]);
 }
 
-// ── New Reconciliation Dialog ─────────────────────────────────────────────────
+// ── New Reconciliation Dialog ────────────────────────────────────────────────
 
 class _NewReconDialog extends StatefulWidget {
   const _NewReconDialog({required this.onClose, required this.onSaved});
@@ -239,7 +240,7 @@ class _NewReconDialogState extends State<_NewReconDialog> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
               child: Row(children: [
-                const Icon(Symbols.account_balance, size: 18, color: AppColors.teal),
+                Icon(Symbols.account_balance, size: 18, color: AppColors.teal),
                 const SizedBox(width: 10),
                 Text('New Reconciliation', style: AppTheme.bodyStrong),
                 const Spacer(),
@@ -253,7 +254,7 @@ class _NewReconDialogState extends State<_NewReconDialog> {
                   Container(
                     width: double.infinity, padding: const EdgeInsets.all(10), margin: const EdgeInsets.only(bottom: 12),
                     decoration: BoxDecoration(color: AppColors.coralSoft, borderRadius: BorderRadius.circular(8)),
-                    child: Text(_error!, style: const TextStyle(color: AppColors.coral, fontSize: 12)),
+                    child: Text(_error!, style: TextStyle(color: AppColors.coral, fontSize: 12)),
                   ),
                 ],
                 Row(children: [
@@ -266,11 +267,10 @@ class _NewReconDialogState extends State<_NewReconDialog> {
                   Text('STATEMENT CLOSING BALANCE (TSh)', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
                   const SizedBox(height: 6),
                   Container(
-                    height: 38,
                     decoration: BoxDecoration(color: context.pal.surface2, borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: Center(child: TextField(controller: _balanceCtrl, keyboardType: TextInputType.number, style: AppTheme.bodySm,
-                        decoration: const InputDecoration(border: InputBorder.none, isDense: true, hintText: '0'))),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    child: TextField(controller: _balanceCtrl, keyboardType: TextInputType.number, style: AppTheme.bodySm,
+                        decoration: const InputDecoration(border: InputBorder.none, isDense: true, hintText: '0')),
                   ),
                 ]),
               ]),
@@ -323,7 +323,7 @@ class _DateField extends StatelessWidget {
   ]);
 }
 
-// ── Reconciliation Detail ─────────────────────────────────────────────────────
+// ── Reconciliation Detail ────────────────────────────────────────────────────
 
 class _ReconciliationDetail extends StatefulWidget {
   const _ReconciliationDetail({required this.recon, required this.onBack, required this.onChanged});
@@ -339,7 +339,11 @@ class _ReconciliationDetailState extends State<_ReconciliationDetail> {
   bool _busy = false;
 
   Future<void> _importCsv() async {
-    final result = await FilePicker.platform.pickFiles(allowMultiple: false, withData: false, type: FileType.custom, allowedExtensions: ['csv']);
+    if (Platform.isAndroid) {
+      showErrorToast(context, Exception('CSV import isn\'t available on Android in this build — use the desktop app instead.'));
+      return;
+    }
+    final result = await FilePicker.pickFiles(allowMultiple: false, withData: false, type: FileType.custom, allowedExtensions: ['csv']);
     if (result == null || result.files.isEmpty || result.files.first.path == null) return;
     final file = result.files.first;
     setState(() => _busy = true);
@@ -468,9 +472,9 @@ class _LinesTable extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (lines.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 32),
-        child: Center(child: Text('No statement lines imported yet', style: TextStyle(color: AppColors.textMute))),
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 32),
+        child: Center(child: Text('No statement lines imported yet', style: TextStyle(color: context.pal.textMute))),
       );
     }
     return Table(
@@ -490,8 +494,8 @@ class _LinesTable extends StatelessWidget {
             children: [
               Padding(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10), child: Text(l.txnDate, style: AppTheme.monoXs)),
               Padding(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10), child: Text(l.description, style: AppTheme.bodySm.copyWith(fontSize: 12), overflow: TextOverflow.ellipsis)),
-              Padding(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10), child: Text(l.debit > 0 ? tshFromDouble(l.debit) : '—', style: AppTheme.monoSm.copyWith(fontSize: 12, color: AppColors.coral))),
-              Padding(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10), child: Text(l.credit > 0 ? tshFromDouble(l.credit) : '—', style: AppTheme.monoSm.copyWith(fontSize: 12, color: AppColors.teal))),
+              Padding(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10), child: Text(l.debit > 0 ? tshFromDouble(l.debit) : '—', style: AppTheme.monoSm.copyWith(fontSize: 12))),
+              Padding(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10), child: Text(l.credit > 0 ? tshFromDouble(l.credit) : '—', style: AppTheme.monoSm.copyWith(fontSize: 12))),
               Padding(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10), child: Icon(
                 l.isMatched ? Symbols.check_circle : Symbols.radio_button_unchecked, size: 16,
                 color: l.isMatched ? AppColors.teal : context.pal.textDim,

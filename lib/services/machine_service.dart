@@ -6,13 +6,24 @@ class MachineService {
   static final instance = MachineService._();
   final _dio = ApiClient.instance.dio;
 
-  Future<List<Machine>> list({String? status, int? hospitalId, String? type}) async {
-    final res = await _dio.get('/machines', queryParameters: {
-      'status':      ?status,
-      'hospital_id': ?hospitalId,
-      'type':        ?type,
-      'per_page':    120,
-    });
+  Future<List<Machine>> list({
+    String? status,
+    int? hospitalId,
+    String? type,
+    String? model,
+    String? zone,
+  }) async {
+    final res = await _dio.get('/machines',
+      queryParameters: {
+        'status':      ?status,
+        'hospital_id': ?hospitalId,
+        'type':        ?type,
+        'model':       ?model,
+        'zone':        ?zone,
+        'per_page':    500,
+      },
+      options: ApiClient.cachingOptions(const Duration(minutes: 1)),
+    );
     final (data, _) = ApiClient.unwrapList(res);
     return data.map((j) => Machine.fromJson(j as Map<String, dynamic>)).toList();
   }
@@ -20,12 +31,6 @@ class MachineService {
   Future<Machine> get(int id) async {
     final res = await _dio.get('/machines/$id');
     return Machine.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
-  }
-
-  Future<List<Machine>> mapPins() async {
-    final res = await _dio.get('/machines/map');
-    final (data, _) = ApiClient.unwrapList(res);
-    return data.map((j) => Machine.fromJson(j as Map<String, dynamic>)).toList();
   }
 
   Future<Machine> create(Map<String, dynamic> data) async {

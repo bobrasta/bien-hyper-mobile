@@ -27,3 +27,12 @@ String tshFromDouble(num n) {
   if (n >= 1000)       return 'TSh ${(n / 1e3).toStringAsFixed(0)}K';
   return 'TSh ${n.toStringAsFixed(0)}';
 }
+
+String timeAgo(DateTime dt) {
+  final diff = DateTime.now().difference(dt);
+  if (diff.inSeconds < 60) return 'just now';
+  if (diff.inMinutes < 60) return '${diff.inMinutes} min ago';
+  if (diff.inHours < 24)   return '${diff.inHours}h ago';
+  if (diff.inDays < 7)     return '${diff.inDays}d ago';
+  return formatDate(dt);
+}

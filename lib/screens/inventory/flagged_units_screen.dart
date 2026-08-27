@@ -96,7 +96,7 @@ class _FlaggedUnitsScreenState extends State<FlaggedUnitsScreen> {
             else if (_error != null)
               ErrorView(message: _error!, onRetry: _load)
             else if (_filtered.isEmpty)
-              const Padding(padding: EdgeInsets.symmetric(vertical: 32), child: Center(child: Text('No flagged units', style: TextStyle(color: AppColors.textMute))))
+              Padding(padding: const EdgeInsets.symmetric(vertical: 32), child: Center(child: Text('No flagged units', style: TextStyle(color: context.pal.textMute))))
             else
               AdaptiveColumns(wideCols: 2, mediumCols: 2, narrowCols: 1, children: _filtered.map((c) => _CannibalizationCard(
                 record: c, onOrderReplacement: () => _orderReplacement(c), onResolve: () => _resolve(c),

@@ -3,11 +3,45 @@ import 'package:google_fonts/google_fonts.dart';
 import 'app_colors.dart';
 import 'app_palette.dart';
 
-/// Three-way theme mode: light, dark, and neutral (cool-tinted surfaces).
-enum AppThemeMode { light, dark, neutral }
+/// Theme mode: light, dark, neutral (cool-tinted surfaces), fundify
+/// (sky-blue canvas, mint sidebar, lime accent), and aurora (warm cream/gold
+/// canvas — the app's default identity as of the 2026-08-27 HR redesign).
+enum AppThemeMode { light, dark, neutral, fundify, aurora }
+
+/// Global theme-mode notifier — toggled by the top-bar button or Settings.
+/// Lives here (not main.dart) so the static typography helpers below can
+/// read the active palette without needing a BuildContext. Defaults to
+/// [AppThemeMode.aurora] — the user asked for the warm-gradient look to be
+/// the system's identity, not an opt-in extra alongside the older themes.
+final themeNotifier = ValueNotifier<AppThemeMode>(AppThemeMode.aurora);
+
+/// App-wide text-size preference, applied as a MediaQuery text-scale
+/// multiplier in main.dart (on top of the device's own scale, so OS
+/// accessibility settings still apply). 'medium' is the default — the same
+/// bump the app shipped with before this became user-adjustable.
+enum TextSizePref {
+  small(1.0), medium(1.1), large(1.2);
+  const TextSizePref(this.scale);
+  final double scale;
+}
+
+/// Global text-size notifier — toggled from Settings → Preferences.
+/// Same "lives in memory only, not persisted across restarts" behavior as
+/// [themeNotifier] above — consistent, not accidental.
+final textSizeNotifier = ValueNotifier<TextSizePref>(TextSizePref.medium);
 
 class AppTheme {
   AppTheme._();
+
+  /// The palette matching the current [themeNotifier] value — lets static
+  /// TextStyle getters below stay theme-correct without a BuildContext.
+  static AppPalette get pal => switch (themeNotifier.value) {
+    AppThemeMode.dark    => AppPalette.dark,
+    AppThemeMode.light   => AppPalette.light,
+    AppThemeMode.neutral => AppPalette.neutral,
+    AppThemeMode.fundify => AppPalette.fundify,
+    AppThemeMode.aurora  => AppPalette.aurora,
+  };
 
   // ── Dark theme ─────────────────────────────────────────────────────────────
 
@@ -20,6 +54,14 @@ class AppTheme {
   // ── Neutral theme ──────────────────────────────────────────────────────────
 
   static ThemeData neutral() => _build(AppPalette.neutral, Brightness.light);
+
+  // ── Fundify theme ──────────────────────────────────────────────────────────
+
+  static ThemeData fundify() => _build(AppPalette.fundify, Brightness.light);
+
+  // ── Aurora theme ───────────────────────────────────────────────────────────
+
+  static ThemeData aurora() => _build(AppPalette.aurora, Brightness.light);
 
   // ── Shared builder ─────────────────────────────────────────────────────────
 
@@ -37,7 +79,19 @@ class AppTheme {
       bodySmall:  TextStyle(fontFamily: 'TildaSans', color: p.textMute, fontSize: 11.5),
     );
 
-    final onPrimary = p.isDark ? const Color(0xFF0A1119) : Colors.white;
+    // Every pre-existing theme keeps its exact original onPrimary (dark
+    // near-black on isDark, white otherwise) — do not derive this from
+    // p.blue's luminance app-wide, since that would also silently repaint
+    // light/neutral (whose green primary already reads as "light" under
+    // Flutter's own brightness estimate, same as aurora's gold does) and
+    // break the "pre-existing themes render byte-identical" rule from the
+    // earlier Fundify port. Aurora's gold genuinely needs dark text — white
+    // barely contrasts on it — so it gets its own branch instead.
+    final onPrimary = switch (themeNotifier.value) {
+      _ when p.isDark        => const Color(0xFF0A1119),
+      AppThemeMode.aurora    => const Color(0xFF1C1712),
+      _                      => Colors.white,
+    };
 
     return base.copyWith(
       scaffoldBackgroundColor: p.bg,
@@ -99,18 +153,19 @@ class AppTheme {
   }
 
   // ── Typography helpers ─────────────────────────────────────────────────────
-  // Colors below use AppColors dark-mode defaults. Widgets that need
-  // theme-aware text colors should read from context.pal instead.
+  // Colors below track the active theme via [pal] (resolved from the global
+  // [themeNotifier], not BuildContext) — they stay correct in light/dark/
+  // neutral without every call site needing its own .copyWith(color: ...).
 
   static TextStyle get monoSm => GoogleFonts.jetBrainsMono(
-    fontSize: 11.5, color: AppColors.textMute, letterSpacing: -0.01,
+    fontSize: 11.5, color: pal.textMute, letterSpacing: -0.01,
   );
   static TextStyle get monoXs => GoogleFonts.jetBrainsMono(
-    fontSize: 10.5, color: AppColors.textDim, letterSpacing: 0.04,
+    fontSize: 10.5, color: pal.textDim, letterSpacing: 0.04,
   );
-  static TextStyle get labelCaps => const TextStyle(
+  static TextStyle get labelCaps => TextStyle(
     fontFamily: 'TildaSans',
-    fontSize: 10.5, color: AppColors.textDim, fontWeight: FontWeight.w500,
+    fontSize: 10.5, color: pal.textDim, fontWeight: FontWeight.w500,
     letterSpacing: 0.13, height: 1,
   );
   static TextStyle get kpiValue => const TextStyle(
@@ -132,8 +187,8 @@ class AppTheme {
     fontSize: 13, fontWeight: FontWeight.w500,
   );
   static TextStyle get bodySm => const TextStyle(fontFamily: 'TildaSans', fontSize: 12.5);
-  static TextStyle get bodySub => const TextStyle(
+  static TextStyle get bodySub => TextStyle(
     fontFamily: 'TildaSans',
-    fontSize: 11.5, color: AppColors.textMute,
+    fontSize: 11.5, color: pal.textMute,
   );
 }

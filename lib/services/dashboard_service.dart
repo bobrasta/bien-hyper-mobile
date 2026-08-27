@@ -38,18 +38,19 @@ class DashboardData {
   factory DashboardData.fromJson(
     Map<String, dynamic> j, [
     Map<String, dynamic>? rev,
-  ]) =>
-      DashboardData(
-        totalMachines:    (j['total_machines']     as num? ?? 0).toInt(),
-        operational:      (j['operational']        as num? ?? 0).toInt(),
-        needsService:     (j['needs_service']      as num? ?? 0).toInt(),
-        down:             (j['down']               as num? ?? 0).toInt(),
-        warranty:         (j['warranty']           as num? ?? 0).toInt(),
-        totalHospitals:   (j['total_hospitals']    as num? ?? 0).toInt(),
-        openTickets:      (j['open_tickets']       as num? ?? 0).toInt(),
-        overdueTickets:   (j['overdue_tickets']    as num? ?? 0).toInt(),
-        revenueThisMonth: (j['revenue_this_month'] as num? ?? 0).toDouble(),
-        revenueLastMonth: (j['revenue_last_month'] as num? ?? 0).toDouble(),
+  ]) {
+    final kpi = (j['kpi'] as Map?)?.cast<String, dynamic>() ?? const {};
+    return DashboardData(
+        totalMachines:    (kpi['total_machines']     as num? ?? 0).toInt(),
+        operational:      (kpi['operational']        as num? ?? 0).toInt(),
+        needsService:     (kpi['needs_service']      as num? ?? 0).toInt(),
+        down:             (kpi['down']               as num? ?? 0).toInt(),
+        warranty:         (kpi['warranty']           as num? ?? 0).toInt(),
+        totalHospitals:   (kpi['total_hospitals']    as num? ?? 0).toInt(),
+        openTickets:      (kpi['open_tickets']       as num? ?? 0).toInt(),
+        overdueTickets:   (kpi['overdue_tickets']    as num? ?? 0).toInt(),
+        revenueThisMonth: (kpi['revenue_this_month'] as num? ?? 0).toDouble(),
+        revenueLastMonth: (kpi['revenue_last_month'] as num? ?? 0).toDouble(),
         revenueMonths: rev != null
             ? (rev['months'] as List? ?? []).cast<String>()
             : const ['Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar','Apr','May','Jun'],
@@ -62,6 +63,7 @@ class DashboardData {
         recentTickets: (j['recent_tickets'] as List? ?? []).cast<Map<String, dynamic>>(),
         topHospitals:  (j['top_hospitals']  as List? ?? []).cast<Map<String, dynamic>>(),
       );
+  }
 
   double get uptimePct => totalMachines == 0
       ? 0 : operational / totalMachines;

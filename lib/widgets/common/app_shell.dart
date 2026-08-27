@@ -1,5 +1,6 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
+import '../../screens/approvals/approvals_screen.dart';
 import '../../screens/customers/customers_screen.dart';
 import '../../screens/dashboard/dashboard_screen.dart';
 import '../../screens/email/email_screen.dart';
@@ -11,6 +12,14 @@ import '../../screens/finance/finance_reports_screen.dart';
 import '../../screens/finance/vendor_bills_screen.dart';
 import '../../screens/hospitals/hospital_list_screen.dart';
 import '../../screens/hr/hr_approval_screen.dart';
+import '../../screens/hr/hr_attendance_screen.dart';
+import '../../screens/hr/hr_dashboard_screen.dart';
+import '../../screens/hr/hr_directory_screen.dart';
+import '../../screens/hr/hr_leave_calendar_screen.dart';
+import '../../screens/hr/hr_payroll_screen.dart';
+import '../../screens/hr/hr_recruitment_screen.dart';
+import '../../screens/hr/hr_reports_screen.dart';
+import '../../screens/hr/hr_settings_screen.dart';
 import '../../screens/hr/my_leave_screen.dart';
 import '../../screens/inventory/flagged_units_screen.dart';
 import '../../screens/inventory/inventory_items_screen.dart';
@@ -35,6 +44,8 @@ import '../../screens/settings/settings_screen.dart';
 import '../../screens/notifications/notifications_screen.dart';
 import '../../screens/staff/staff_screen.dart';
 import '../../main.dart' show trialNotifier, userRoleNotifier, allowedScreenKeys, defaultScreenKey;
+import '../../models/notification.dart';
+import '../../models/search_result.dart';
 import '../../screens/trial/trial_expired_screen.dart';
 import '../../services/background_sync.dart';
 import '../../theme/app_colors.dart';
@@ -63,6 +74,13 @@ class _AppShellState extends State<AppShell> {
   late String _activeKey;
   int _selectedMachineId = 0;
 
+  // Set only via _navigateToEntity — carries an optional target for the
+  // screen being navigated to (a specific entity id, or which tab to open).
+  // _navigate() clears both so a stale deep-link target never leaks into a
+  // plain sidebar click.
+  int? _pendingEntityId;
+  int? _pendingTabIndex;
+
   @override
   void initState() {
     super.initState();
@@ -78,17 +96,122 @@ class _AppShellState extends State<AppShell> {
 
   // ── Screen router ─────────────────────────────────────────────────────────
 
-  void _navigate(String key) {
+  // Sub-module keys use the parent module as the permission gate.
+  String _gatedKey(String key) {
     final allowed = allowedScreenKeys(userRoleNotifier.value);
-    // sub-module keys use the parent module as the permission gate
     String permKey = key;
     if (key.startsWith('inventory_')) permKey = 'inventory';
     if (key.startsWith('sales_'))     permKey = 'sales';
     if (key.startsWith('finance_'))   permKey = 'finance';
-    final target = (allowed == null || allowed.contains(permKey))
+    return (allowed == null || allowed.contains(permKey))
         ? key
         : defaultScreenKey(userRoleNotifier.value);
-    setState(() => _activeKey = target);
+  }
+
+  void _navigate(String key) {
+    setState(() {
+      _activeKey = _gatedKey(key);
+      _pendingEntityId = null;
+      _pendingTabIndex = null;
+    });
+  }
+
+  /// Like [_navigate], but also carries a specific entity id and/or tab
+  /// index for the target screen to pick up (e.g. a notification's "open
+  /// this exact ticket" or "open Approvals on the Per Diem tab").
+  void _navigateToEntity(String key, {int? entityId, int? tabIndex}) {
+    setState(() {
+      _activeKey = _gatedKey(key);
+      _pendingEntityId = entityId;
+      _pendingTabIndex = tabIndex;
+    });
+  }
+
+  /// Routes a tapped notification to wherever its recipient acts on it.
+  /// `n == null` means "View all" with no specific entity in mind.
+  void _openNotification(AppNotification? n) {
+    if (n == null) {
+      _navigate('notifications');
+      return;
+    }
+    final entityId = int.tryParse(n.entityId ?? '');
+    switch (n.type) {
+      case NotificationType.leaveRequested:
+        _navigateToEntity('hr_approvals', tabIndex: 0);
+      case NotificationType.stockOutRequested:
+      case NotificationType.stockOutApproved:
+      case NotificationType.stockOutRejected:
+        _navigateToEntity('approvals', tabIndex: 0);
+      case NotificationType.perDiemPending:
+      case NotificationType.perDiemApproved:
+      case NotificationType.perDiemRejected:
+        _navigateToEntity('approvals', tabIndex: 1);
+      case NotificationType.expensePending:
+      case NotificationType.expenseApproved:
+      case NotificationType.expenseRejected:
+        _navigateToEntity('approvals', tabIndex: 2);
+      case NotificationType.ticketAssigned:
+      case NotificationType.ticketUpdated:
+      case NotificationType.serviceDue:
+        _navigateToEntity('service', entityId: entityId);
+      case NotificationType.leaveApproved:
+      case NotificationType.leaveRejected:
+        _navigate('my_leave');
+      case NotificationType.lateArrival:
+        _navigateToEntity('hr_approvals', tabIndex: 2);
+      case NotificationType.leadFollowUp:
+      case NotificationType.dealUpdated:
+        _navigateToEntity('sales', entityId: entityId);
+      case NotificationType.taskAssigned:
+      case NotificationType.taskCompleted:
+        _navigateToEntity('staff', entityId: entityId);
+      case NotificationType.stockPullRequired:
+        _navigate('sales_orders');
+      default:
+        _navigate('notifications');
+    }
+  }
+
+  /// Routes a tapped global-search result to wherever it lives. Types with
+  /// an existing "deep link to one record" hook (machine, service ticket,
+  /// sales lead) land on that exact record; everything else opens the right
+  /// list screen — still the correct destination, just not pre-scrolled.
+  void _openSearchResult(SearchResult r) {
+    switch (r.type) {
+      case 'machine':
+        setState(() {
+          _selectedMachineId = r.id;
+          _activeKey = _gatedKey('detail');
+          _pendingEntityId = null;
+          _pendingTabIndex = null;
+        });
+      case 'service_ticket':
+        _navigateToEntity('service', entityId: r.id);
+      case 'sales_lead':
+        _navigateToEntity('sales', entityId: r.id);
+      case 'hospital':
+        _navigate('hospitals');
+      case 'inventory_item':
+        _navigate('inventory_items');
+      case 'supplier':
+        _navigate('inventory_suppliers');
+      case 'location':
+        _navigate('inventory_locations');
+      case 'staff':
+        _navigate('staff');
+      case 'quotation':
+        _navigate('sales_quotations');
+      case 'sales_order':
+        _navigate('sales_orders');
+      case 'invoice':
+        _navigate('sales_invoices');
+      case 'contact':
+        _navigate('customers');
+      case 'vendor_bill':
+        _navigate('finance_bills');
+      case 'expense':
+        _navigate('finance_expenses');
+    }
   }
 
   Widget _buildScreen() => switch (_activeKey) {
@@ -104,7 +227,7 @@ class _AppShellState extends State<AppShell> {
         onBack: () => setState(() => _activeKey = 'machines'),
       ),
     'hospitals' => const HospitalListScreen(),
-    'service'                => const ServiceTicketScreen(),
+    'service'                => ServiceTicketScreen(initialTicketId: _pendingEntityId),
     'inventory' || 'inventory_items' => const InventoryItemsScreen(),
     'inventory_suppliers'    => const SuppliersScreen(),
     'inventory_movements'    => const StockMovementsScreen(),
@@ -120,7 +243,7 @@ class _AppShellState extends State<AppShell> {
     'finance_reports'        => const FinanceReportsScreen(),
     'finance_bank_rec'       => const BankReconciliationScreen(),
     'email'     => const EmailScreen(),
-    'sales' || 'sales_leads' => const SalesScreen(),
+    'sales' || 'sales_leads' => SalesScreen(initialLeadId: _pendingEntityId),
     'sales_dashboard'         => const SalesDashboardScreen(),
     'sales_pos'               => const PosScreen(),
     'sales_quotations'       => const QuotationsScreen(),
@@ -128,10 +251,19 @@ class _AppShellState extends State<AppShell> {
     'sales_invoices'         => const InvoicesScreen(),
     'sales_history'          => const SalesHistoryScreen(),
     'customers' => const CustomersScreen(),
-    'staff'          => const StaffScreen(),
+    'staff'          => StaffScreen(initialTaskId: _pendingEntityId),
     'my_leave'       => const MyLeaveScreen(),
-    'hr_approvals'   => const HrApprovalScreen(),
-    'notifications'  => const NotificationsScreen(),
+    'hr_approvals'   => HrApprovalScreen(initialTabIndex: _pendingTabIndex),
+    'hr_settings'    => const HrSettingsScreen(),
+    'hr_dashboard'   => const HrDashboardScreen(),
+    'hr_directory'   => const HrDirectoryScreen(),
+    'hr_recruitment' => const HrRecruitmentScreen(),
+    'hr_leave_calendar' => const HrLeaveCalendarScreen(),
+    'hr_attendance'  => const HrAttendanceScreen(),
+    'hr_payroll'     => const HrPayrollScreen(),
+    'hr_reports'     => const HrReportsScreen(),
+    'approvals'      => ApprovalsScreen(initialTabIndex: _pendingTabIndex),
+    'notifications'  => NotificationsScreen(onOpenNotification: _openNotification),
     'reports'        => ReportsScreen(onNavigateTo: _navigate),
     'settings'  => const SettingsScreen(),
     _ => _PlaceholderScreen(title: _activeKey),
@@ -208,26 +340,40 @@ class _AppShellState extends State<AppShell> {
 
   // ── Layouts ───────────────────────────────────────────────────────────────
 
+  /// Paints the active theme's diagonal wash (aurora) behind the shell body,
+  /// or just its flat [AppPalette.bg] for every other theme — same visual
+  /// result as before for themes with no [AppPalette.bgGradient] set.
+  Decoration _bgDecoration(BuildContext context) {
+    final grad = context.pal.bgGradient;
+    if (grad == null) return BoxDecoration(color: context.pal.bg);
+    return BoxDecoration(gradient: LinearGradient(
+      begin: Alignment.topLeft, end: Alignment.bottomRight, colors: grad,
+    ));
+  }
+
   /// Desktop (≥ 1100 px) — persistent 232 px labeled sidebar.
   Widget _buildDesktop() => Scaffold(
     backgroundColor: context.pal.bg,
-    body: Column(
-      children: [
-        TopBar(onViewAllNotifications: () => _navigate('notifications')),
-        _trialBanner(),
-        Expanded(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Sidebar(
-                activeKey: _sidebarKey,
-                onSelect: (k) => _navigate(k),
-              ),
-              Expanded(child: ClipRect(child: _buildScreen())),
-            ],
+    body: DecoratedBox(
+      decoration: _bgDecoration(context),
+      child: Column(
+        children: [
+          TopBar(onOpenNotification: _openNotification, onOpenSearchResult: _openSearchResult),
+          _trialBanner(),
+          Expanded(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Sidebar(
+                  activeKey: _sidebarKey,
+                  onSelect: (k) => _navigate(k),
+                ),
+                Expanded(child: ClipRect(child: _buildScreen())),
+              ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     ),
   );
 
@@ -239,24 +385,28 @@ class _AppShellState extends State<AppShell> {
       preferredSize: const Size.fromHeight(56),
       child: TopBar(
         onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
-        onViewAllNotifications: () => _navigate('notifications'),
+        onOpenNotification: _openNotification,
+        onOpenSearchResult: _openSearchResult,
       ),
     ),
     drawer: _buildDrawer(),
-    body: Column(
-      children: [
-        _trialBanner(),
-        Expanded(child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            SidebarRail(
-              activeKey: _sidebarKey,
-              onSelect: (k) => _navigate(k),
-            ),
-            Expanded(child: ClipRect(child: _buildScreen())),
-          ],
-        )),
-      ],
+    body: DecoratedBox(
+      decoration: _bgDecoration(context),
+      child: Column(
+        children: [
+          _trialBanner(),
+          Expanded(child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SidebarRail(
+                activeKey: _sidebarKey,
+                onSelect: (k) => _navigate(k),
+              ),
+              Expanded(child: ClipRect(child: _buildScreen())),
+            ],
+          )),
+        ],
+      ),
     ),
   );
 
@@ -268,7 +418,8 @@ class _AppShellState extends State<AppShell> {
       preferredSize: const Size.fromHeight(56),
       child: TopBar(
         onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
-        onViewAllNotifications: () => _navigate('notifications'),
+        onOpenNotification: _openNotification,
+        onOpenSearchResult: _openSearchResult,
       ),
     ),
     drawer: _buildDrawer(),
@@ -278,11 +429,14 @@ class _AppShellState extends State<AppShell> {
       onSelect: (k) => _navigate(k),
       onMore: () => _scaffoldKey.currentState?.openDrawer(),
     ),
-    body: Column(
-      children: [
-        _trialBanner(),
-        Expanded(child: ClipRect(child: _buildScreen())),
-      ],
+    body: DecoratedBox(
+      decoration: _bgDecoration(context),
+      child: Column(
+        children: [
+          _trialBanner(),
+          Expanded(child: ClipRect(child: _buildScreen())),
+        ],
+      ),
     ),
   );
 

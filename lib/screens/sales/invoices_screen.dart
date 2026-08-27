@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../models/invoice.dart';
+import '../../services/credit_note_service.dart';
 import '../../services/invoice_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_palette.dart';
@@ -10,6 +11,7 @@ import '../../utils/api_error.dart';
 import '../../utils/whatsapp_share.dart';
 import '../../widgets/common/app_button.dart';
 import '../../widgets/common/error_view.dart';
+import '../../widgets/common/labeled_field.dart';
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -84,9 +86,15 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
   }
 
   Future<void> _showDetailModal(Invoice inv) async {
-    final full = (inv.lineItems.isEmpty || inv.payments.isEmpty)
-        ? await InvoiceService.instance.get(inv.id)
-        : inv;
+    Invoice full;
+    try {
+      full = (inv.lineItems.isEmpty || inv.payments.isEmpty)
+          ? await InvoiceService.instance.get(inv.id)
+          : inv;
+    } catch (e) {
+      if (mounted) showErrorToast(context, e);
+      return;
+    }
     if (!mounted) return;
     final reload = await showDialog<bool>(
       context: context,
@@ -364,6 +372,14 @@ class _InvoiceDetailDialogState extends State<_InvoiceDetailDialog> {
     if (saved == true && mounted) Navigator.pop(context, true);
   }
 
+  Future<void> _creditNotes() async {
+    final changed = await showDialog<bool>(
+      context: context,
+      builder: (_) => _CreditNotesDialog(invoice: widget.inv),
+    );
+    if (changed == true && mounted) Navigator.pop(context, true);
+  }
+
   Widget _infoTile(String label, String value) => SizedBox(
     width: 240,
     child: Padding(
@@ -436,7 +452,7 @@ class _InvoiceDetailDialogState extends State<_InvoiceDetailDialog> {
                   message: 'Share via WhatsApp',
                   child: GestureDetector(
                     onTap: _shareWhatsApp,
-                    child: const Icon(Symbols.share, size: 18, color: AppColors.teal),
+                    child: Icon(Symbols.share, size: 18, color: AppColors.teal),
                   ),
                 ),
               ],
@@ -595,7 +611,7 @@ class _InvoiceDetailDialogState extends State<_InvoiceDetailDialog> {
           )),
 
           // ── Footer actions ──
-          if (inv.canSend || inv.canPay || inv.canCancel)
+          if (inv.canSend || inv.canPay || inv.canCancel || inv.status != PaymentStatus.cancelled)
             Container(
               padding: const EdgeInsets.fromLTRB(24, 12, 24, 20),
               decoration: BoxDecoration(
@@ -614,6 +630,12 @@ class _InvoiceDetailDialogState extends State<_InvoiceDetailDialog> {
                     label: 'Record Payment', icon: Symbols.payments,
                     variant: BtnVariant.primary,
                     onPressed: _acting ? null : _pay,
+                  ),
+                if (inv.status != PaymentStatus.cancelled)
+                  AppButton(
+                    label: 'Credit Note', icon: Symbols.receipt_long,
+                    variant: BtnVariant.ghost,
+                    onPressed: _acting ? null : _creditNotes,
                   ),
                 if (inv.canCancel)
                   AppButton(
@@ -703,7 +725,7 @@ class _PaymentModalState extends State<_PaymentModal> {
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
               child: Row(children: [
-                const Icon(Symbols.payments, size: 18, color: AppColors.teal),
+                Icon(Symbols.payments, size: 18, color: AppColors.teal),
                 const SizedBox(width: 10),
                 Expanded(child: Text('Record Payment — ${widget.invoice.invoiceNumber}',
                     style: AppTheme.bodyStrong)),
@@ -817,3 +839,150 @@ Widget _field(String label, TextEditingController ctrl, BuildContext ctx,
       ),
     ),
   ]);
+
+// ── Credit Notes dialog ──────────────────────────────────────────────────────
+
+class _CreditNotesDialog extends StatefulWidget {
+  const _CreditNotesDialog({required this.invoice});
+  final Invoice invoice;
+  @override
+  State<_CreditNotesDialog> createState() => _CreditNotesDialogState();
+}
+
+class _CreditNotesDialogState extends State<_CreditNotesDialog> {
+  List<CreditNote> _notes = [];
+  bool _loading = true;
+  bool _changed = false;
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    try {
+      final list = await CreditNoteService.instance.list(widget.invoice.id);
+      if (mounted) setState(() { _notes = list; _loading = false; });
+    } catch (e) {
+      if (mounted) { setState(() => _loading = false); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e)))); }
+    }
+  }
+
+  Future<void> _newCreditNote() async {
+    final reasonCtrl = TextEditingController();
+    final amountCtrl = TextEditingController();
+    final go = await showDialog<bool>(context: context, builder: (dialogCtx) => AlertDialog(
+      backgroundColor: context.pal.surface1,
+      title: Text('New Credit Note', style: AppTheme.cardTitle),
+      content: SizedBox(width: 340, child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('Balance due: ${_fmt(widget.invoice.balanceDue)}', style: AppTheme.bodySub.copyWith(fontSize: 12)),
+        const SizedBox(height: 12),
+        LabeledTextField(label: 'Reason', controller: reasonCtrl),
+        const SizedBox(height: 12),
+        LabeledTextField(label: 'Amount', controller: amountCtrl, keyboardType: TextInputType.number),
+      ])),
+      actions: [
+        TextButton(onPressed: () => Navigator.of(dialogCtx).pop(false), child: const Text('Cancel')),
+        FilledButton(onPressed: () => Navigator.of(dialogCtx).pop(true), child: const Text('Create')),
+      ],
+    ));
+    if (go != true) return;
+    final amount = int.tryParse(amountCtrl.text.trim());
+    if (reasonCtrl.text.trim().isEmpty || amount == null || amount <= 0) return;
+    try {
+      await CreditNoteService.instance.create(widget.invoice.id, reason: reasonCtrl.text.trim(), amount: amount);
+      _changed = true;
+      _load();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));
+    }
+  }
+
+  Future<void> _approve(CreditNote n) async {
+    try {
+      await CreditNoteService.instance.approve(n.id);
+      _changed = true;
+      _load();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));
+    }
+  }
+
+  Future<void> _apply(CreditNote n) async {
+    try {
+      await CreditNoteService.instance.apply(n.id);
+      _changed = true;
+      _load();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));
+    }
+  }
+
+  Color _statusColor(String s) => switch (s) {
+    'draft'    => AppColors.textMute,
+    'approved' => AppColors.amber,
+    'applied'  => AppColors.teal,
+    _          => AppColors.textMute,
+  };
+
+  @override
+  Widget build(BuildContext context) => PopScope(
+    canPop: true,
+    onPopInvokedWithResult: (didPop, _) {},
+    child: Dialog(
+      backgroundColor: context.pal.surface1,
+      child: Container(
+        width: 460,
+        constraints: const BoxConstraints(maxHeight: 480),
+        padding: const EdgeInsets.all(20),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Row(children: [
+            Icon(Symbols.receipt_long, size: 18, color: AppColors.teal),
+            const SizedBox(width: 10),
+            Expanded(child: Text('Credit Notes — ${widget.invoice.invoiceNumber}', style: AppTheme.bodyStrong)),
+            TextButton.icon(onPressed: _newCreditNote, icon: const Icon(Symbols.add, size: 16), label: const Text('New')),
+            GestureDetector(onTap: () => Navigator.of(context).pop(_changed),
+                child: Icon(Symbols.close, size: 18, color: context.pal.textDim)),
+          ]),
+          const Divider(height: 24),
+          Flexible(
+            child: _loading
+                ? const Padding(padding: EdgeInsets.symmetric(vertical: 32), child: Center(child: CircularProgressIndicator(strokeWidth: 2)))
+                : _notes.isEmpty
+                    ? Padding(padding: const EdgeInsets.symmetric(vertical: 32), child: Center(child: Text('No credit notes on this invoice.', style: AppTheme.bodySub)))
+                    : SingleChildScrollView(
+                        child: Column(children: _notes.map((n) => Container(
+                          margin: const EdgeInsets.only(bottom: 10),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(color: context.pal.surface2, borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
+                          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Row(children: [
+                              Text(n.creditNoteNumber, style: AppTheme.bodyStrong.copyWith(fontSize: 13)),
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                decoration: BoxDecoration(color: _statusColor(n.status).withValues(alpha: 0.12), borderRadius: BorderRadius.circular(4)),
+                                child: Text(n.status, style: AppTheme.monoXs.copyWith(color: _statusColor(n.status), fontSize: 10)),
+                              ),
+                              const Spacer(),
+                              Text(_fmt(n.amount), style: AppTheme.bodyStrong.copyWith(fontSize: 13)),
+                            ]),
+                            const SizedBox(height: 4),
+                            Text(n.reason, style: AppTheme.bodySm.copyWith(fontSize: 12)),
+                            if (n.status == 'draft' || n.status == 'approved') ...[
+                              const SizedBox(height: 8),
+                              Wrap(spacing: 6, children: [
+                                if (n.status == 'draft')
+                                  TextButton(onPressed: () => _approve(n), child: const Text('Approve')),
+                                if (n.status == 'approved')
+                                  TextButton(onPressed: () => _apply(n), child: const Text('Apply')),
+                              ]),
+                            ],
+                          ]),
+                        )).toList()),
+                      ),
+          ),
+        ]),
+      ),
+    ),
+  );
+}

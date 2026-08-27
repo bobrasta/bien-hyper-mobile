@@ -39,4 +39,52 @@ class PurchaseOrderService {
     final res = await _dio.post('/purchase-orders/$id/cancel');
     return PurchaseOrder.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
   }
+
+  // ── Approval / payment chain ──────────────────────────────────────────────
+  // draft -> pending_sales_manager -> pending_director_review ->
+  // pending_payment_initiation -> pending_director_final -> approved.
+
+  Future<PurchaseOrder> submitForApproval(int id) async {
+    final res = await _dio.post('/purchase-orders/$id/submit-for-approval');
+    return PurchaseOrder.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+  }
+
+  Future<PurchaseOrder> approveSalesManager(int id) async {
+    final res = await _dio.post('/purchase-orders/$id/approve-sales-manager');
+    return PurchaseOrder.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+  }
+
+  Future<PurchaseOrder> rejectSalesManager(int id, {String? reason}) async {
+    final res = await _dio.post('/purchase-orders/$id/reject-sales-manager',
+        data: {'rejection_reason': reason});
+    return PurchaseOrder.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+  }
+
+  Future<PurchaseOrder> approveDirectorReview(int id) async {
+    final res = await _dio.post('/purchase-orders/$id/approve-director-review');
+    return PurchaseOrder.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+  }
+
+  Future<PurchaseOrder> rejectDirectorReview(int id, {String? reason}) async {
+    final res = await _dio.post('/purchase-orders/$id/reject-director-review',
+        data: {'rejection_reason': reason});
+    return PurchaseOrder.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+  }
+
+  Future<PurchaseOrder> initiatePayment(int id, {int? amountPaid}) async {
+    final res = await _dio.post('/purchase-orders/$id/initiate-payment',
+        data: {'amount_paid': ?amountPaid});
+    return PurchaseOrder.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+  }
+
+  Future<PurchaseOrder> approveDirectorFinal(int id) async {
+    final res = await _dio.post('/purchase-orders/$id/approve-director-final');
+    return PurchaseOrder.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+  }
+
+  Future<PurchaseOrder> rejectDirectorFinal(int id, {String? reason}) async {
+    final res = await _dio.post('/purchase-orders/$id/reject-director-final',
+        data: {'rejection_reason': reason});
+    return PurchaseOrder.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+  }
 }

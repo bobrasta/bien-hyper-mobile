@@ -18,13 +18,15 @@ class FinanceReportsScreen extends StatefulWidget {
 }
 
 class _FinanceReportsScreenState extends State<FinanceReportsScreen> with SingleTickerProviderStateMixin {
-  late final TabController _tab = TabController(length: 6, vsync: this);
+  late final TabController _tab = TabController(length: 8, vsync: this);
 
   Map<String, dynamic> _vat = {};
   Map<String, dynamic> _pl  = {};
   Map<String, dynamic> _tb  = {};
   Map<String, dynamic> _bs  = {};
   Map<String, dynamic> _ar  = {};
+  Map<String, dynamic> _ap  = {};
+  Map<String, dynamic> _sv  = {};
   Map<String, dynamic> _cf  = {};
   bool    _loading = true;
   String? _error;
@@ -48,12 +50,15 @@ class _FinanceReportsScreenState extends State<FinanceReportsScreen> with Single
         FinanceReportService.instance.trialBalance(),
         FinanceReportService.instance.balanceSheet(),
         FinanceReportService.instance.arAging(),
+        FinanceReportService.instance.apAging(),
+        FinanceReportService.instance.stockValuation(),
         FinanceReportService.instance.cashFlow(),
       ]);
       if (!mounted) return;
       setState(() {
         _vat = results[0]; _pl = results[1]; _tb = results[2];
-        _bs = results[3]; _ar = results[4]; _cf = results[5];
+        _bs = results[3]; _ar = results[4]; _ap = results[5];
+        _sv = results[6]; _cf = results[7];
         _loading = false;
       });
     } catch (e) {
@@ -121,7 +126,8 @@ class _FinanceReportsScreenState extends State<FinanceReportsScreen> with Single
             unselectedLabelStyle: AppTheme.bodySm,
             tabs: const [
               Tab(text: 'VAT'), Tab(text: 'Profit & Loss'), Tab(text: 'Trial Balance'),
-              Tab(text: 'Balance Sheet'), Tab(text: 'AR Aging'), Tab(text: 'Cash Flow'),
+              Tab(text: 'Balance Sheet'), Tab(text: 'AR Aging'), Tab(text: 'AP Aging'),
+              Tab(text: 'Stock Valuation'), Tab(text: 'Cash Flow'),
             ],
           ),
         ),
@@ -136,6 +142,8 @@ class _FinanceReportsScreenState extends State<FinanceReportsScreen> with Single
                       _TrialBalanceTab(data: _tb, pad: pad),
                       _BalanceSheetTab(data: _bs, pad: pad),
                       _ArAgingTab(data: _ar, pad: pad),
+                      _ApAgingTab(data: _ap, pad: pad),
+                      _StockValuationTab(data: _sv, pad: pad),
                       _CashFlowTab(data: _cf, pad: pad),
                     ]),
         ),
@@ -414,7 +422,7 @@ class _ArAgingTab extends StatelessWidget {
       'current': 'Current', 'days_1_30': '1-30 days', 'days_31_60': '31-60 days',
       'days_61_90': '61-90 days', 'days_90_plus': '90+ days',
     };
-    const bucketColors = {
+    final bucketColors = {
       'current': AppColors.teal, 'days_1_30': AppColors.blue, 'days_31_60': AppColors.amber,
       'days_61_90': AppColors.coral, 'days_90_plus': AppColors.violet,
     };
@@ -427,7 +435,7 @@ class _ArAgingTab extends StatelessWidget {
           )).toList(),
         )),
         _Panel(title: 'Outstanding Invoices (${invoices.length})', child: invoices.isEmpty
-            ? const Padding(padding: EdgeInsets.symmetric(vertical: 24, horizontal: 20), child: Text('Nothing outstanding', style: TextStyle(color: AppColors.textMute)))
+            ? Padding(padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20), child: Text('Nothing outstanding', style: TextStyle(color: context.pal.textMute)))
             : Column(children: invoices.map((i) => Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                 child: Row(children: [
@@ -438,6 +446,97 @@ class _ArAgingTab extends StatelessWidget {
                   Text('${i['days_overdue']}d', style: AppTheme.monoXs.copyWith(color: bucketColors[i['bucket']] ?? context.pal.textMute)),
                   const SizedBox(width: 12),
                   Text(tshFromDouble((i['balance_due'] as num?) ?? 0), style: AppTheme.monoSm.copyWith(fontSize: 12, color: AppColors.coral)),
+                ]),
+              )).toList()),
+        ),
+      ]),
+    );
+  }
+}
+
+// ── AP Aging ───────────────────────────────────────────────────────────────────
+
+class _ApAgingTab extends StatelessWidget {
+  const _ApAgingTab({required this.data, required this.pad});
+  final Map<String, dynamic> data;
+  final double pad;
+
+  @override
+  Widget build(BuildContext context) {
+    final buckets = (data['buckets'] as Map?) ?? {};
+    final bills = (data['bills'] as List? ?? []);
+    const bucketLabels = {
+      'current': 'Current', 'days_1_30': '1-30 days', 'days_31_60': '31-60 days',
+      'days_61_90': '61-90 days', 'days_90_plus': '90+ days',
+    };
+    final bucketColors = {
+      'current': AppColors.teal, 'days_1_30': AppColors.blue, 'days_31_60': AppColors.amber,
+      'days_61_90': AppColors.coral, 'days_90_plus': AppColors.violet,
+    };
+    return SingleChildScrollView(
+      padding: EdgeInsets.all(pad),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        _Panel(title: 'Outstanding: ${tshFromDouble(_n(data, 'total_outstanding'))}', child: Column(
+          children: bucketLabels.entries.map((e) => _SummaryRow(
+            e.value, tshFromDouble((buckets[e.key] as num?) ?? 0), color: bucketColors[e.key],
+          )).toList(),
+        )),
+        _Panel(title: 'Outstanding Bills (${bills.length})', child: bills.isEmpty
+            ? Padding(padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20), child: Text('Nothing outstanding', style: TextStyle(color: context.pal.textMute)))
+            : Column(children: bills.map((b) => Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                child: Row(children: [
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('${b['bill_number']}', style: AppTheme.bodySm.copyWith(fontSize: 12.5)),
+                    Text('${b['supplier_name']}', style: AppTheme.bodySub.copyWith(fontSize: 11)),
+                  ])),
+                  Text('${b['days_overdue']}d', style: AppTheme.monoXs.copyWith(color: bucketColors[b['bucket']] ?? context.pal.textMute)),
+                  const SizedBox(width: 12),
+                  Text(tshFromDouble((b['balance_due'] as num?) ?? 0), style: AppTheme.monoSm.copyWith(fontSize: 12, color: AppColors.coral)),
+                ]),
+              )).toList()),
+        ),
+      ]),
+    );
+  }
+}
+
+// ── Stock Valuation ────────────────────────────────────────────────────────────
+
+class _StockValuationTab extends StatelessWidget {
+  const _StockValuationTab({required this.data, required this.pad});
+  final Map<String, dynamic> data;
+  final double pad;
+
+  @override
+  Widget build(BuildContext context) {
+    final byCategory = (data['by_category'] as List? ?? []);
+    final items = (data['items'] as List? ?? []);
+    return SingleChildScrollView(
+      padding: EdgeInsets.all(pad),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        _Panel(title: 'Stock Value as at ${_s(data, 'as_of')}', child: Column(children: [
+          _SummaryRow('Items in Stock', '${_n(data, 'item_count').toInt()}'),
+          _Divider(),
+          _SummaryRow('Total Stock Value', tshFromDouble(_n(data, 'total_value')), bold: true, big: true, color: AppColors.teal),
+          const SizedBox(height: 8),
+        ])),
+        if (byCategory.isNotEmpty)
+          _Panel(title: 'By Category', child: Column(
+            children: byCategory.map((c) => _SummaryRow(
+              c['category'] as String? ?? 'Uncategorized', tshFromDouble((c['total'] as num?) ?? 0),
+            )).toList(),
+          )),
+        _Panel(title: 'Items (${items.length})', child: items.isEmpty
+            ? Padding(padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20), child: Text('No stock on hand', style: TextStyle(color: context.pal.textMute)))
+            : Column(children: items.map((i) => Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                child: Row(children: [
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('${i['name']}', style: AppTheme.bodySm.copyWith(fontSize: 12.5), maxLines: 1, overflow: TextOverflow.ellipsis),
+                    Text('${i['sku']} · ${i['qty']} ${i['uom'] ?? ''}', style: AppTheme.bodySub.copyWith(fontSize: 11)),
+                  ])),
+                  Text(tshFromDouble((i['stock_value'] as num?) ?? 0), style: AppTheme.monoSm.copyWith(fontSize: 12)),
                 ]),
               )).toList()),
         ),

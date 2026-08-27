@@ -11,14 +11,18 @@ import '../../utils/api_error.dart';
 import '../../widgets/common/error_view.dart';
 
 class HrApprovalScreen extends StatefulWidget {
-  const HrApprovalScreen({super.key});
+  const HrApprovalScreen({super.key, this.initialTabIndex});
+  final int? initialTabIndex;
 
   @override
   State<HrApprovalScreen> createState() => _HrApprovalScreenState();
 }
 
 class _HrApprovalScreenState extends State<HrApprovalScreen> with SingleTickerProviderStateMixin {
-  late final TabController _tab = TabController(length: 3, vsync: this);
+  late final TabController _tab = TabController(
+    length: 3, vsync: this,
+    initialIndex: (widget.initialTabIndex ?? 0).clamp(0, 2),
+  );
 
   List<LeaveRequest> _all = [];
   List<LateArrival>  _lateArrivals = [];
@@ -65,8 +69,16 @@ class _HrApprovalScreenState extends State<HrApprovalScreen> with SingleTickerPr
   }
 
   Future<void> _approve(LeaveRequest r) async {
+    int? daysOverride;
+    if (r.requiresManualDays) {
+      daysOverride = await showDialog<int>(
+        context: context,
+        builder: (_) => _ManualDaysDialog(request: r),
+      );
+      if (daysOverride == null) return; // cancelled
+    }
     try {
-      await LeaveService.instance.approve(r.id);
+      await LeaveService.instance.approve(r.id, daysCountOverride: daysOverride);
       if (mounted) { showSuccessToast(context, 'Approved.'); _load(); }
     } catch (e) {
       if (mounted) showErrorToast(context, e);
@@ -165,6 +177,50 @@ class _RejectReasonDialogState extends State<_RejectReasonDialog> {
   );
 }
 
+// Compassionate leave: the requester submits a date range, but the final
+// day count is the approver's call — asked for here rather than trusting
+// the request's own days_count (see LeaveController::approve()).
+class _ManualDaysDialog extends StatefulWidget {
+  const _ManualDaysDialog({required this.request});
+  final LeaveRequest request;
+
+  @override
+  State<_ManualDaysDialog> createState() => _ManualDaysDialogState();
+}
+
+class _ManualDaysDialogState extends State<_ManualDaysDialog> {
+  late final _ctrl = TextEditingController(text: widget.request.daysCount.toString());
+
+  @override
+  void dispose() { _ctrl.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    backgroundColor: context.pal.surface1,
+    title: Text('Set ${widget.request.displayLabel} Days', style: AppTheme.bodyStrong),
+    content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text('${widget.request.userName ?? 'This staff member'} requested ${widget.request.startDate} to ${widget.request.endDate}. '
+          'How many days should count against their balance?',
+          style: AppTheme.bodySub.copyWith(fontSize: 12.5)),
+      const SizedBox(height: 12),
+      TextField(
+        controller: _ctrl, keyboardType: TextInputType.number, style: AppTheme.bodySm,
+        decoration: const InputDecoration(labelText: 'Days'),
+      ),
+    ]),
+    actions: [
+      TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancel')),
+      FilledButton(
+        onPressed: () {
+          final days = int.tryParse(_ctrl.text.trim());
+          if (days != null && days > 0) Navigator.of(context).pop(days);
+        },
+        child: const Text('Approve'),
+      ),
+    ],
+  );
+}
+
 class _PendingTab extends StatelessWidget {
   const _PendingTab({required this.requests, required this.pad, required this.onApprove, required this.onReject});
   final List<LeaveRequest> requests;
@@ -175,7 +231,7 @@ class _PendingTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (requests.isEmpty) {
-      return const Center(child: Text('No pending requests', style: TextStyle(color: AppColors.textMute)));
+      return Center(child: Text('No pending requests', style: TextStyle(color: context.pal.textMute)));
     }
     return SingleChildScrollView(
       padding: EdgeInsets.all(pad),
@@ -191,7 +247,7 @@ class _PendingTab extends StatelessWidget {
           Row(children: [
             Icon(Symbols.person, size: 16, color: context.pal.textMute),
             const SizedBox(width: 8),
-            Expanded(child: Text('${r.userName ?? '—'} · ${r.type.label}', style: AppTheme.bodyStrong.copyWith(fontSize: 13.5))),
+            Expanded(child: Text('${r.userName ?? '—'} · ${r.displayLabel}', style: AppTheme.bodyStrong.copyWith(fontSize: 13.5))),
           ]),
           const SizedBox(height: 8),
           Text('${r.startDate} → ${r.endDate}  ·  ${r.daysCount} day(s)', style: AppTheme.bodySm.copyWith(fontSize: 12.5)),
@@ -229,7 +285,7 @@ class _OnLeaveTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (requests.isEmpty) {
-      return const Center(child: Text('Nobody is on leave right now', style: TextStyle(color: AppColors.textMute)));
+      return Center(child: Text('Nobody is on leave right now', style: TextStyle(color: context.pal.textMute)));
     }
     return SingleChildScrollView(
       padding: EdgeInsets.all(pad),
@@ -246,7 +302,7 @@ class _OnLeaveTab extends StatelessWidget {
             Icon(Symbols.event_available, size: 16, color: AppColors.teal),
             const SizedBox(width: 10),
             Expanded(child: Text(e.value.userName ?? '—', style: AppTheme.bodySm.copyWith(fontSize: 12.5))),
-            Text('${e.value.type.label} · back ${e.value.endDate}', style: AppTheme.bodySub.copyWith(fontSize: 11.5)),
+            Text('${e.value.displayLabel} · back ${e.value.endDate}', style: AppTheme.bodySub.copyWith(fontSize: 11.5)),
           ]),
         )).toList()),
       ),
@@ -262,7 +318,7 @@ class _LateArrivalsTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (arrivals.isEmpty) {
-      return const Center(child: Text('No late-arrival reports', style: TextStyle(color: AppColors.textMute)));
+      return Center(child: Text('No late-arrival reports', style: TextStyle(color: context.pal.textMute)));
     }
     return SingleChildScrollView(
       padding: EdgeInsets.all(pad),

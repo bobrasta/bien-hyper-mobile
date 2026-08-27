@@ -91,9 +91,13 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
   }
 
   Future<void> _showDetailModal(Quotation qt) async {
-    final full = qt.items.isEmpty
-        ? await QuotationService.instance.get(qt.id)
-        : qt;
+    Quotation full;
+    try {
+      full = qt.items.isEmpty ? await QuotationService.instance.get(qt.id) : qt;
+    } catch (e) {
+      if (mounted) showErrorToast(context, e);
+      return;
+    }
     if (!mounted) return;
     final reload = await showDialog<bool>(
       context: context,
@@ -538,7 +542,7 @@ class _QuotationDetailDialogState extends State<_QuotationDetailDialog> {
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
             child: Row(children: [
-              const Icon(Symbols.request_quote,
+              Icon(Symbols.request_quote,
                   size: 18, color: AppColors.teal),
               const SizedBox(width: 10),
               Expanded(
@@ -569,7 +573,7 @@ class _QuotationDetailDialogState extends State<_QuotationDetailDialog> {
                   message: 'Share via WhatsApp',
                   child: GestureDetector(
                     onTap: _shareWhatsApp,
-                    child: const Icon(Symbols.share, size: 18, color: AppColors.teal),
+                    child: Icon(Symbols.share, size: 18, color: AppColors.teal),
                   ),
                 ),
                 const SizedBox(width: 14),
@@ -902,7 +906,7 @@ class _QuotationFormModalState extends State<_QuotationFormModal> {
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
               child: Row(children: [
-                const Icon(Symbols.request_quote, size: 18, color: AppColors.teal),
+                Icon(Symbols.request_quote, size: 18, color: AppColors.teal),
                 const SizedBox(width: 10),
                 Text('New Quotation', style: AppTheme.bodyStrong),
                 const Spacer(),
@@ -1177,7 +1181,7 @@ Widget _formField(String label, TextEditingController ctrl, String hint, BuildCo
       ),
       if (error != null) ...[
         const SizedBox(height: 3),
-        Text(error, style: const TextStyle(fontSize: 11, color: AppColors.coral)),
+        Text(error, style: TextStyle(fontSize: 11, color: AppColors.coral)),
       ],
     ]);
 

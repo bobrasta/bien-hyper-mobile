@@ -94,7 +94,7 @@ class _HospitalListScreenState extends State<HospitalListScreen> {
                   const SizedBox(height: 4),
                   Text('Hospitals', style: AppTheme.pageTitle),
                   const SizedBox(height: 4),
-                  Text('${_hospitals.length} hospitals �� $totalMachines machines �� 11 regions',
+                  Text('${_hospitals.length} hospitals · $totalMachines machines · 11 regions',
                     style: AppTheme.bodySub),
                 ]);
                 final actions = Row(mainAxisSize: MainAxisSize.min, children: [
@@ -116,7 +116,7 @@ class _HospitalListScreenState extends State<HospitalListScreen> {
               }),
               const SizedBox(height: 20),
 
-              // KPI chips �� 5 cols wide, 3 medium, 2 narrow
+              // KPI chips · 5 cols wide, 3 medium, 2 narrow
               AdaptiveColumns(
                 wideCols: 5, mediumCols: 3, narrowCols: 2,
                 spacing: 10, runSpacing: 10,
@@ -158,7 +158,7 @@ class _HospitalListScreenState extends State<HospitalListScreen> {
                       onChanged: (_) => setState(() => _showCount = _pageSize),
                       style: AppTheme.bodySm,
                       decoration: InputDecoration(
-                        hintText: 'Search by name, region or code��',
+                        hintText: 'Search by name, region or code—',
                         hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
                         border: InputBorder.none, isDense: true,
                         contentPadding: EdgeInsets.zero,
@@ -189,7 +189,7 @@ class _HospitalListScreenState extends State<HospitalListScreen> {
               }),
               const SizedBox(height: 16),
 
-              // Table �� horizontally scrollable below 900px
+              // Table · horizontally scrollable below 900px
               HScrollTable(
                 minWidth: 900,
                 child: Container(
@@ -302,8 +302,7 @@ class _HospitalListScreenState extends State<HospitalListScreen> {
   }
 }
 
-// ���� Sub-widgets ������������������������������������������������������������������������������������������������������������������������������
-
+// ── Sub-widgets ──────────────────────────────────────────────────────────────
 class _Crumb extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Row(children: [
@@ -545,7 +544,7 @@ class _HospitalRow extends StatelessWidget {
   }
 }
 
-// ���� Add Hospital Dialog ����������������������������������������������������������������������������������������������������������������
+// ── Add Hospital Dialog ──────────────────────────────────────────────────────
 
 class _AddHospitalDialog extends StatefulWidget {
   const _AddHospitalDialog({required this.onClose, this.onSaved});
@@ -626,7 +625,7 @@ class _AddHospitalDialogState extends State<_AddHospitalDialog> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
               child: Row(children: [
-                const Icon(Symbols.local_hospital, size: 18, color: AppColors.teal),
+                Icon(Symbols.local_hospital, size: 18, color: AppColors.teal),
                 const SizedBox(width: 10),
                 Text('Add Hospital', style: AppTheme.bodyStrong),
                 const Spacer(),
@@ -679,7 +678,7 @@ class _AddHospitalDialogState extends State<_AddHospitalDialog> {
                 if (_error != null) ...[
                   const SizedBox(height: 10),
                   Row(children: [
-                    const Icon(Icons.error_outline, size: 14, color: AppColors.coral),
+                    Icon(Icons.error_outline, size: 14, color: AppColors.coral),
                     const SizedBox(width: 6),
                     Expanded(child: Text(_error!,
                       style: AppTheme.bodySub.copyWith(color: AppColors.coral, fontSize: 12))),
@@ -728,15 +727,14 @@ class _HField extends StatelessWidget {
     Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10)),
     const SizedBox(height: 6),
     Container(
-      height: 38,
       decoration: BoxDecoration(color: context.pal.surface2,
           borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: Center(child: TextField(controller: ctrl, style: AppTheme.bodySm,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      child: TextField(controller: ctrl, style: AppTheme.bodySm,
         keyboardType: numeric ? const TextInputType.numberWithOptions(decimal: true, signed: true) : TextInputType.text,
         decoration: InputDecoration(hintText: hint,
             hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
-            border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero))),
+            border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero)),
     ),
   ]);
 }
@@ -754,9 +752,9 @@ class _HDropdown extends StatelessWidget {
     Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10)),
     const SizedBox(height: 6),
     Container(
-      height: 38,
       decoration: BoxDecoration(color: context.pal.surface2,
           borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
+      height: 38,
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: DropdownButtonHideUnderline(child: DropdownButton<String>(
         value: value, isExpanded: true,
@@ -771,7 +769,7 @@ class _HDropdown extends StatelessWidget {
   ]);
 }
 
-// ���� Hospital Detail Sheet ������������������������������������������������������������������������������������������������������������
+// ── Hospital Detail Sheet ────────────────────────────────────────────────────
 
 class _HospitalDetailSheet extends StatefulWidget {
   const _HospitalDetailSheet({required this.hospital, required this.onClose, required this.onEdit});
@@ -842,7 +840,7 @@ class _HospitalDetailSheetState extends State<_HospitalDetailSheet> {
               boxShadow: const [BoxShadow(color: Color(0x70000000), blurRadius: 60, offset: Offset(0, 20))],
             ),
             child: Column(mainAxisSize: MainAxisSize.min, children: [
-              // ���� Header ��������������������������������������������������������������������������������������������������������������
+              // ────────────────────────────────────────────────────────────────────────────
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 16, 16, 14),
                 child: Row(children: [
@@ -886,7 +884,7 @@ class _HospitalDetailSheetState extends State<_HospitalDetailSheet> {
                 ]),
               ),
 
-              // ���� Scrollable body ����������������������������������������������������������������������������������������������
+              // ── Scrollable body ────────────────────────────────────────────────────────────
               Flexible(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.all(20),
@@ -970,7 +968,7 @@ class _HospitalDetailSheetState extends State<_HospitalDetailSheet> {
                                 const SizedBox(width: 12),
                                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                                   Text(m.model, style: AppTheme.bodyStrong.copyWith(fontSize: 12.5)),
-                                  Text('${m.serialNo} �� ${m.ward}',
+                                  Text('${m.serialNo} · ${m.ward}',
                                       style: AppTheme.bodySub.copyWith(fontSize: 11)),
                                 ])),
                                 Container(
@@ -1001,7 +999,7 @@ class _HospitalDetailSheetState extends State<_HospitalDetailSheet> {
                 ),
               ),
 
-              // ���� Footer ����������������������������������������������������������������������������������������������������������������
+              // ── Footer ─────────────────────────────────────────────────────
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                 child: Row(children: [
@@ -1072,8 +1070,7 @@ class _InfoPair extends StatelessWidget {
   ]);
 }
 
-// ���� Edit Hospital Dialog ��������������������������������������������������������������������������������������������������������������
-
+// ── Edit Hospital Dialog ─────────────────────────────────────────────────────
 class _EditHospitalDialog extends StatefulWidget {
   const _EditHospitalDialog({required this.hospital, required this.onClose});
   final Hospital hospital;
@@ -1161,7 +1158,7 @@ class _EditHospitalDialogState extends State<_EditHospitalDialog> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
               child: Row(children: [
-                const Icon(Symbols.edit, size: 18, color: AppColors.teal),
+                Icon(Symbols.edit, size: 18, color: AppColors.teal),
                 const SizedBox(width: 10),
                 Expanded(child: Text('Edit: ${widget.hospital.name}',
                     style: AppTheme.bodyStrong, overflow: TextOverflow.ellipsis)),
@@ -1218,7 +1215,7 @@ class _EditHospitalDialogState extends State<_EditHospitalDialog> {
                 if (_error != null) ...[
                   const SizedBox(height: 10),
                   Row(children: [
-                    const Icon(Icons.error_outline, size: 14, color: AppColors.coral),
+                    Icon(Icons.error_outline, size: 14, color: AppColors.coral),
                     const SizedBox(width: 6),
                     Expanded(child: Text(_error!,
                       style: AppTheme.bodySub.copyWith(color: AppColors.coral, fontSize: 12))),

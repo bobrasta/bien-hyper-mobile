@@ -26,6 +26,16 @@ class FinanceReportService {
 
   Future<Map<String, dynamic>> arAging() => _get('/finance-reports/ar-aging');
 
+  Future<Map<String, dynamic>> apAging() => _get('/finance-reports/ap-aging');
+
+  Future<Map<String, dynamic>> stockValuation() => _get('/finance-reports/stock-valuation');
+
   Future<Map<String, dynamic>> cashFlow({String? dateFrom, String? dateTo}) =>
       _get('/finance-reports/cash-flow', dateFrom: dateFrom, dateTo: dateTo);
+
+  Future<List<Map<String, dynamic>>> monthlyTrend() async {
+    final res = await _dio.get('/finance-reports/monthly-trend');
+    final (data, _) = ApiClient.unwrapList(res);
+    return data.cast<Map<String, dynamic>>();
+  }
 }

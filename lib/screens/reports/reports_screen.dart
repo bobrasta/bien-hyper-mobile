@@ -372,23 +372,25 @@ class _ReportKpi extends StatelessWidget {
   final String label, value; final IconData icon; final Color? color;
 
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(16),
-    decoration: BoxDecoration(
-      color: context.pal.surface1,
-      borderRadius: BorderRadius.circular(AppColors.rLg),
-      border: Border.all(color: context.pal.border),
-    ),
-    child: Row(children: [
-      Icon(icon, size: 20, color: color ?? context.pal.textDim),
-      const SizedBox(width: 12),
-      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(value, style: AppTheme.kpiValue.copyWith(
-          fontSize: 22, color: color ?? context.pal.text)),
-        Text(label.toUpperCase(), style: AppTheme.labelCaps),
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: context.pal.surface1,
+        borderRadius: BorderRadius.circular(AppColors.rLg),
+        border: Border.all(color: context.pal.border),
+      ),
+      child: Row(children: [
+        Icon(icon, size: 20, color: color ?? context.pal.textDim),
+        const SizedBox(width: 12),
+        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(value, style: AppTheme.kpiValue.copyWith(
+            fontSize: 22, color: color ?? context.pal.text)),
+          Text(label.toUpperCase(), style: AppTheme.labelCaps),
+        ]),
       ]),
-    ]),
-  );
+    );
+  }
 }
 
 class _TClickCell extends StatelessWidget {

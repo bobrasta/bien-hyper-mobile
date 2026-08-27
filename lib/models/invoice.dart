@@ -90,6 +90,7 @@ class Invoice {
   final int           id;
   final String        invoiceNumber;
   // Hospital invoices
+  final int?          hospitalId;
   final String?       hospitalName;
   // Sales-linked invoices
   final int?          salesOrderId;
@@ -112,10 +113,14 @@ class Invoice {
   // Relations
   final List<InvoiceLineItem> lineItems;
   final List<Payment>         payments;
+  // Server-computed, accounts for applied credit notes on top of payments —
+  // prefer this over the local total-minus-paid math below when present.
+  final int?          balanceDueOverride;
 
   const Invoice({
     required this.id,
     required this.invoiceNumber,
+    this.hospitalId,
     this.hospitalName,
     this.salesOrderId,
     this.salesOrderNumber,
@@ -134,11 +139,13 @@ class Invoice {
     this.notes,
     this.lineItems = const [],
     this.payments  = const [],
+    this.balanceDueOverride,
   });
 
   factory Invoice.fromJson(Map<String, dynamic> j) => Invoice(
     id:              (j['id'] as num).toInt(),
     invoiceNumber:   j['invoice_number'] as String? ?? '—',
+    hospitalId:      j['hospital_id'] != null ? (j['hospital_id'] as num).toInt() : null,
     hospitalName:    j['hospital'] is Map
                          ? (j['hospital'] as Map)['name'] as String?
                          : j['hospital_name'] as String?,
@@ -161,9 +168,10 @@ class Invoice {
                          .map((e) => InvoiceLineItem.fromJson(e as Map<String, dynamic>)).toList(),
     payments:        (j['payments']    as List? ?? [])
                          .map((e) => Payment.fromJson(e as Map<String, dynamic>)).toList(),
+    balanceDueOverride: (j['balance_due'] as num?)?.toInt(),
   );
 
-  int    get balanceDue  => (total - amountPaid).clamp(0, total);
+  int    get balanceDue  => balanceDueOverride ?? (total - amountPaid).clamp(0, total);
   String get displayName => clientName ?? hospitalName ?? '—';
   bool get isPaid        => status == PaymentStatus.paid || status == PaymentStatus.waived;
   bool get canSend       => status == PaymentStatus.pending;

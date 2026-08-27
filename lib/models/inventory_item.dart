@@ -49,6 +49,7 @@ class InventoryItem {
   final List<String> compatibleModels;
   final bool    createsMachineRecord;
   final int?    warrantyMonths;
+  final bool    needsReview;
 
   const InventoryItem({
     required this.id,
@@ -76,6 +77,7 @@ class InventoryItem {
     this.compatibleModels = const [],
     this.createsMachineRecord = false,
     this.warrantyMonths,
+    this.needsReview = false,
   });
 
   factory InventoryItem.fromJson(Map<String, dynamic> j) {
@@ -117,6 +119,7 @@ class InventoryItem {
           .map((e) => e.toString()).toList(),
       createsMachineRecord: j['creates_machine_record'] as bool? ?? false,
       warrantyMonths: (j['warranty_months'] as num?)?.toInt(),
+      needsReview: j['needs_review'] as bool? ?? false,
     );
   }
 

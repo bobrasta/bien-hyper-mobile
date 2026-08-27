@@ -6,6 +6,7 @@ import '../../models/stock_movement.dart';
 import '../../services/inventory_service.dart';
 import '../../services/location_service.dart';
 import '../../services/stock_movement_service.dart';
+import '../../services/stock_out_request_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_palette.dart';
 import '../../theme/app_theme.dart';
@@ -70,7 +71,7 @@ class _StockMovementsScreenState extends State<StockMovementsScreen> {
 
     return Stack(children: [
       Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        // ── Header ──
+        // ── Header ───────────────────────────────────────────────────────────
         Container(
           padding: const EdgeInsets.fromLTRB(24, 18, 24, 14),
           decoration: BoxDecoration(border: Border(bottom: BorderSide(color: context.pal.border))),
@@ -100,14 +101,14 @@ class _StockMovementsScreenState extends State<StockMovementsScreen> {
                 onPressed: () => setState(() => _showRecord = true)),
           ]),
         ),
-        // ── Table ──
+        // ── Table ────────────────────────────────────────────────────────────
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
           decoration: BoxDecoration(border: Border(bottom: BorderSide(color: context.pal.border))),
           child: Row(children: [
             _Th('Date/Time', flex: 2), _Th('Item', flex: 3),
             _Th('Type', flex: 1), _Th('Location', flex: 2), _Th('Qty Change', flex: 1),
-            _Th('Before → After', flex: 2), _Th('Notes / Reference', flex: 2),
+            _Th('Before — After', flex: 2), _Th('Notes / Reference', flex: 2),
             _Th('By', flex: 1),
           ]),
         ),
@@ -143,7 +144,7 @@ class _StockMovementsScreenState extends State<StockMovementsScreen> {
   }
 }
 
-// ── Movement row ───────────────────────────────────────────────────────────────
+// ── Movement row ─────────────────────────────────────────────────────────────
 
 class _MovementRow extends StatelessWidget {
   const _MovementRow({required this.movement, required this.typeColor, required this.typeIcon});
@@ -181,14 +182,14 @@ class _MovementRow extends StatelessWidget {
               style: AppTheme.monoXs.copyWith(color: typeColor, fontSize: 10.5),
               overflow: TextOverflow.ellipsis)),
         ])),
-        // Location (from → to for transfers)
+        // Location (from — to for transfers)
         Expanded(flex: 2, child: Text(movement.locationLabel,
             style: AppTheme.bodySub.copyWith(fontSize: 12), overflow: TextOverflow.ellipsis)),
         // Qty change
         Expanded(flex: 1, child: Text('$sign${movement.quantity}',
             style: AppTheme.bodyStrong.copyWith(
                 color: color, fontSize: 13, fontFeatures: const [FontFeature.tabularFigures()]))),
-        // Before → After
+        // Before — After
         Expanded(flex: 2, child: Row(children: [
           Text('${movement.quantityBefore}', style: AppTheme.monoXs.copyWith(color: context.pal.textDim)),
           Icon(Symbols.arrow_forward, size: 12, color: context.pal.textDim),
@@ -205,7 +206,7 @@ class _MovementRow extends StatelessWidget {
   }
 }
 
-// ── Record Movement modal ──────────────────────────────────────────────────────
+// ── Record Movement modal ────────────────────────────────────────────────────
 
 class _RecordMovementModal extends StatefulWidget {
   const _RecordMovementModal({required this.onClose, this.onSaved});
@@ -231,6 +232,7 @@ class _RecordMovementModalState extends State<_RecordMovementModal> {
   static const _types      = ['receive', 'issue', 'transfer', 'write_off', 'adjustment', 'return'];
   static const _typeLabels = ['Receive', 'Issue / Use', 'Transfer', 'Write-off', 'Adjustment', 'Return'];
   bool get _isTransfer => _type == 'transfer';
+  bool get _needsApproval => _type == 'issue' || _type == 'write_off';
 
   @override
   void initState() {
@@ -256,17 +258,29 @@ class _RecordMovementModalState extends State<_RecordMovementModal> {
     if (qty == 0) { setState(() => _error = 'Enter a non-zero quantity.'); return; }
     if (_isTransfer && _toLocationId == null) { setState(() => _error = 'Select a destination location.'); return; }
     if (_isTransfer && _toLocationId == _locationId) { setState(() => _error = 'Source and destination must differ.'); return; }
+    if (_needsApproval && _notesCtrl.text.trim().isEmpty) { setState(() => _error = 'A reason is required for stock leaving the store.'); return; }
     setState(() { _saving = true; _error = null; });
     try {
-      await StockMovementService.instance.record(
-        inventoryItemId: _selectedItemId!,
-        locationId: _locationId!,
-        toLocationId: _isTransfer ? _toLocationId : null,
-        type:    _type,
-        quantity: qty,
-        notes:   _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
-      );
-      if (mounted) showSuccessToast(context, 'Movement recorded successfully');
+      if (_needsApproval) {
+        await StockOutRequestService.instance.create({
+          'inventory_item_id': _selectedItemId,
+          'location_id':       _locationId,
+          'type':              _type,
+          'quantity':          qty.abs(),
+          'reason':            _notesCtrl.text.trim(),
+        });
+        if (mounted) showSuccessToast(context, 'Stock-out request submitted for approval');
+      } else {
+        await StockMovementService.instance.record(
+          inventoryItemId: _selectedItemId!,
+          locationId: _locationId!,
+          toLocationId: _isTransfer ? _toLocationId : null,
+          type:    _type,
+          quantity: qty,
+          notes:   _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
+        );
+        if (mounted) showSuccessToast(context, 'Movement recorded successfully');
+      }
       widget.onSaved?.call();
     } catch (e) {
       if (mounted) setState(() { _saving = false; _error = friendlyError(e); });
@@ -291,7 +305,7 @@ class _RecordMovementModalState extends State<_RecordMovementModal> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
               child: Row(children: [
-                const Icon(Symbols.swap_vert, size: 18, color: AppColors.teal),
+                Icon(Symbols.swap_vert, size: 18, color: AppColors.teal),
                 const SizedBox(width: 10),
                 Text('Record Stock Movement', style: AppTheme.bodyStrong),
                 const Spacer(),
@@ -305,9 +319,10 @@ class _RecordMovementModalState extends State<_RecordMovementModal> {
                 // Item picker
                 Text('ITEM', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
                 const SizedBox(height: 6),
-                Container(height: 38,
+                Container(
                   decoration: BoxDecoration(color: context.pal.surface2,
                       borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
+                  height: 38,
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   child: DropdownButtonHideUnderline(child: DropdownButton<int?>(
                     value: _selectedItemId, isExpanded: true,
@@ -316,7 +331,7 @@ class _RecordMovementModalState extends State<_RecordMovementModal> {
                     icon: Icon(Symbols.expand_more, size: 16, color: context.pal.textDim),
                     items: _items.map((item) => DropdownMenuItem(
                       value: item.id,
-                      child: Text('${item.sku} — ${item.name}',
+                      child: Text('${item.sku} · ${item.name}',
                           overflow: TextOverflow.ellipsis),
                     )).toList(),
                     onChanged: (v) => setState(() => _selectedItemId = v),
@@ -326,9 +341,10 @@ class _RecordMovementModalState extends State<_RecordMovementModal> {
                 // Location picker
                 Text(_isTransfer ? 'FROM LOCATION' : 'LOCATION', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
                 const SizedBox(height: 6),
-                Container(height: 38,
+                Container(
                   decoration: BoxDecoration(color: context.pal.surface2,
                       borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
+                  height: 38,
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   child: DropdownButtonHideUnderline(child: DropdownButton<int?>(
                     value: _locationId, isExpanded: true,
@@ -348,9 +364,10 @@ class _RecordMovementModalState extends State<_RecordMovementModal> {
                   const SizedBox(height: 12),
                   Text('TO LOCATION', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
                   const SizedBox(height: 6),
-                  Container(height: 38,
+                  Container(
                     decoration: BoxDecoration(color: context.pal.surface2,
                         borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
+                    height: 38,
                     padding: const EdgeInsets.symmetric(horizontal: 12),
                     child: DropdownButtonHideUnderline(child: DropdownButton<int?>(
                       value: _toLocationId, isExpanded: true,
@@ -370,9 +387,10 @@ class _RecordMovementModalState extends State<_RecordMovementModal> {
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text('TYPE', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
                     const SizedBox(height: 6),
-                    Container(height: 38,
+                    Container(
                       decoration: BoxDecoration(color: context.pal.surface2,
                           borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
+                      height: 38,
                       padding: const EdgeInsets.symmetric(horizontal: 12),
                       child: DropdownButtonHideUnderline(child: DropdownButton<String>(
                         value: _type, isExpanded: true,
@@ -389,37 +407,55 @@ class _RecordMovementModalState extends State<_RecordMovementModal> {
                   SizedBox(width: 100, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text('QUANTITY', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
                     const SizedBox(height: 6),
-                    Container(height: 38,
+                    Container(
                       decoration: BoxDecoration(color: context.pal.surface2,
                           borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      child: Center(child: TextField(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                      child: TextField(
                         controller: _qtyCtrl, keyboardType: TextInputType.number,
                         style: AppTheme.bodySm,
                         decoration: InputDecoration(hintText: '1',
                             hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
                             border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero),
-                      )),
+                      ),
                     ),
                   ])),
                 ]),
                 const SizedBox(height: 12),
-                Text('NOTES', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+                Text(_needsApproval ? 'REASON (REQUIRED)' : 'NOTES', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
                 const SizedBox(height: 6),
-                Container(height: 38,
+                Container(
                   decoration: BoxDecoration(color: context.pal.surface2,
                       borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: Center(child: TextField(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  child: TextField(
                     controller: _notesCtrl, style: AppTheme.bodySm,
-                    decoration: InputDecoration(hintText: 'Optional reason or reference',
+                    decoration: InputDecoration(
+                        hintText: _needsApproval ? 'Why is this stock leaving the store?' : 'Optional reason or reference',
                         hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
                         border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero),
-                  )),
+                  ),
                 ),
+                if (_needsApproval) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: AppColors.amber.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(7),
+                      border: Border.all(color: AppColors.amber.withValues(alpha: 0.3)),
+                    ),
+                    child: Row(children: [
+                      Icon(Symbols.info, size: 13, color: AppColors.amber),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text('This submits a request — stock won\'t be deducted until a CTO/Director approves it.',
+                          style: AppTheme.bodySub.copyWith(fontSize: 11.5))),
+                    ]),
+                  ),
+                ],
                 if (_error != null) ...[
                   const SizedBox(height: 8),
-                  Text(_error!, style: const TextStyle(color: AppColors.coral, fontSize: 12.5)),
+                  Text(_error!, style: TextStyle(color: AppColors.coral, fontSize: 12.5)),
                 ],
               ]),
             ),
@@ -453,7 +489,7 @@ class _RecordMovementModalState extends State<_RecordMovementModal> {
   );
 }
 
-// ── Shared widgets ─────────────────────────────────────────────────────────────
+// ── Shared widgets ───────────────────────────────────────────────────────────
 
 class _TypeChip extends StatelessWidget {
   const _TypeChip({required this.label, required this.active, required this.onTap, this.color});

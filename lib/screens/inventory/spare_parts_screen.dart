@@ -125,7 +125,7 @@ class _SparePartsScreenState extends State<SparePartsScreen> {
 
     return Stack(children: [
       Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        // ── Header ──────────────────────────────────────────────────────────
+        // ── Header ───────────────────────────────────────────────────────────
         Container(
           padding: const EdgeInsets.fromLTRB(24, 18, 24, 16),
           decoration: BoxDecoration(border: Border(bottom: BorderSide(color: context.pal.border))),
@@ -203,7 +203,7 @@ class _SparePartsScreenState extends State<SparePartsScreen> {
                         onChanged: (v) => setState(() { _search = v; _showCount = _pageSize; }),
                         style: AppTheme.bodySm,
                         decoration: InputDecoration(
-                          hintText: 'Search name, SKU, supplier…',
+                          hintText: 'Search name, SKU, supplier—',
                           hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
                           border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero,
                         ),
@@ -225,7 +225,7 @@ class _SparePartsScreenState extends State<SparePartsScreen> {
                         onChanged: (v) => setState(() { _search = v; _showCount = _pageSize; }),
                         style: AppTheme.bodySm,
                         decoration: InputDecoration(
-                          hintText: 'Search name, SKU, supplier…',
+                          hintText: 'Search name, SKU, supplier—',
                           hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
                           border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero,
                         ),
@@ -367,7 +367,7 @@ class _SparePartsScreenState extends State<SparePartsScreen> {
   };
 }
 
-// ── Part table row ─────────────────────────────────────────────────────────────
+// ── Part table row ───────────────────────────────────────────────────────────
 
 class _PartRow extends StatelessWidget {
   const _PartRow({
@@ -440,7 +440,7 @@ class _PartRow extends StatelessWidget {
             ]),
           ))),
           // Reorder level
-          Expanded(flex: 1, child: Text('≥${part.reorderLevel}',
+          Expanded(flex: 1, child: Text('— ${part.reorderLevel}',
               style: AppTheme.monoXs.copyWith(color: context.pal.textDim))),
           // Unit cost
           Expanded(flex: 1, child: Text(tshFromDouble(part.unitCost),
@@ -455,7 +455,7 @@ class _PartRow extends StatelessWidget {
             const SizedBox(width: 12),
             GestureDetector(
               onTap: onDelete,
-              child: const Icon(Symbols.delete_outline, size: 15, color: AppColors.coral),
+              child: Icon(Symbols.delete_outline, size: 15, color: AppColors.coral),
             ),
           ])),
         ]),
@@ -480,7 +480,7 @@ class _PartRow extends StatelessWidget {
   };
 }
 
-// ── Part detail panel ──────────────────────────────────────────────────────────
+// ── Part detail panel ────────────────────────────────────────────────────────
 
 class _PartDetailPanel extends StatelessWidget {
   const _PartDetailPanel({
@@ -627,7 +627,7 @@ class _DetailRow extends StatelessWidget {
   );
 }
 
-// ── Add / Edit modal (shared) ─────────────────────────────────────────────────
+// ── Add / Edit modal (shared) ────────────────────────────────────────────────
 
 class _PartFormModal extends StatefulWidget {
   const _PartFormModal({this.part, required this.onClose, this.onSaved});
@@ -771,7 +771,7 @@ class _PartFormModalState extends State<_PartFormModal> {
                 ),
                 if (_error != null) ...[
                   const SizedBox(height: 10),
-                  Text(_error!, style: const TextStyle(color: AppColors.coral, fontSize: 12.5)),
+                  Text(_error!, style: TextStyle(color: AppColors.coral, fontSize: 12.5)),
                 ],
               ]),
             )),
@@ -807,7 +807,7 @@ class _PartFormModalState extends State<_PartFormModal> {
   );
 }
 
-// ── Adjust Stock modal ────────────────────────────────────────────────────────
+// ── Adjust Stock modal ───────────────────────────────────────────────────────
 
 class _AdjustStockModal extends StatefulWidget {
   const _AdjustStockModal({required this.part, required this.onClose, this.onSaved});
@@ -879,7 +879,7 @@ class _AdjustStockModalState extends State<_AdjustStockModal> {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
                 child: Row(children: [
-                  const Icon(Symbols.inventory, size: 18, color: AppColors.teal),
+                  Icon(Symbols.inventory, size: 18, color: AppColors.teal),
                   const SizedBox(width: 10),
                   Expanded(child: Text('Adjust Stock — ${widget.part.name}',
                       style: AppTheme.bodyStrong, overflow: TextOverflow.ellipsis)),
@@ -904,7 +904,7 @@ class _AdjustStockModalState extends State<_AdjustStockModal> {
                         Text('${widget.part.stockQty} ${widget.part.unitOfMeasure}',
                             style: AppTheme.bodyStrong),
                       ])),
-                      const Icon(Symbols.arrow_forward, size: 16, color: AppColors.teal),
+                      Icon(Symbols.arrow_forward, size: 16, color: AppColors.teal),
                       const SizedBox(width: 12),
                       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
                         Text('AFTER ADJUSTMENT', style: AppTheme.labelCaps.copyWith(fontSize: 9.5)),
@@ -927,7 +927,7 @@ class _AdjustStockModalState extends State<_AdjustStockModal> {
                           border: Border.all(color: _add ? AppColors.teal : context.pal.border),
                         ),
                         child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                          const Icon(Symbols.add, size: 14, color: AppColors.teal),
+                          Icon(Symbols.add, size: 14, color: AppColors.teal),
                           const SizedBox(width: 4),
                           Text('Receive / Add', style: AppTheme.bodySm.copyWith(
                               color: AppColors.teal, fontWeight: FontWeight.w600)),
@@ -944,7 +944,7 @@ class _AdjustStockModalState extends State<_AdjustStockModal> {
                           border: Border.all(color: !_add ? AppColors.coral : context.pal.border),
                         ),
                         child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                          const Icon(Symbols.remove, size: 14, color: AppColors.coral),
+                          Icon(Symbols.remove, size: 14, color: AppColors.coral),
                           const SizedBox(width: 4),
                           Text('Use / Remove', style: AppTheme.bodySm.copyWith(
                               color: AppColors.coral, fontWeight: FontWeight.w600)),
@@ -963,7 +963,7 @@ class _AdjustStockModalState extends State<_AdjustStockModal> {
                   ]),
                   if (_error != null) ...[
                     const SizedBox(height: 8),
-                    Text(_error!, style: const TextStyle(color: AppColors.coral, fontSize: 12.5)),
+                    Text(_error!, style: TextStyle(color: AppColors.coral, fontSize: 12.5)),
                   ],
                 ]),
               ),
@@ -999,7 +999,7 @@ class _AdjustStockModalState extends State<_AdjustStockModal> {
   }
 }
 
-// ── Shared form widgets ────────────────────────────────────────────────────────
+// ── Shared form widgets ──────────────────────────────────────────────────────
 
 class _Field extends StatelessWidget {
   const _Field({required this.label, required this.ctrl, required this.hint,
@@ -1014,11 +1014,10 @@ class _Field extends StatelessWidget {
     Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10)),
     const SizedBox(height: 6),
     Container(
-      height: 38,
       decoration: BoxDecoration(color: context.pal.surface2,
           borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: Center(child: TextField(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      child: TextField(
         controller: ctrl,
         keyboardType: numeric ? TextInputType.number : TextInputType.text,
         style: AppTheme.bodySm,
@@ -1026,7 +1025,7 @@ class _Field extends StatelessWidget {
         decoration: InputDecoration(hintText: hint,
             hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
             border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero),
-      )),
+      ),
     ),
   ]);
 }
@@ -1044,9 +1043,9 @@ class _Dropdown extends StatelessWidget {
     Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10)),
     const SizedBox(height: 6),
     Container(
-      height: 38,
       decoration: BoxDecoration(color: context.pal.surface2,
           borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
+      height: 38,
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: DropdownButtonHideUnderline(child: DropdownButton<String>(
         value: items.contains(value) ? value : items.first,
@@ -1064,7 +1063,7 @@ class _Dropdown extends StatelessWidget {
   ]);
 }
 
-// ── Filter chip ────────────────────────────────────────────────────────────────
+// ── Filter chip ──────────────────────────────────────────────────────────────
 
 class _Chip extends StatelessWidget {
   const _Chip({required this.label, required this.count, required this.active,
@@ -1104,7 +1103,7 @@ class _Chip extends StatelessWidget {
   );
 }
 
-// ── Table header cell ──────────────────────────────────────────────────────────
+// ── Table header cell ────────────────────────────────────────────────────────
 
 class _Th extends StatelessWidget {
   const _Th(this.label, {required this.flex});

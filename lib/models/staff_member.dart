@@ -50,6 +50,18 @@ class StaffMember {
   final String? phone;
   final bool? twoFa;
   final DateTime? lastActiveAt;
+  final int? managerId;
+  final int? positionId;
+  final String? positionTitle;
+  final String? gender;
+  final DateTime? hireDate;
+  final String? nextOfKinName;
+  final String? nextOfKinPhone;
+  final String? nextOfKinRelationship;
+  final String? nssfNumber;
+  final String? tinNumber;
+  final String? nidaNumber;
+  final String? biometricId;
 
   const StaffMember({
     required this.id,
@@ -66,6 +78,18 @@ class StaffMember {
     this.phone,
     this.twoFa,
     this.lastActiveAt,
+    this.managerId,
+    this.positionId,
+    this.positionTitle,
+    this.gender,
+    this.hireDate,
+    this.nextOfKinName,
+    this.nextOfKinPhone,
+    this.nextOfKinRelationship,
+    this.nssfNumber,
+    this.tinNumber,
+    this.nidaNumber,
+    this.biometricId,
   });
 
   factory StaffMember.fromJson(Map<String, dynamic> j) {
@@ -90,6 +114,18 @@ class StaffMember {
       lastActiveAt: j['last_active_at'] != null
           ? DateTime.tryParse(j['last_active_at'] as String)
           : null,
+      managerId:     (j['manager_id'] as num?)?.toInt(),
+      positionId:    (j['position_id'] as num?)?.toInt(),
+      positionTitle: j['position_title'] as String?,
+      gender:        j['gender'] as String?,
+      hireDate:      j['hire_date'] != null ? DateTime.tryParse(j['hire_date'] as String) : null,
+      nextOfKinName:         j['next_of_kin_name'] as String?,
+      nextOfKinPhone:        j['next_of_kin_phone'] as String?,
+      nextOfKinRelationship: j['next_of_kin_relationship'] as String?,
+      nssfNumber:  j['nssf_number'] as String?,
+      tinNumber:   j['tin_number'] as String?,
+      nidaNumber:  j['nida_number'] as String?,
+      biometricId: j['biometric_id'] as String?,
     );
   }
 

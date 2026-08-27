@@ -1,15 +1,33 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:material_symbols_icons/symbols.dart';
-import '../../main.dart' show authTokenNotifier, userNameNotifier, themeNotifier;
+import '../../main.dart' show authTokenNotifier, userNameNotifier, can;
+import '../../models/expense.dart';
+import '../../models/permission.dart';
 import '../../services/api_client.dart';
 import '../../services/auth_service.dart';
+import '../../services/expense_service.dart';
+import '../../services/permission_service.dart';
+import '../../services/role_service.dart';
+import '../../services/setting_service.dart';
 import '../../services/staff_service.dart';
+import 'org_chart_editor.dart';
+import 'roles_graph_view.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/api_error.dart';
+import '../../utils/csv_export.dart';
+import '../../utils/format.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/common/avatar_widget.dart';
 import '../../theme/app_palette.dart';
+
+// e.g. 'sales_manager' -> 'Sales Manager' —shared by the Roles tab and the
+// Invite dialog's role dropdown.
+String _roleLabel(String name) => name
+    .split('_')
+    .map((w) => w.isEmpty ? w : '${w[0].toUpperCase()}${w.substring(1)}')
+    .join(' ');
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -68,6 +86,50 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool              _loadingMembers = true;
   List<StaffMember> _staffList      = [];
   String?           _memberError;
+  final _memberSearchCtrl = TextEditingController();
+  String            _memberSearch      = '';
+  String            _memberRoleFilter  = 'All';
+
+  List<StaffMember> get _filteredStaffList {
+    var list = _staffList;
+    if (_memberRoleFilter != 'All') {
+      list = list.where((m) => m.role == _memberRoleFilter).toList();
+    }
+    final q = _memberSearch.trim().toLowerCase();
+    if (q.isNotEmpty) {
+      list = list.where((m) =>
+          m.name.toLowerCase().contains(q) ||
+          (m.email?.toLowerCase().contains(q) ?? false)).toList();
+    }
+    return list;
+  }
+
+  // Approvals
+  bool _loadingApprovals = true;
+  final _thresholdCtrl = TextEditingController();
+  bool _savingThreshold = false;
+  List<ExpenseCategory> _expenseCategories = [];
+
+  // Roles & Permissions
+  bool _loadingRoles = true;
+  List<RoleSummary> _roles = [];
+  Map<String, List<PermissionCatalogItem>> _permissionCatalog = {};
+  String? _rolesError;
+  bool _rolesGraphView = false;
+
+  // Activity / audit log (permission overrides)
+  bool _loadingAudit = true;
+  List<UserPermissionOverride> _auditLog = [];
+  bool _auditThisWeekOnly = false;
+
+  List<UserPermissionOverride> get _filteredAuditLog {
+    if (!_auditThisWeekOnly) return _auditLog;
+    final cutoff = DateTime.now().subtract(const Duration(days: 7));
+    return _auditLog.where((o) {
+      final dt = o.createdAt != null ? DateTime.tryParse(o.createdAt!) : null;
+      return dt != null && dt.isAfter(cutoff);
+    }).toList();
+  }
 
   // API key
   bool _apiKeyVisible = false;
@@ -79,6 +141,111 @@ class _SettingsScreenState extends State<SettingsScreen> {
     super.initState();
     _loadProfile();
     _loadMembers();
+    _loadApprovals();
+    _loadRoles();
+    _loadAudit();
+  }
+
+  Future<void> _loadAudit() async {
+    setState(() => _loadingAudit = true);
+    try {
+      final log = await PermissionService.instance.allOverrides();
+      if (mounted) setState(() { _auditLog = log; _loadingAudit = false; });
+    } catch (e) {
+      if (mounted) setState(() => _loadingAudit = false);
+    }
+  }
+
+  Future<void> _loadRoles() async {
+    setState(() { _loadingRoles = true; _rolesError = null; });
+    try {
+      final rolesF   = RoleService.instance.list();
+      final catalogF = RoleService.instance.catalog();
+      final roles    = await rolesF;
+      final catalog  = await catalogF;
+      if (!mounted) return;
+      setState(() {
+        _roles = roles;
+        _permissionCatalog = catalog;
+        _loadingRoles = false;
+      });
+    } catch (e) {
+      if (mounted) setState(() { _rolesError = friendlyError(e); _loadingRoles = false; });
+    }
+  }
+
+  Future<void> _createRole(String name) async {
+    try {
+      await RoleService.instance.create(name);
+      if (mounted) showSuccessToast(context, 'Role "$name" created.');
+      await _loadRoles();
+    } catch (e) {
+      if (mounted) showErrorToast(context, e);
+    }
+  }
+
+  Future<void> _saveRolePermissions(RoleSummary role, List<String> keys) async {
+    try {
+      await RoleService.instance.syncPermissions(role.id, keys);
+      if (mounted) showSuccessToast(context, 'Permissions updated for "${role.name}".');
+      await _loadRoles();
+    } catch (e) {
+      if (mounted) showErrorToast(context, e);
+    }
+  }
+
+  Future<void> _deleteRole(RoleSummary role) async {
+    try {
+      await RoleService.instance.delete(role.id);
+      if (mounted) showSuccessToast(context, 'Role "${role.name}" deleted.');
+      await _loadRoles();
+    } catch (e) {
+      if (mounted) showErrorToast(context, e);
+    }
+  }
+
+  Future<void> _loadApprovals() async {
+    setState(() => _loadingApprovals = true);
+    try {
+      final results = await Future.wait([
+        SettingService.instance.all(),
+        ExpenseService.instance.categories(),
+      ]);
+      if (!mounted) return;
+      final settings = results[0] as Map<String, String?>;
+      setState(() {
+        _thresholdCtrl.text = settings['expense_director_threshold'] ?? '3000000';
+        _expenseCategories = results[1] as List<ExpenseCategory>;
+        _loadingApprovals = false;
+      });
+    } catch (e) {
+      if (mounted) setState(() => _loadingApprovals = false);
+    }
+  }
+
+  Future<void> _saveThreshold() async {
+    if (_savingThreshold) return;
+    setState(() => _savingThreshold = true);
+    try {
+      await SettingService.instance.set('expense_director_threshold', _thresholdCtrl.text.trim());
+      if (mounted) { setState(() => _savingThreshold = false); showSuccessToast(context, 'Threshold updated.'); }
+    } catch (e) {
+      if (mounted) { setState(() => _savingThreshold = false); showErrorToast(context, e); }
+    }
+  }
+
+  Future<void> _toggleCategoryApproval(ExpenseCategory cat, bool value) async {
+    final previous = List<ExpenseCategory>.from(_expenseCategories);
+    setState(() {
+      _expenseCategories = _expenseCategories.map((c) => c.id == cat.id
+          ? ExpenseCategory(id: c.id, name: c.name, accountId: c.accountId, requiresDirectorApproval: value)
+          : c).toList();
+    });
+    try {
+      await ExpenseService.instance.setCategoryRequiresDirector(cat.id, value);
+    } catch (e) {
+      if (mounted) { setState(() => _expenseCategories = previous); showErrorToast(context, e); }
+    }
   }
 
   Future<void> _loadMembers() async {
@@ -97,20 +264,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _oldPwCtrl.dispose(); _newPwCtrl.dispose();
     _entityIdCtrl.dispose(); _ssoUrlCtrl.dispose();
     _sloUrlCtrl.dispose(); _certCtrl.dispose();
-    _companyCtrl.dispose();
+    _companyCtrl.dispose(); _thresholdCtrl.dispose();
+    _memberSearchCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _loadProfile() async {
-    final profile = await AuthService.instance.getProfile();
-    if (mounted) {
-      setState(() {
-        _loadingProfile = false;
-        if (profile != null) {
-          _nameCtrl.text  = profile['name']  as String? ?? '';
-          _emailCtrl.text = profile['email'] as String? ?? '';
-        }
-      });
+    try {
+      final profile = await AuthService.instance.getProfile();
+      if (mounted) {
+        setState(() {
+          _loadingProfile = false;
+          if (profile != null) {
+            _nameCtrl.text  = profile['name']  as String? ?? '';
+            _emailCtrl.text = profile['email'] as String? ?? '';
+          }
+        });
+      }
+    } catch (_) {
+      // getProfile() already catches internally and returns null, but guard
+      // here too so a future refactor of that method can't leave this
+      // section's spinner stuck forever.
+      if (mounted) setState(() => _loadingProfile = false);
     }
   }
 
@@ -152,18 +327,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   static const _sections = [
+    {'icon': Symbols.person,        'label': 'Profile'},
     {'icon': Symbols.domain,        'label': 'Workspace'},
     {'icon': Symbols.credit_card,   'label': 'Billing & Plan'},
     {'icon': Symbols.notifications, 'label': 'Communication'},
     {'icon': Symbols.cable,         'label': 'Connections'},
     {'icon': Symbols.security,      'label': 'Security'},
     {'icon': Symbols.tune,          'label': 'Preferences'},
+    {'icon': Symbols.fact_check,    'label': 'Approvals'},
+    {'icon': Symbols.account_tree,  'label': 'Org Chart'},
   ];
 
   static const _memberTabs = ['Members', 'Pending', 'Roles', 'Activity', 'SSO'];
 
-  // ── Build ────────────────────────────────────────────────────────────────────
-
+  // ── Build ─────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(builder: (ctx, cst) {
@@ -204,12 +381,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             const SizedBox(height: 16),
           ],
-
-          // Profile + Password always visible
-          _profileCard(context),
-          const SizedBox(height: 16),
-          _passwordCard(context),
-          const SizedBox(height: 24),
 
           // Section-specific content
           _buildSectionContent(context),
@@ -255,7 +426,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     child: LinearProgressIndicator(
                       value: (_staffList.isEmpty ? 18 : _staffList.length) / 25,
                       backgroundColor: context.pal.surface3,
-                      valueColor: const AlwaysStoppedAnimation(AppColors.teal),
+                      valueColor: AlwaysStoppedAnimation(AppColors.teal),
                       minHeight: 4,
                     ),
                   ),
@@ -278,14 +449,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     });
   }
 
-  // ── Profile card ─────────────────────────────────────────────────────────────
-
+  // ── Profile card ──────────────────────────────────────────────────────────
   Widget _profileCard(BuildContext context) => _SCard(
     title: 'My Profile',
     trailing: GestureDetector(
       onTap: _logout,
       child: Row(mainAxisSize: MainAxisSize.min, children: [
-        const Icon(Symbols.logout, size: 14, color: AppColors.coral),
+        Icon(Symbols.logout, size: 14, color: AppColors.coral),
         const SizedBox(width: 6),
         Text('Sign out', style: AppTheme.bodySm.copyWith(color: AppColors.coral, fontSize: 12.5)),
       ]),
@@ -315,7 +485,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ]),
   );
 
-  // ── Password card ────────────────────────────────────────────────────────────
+  // ── Password card ─────────────────────────────────────────────────────────
 
   Widget _passwordCard(BuildContext context) => _SCard(
     title: 'Change Password',
@@ -333,20 +503,76 @@ class _SettingsScreenState extends State<SettingsScreen> {
     ]),
   );
 
-  // ── Section content ──────────────────────────────────────────────────────────
-
+  // ── Section content ───────────────────────────────────────────────────────
   Widget _buildSectionContent(BuildContext context) => switch (_section) {
-    0 => _workspaceSection(context),
-    1 => _billingSection(context),
-    2 => _communicationSection(context),
-    3 => _connectionsSection(context),
-    4 => _securitySection(context),
-    5 => _preferencesSection(context),
+    0 => _profileSection(context),
+    1 => _workspaceSection(context),
+    2 => _billingSection(context),
+    3 => _communicationSection(context),
+    4 => _connectionsSection(context),
+    5 => _securitySection(context),
+    6 => _preferencesSection(context),
+    7 => _approvalsSection(context),
+    8 => const OrgChartEditor(),
     _ => const SizedBox.shrink(),
   };
 
-  // ── Section 0: Workspace ─────────────────────────────────────────────────────
+  // ── Section 0: Profile & Security ─────────────────────────────────────────
+  Widget _profileSection(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _profileCard(context),
+      const SizedBox(height: 16),
+      _passwordCard(context),
+    ],
+  );
 
+  // ── Section 6: Approvals ──────────────────────────────────────────────────
+  Widget _approvalsSection(BuildContext context) => _loadingApprovals
+    ? const Center(child: Padding(
+        padding: EdgeInsets.symmetric(vertical: 32),
+        child: CircularProgressIndicator(strokeWidth: 2)))
+    : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      _SCard(
+        title: 'Expense Escalation Threshold',
+        icon: Symbols.trending_up,
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('Expenses above this amount always require Director approval, even outside a flagged category. Director-only.',
+              style: AppTheme.bodySub.copyWith(fontSize: 12)),
+          const SizedBox(height: 14),
+          Row(children: [
+            Expanded(child: _SettingsField(label: 'Threshold (TZS)', ctrl: _thresholdCtrl, hint: '3000000')),
+            const SizedBox(width: 14),
+            Padding(
+              padding: const EdgeInsets.only(top: 20),
+              child: _TealBtn(label: 'Save', saving: _savingThreshold, onTap: _saveThreshold),
+            ),
+          ]),
+        ]),
+      ),
+      const SizedBox(height: 16),
+      _SCard(
+        title: 'Categories Requiring Director Approval',
+        icon: Symbols.rule_folder,
+        child: Column(children: [
+          Text('These categories always escalate to the Director, regardless of amount —e.g. new order payments, machine imports.',
+              style: AppTheme.bodySub.copyWith(fontSize: 12)),
+          const SizedBox(height: 10),
+          if (_expenseCategories.isEmpty)
+            Padding(padding: const EdgeInsets.symmetric(vertical: 16),
+                child: Text('No expense categories found.', style: AppTheme.bodySub))
+          else
+            ..._expenseCategories.map((cat) => _ToggleRow(
+              label: cat.name,
+              sub: cat.requiresDirectorApproval ? 'Always requires Director approval' : 'CTO can approve directly (unless over threshold)',
+              value: cat.requiresDirectorApproval,
+              onChanged: (v) => _toggleCategoryApproval(cat, v),
+            )),
+        ]),
+      ),
+    ]);
+
+  // ── Section 0: Workspace ──────────────────────────────────────────────────
   Widget _workspaceSection(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start, children: [
     _SCard(
@@ -437,13 +663,53 @@ class _SettingsScreenState extends State<SettingsScreen> {
     },
   ]);
 
-  // ── Tab 0: Members ───────────────────────────────────────────────────────────
+  // ── Tab 0: Members ────────────────────────────────────────────────────────
+  Widget _memberSearchField(BuildContext context) => Container(
+    height: 32,
+    decoration: BoxDecoration(color: context.pal.surface1,
+        borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
+    padding: const EdgeInsets.symmetric(horizontal: 10),
+    child: Row(children: [
+      Icon(Symbols.search, size: 14, color: context.pal.textDim),
+      const SizedBox(width: 6),
+      Expanded(child: TextField(
+        controller: _memberSearchCtrl,
+        style: AppTheme.bodySub.copyWith(fontSize: 12),
+        decoration: InputDecoration(
+          isDense: true, border: InputBorder.none, contentPadding: EdgeInsets.zero,
+          hintText: 'Search members…',
+          hintStyle: AppTheme.bodySub.copyWith(fontSize: 12),
+        ),
+        onChanged: (v) => setState(() => _memberSearch = v),
+      )),
+    ]),
+  );
+
+  Widget _memberRoleFilterDropdown(BuildContext context) {
+    final roleNames = _roles.map((r) => r.name).toList()..sort();
+    final items = ['All', ...roleNames];
+    final value = items.contains(_memberRoleFilter) ? _memberRoleFilter : 'All';
+    return Container(
+      height: 32, padding: const EdgeInsets.symmetric(horizontal: 10),
+      decoration: BoxDecoration(color: context.pal.surface1,
+          borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
+      child: DropdownButtonHideUnderline(child: DropdownButton<String>(
+        value: value,
+        dropdownColor: context.pal.surface2,
+        style: AppTheme.bodySub.copyWith(fontSize: 12, color: context.pal.text),
+        icon: Icon(Symbols.expand_more, size: 15, color: context.pal.textDim),
+        items: items.map((r) => DropdownMenuItem(
+            value: r, child: Text(r == 'All' ? 'Role: All' : 'Role: ${_roleLabel(r)}'))).toList(),
+        onChanged: (v) { if (v != null) setState(() => _memberRoleFilter = v); },
+      )),
+    );
+  }
 
   Widget _membersTab(BuildContext context) => Column(children: [
     LayoutBuilder(builder: (ctx2, cst2) {
       final n2 = cst2.maxWidth < 520;
-      final searchBox = _searchBox(context, 'Search members…');
-      final roleFilter = _filterPill(context, 'Role: All');
+      final searchBox = _memberSearchField(context);
+      final roleFilter = _memberRoleFilterDropdown(context);
       final inviteBtn = GestureDetector(
         onTap: () => setState(() => _showInvite = true),
         child: Container(
@@ -490,17 +756,113 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       const SizedBox(width: 60),
                     ]),
                   ),
-                  if (_staffList.isEmpty)
+                  if (_filteredStaffList.isEmpty)
                     const Padding(padding: EdgeInsets.symmetric(vertical: 24),
                         child: Center(child: Text('No members found.')))
                   else
-                    ..._staffList.map((m) => _MemberRow(member: m)),
+                    ..._filteredStaffList.map((m) => _MemberRow(
+                      member: m,
+                      canManage: can('roles.manage'),
+                      onEditRole: () => _showEditMemberRoleDialog(context, m),
+                      onManagePermissions: () => _showManagePermissionsDialog(context, m),
+                      onResetPassword: () => _showResetPasswordDialog(context, m),
+                      onDeactivate: () => _showDeactivateMemberDialog(context, m),
+                    )),
                 ])),
     ),
   ]);
 
-  // ── Tab 1: Pending ───────────────────────────────────────────────────────────
+  void _showEditMemberRoleDialog(BuildContext context, StaffMember member) {
+    showDialog(context: context, builder: (_) => _EditMemberRoleDialog(
+      member: member,
+      roleNames: _roles.map((r) => r.name).toList(),
+      onSave: (role) async {
+        await StaffService.instance.update(member.id, {'role': role});
+        StaffService.instance.invalidateCache();
+        await _loadMembers();
+      },
+    ));
+  }
 
+  void _showManagePermissionsDialog(BuildContext context, StaffMember member) {
+    showDialog(context: context, builder: (_) => _ManagePermissionsDialog(
+      member: member,
+      catalog: _permissionCatalog,
+    ));
+  }
+
+  void _showResetPasswordDialog(BuildContext context, StaffMember member) {
+    showDialog(context: context, builder: (dialogCtx) => AlertDialog(
+      backgroundColor: context.pal.surface1,
+      title: Text('Reset Password', style: AppTheme.cardTitle),
+      content: SizedBox(width: 320, child: Text(
+        "Reset ${member.name}'s password back to the default? "
+        "They'll need to be given the default password and should change it themselves afterward.",
+        style: AppTheme.bodySm,
+      )),
+      actions: [
+        TextButton(onPressed: () => Navigator.of(dialogCtx).pop(), child: const Text('Cancel')),
+        FilledButton(
+          onPressed: () async {
+            Navigator.of(dialogCtx).pop();
+            try {
+              await StaffService.instance.resetPassword(member.id);
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  content: Text("${member.name}'s password was reset to the default."),
+                  backgroundColor: AppColors.teal,
+                  behavior: SnackBarBehavior.floating,
+                  duration: const Duration(seconds: 2),
+                ));
+              }
+            } catch (e) {
+              if (context.mounted) showErrorToast(context, e);
+            }
+          },
+          child: const Text('Reset'),
+        ),
+      ],
+    ));
+  }
+
+  void _showDeactivateMemberDialog(BuildContext context, StaffMember member) {
+    showDialog(context: context, builder: (dialogCtx) => AlertDialog(
+      backgroundColor: context.pal.surface1,
+      title: Text('Deactivate Staff Member', style: AppTheme.cardTitle),
+      content: SizedBox(width: 320, child: Text(
+        "Deactivate ${member.name}? They'll no longer be able to sign in. "
+        "This doesn't delete their history — it can be reversed by an admin later if needed.",
+        style: AppTheme.bodySm,
+      )),
+      actions: [
+        TextButton(onPressed: () => Navigator.of(dialogCtx).pop(), child: const Text('Cancel')),
+        FilledButton(
+          style: FilledButton.styleFrom(backgroundColor: AppColors.coral),
+          onPressed: () async {
+            Navigator.of(dialogCtx).pop();
+            try {
+              await StaffService.instance.delete(member.id);
+              StaffService.instance.invalidateCache();
+              await _loadMembers();
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  content: Text('${member.name} was deactivated.'),
+                  backgroundColor: AppColors.coral,
+                  behavior: SnackBarBehavior.floating,
+                  duration: const Duration(seconds: 2),
+                ));
+              }
+            } catch (e) {
+              if (context.mounted) showErrorToast(context, e);
+            }
+          },
+          child: const Text('Deactivate'),
+        ),
+      ],
+    ));
+  }
+
+  // ── Tab 1: Pending ────────────────────────────────────────────────────────
   Widget _pendingTab(BuildContext context) {
     const pending = <_PendingInvite>[];
 
@@ -538,7 +900,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     width: 32, height: 32,
                     decoration: BoxDecoration(
                       color: AppColors.amberSoft, borderRadius: BorderRadius.circular(8)),
-                    child: const Icon(Symbols.mail_outline, size: 15, color: AppColors.amber),
+                    child: Icon(Symbols.mail_outline, size: 15, color: AppColors.amber),
                   ),
                   const SizedBox(width: 10),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -599,33 +961,77 @@ class _SettingsScreenState extends State<SettingsScreen> {
     ]);
   }
 
-  // ── Tab 2: Roles ─────────────────────────────────────────────────────────────
+  // ── Tab 2: Roles ──────────────────────────────────────────────────────────
+  static List<Color> get _rolePalette => [
+    AppColors.teal, AppColors.blue, AppColors.violet, AppColors.amber,
+    AppColors.coral, AppColors.info, AppColors.textDim,
+  ];
+
+  String _permLabel(String key) {
+    for (final items in _permissionCatalog.values) {
+      for (final p in items) {
+        if (p.key == key) return p.label;
+      }
+    }
+    return key;
+  }
 
   Widget _rolesTab(BuildContext context) {
-    const roles = [
-      _RoleDef('Admin',       AppColors.teal,   'Full access to all settings, data and team management.',
-          {'All screens': true,  'Edit data': true,  'Delete data': true,  'Manage team': true,  'Billing': true}),
-      _RoleDef('Technician',  AppColors.blue,   'Field service access — can view machines, log tickets and update service records.',
-          {'All screens': false, 'Edit data': true,  'Delete data': false, 'Manage team': false, 'Billing': false}),
-      _RoleDef('Sales',       AppColors.violet, 'CRM and pipeline access — can manage contacts, deals and invoices.',
-          {'All screens': false, 'Edit data': true,  'Delete data': false, 'Manage team': false, 'Billing': true}),
-      _RoleDef('Finance',     AppColors.amber,  'Revenue and billing access — invoices, payments and reports.',
-          {'All screens': false, 'Edit data': false, 'Delete data': false, 'Manage team': false, 'Billing': true}),
-      _RoleDef('Read Only',   AppColors.textDim,'View-only access to all non-sensitive screens.',
-          {'All screens': true,  'Edit data': false, 'Delete data': false, 'Manage team': false, 'Billing': false}),
-    ];
-    const permKeys = ['All screens', 'Edit data', 'Delete data', 'Manage team', 'Billing'];
+    final canManage = can('roles.manage');
+
+    if (_loadingRoles) {
+      return const Center(child: Padding(
+        padding: EdgeInsets.symmetric(vertical: 48),
+        child: CircularProgressIndicator(strokeWidth: 2),
+      ));
+    }
+    if (_rolesError != null) {
+      return Center(child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 48),
+        child: Text(_rolesError!, style: AppTheme.bodySub),
+      ));
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
       Row(children: [
-        Expanded(child: Text('${roles.length} roles defined',
+        Expanded(child: Text('${_roles.length} roles defined',
             style: AppTheme.bodySub)),
-        _OutlineBtn(label: 'New Role', saving: false, onTap: () {}),
+        Container(
+          height: 30,
+          padding: const EdgeInsets.all(3),
+          decoration: BoxDecoration(
+            color: context.pal.surface2,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: context.pal.border),
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            _RolesViewToggleBtn(
+              icon: Symbols.list, label: 'List',
+              active: !_rolesGraphView,
+              onTap: () => setState(() => _rolesGraphView = false),
+            ),
+            _RolesViewToggleBtn(
+              icon: Symbols.hub, label: 'Graph',
+              active: _rolesGraphView,
+              onTap: () => setState(() => _rolesGraphView = true),
+            ),
+          ]),
+        ),
+        const SizedBox(width: 10),
+        if (canManage)
+          _OutlineBtn(label: 'New Role', saving: false,
+              onTap: () => _showNewRoleDialog(context)),
       ]),
       const SizedBox(height: 12),
-      ...roles.map((role) => Container(
+      if (_rolesGraphView)
+        RolesGraphView(roles: _roles, catalog: _permissionCatalog, overrides: _auditLog)
+      else
+        ..._roles.asMap().entries.map((entry) {
+        final role  = entry.value;
+        final color = _rolePalette[entry.key % _rolePalette.length];
+        return Container(
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
@@ -638,97 +1044,184 @@ class _SettingsScreenState extends State<SettingsScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
-                color: role.color.withValues(alpha: 0.12),
+                color: color.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(6),
               ),
-              child: Text(role.name, style: AppTheme.bodyStrong.copyWith(
-                  color: role.color, fontSize: 12.5)),
+              child: Text(_roleLabel(role.name), style: AppTheme.bodyStrong.copyWith(
+                  color: color, fontSize: 12.5)),
             ),
             const SizedBox(width: 10),
-            Expanded(child: Text(role.desc, style: AppTheme.bodySub.copyWith(fontSize: 12))),
-            const SizedBox(width: 8),
-            GestureDetector(
-              onTap: () {},
-              child: Icon(Symbols.edit, size: 15, color: context.pal.textDim)),
+            Expanded(child: Text('${role.permissionCount} permission${role.permissionCount == 1 ? '' : 's'}',
+                style: AppTheme.bodySub.copyWith(fontSize: 12))),
+            if (canManage) ...[
+              GestureDetector(
+                onTap: () => _showEditRoleDialog(context, role),
+                child: Icon(Symbols.edit, size: 15, color: context.pal.textDim)),
+              if (!role.isSystem) ...[
+                const SizedBox(width: 12),
+                GestureDetector(
+                  onTap: () => _deleteRole(role),
+                  child: Icon(Symbols.delete, size: 15, color: context.pal.textDim)),
+              ],
+            ],
           ]),
-          const SizedBox(height: 12),
-          Wrap(spacing: 8, runSpacing: 6, children: permKeys.map((perm) {
-            final allowed = role.perms[perm] ?? false;
-            return Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: allowed ? AppColors.tealSoft : context.pal.surface2,
-                borderRadius: BorderRadius.circular(5),
-                border: Border.all(color: allowed
-                    ? AppColors.teal.withValues(alpha: 0.3) : context.pal.border),
-              ),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(allowed ? Symbols.check : Symbols.close,
-                    size: 12, color: allowed ? AppColors.teal : context.pal.textDim),
-                const SizedBox(width: 4),
-                Text(perm, style: AppTheme.monoXs.copyWith(
-                    fontSize: 10.5,
-                    color: allowed ? AppColors.teal : context.pal.textDim)),
-              ]),
-            );
-          }).toList()),
+          if (role.permissionKeys.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Wrap(spacing: 8, runSpacing: 6, children: role.permissionKeys.map((key) {
+              return Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.tealSoft,
+                  borderRadius: BorderRadius.circular(5),
+                  border: Border.all(color: AppColors.teal.withValues(alpha: 0.3)),
+                ),
+                child: Text(_permLabel(key), style: AppTheme.monoXs.copyWith(
+                    fontSize: 10.5, color: AppColors.teal)),
+              );
+            }).toList()),
+          ],
         ]),
-      )),
+      );
+      }),
     ]);
   }
 
-  // ── Tab 3: Activity ──────────────────────────────────────────────────────────
+  void _showNewRoleDialog(BuildContext context) {
+    final ctrl = TextEditingController();
+    showDialog(context: context, builder: (dialogCtx) => AlertDialog(
+      backgroundColor: context.pal.surface1,
+      title: Text('New Role', style: AppTheme.cardTitle),
+      content: SizedBox(width: 320, child: TextField(
+        controller: ctrl,
+        autofocus: true,
+        style: AppTheme.bodySm,
+        decoration: const InputDecoration(labelText: 'Role name (e.g. regional_sales_lead)'),
+      )),
+      actions: [
+        TextButton(onPressed: () => Navigator.of(dialogCtx).pop(), child: const Text('Cancel')),
+        FilledButton(
+          onPressed: () {
+            final name = ctrl.text.trim();
+            if (name.isEmpty) return;
+            Navigator.of(dialogCtx).pop();
+            _createRole(name);
+          },
+          child: const Text('Create'),
+        ),
+      ],
+    ));
+  }
+
+  void _showEditRoleDialog(BuildContext context, RoleSummary role) {
+    showDialog(context: context, builder: (_) => _EditRolePermissionsDialog(
+      role: role,
+      catalog: _permissionCatalog,
+      onSave: (keys) => _saveRolePermissions(role, keys),
+    ));
+  }
+
+  // ── Tab 3: Activity ───────────────────────────────────────────────────────
+  String _initialsOf(String name) {
+    final parts = name.trim().split(RegExp(r'\s+'));
+    if (parts.length >= 2) return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
+    if (parts.isNotEmpty && parts.first.isNotEmpty) return parts.first[0].toUpperCase();
+    return '?';
+  }
 
   Widget _activityTab(BuildContext context) {
-    const log = <_AuditEntry>[];
+    final log = _filteredAuditLog;
 
     return Column(children: [
       Row(children: [
-        _filterPill(context, 'All types'),
-        const SizedBox(width: 8),
-        _filterPill(context, 'This week'),
+        GestureDetector(
+          onTap: () => setState(() => _auditThisWeekOnly = !_auditThisWeekOnly),
+          child: Container(
+            height: 32, padding: const EdgeInsets.symmetric(horizontal: 10),
+            decoration: BoxDecoration(
+              color: _auditThisWeekOnly ? AppColors.tealSoft : context.pal.surface1,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: _auditThisWeekOnly
+                  ? AppColors.teal.withValues(alpha: 0.4) : context.pal.border),
+            ),
+            child: Center(child: Text(
+              _auditThisWeekOnly ? 'This week' : 'All time',
+              style: AppTheme.bodySub.copyWith(fontSize: 12,
+                  color: _auditThisWeekOnly ? AppColors.teal : context.pal.text),
+            )),
+          ),
+        ),
         const Spacer(),
-        _OutlineBtn(label: 'Export log', saving: false, onTap: () {}),
+        _OutlineBtn(label: 'Export log', saving: false, onTap: _exportAuditLog),
       ]),
       const SizedBox(height: 12),
       Container(
         decoration: BoxDecoration(color: context.pal.surface1,
             borderRadius: BorderRadius.circular(AppColors.rLg),
             border: Border.all(color: context.pal.border)),
-        child: Column(children: log.asMap().entries.map((e) {
-          final entry = e.value;
-          final isLast = e.key == log.length - 1;
-          return Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: isLast ? null : BoxDecoration(
-                border: Border(bottom: BorderSide(color: context.pal.divider))),
-            child: Row(children: [
-              AvatarWidget(initials: entry.initials, size: 30, variant: entry.variant),
-              const SizedBox(width: 12),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Row(children: [
-                  Text(entry.user, style: AppTheme.bodyStrong.copyWith(fontSize: 12.5)),
-                  const SizedBox(width: 6),
-                  Expanded(child: Text(entry.action, style: AppTheme.bodySub.copyWith(fontSize: 12),
-                      overflow: TextOverflow.ellipsis)),
-                ]),
-                const SizedBox(height: 3),
-                Text(entry.detail, style: AppTheme.bodySub.copyWith(
-                    fontSize: 11.5, color: context.pal.textDim),
-                    overflow: TextOverflow.ellipsis),
-              ])),
-              const SizedBox(width: 12),
-              Text(entry.time, style: AppTheme.monoXs.copyWith(
-                  color: context.pal.textDim, fontSize: 10.5)),
-            ]),
-          );
-        }).toList()),
+        child: _loadingAudit
+            ? const Padding(padding: EdgeInsets.symmetric(vertical: 32),
+                child: Center(child: CircularProgressIndicator(strokeWidth: 2)))
+            : log.isEmpty
+                ? Padding(padding: const EdgeInsets.symmetric(vertical: 32),
+                    child: Center(child: Text('No permission grants or denials yet.',
+                        style: AppTheme.bodySub.copyWith(color: context.pal.textDim))))
+                : Column(children: log.asMap().entries.map((e) {
+                    final entry  = e.value;
+                    final isLast = e.key == log.length - 1;
+                    final allow  = entry.effect == 'allow';
+                    final dt     = entry.createdAt != null ? DateTime.tryParse(entry.createdAt!) : null;
+                    return Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      decoration: isLast ? null : BoxDecoration(
+                          border: Border(bottom: BorderSide(color: context.pal.divider))),
+                      child: Row(children: [
+                        AvatarWidget(
+                          initials: _initialsOf(entry.userName ?? '?'),
+                          size: 30,
+                          variant: allow ? AvatarVariant.teal : AvatarVariant.coral,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Row(children: [
+                            Text(entry.userName ?? 'Unknown', style: AppTheme.bodyStrong.copyWith(fontSize: 12.5)),
+                            const SizedBox(width: 6),
+                            Expanded(child: Text(
+                              '${allow ? 'granted' : 'denied'} "${entry.label}"',
+                              style: AppTheme.bodySub.copyWith(fontSize: 12,
+                                  color: allow ? AppColors.teal : AppColors.coral),
+                              overflow: TextOverflow.ellipsis,
+                            )),
+                          ]),
+                          const SizedBox(height: 3),
+                          Text(
+                            [
+                              if (entry.createdByName != null) 'by ${entry.createdByName}',
+                              if (entry.reason != null && entry.reason!.isNotEmpty) entry.reason!,
+                            ].join(' —'),
+                            style: AppTheme.bodySub.copyWith(fontSize: 11.5, color: context.pal.textDim),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ])),
+                        const SizedBox(width: 12),
+                        Text(dt != null ? timeAgo(dt) : '—', style: AppTheme.monoXs.copyWith(
+                            color: context.pal.textDim, fontSize: 10.5)),
+                      ]),
+                    );
+                  }).toList()),
       ),
     ]);
   }
 
-  // ── Tab 4: SSO ───────────────────────────────────────────────────────────────
+  Future<void> _exportAuditLog() async {
+    try {
+      final path = await CsvExport.permissionAuditLog(_filteredAuditLog);
+      if (path != null && mounted) showSuccessToast(context, 'Exported ${_filteredAuditLog.length} entries to CSV');
+    } catch (e) {
+      if (mounted) showErrorToast(context, e);
+    }
+  }
 
+  // ── Tab 4: SSO ────────────────────────────────────────────────────────────
   Widget _ssoTab(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start, children: [
     // Enable toggle
@@ -807,12 +1300,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
-                color: _ssoTestMsg!.startsWith('✓')
+                color: _ssoTestMsg!.startsWith('—')
                     ? AppColors.tealSoft : AppColors.coralSoft,
                 borderRadius: BorderRadius.circular(7),
               ),
               child: Text(_ssoTestMsg!, style: AppTheme.bodySub.copyWith(
-                color: _ssoTestMsg!.startsWith('✓') ? AppColors.teal : AppColors.coral,
+                color: _ssoTestMsg!.startsWith('—') ? AppColors.teal : AppColors.coral,
                 fontSize: 12)),
             ),
             const SizedBox(height: 12),
@@ -827,8 +1320,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   setState(() {
                     _ssoSaving = false;
                     _ssoTestMsg = _ssoUrlCtrl.text.isNotEmpty
-                        ? '✓ Connection verified — 12 users synced'
-                        : '✗ SSO URL is required to test the connection.';
+                        ? '— Connection verified — 12 users synced'
+                        : '— SSO URL is required to test the connection.';
                   });
                 }
               }),
@@ -868,8 +1361,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     ]),
   );
 
-  // ── Section 1: Billing ───────────────────────────────────────────────────────
-
+  // ── Section 1: Billing ────────────────────────────────────────────────────
   Widget _billingSection(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start, children: [
     // Plan card
@@ -885,7 +1377,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       child: Row(children: [
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            const Icon(Symbols.workspace_premium, size: 18, color: AppColors.teal),
+            Icon(Symbols.workspace_premium, size: 18, color: AppColors.teal),
             const SizedBox(width: 8),
             Text('Enterprise Plan', style: AppTheme.pageTitle.copyWith(
                 color: Colors.white, fontSize: 18)),
@@ -973,8 +1465,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     ),
   ]);
 
-  // ── Section 2: Communication ─────────────────────────────────────────────────
-
+  // ── Section 2: Communication ──────────────────────────────────────────────
   Widget _communicationSection(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start, children: [
     _SCard(
@@ -1051,8 +1542,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     ),
   ]);
 
-  // ── Section 3: Connections ───────────────────────────────────────────────────
-
+  // ── Section 3: Connections ────────────────────────────────────────────────
   Widget _connectionsSection(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start, children: [
     _SCard(
@@ -1098,7 +1588,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
         const SizedBox(height: 12),
         Row(children: [
-          const Icon(Symbols.warning, size: 13, color: AppColors.amber),
+          Icon(Symbols.warning, size: 13, color: AppColors.amber),
           const SizedBox(width: 6),
           Expanded(child: Text('Keep your API key secret. Regenerate it if you suspect it has been compromised.',
               style: AppTheme.bodySub.copyWith(color: AppColors.amber, fontSize: 11.5))),
@@ -1176,8 +1666,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     ),
   ]);
 
-  // ── Section 4: Security ──────────────────────────────────────────────────────
-
+  // ── Section 4: Security ───────────────────────────────────────────────────
   Widget _securitySection(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start, children: [
     _SCard(
@@ -1190,10 +1679,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
           value: _twoFa, onChanged: (v) => setState(() => _twoFa = v)),
         _ToggleRow(
           label: 'SAML Single Sign-On (SSO)',
-          sub: 'Connect to your identity provider — configure in Team → SSO',
+          sub: 'Connect to your identity provider —configure in Team →SSO',
           value: _sso, onChanged: (v) => setState(() {
             _sso = v;
-            if (v) { _section = 0; _tab = 4; }
+            if (v) { _section = 1; _tab = 4; }
           })),
       ]),
     ),
@@ -1208,7 +1697,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           value: _session, onChanged: (v) => setState(() => _session = v)),
         _ToggleRow(
           label: 'Audit log',
-          sub: 'Track all member actions and data exports — view in Team → Activity',
+          sub: 'Track all member actions and data exports —view in Team →Activity',
           value: _audit, onChanged: (v) => setState(() => _audit = v)),
       ]),
     ),
@@ -1250,8 +1739,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     ),
   ]);
 
-  // ── Section 5: Preferences ───────────────────────────────────────────────────
-
+  // ── Section 5: Preferences ────────────────────────────────────────────────
   Widget _preferencesSection(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start, children: [
     _SCard(
@@ -1274,6 +1762,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
               SegmentedButton<AppThemeMode>(
                 segments: const [
                   ButtonSegment(
+                    value: AppThemeMode.aurora,
+                    label: Text('Aurora'),
+                    icon: Icon(Symbols.wb_twilight, size: 14),
+                  ),
+                  ButtonSegment(
                     value: AppThemeMode.light,
                     label: Text('Light'),
                     icon: Icon(Symbols.light_mode, size: 14),
@@ -1288,9 +1781,41 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     label: Text('Dark'),
                     icon: Icon(Symbols.dark_mode, size: 14),
                   ),
+                  ButtonSegment(
+                    value: AppThemeMode.fundify,
+                    label: Text('Fundify'),
+                    icon: Icon(Symbols.eco, size: 14),
+                  ),
                 ],
                 selected: {mode},
                 onSelectionChanged: (s) => themeNotifier.value = s.first,
+                showSelectedIcon: false,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        ValueListenableBuilder<TextSizePref>(
+          valueListenable: textSizeNotifier,
+          builder: (_, sizePref, _) => Row(
+            children: [
+              Expanded(child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Text Size', style: AppTheme.bodyStrong),
+                  const SizedBox(height: 2),
+                  Text('Adjust text size across the whole app', style: AppTheme.bodySub),
+                ],
+              )),
+              const SizedBox(width: 16),
+              SegmentedButton<TextSizePref>(
+                segments: const [
+                  ButtonSegment(value: TextSizePref.small,  label: Text('Small')),
+                  ButtonSegment(value: TextSizePref.medium, label: Text('Medium')),
+                  ButtonSegment(value: TextSizePref.large,  label: Text('Large')),
+                ],
+                selected: {sizePref},
+                onSelectionChanged: (s) => textSizeNotifier.value = s.first,
                 showSelectedIcon: false,
               ),
             ],
@@ -1356,51 +1881,314 @@ class _SettingsScreenState extends State<SettingsScreen> {
     ),
   ]);
 
-  // ── Helpers ──────────────────────────────────────────────────────────────────
-
-  Widget _searchBox(BuildContext context, String hint) => Container(
-    height: 32,
-    decoration: BoxDecoration(color: context.pal.surface1,
-        borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-    padding: const EdgeInsets.symmetric(horizontal: 10),
-    child: Row(children: [
-      Icon(Symbols.search, size: 14, color: context.pal.textDim),
-      const SizedBox(width: 6),
-      Text(hint, style: AppTheme.bodySub.copyWith(fontSize: 12)),
-    ]),
-  );
-
-  Widget _filterPill(BuildContext context, String label) => Container(
-    height: 32, padding: const EdgeInsets.symmetric(horizontal: 10),
-    decoration: BoxDecoration(color: context.pal.surface1,
-        borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-    child: Center(child: Text(label, style: AppTheme.bodySub.copyWith(fontSize: 12))),
-  );
 }
 
-// ─── Data classes ──────────────────────────────────────────────────────────────
-
+// ── Data classes ────────────────────────────────────────────────────────────
 class _PendingInvite {
   const _PendingInvite(this.email, this.role, this.zone, this.sent);
   final String email, role, zone, sent;
 }
 
-class _RoleDef {
-  const _RoleDef(this.name, this.color, this.desc, this.perms);
-  final String name, desc;
-  final Color color;
-  final Map<String, bool> perms;
+class _EditMemberRoleDialog extends StatefulWidget {
+  const _EditMemberRoleDialog({required this.member, required this.roleNames, required this.onSave});
+  final StaffMember member;
+  final List<String> roleNames;
+  final Future<void> Function(String role) onSave;
+
+  @override
+  State<_EditMemberRoleDialog> createState() => _EditMemberRoleDialogState();
 }
 
-class _AuditEntry {
-  const _AuditEntry(this.user, this.initials, this.variant,
-      this.action, this.detail, this.time);
-  final String user, initials, action, detail, time;
-  final AvatarVariant variant;
+class _EditMemberRoleDialogState extends State<_EditMemberRoleDialog> {
+  late String _role = widget.roleNames.contains(widget.member.role)
+      ? widget.member.role
+      : (widget.roleNames.isNotEmpty ? widget.roleNames.first : widget.member.role);
+  bool _saving = false;
+
+  Future<void> _submit() async {
+    setState(() => _saving = true);
+    try {
+      await widget.onSave(_role);
+      if (mounted) Navigator.of(context).pop();
+    } catch (e) {
+      if (mounted) { setState(() => _saving = false); showErrorToast(context, e); }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final sortedRoles = [...widget.roleNames]..sort();
+    return AlertDialog(
+      backgroundColor: context.pal.surface1,
+      title: Text('Edit Role — ${widget.member.name}', style: AppTheme.cardTitle),
+      content: SizedBox(
+        width: 320,
+        child: _HDropdown(
+          label: 'Role',
+          value: _role,
+          items: sortedRoles,
+          display: sortedRoles.map(_roleLabel).toList(),
+          onChanged: (v) => setState(() => _role = v),
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: _saving ? null : () => Navigator.of(context).pop(), child: const Text('Cancel')),
+        FilledButton(
+          onPressed: _saving ? null : _submit,
+          child: _saving
+              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+              : const Text('Save'),
+        ),
+      ],
+    );
+  }
 }
 
-// ─── Shared card wrapper ───────────────────────────────────────────────────────
+class _ManagePermissionsDialog extends StatefulWidget {
+  const _ManagePermissionsDialog({required this.member, required this.catalog});
+  final StaffMember member;
+  final Map<String, List<PermissionCatalogItem>> catalog;
 
+  @override
+  State<_ManagePermissionsDialog> createState() => _ManagePermissionsDialogState();
+}
+
+class _ManagePermissionsDialogState extends State<_ManagePermissionsDialog> {
+  bool _loading = true;
+  List<UserPermission> _effective = [];
+  List<UserPermissionOverride> _overrides = [];
+  String? _newKey;
+  String _newEffect = 'allow';
+  final _reasonCtrl = TextEditingController();
+  bool _adding = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void dispose() {
+    _reasonCtrl.dispose();
+    super.dispose();
+  }
+
+  String _permLabel(String key) {
+    for (final items in widget.catalog.values) {
+      for (final p in items) {
+        if (p.key == key) return p.label;
+      }
+    }
+    return key;
+  }
+
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    try {
+      final effF = PermissionService.instance.fetchForUser(widget.member.id);
+      final ovrF = PermissionService.instance.overridesForUser(widget.member.id);
+      final eff = await effF;
+      final ovr = await ovrF;
+      if (!mounted) return;
+      setState(() { _effective = eff; _overrides = ovr; _loading = false; });
+    } catch (e) {
+      if (mounted) { setState(() => _loading = false); showErrorToast(context, e); }
+    }
+  }
+
+  Future<void> _addOverride() async {
+    if (_newKey == null || _adding) return;
+    setState(() => _adding = true);
+    try {
+      await PermissionService.instance.addOverride(
+        widget.member.id,
+        key: _newKey!,
+        effect: _newEffect,
+        reason: _reasonCtrl.text.trim().isEmpty ? null : _reasonCtrl.text.trim(),
+      );
+      _reasonCtrl.clear();
+      _newKey = null;
+      await _load();
+    } catch (e) {
+      if (mounted) showErrorToast(context, e);
+    } finally {
+      if (mounted) setState(() => _adding = false);
+    }
+  }
+
+  Future<void> _removeOverride(UserPermissionOverride o) async {
+    try {
+      await PermissionService.instance.removeOverride(widget.member.id, o.id);
+      await _load();
+    } catch (e) {
+      if (mounted) showErrorToast(context, e);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final allPerms = widget.catalog.values.expand((v) => v).toList()
+      ..sort((a, b) => a.key.compareTo(b.key));
+    final overriddenKeys = _overrides.map((o) => o.key).toSet();
+    final roleGranted = _effective.where((p) => !overriddenKeys.contains(p.key)).toList();
+
+    return AlertDialog(
+      backgroundColor: context.pal.surface1,
+      title: Text('Manage Permissions — ${widget.member.name}', style: AppTheme.cardTitle),
+      content: SizedBox(
+        width: 460,
+        height: 520,
+        child: _loading
+            ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
+            : SingleChildScrollView(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('FROM ROLE (${_roleLabel(widget.member.role)})', style: AppTheme.labelCaps),
+                  const SizedBox(height: 8),
+                  roleGranted.isEmpty
+                      ? Text('No permissions from role.', style: AppTheme.bodySub.copyWith(fontSize: 12))
+                      : Wrap(spacing: 6, runSpacing: 6, children: roleGranted.map((p) => Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(color: context.pal.surface2, borderRadius: BorderRadius.circular(5)),
+                          child: Text(_permLabel(p.key), style: AppTheme.monoXs.copyWith(fontSize: 10.5)),
+                        )).toList()),
+                  const SizedBox(height: 20),
+                  Text('INDIVIDUAL OVERRIDES', style: AppTheme.labelCaps),
+                  const SizedBox(height: 8),
+                  if (_overrides.isEmpty)
+                    Text('No individual overrides.', style: AppTheme.bodySub.copyWith(fontSize: 12))
+                  else
+                    ..._overrides.map((o) => Container(
+                      margin: const EdgeInsets.only(bottom: 6),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: (o.effect == 'allow' ? AppColors.teal : AppColors.coral).withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: (o.effect == 'allow' ? AppColors.teal : AppColors.coral).withValues(alpha: 0.3)),
+                      ),
+                      child: Row(children: [
+                        Icon(o.effect == 'allow' ? Symbols.add_circle : Symbols.block, size: 14,
+                            color: o.effect == 'allow' ? AppColors.teal : AppColors.coral),
+                        const SizedBox(width: 8),
+                        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Text(o.label, style: AppTheme.bodySm.copyWith(fontSize: 12)),
+                          if (o.reason != null)
+                            Text(o.reason!, style: AppTheme.bodySub.copyWith(fontSize: 10.5)),
+                        ])),
+                        GestureDetector(
+                          onTap: () => _removeOverride(o),
+                          child: Icon(Symbols.close, size: 14, color: context.pal.textDim)),
+                      ]),
+                    )),
+                  const SizedBox(height: 16),
+                  Text('ADD OVERRIDE', style: AppTheme.labelCaps),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    decoration: BoxDecoration(color: context.pal.surface2,
+                        borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
+                    child: DropdownButtonHideUnderline(child: DropdownButton<String>(
+                      isExpanded: true,
+                      hint: const Text('Choose a permission'),
+                      dropdownColor: context.pal.surface2,
+                      value: _newKey,
+                      items: allPerms.map((p) => DropdownMenuItem(value: p.key, child: Text(p.label))).toList(),
+                      onChanged: (v) => setState(() => _newKey = v),
+                    )),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(children: [
+                    ChoiceChip(label: const Text('Allow'), selected: _newEffect == 'allow',
+                        onSelected: (_) => setState(() => _newEffect = 'allow')),
+                    const SizedBox(width: 8),
+                    ChoiceChip(label: const Text('Deny'), selected: _newEffect == 'deny',
+                        onSelected: (_) => setState(() => _newEffect = 'deny')),
+                  ]),
+                  const SizedBox(height: 8),
+                  TextField(controller: _reasonCtrl,
+                      decoration: const InputDecoration(labelText: 'Reason (optional)')),
+                  const SizedBox(height: 12),
+                  SizedBox(width: double.infinity, child: FilledButton(
+                    onPressed: _newKey == null || _adding ? null : _addOverride,
+                    child: _adding
+                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Text('Add Override'),
+                  )),
+                ]),
+              ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Close')),
+      ],
+    );
+  }
+}
+
+class _EditRolePermissionsDialog extends StatefulWidget {
+  const _EditRolePermissionsDialog({required this.role, required this.catalog, required this.onSave});
+  final RoleSummary role;
+  final Map<String, List<PermissionCatalogItem>> catalog;
+  final ValueChanged<List<String>> onSave;
+
+  @override
+  State<_EditRolePermissionsDialog> createState() => _EditRolePermissionsDialogState();
+}
+
+class _EditRolePermissionsDialogState extends State<_EditRolePermissionsDialog> {
+  late final Set<String> _selected = widget.role.permissionKeys.toSet();
+
+  @override
+  Widget build(BuildContext context) {
+    final modules = widget.catalog.keys.toList()..sort();
+    return AlertDialog(
+      backgroundColor: context.pal.surface1,
+      title: Text('Edit Permissions — ${widget.role.name}', style: AppTheme.cardTitle),
+      content: SizedBox(
+        width: 420,
+        height: 480,
+        child: SingleChildScrollView(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            for (final module in modules) ...[
+              Padding(
+                padding: const EdgeInsets.only(top: 12, bottom: 4),
+                child: Text(module.toUpperCase(), style: AppTheme.labelCaps),
+              ),
+              ...widget.catalog[module]!.map((p) => CheckboxListTile(
+                value: _selected.contains(p.key),
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                controlAffinity: ListTileControlAffinity.leading,
+                title: Text(p.label, style: AppTheme.bodySm),
+                subtitle: p.description != null
+                    ? Text(p.description!, style: AppTheme.bodySub.copyWith(fontSize: 11))
+                    : null,
+                onChanged: (v) => setState(() {
+                  if (v == true) {
+                    _selected.add(p.key);
+                  } else {
+                    _selected.remove(p.key);
+                  }
+                }),
+              )),
+            ],
+          ]),
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancel')),
+        FilledButton(
+          onPressed: () {
+            Navigator.of(context).pop();
+            widget.onSave(_selected.toList());
+          },
+          child: const Text('Save'),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Shared card wrapper ─────────────────────────────────────────────────────
 class _SCard extends StatelessWidget {
   const _SCard({required this.title, required this.child,
       this.icon, this.trailing});
@@ -1433,8 +2221,7 @@ class _SCard extends StatelessWidget {
   );
 }
 
-// ─── Button helpers ────────────────────────────────────────────────────────────
-
+// ── Button helpers ──────────────────────────────────────────────────────────
 class _TealBtn extends StatelessWidget {
   const _TealBtn({required this.label, required this.saving, required this.onTap});
   final String label; final bool saving; final VoidCallback onTap;
@@ -1450,6 +2237,36 @@ class _TealBtn extends StatelessWidget {
             child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
         : Text(label, style: AppTheme.bodyStrong.copyWith(
             color: const Color(0xFF06120F), fontSize: 13))),
+    ),
+  );
+}
+
+class _RolesViewToggleBtn extends StatelessWidget {
+  const _RolesViewToggleBtn({
+    required this.icon, required this.label, required this.active, required this.onTap,
+  });
+  final IconData icon;
+  final String label;
+  final bool active;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: onTap,
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+      decoration: BoxDecoration(
+        color: active ? AppColors.tealSoft : Colors.transparent,
+        borderRadius: BorderRadius.circular(6),
+        border: active ? Border.all(color: AppColors.teal.withValues(alpha: 0.3)) : null,
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(icon, size: 13, color: active ? AppColors.teal : context.pal.textMute),
+        const SizedBox(width: 5),
+        Text(label, style: AppTheme.bodySm.copyWith(
+          fontSize: 12, color: active ? AppColors.teal : context.pal.textMute,
+          fontWeight: FontWeight.w500)),
+      ]),
     ),
   );
 }
@@ -1473,8 +2290,7 @@ class _OutlineBtn extends StatelessWidget {
   );
 }
 
-// ─── Dropdown helper ───────────────────────────────────────────────────────────
-
+// ── Dropdown helper ─────────────────────────────────────────────────────────
 class _SDropdown extends StatelessWidget {
   const _SDropdown({required this.label, required this.value,
       required this.items, required this.onChanged});
@@ -1489,9 +2305,9 @@ class _SDropdown extends StatelessWidget {
       const SizedBox(height: 6),
     ],
     Container(
-      height: 38,
       decoration: BoxDecoration(color: context.pal.surface2,
           borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
+      height: 38,
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: DropdownButtonHideUnderline(child: DropdownButton<String>(
         value: items.contains(value) ? value : items.first,
@@ -1504,8 +2320,7 @@ class _SDropdown extends StatelessWidget {
   ]);
 }
 
-// ─── Existing shared widgets (unchanged) ──────────────────────────────────────
-
+// ── Existing shared widgets (unchanged) ─────────────────────────────────────
 class _SettingsSideItem extends StatelessWidget {
   const _SettingsSideItem({required this.icon, required this.label,
       required this.active, required this.onTap});
@@ -1553,8 +2368,20 @@ class _PendTh extends StatelessWidget {
 }
 
 class _MemberRow extends StatelessWidget {
-  const _MemberRow({required this.member});
+  const _MemberRow({
+    required this.member,
+    this.canManage = false,
+    this.onEditRole,
+    this.onManagePermissions,
+    this.onResetPassword,
+    this.onDeactivate,
+  });
   final StaffMember member;
+  final bool canManage;
+  final VoidCallback? onEditRole;
+  final VoidCallback? onManagePermissions;
+  final VoidCallback? onResetPassword;
+  final VoidCallback? onDeactivate;
 
   String _lastActiveLabel() {
     final dt = member.lastActiveAt;
@@ -1596,7 +2423,7 @@ class _MemberRow extends StatelessWidget {
                 if (isActive) ...[
                   const SizedBox(width: 8),
                   Container(width: 6, height: 6,
-                      decoration: const BoxDecoration(color: AppColors.teal, shape: BoxShape.circle)),
+                      decoration: BoxDecoration(color: AppColors.teal, shape: BoxShape.circle)),
                   const SizedBox(width: 4),
                   Text('Active', style: AppTheme.bodySub.copyWith(color: AppColors.teal, fontSize: 10)),
                 ],
@@ -1620,12 +2447,12 @@ class _MemberRow extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 12),
           child: member.twoFa == true
               ? Row(children: [
-                  const Icon(Symbols.verified_user, size: 14, color: AppColors.teal),
+                  Icon(Symbols.verified_user, size: 14, color: AppColors.teal),
                   const SizedBox(width: 4),
                   Text('Enabled', style: AppTheme.bodySub.copyWith(color: AppColors.teal, fontSize: 11.5)),
                 ])
               : Row(children: [
-                  const Icon(Symbols.warning, size: 14, color: AppColors.amber),
+                  Icon(Symbols.warning, size: 14, color: AppColors.amber),
                   const SizedBox(width: 4),
                   Text('Off', style: AppTheme.bodySub.copyWith(color: AppColors.amber, fontSize: 11.5)),
                 ]),
@@ -1634,7 +2461,26 @@ class _MemberRow extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 12),
           child: Text(_lastActiveLabel(), style: AppTheme.monoXs.copyWith(fontSize: 11)),
         )),
-        SizedBox(width: 60, child: Icon(Symbols.more_horiz, size: 16, color: context.pal.textDim)),
+        SizedBox(
+          width: 60,
+          child: canManage
+              ? PopupMenuButton<String>(
+                  icon: Icon(Symbols.more_horiz, size: 16, color: context.pal.textDim),
+                  onSelected: (v) {
+                    if (v == 'role') onEditRole?.call();
+                    if (v == 'perms') onManagePermissions?.call();
+                    if (v == 'reset') onResetPassword?.call();
+                    if (v == 'deactivate') onDeactivate?.call();
+                  },
+                  itemBuilder: (_) => [
+                    const PopupMenuItem(value: 'role', child: Text('Edit Role')),
+                    const PopupMenuItem(value: 'perms', child: Text('Manage Permissions')),
+                    const PopupMenuItem(value: 'reset', child: Text('Reset Password')),
+                    PopupMenuItem(value: 'deactivate', child: Text('Deactivate', style: TextStyle(color: AppColors.coral))),
+                  ],
+                )
+              : Icon(Symbols.more_horiz, size: 16, color: context.pal.textDim),
+        ),
       ]),
     );
   }
@@ -1678,22 +2524,20 @@ class _SettingsField extends StatelessWidget {
       const SizedBox(height: 6),
     ],
     Container(
-      height: 38,
       decoration: BoxDecoration(color: context.pal.surface2,
           borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: Center(child: TextField(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      child: TextField(
         controller: ctrl, obscureText: obscure, style: AppTheme.bodySm,
         decoration: InputDecoration(hintText: hint,
             hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
             border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero),
-      )),
+      ),
     ),
   ]);
 }
 
-// ─── Invite dialog ─────────────────────────────────────────────────────────────
-
+// ── Invite dialog ───────────────────────────────────────────────────────────
 class _InviteDialog extends StatefulWidget {
   const _InviteDialog({required this.onClose, this.onSaved});
   final VoidCallback  onClose;
@@ -1707,19 +2551,39 @@ class _InviteDialogState extends State<_InviteDialog> {
   final _nameCtrl  = TextEditingController();
   final _emailCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
-  String _role  = 'Technician';
+  String  _role  = 'technician';
   String _group = 'field';
   String _zone  = 'Dar es Salaam';
   bool   _saving = false;
   String? _error;
 
-  static const _roles  = ['Technician', 'Sales', 'Finance', 'Admin', 'Read Only'];
+  List<String> _roleNames = ['technician'];
+
   static const _groups = ['field', 'office', 'admin'];
   static const _groupLabels = ['Field Technician', 'Office / Sales', 'Admin'];
   static const _zones  = [
     'Dar es Salaam', 'Arusha', 'Kilimanjaro', 'Mwanza', 'Mbeya',
     'Dodoma', 'Tanga', 'Morogoro', 'HQ · Dar es Salaam',
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRoles();
+  }
+
+  Future<void> _loadRoles() async {
+    try {
+      final roles = await RoleService.instance.list();
+      if (!mounted || roles.isEmpty) return;
+      setState(() {
+        _roleNames = roles.map((r) => r.name).toList();
+        _role = _roleNames.contains('technician') ? 'technician' : _roleNames.first;
+      });
+    } catch (_) {
+      // Non-fatal —keeps the single-item fallback list so the dialog stays usable.
+    }
+  }
 
   @override
   void dispose() {
@@ -1735,7 +2599,7 @@ class _InviteDialogState extends State<_InviteDialog> {
         'name':    _nameCtrl.text.trim(),
         'email':   _emailCtrl.text.trim(),
         'phone':   _phoneCtrl.text.trim(),
-        'role':    _role.toLowerCase().replaceAll(' ', '_'),
+        'role':    _role,
         'group':   _group,
         'zone':    _zone,
         'workload': 0.0,
@@ -1768,7 +2632,7 @@ class _InviteDialogState extends State<_InviteDialog> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
               child: Row(children: [
-                const Icon(Symbols.person_add, size: 18, color: AppColors.teal),
+                Icon(Symbols.person_add, size: 18, color: AppColors.teal),
                 const SizedBox(width: 10),
                 Text('Add Team Member', style: AppTheme.bodyStrong),
                 const Spacer(),
@@ -1788,7 +2652,8 @@ class _InviteDialogState extends State<_InviteDialog> {
                 Row(children: [
                   Expanded(child: _SettingsField(label: 'Phone', ctrl: _phoneCtrl, hint: '+255 7XX XXX XXX')),
                   const SizedBox(width: 14),
-                  Expanded(child: _HDropdown(label: 'Role', value: _role, items: _roles,
+                  Expanded(child: _HDropdown(label: 'Role', value: _role, items: _roleNames,
+                      display: _roleNames.map(_roleLabel).toList(),
                       onChanged: (v) => setState(() => _role = v))),
                 ]),
                 const SizedBox(height: 14),
@@ -1802,7 +2667,7 @@ class _InviteDialogState extends State<_InviteDialog> {
                 ]),
                 if (_error != null) ...[
                   const SizedBox(height: 8),
-                  Text(_error!, style: const TextStyle(color: AppColors.coral, fontSize: 12.5)),
+                  Text(_error!, style: TextStyle(color: AppColors.coral, fontSize: 12.5)),
                 ],
               ]),
             ),
@@ -1834,9 +2699,9 @@ class _HDropdown extends StatelessWidget {
     Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10)),
     const SizedBox(height: 6),
     Container(
-      height: 38,
       decoration: BoxDecoration(color: context.pal.surface2,
           borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
+      height: 38,
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: DropdownButtonHideUnderline(child: DropdownButton<String>(
         value: value, isExpanded: true,

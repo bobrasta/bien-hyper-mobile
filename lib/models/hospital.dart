@@ -5,6 +5,7 @@ class Hospital {
   final String type;
   final String region;
   final String district;
+  final String? zone;
   final double latitude;
   final double longitude;
   final int    machineCount;
@@ -23,6 +24,7 @@ class Hospital {
     required this.type,
     required this.region,
     required this.district,
+    this.zone,
     required this.latitude,
     required this.longitude,
     required this.machineCount,
@@ -42,6 +44,7 @@ class Hospital {
     type:                j['type']        as String?  ?? 'public',
     region:              j['region']      as String?  ?? '—',
     district:            j['district']    as String?  ?? '—',
+    zone:                j['zone']        as String?,
     latitude:            (j['latitude']   as num?  ?? 0).toDouble(),
     longitude:           (j['longitude']  as num?  ?? 0).toDouble(),
     machineCount:        (j['machine_count']        as num? ?? 0).toInt(),

@@ -1,14 +1,17 @@
-﻿import 'package:fl_chart/fl_chart.dart';
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:material_symbols_icons/symbols.dart';
+import '../../models/hospital.dart';
 import '../../models/invoice.dart';
 import '../../models/machine.dart';
 import '../../services/hospital_service.dart';
 import '../../services/invoice_service.dart';
 import '../../services/machine_service.dart';
+import '../../services/setting_service.dart';
 import '../../utils/api_error.dart';
 import '../../widgets/common/error_view.dart';
+import '../../widgets/common/kpi_card.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/format.dart';
@@ -16,6 +19,16 @@ import '../../utils/responsive.dart';
 import '../../widgets/common/app_button.dart';
 import '../../widgets/common/status_badge.dart';
 import '../../theme/app_palette.dart';
+
+Color _paymentStatusColor(PaymentStatus s) => switch (s) {
+  PaymentStatus.paid      => AppColors.teal,
+  PaymentStatus.partial   => AppColors.blue,
+  PaymentStatus.pending   => AppColors.amber,
+  PaymentStatus.sent      => AppColors.blue,
+  PaymentStatus.overdue   => AppColors.coral,
+  PaymentStatus.waived    => AppColors.textMute,
+  PaymentStatus.cancelled => AppColors.coral,
+};
 
 class RevenueScreen extends StatefulWidget {
   const RevenueScreen({super.key});
@@ -30,21 +43,36 @@ class _RevenueScreenState extends State<RevenueScreen> {
 
   List<Invoice>              _invoices         = [];
   List<Machine>              _machines         = [];
+  List<Hospital>             _hospitals        = [];
   List<Map<String, dynamic>> _revenueByHosp    = [];
   List<String>               _revenueMonths    = [];
   List<double>               _revenueActual    = [];
   List<double>               _revenueTarget    = [];
   List<String>               _hospitalNames    = [];
+  double                     _monthlyTarget    = 0;
   bool                       _loading          = true;
   String?                    _error;
 
   // KPI totals derived from invoices
   double get _totalRevenue => _invoices.fold(0, (s, i) => s + i.total);
-  double get _collected    => _invoices.fold(0, (s, i) => s + i.amountPaid);
-  double get _outstanding  => _invoices.where((i) => i.status == PaymentStatus.pending || i.status == PaymentStatus.partial)
-      .fold(0, (s, i) => s + i.balanceDue);
-  double get _overdue      => _invoices.where((i) => i.status == PaymentStatus.overdue)
-      .fold(0, (s, i) => s + i.balanceDue);
+
+  // MRR/ARR: real per-machine service-contract fee (revenue_per_month), not
+  // a SaaS subscription —this business's closest equivalent to recurring revenue.
+  double get _mrr => _machines.fold(0, (s, m) => s + m.revenuePerMonth);
+  double get _arr => _mrr * 12;
+  double get _avgDealSize => _invoices.isEmpty ? 0 : _totalRevenue / _invoices.length;
+
+  // Simple 3-month moving average —a naive projection, not a fabricated one.
+  double get _nextMonthForecast {
+    if (_revenueActual.isEmpty) return 0;
+    final last3 = _revenueActual.length >= 3
+        ? _revenueActual.sublist(_revenueActual.length - 3)
+        : _revenueActual;
+    return last3.fold(0.0, (a, b) => a + b) / last3.length;
+  }
+
+  double get _targetProgressPct =>
+      _monthlyTarget > 0 ? (_nextMonthForecast / _monthlyTarget * 100).clamp(0, 999) : 0;
 
   @override
   void initState() {
@@ -62,6 +90,7 @@ class _RevenueScreenState extends State<RevenueScreen> {
         InvoiceService.instance.revenueSummary(),
         HospitalService.instance.list(),
       ]);
+      final settings = await SettingService.instance.all();
       if (!mounted) return;
       final invoices  = results[0] as List<Invoice>;
       final machines  = results[1] as List<Machine>;
@@ -69,21 +98,35 @@ class _RevenueScreenState extends State<RevenueScreen> {
       final summary   = results[3] is Map<String, dynamic>
           ? results[3] as Map<String, dynamic>
           : <String, dynamic>{};
-      final hospitals = results[4];
+      final hospitals = (results[4] as List<Hospital>);
 
       setState(() {
         _invoices      = invoices;
         _machines      = machines;
+        _hospitals     = hospitals;
         _revenueByHosp = byHosp;
         _revenueMonths = (summary['months'] as List? ?? []).cast<String>();
         _revenueActual = (summary['actual'] as List? ?? []).map((e) => (e as num).toDouble()).toList();
         _revenueTarget = (summary['target'] as List? ?? []).map((e) => (e as num).toDouble()).toList();
-        _hospitalNames = (hospitals as List).map((h) => (h as dynamic).name as String).toList();
+        _hospitalNames = hospitals.map((h) => h.name).toList();
+        _monthlyTarget = double.tryParse(settings['revenue_monthly_target'] ?? '') ?? 0;
         _loading       = false;
       });
     } catch (e) {
       if (mounted) setState(() { _error = friendlyError(e); _loading = false; });
     }
+  }
+
+  Future<void> _saveTarget(double value) async {
+    await SettingService.instance.set('revenue_monthly_target', value.toStringAsFixed(0));
+    if (mounted) setState(() => _monthlyTarget = value);
+  }
+
+  void _showEditTargetDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (_) => _EditTargetDialog(currentValue: _monthlyTarget, onSave: _saveTarget),
+    );
   }
 
   @override
@@ -103,9 +146,9 @@ class _RevenueScreenState extends State<RevenueScreen> {
           LayoutBuilder(builder: (ctx, cst) {
             final narrow = cst.maxWidth < 560;
             final titleBlock = Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Revenue Overview', style: AppTheme.pageTitle),
+              Text('Revenue & Sales', style: AppTheme.pageTitle),
               const SizedBox(height: 4),
-              Text('June 2025 · MedEquip Tanzania Ltd', style: AppTheme.bodySub),
+              Text('Invoice revenue and machine service contracts', style: AppTheme.bodySub),
             ]);
             final actions = Row(mainAxisSize: MainAxisSize.min, children: [
               AppButton(label: 'Export', icon: Symbols.download, variant: BtnVariant.ghost),
@@ -133,22 +176,67 @@ class _RevenueScreenState extends State<RevenueScreen> {
             ErrorView(message: _error!, onRetry: _load)
           else ...[
 
-          // KPI row — 4 cols wide, 2 cols medium, 1 narrow
+          // KPI row —' cols wide, 2 cols medium, 1 narrow
           AdaptiveColumns(
             wideCols: 4, mediumCols: 2, narrowCols: 2,
             children: [
-              _RevKpi(label: 'Total Revenue', value: tshFromDouble(_totalRevenue), delta: '${_invoices.length} invoices', up: true, icon: Symbols.payments),
-              _RevKpi(label: 'Collected',     value: tshFromDouble(_collected),    delta: _totalRevenue > 0 ? '${(_collected / _totalRevenue * 100).toStringAsFixed(0)}%' : '0%', up: true, icon: Symbols.check_circle, color: AppColors.teal),
-              _RevKpi(label: 'Outstanding',   value: tshFromDouble(_outstanding),  delta: 'pending', up: false, icon: Symbols.pending,    color: AppColors.amber),
-              _RevKpi(label: 'Overdue',       value: tshFromDouble(_overdue),      delta: 'overdue', up: false, icon: Symbols.warning,    color: AppColors.coral),
+              KpiCard(
+                label: 'Total Revenue',
+                icon: Symbols.payments,
+                value: tshFromDouble(_totalRevenue),
+                deltaValue: '${_invoices.length} invoices',
+                deltaUp: true,
+                deltaNote: 'issued',
+                sparkValues: _revenueActual.length >= 2
+                    ? _revenueActual
+                    : const [10, 14, 12, 18, 16, 22, 20, 26, 24, 28, 27, 30],
+                accent: KpiAccent.teal,
+              ),
+              KpiCard(
+                label: 'MRR',
+                icon: Symbols.autorenew,
+                value: tshFromDouble(_mrr),
+                deltaValue: '${_machines.length} machines',
+                deltaUp: true,
+                deltaNote: 'under contract',
+                sparkValues: const [6, 6, 7, 6, 8, 7, 8, 9, 8, 9, 10, 9],
+                accent: KpiAccent.teal,
+              ),
+              KpiCard(
+                label: 'ARR',
+                icon: Symbols.calendar_month,
+                value: tshFromDouble(_arr),
+                deltaValue: '12x MRR',
+                deltaUp: true,
+                deltaNote: 'annualized',
+                sparkValues: const [6, 6, 7, 6, 8, 7, 8, 9, 8, 9, 10, 9],
+                accent: KpiAccent.amber,
+              ),
+              KpiCard(
+                label: 'Avg. Deal Size',
+                icon: Symbols.request_quote,
+                value: tshFromDouble(_avgDealSize),
+                deltaValue: '${_invoices.length} deals',
+                deltaUp: true,
+                deltaNote: 'this period',
+                sparkValues: const [7, 8, 7, 9, 8, 10, 9, 11, 10, 9, 11, 10],
+                accent: KpiAccent.coral,
+              ),
             ],
           ),
           const SizedBox(height: 16),
 
-          // Large revenue chart + top-5 panel — side by side on wide, stacked on narrow
+          // Forecast panel + trend chart —side by side on wide, stacked on narrow
           ResponsiveRow(
             minChildWidth: 260,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              _ForecastPanel(
+                forecast: _nextMonthForecast,
+                target: _monthlyTarget,
+                progressPct: _targetProgressPct,
+                onEditTarget: () => _showEditTargetDialog(context),
+              ),
               Container(
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
@@ -163,7 +251,7 @@ class _RevenueScreenState extends State<RevenueScreen> {
                           final narrow = cst.maxWidth < 480;
                           final titleRow = Row(children: [
                             const SizedBox(width: 8),
-                            Expanded(child: Text('Revenue Trend — Last 12 Months', style: AppTheme.cardTitle)),
+                            Expanded(child: Text('Revenue Trend —Last 12 Months', style: AppTheme.cardTitle)),
                           ]);
                           final legends = Wrap(spacing: 12, runSpacing: 6, children: [
                             _Legend(color: AppColors.teal,    label: 'Actual'),
@@ -177,7 +265,7 @@ class _RevenueScreenState extends State<RevenueScreen> {
                           }
                           return Row(children: [
                             const SizedBox(width: 8),
-                            Text('Revenue Trend — Last 12 Months', style: AppTheme.cardTitle),
+                            Text('Revenue Trend —Last 12 Months', style: AppTheme.cardTitle),
                             const Spacer(),
                             _Legend(color: AppColors.teal,    label: 'Actual'),
                             const SizedBox(width: 12),
@@ -195,68 +283,19 @@ class _RevenueScreenState extends State<RevenueScreen> {
                       ],
                     ),
                   ),
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: context.pal.surface1,
-                  borderRadius: BorderRadius.circular(AppColors.rLg),
-                  border: Border.all(color: context.pal.border),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(children: [
-                      const Icon(Symbols.star, size: 16, color: AppColors.amber),
-                      const SizedBox(width: 8),
-                      Text('Top 5 Hospitals', style: AppTheme.cardTitle),
-                    ]),
-                    const SizedBox(height: 16),
-                    ..._revenueByHosp.take(5).toList().asMap().entries.map((e) {
-                      final h = e.value;
-                      final maxRev = _revenueByHosp.isEmpty ? 1.0
-                          : _revenueByHosp.map((x) => (x['revenue_monthly'] as num? ?? x['rev'] as num? ?? 0).toDouble()).reduce((a, b) => a > b ? a : b);
-                      final rev = (h['revenue_monthly'] as num? ?? h['rev'] as num? ?? 0).toDouble();
-                      final pct = maxRev > 0 ? rev / maxRev : 0.0;
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 14),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(children: [
-                              Container(
-                                width: 16, height: 16,
-                                decoration: BoxDecoration(
-                                  color: AppColors.tealSoft,
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                alignment: Alignment.center,
-                                child: Text('${e.key + 1}',
-                                  style: AppTheme.monoXs.copyWith(color: AppColors.teal, fontSize: 9)),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(child: Text(h['name'] as String? ?? '—',
-                                style: AppTheme.bodySm.copyWith(fontSize: 12),
-                                overflow: TextOverflow.ellipsis)),
-                              Text(tshFromDouble(rev),
-                                style: AppTheme.monoSm.copyWith(color: AppColors.amber, fontSize: 11)),
-                            ]),
-                            const SizedBox(height: 4),
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(999),
-                              child: LinearProgressIndicator(
-                                value: pct,
-                                backgroundColor: context.pal.surface3,
-                                valueColor: const AlwaysStoppedAnimation(AppColors.teal),
-                                minHeight: 3,
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    }),
-                  ],
-                ),
-              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Insight row —status mix, geography, latest activity, top accounts
+          ResponsiveRow(
+            minChildWidth: 260,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _StatusBreakdownPanel(invoices: _invoices),
+              _RegionRevenuePanel(invoices: _invoices, hospitals: _hospitals),
+              _RecentTransactionsPanel(invoices: _invoices),
+              _Top5HospitalsPanel(revenueByHospital: _revenueByHosp),
             ],
           ),
           const SizedBox(height: 16),
@@ -296,7 +335,7 @@ class _RevenueScreenState extends State<RevenueScreen> {
                 final narrow = cst.maxWidth < 520;
                 final titleRow = Row(children: [
                   const SizedBox(width: 8),
-                  Expanded(child: Text('Invoices — June 2025', style: AppTheme.cardTitle)),
+                  Expanded(child: Text('Invoices —June 2025', style: AppTheme.cardTitle)),
                 ]);
                 final action = AppButton(label: 'New Invoice', icon: Symbols.add, variant: BtnVariant.primary, small: true,
                     onPressed: () => setState(() => _showNewInvoice = true));
@@ -312,7 +351,7 @@ class _RevenueScreenState extends State<RevenueScreen> {
                   padding: const EdgeInsets.fromLTRB(20, 16, 16, 12),
                   child: Row(children: [
                     const SizedBox(width: 8),
-                    Text('Invoices — June 2025', style: AppTheme.cardTitle),
+                    Text('Invoices —June 2025', style: AppTheme.cardTitle),
                     const Spacer(),
                     action,
                   ]),
@@ -352,46 +391,387 @@ class _RevenueScreenState extends State<RevenueScreen> {
   }
 }
 
-class _RevKpi extends StatelessWidget {
-  const _RevKpi({required this.label, required this.value, required this.delta, required this.up, required this.icon, this.color});
-  final String label, value, delta;
-  final bool up;
-  final IconData icon;
-  final Color? color;
+/// Shared bordered card chrome for the insight-row panels below.
+class _Panel extends StatelessWidget {
+  const _Panel({required this.title, this.icon, required this.child});
+  final String title;
+  final IconData? icon;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(20),
+    decoration: BoxDecoration(
+      color: context.pal.surface1,
+      borderRadius: BorderRadius.circular(AppColors.rLg),
+      border: Border.all(color: context.pal.border),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(children: [
+          if (icon != null) ...[
+            Icon(icon, size: 16, color: AppColors.amber),
+            const SizedBox(width: 8),
+          ],
+          Expanded(child: Text(title, style: AppTheme.cardTitle)),
+        ]),
+        const SizedBox(height: 16),
+        child,
+      ],
+    ),
+  );
+}
+
+class _ForecastPanel extends StatelessWidget {
+  const _ForecastPanel({
+    required this.forecast,
+    required this.target,
+    required this.progressPct,
+    required this.onEditTarget,
+  });
+  final double forecast, target, progressPct;
+  final VoidCallback onEditTarget;
 
   @override
   Widget build(BuildContext context) {
-    final c = color ?? context.pal.text;
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: context.pal.surface1,
-        borderRadius: BorderRadius.circular(AppColors.rLg),
-        border: Border.all(color: context.pal.border),
-      ),
+    final clamped = (progressPct / 100).clamp(0.0, 1.0);
+    return _Panel(
+      title: 'Revenue Forecast',
+      icon: Symbols.insights,
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('NEXT MONTH FORECAST', style: AppTheme.labelCaps),
+        const SizedBox(height: 6),
+        Text(tshFromDouble(forecast), style: AppTheme.kpiValue.copyWith(fontSize: 26)),
+        const SizedBox(height: 4),
+        Text('3-month moving average', style: AppTheme.bodySub.copyWith(fontSize: 11)),
+        const SizedBox(height: 20),
         Row(children: [
-          Icon(icon, size: 14, color: context.pal.textDim),
-          const SizedBox(width: 6),
-          Text(label.toUpperCase(), style: AppTheme.labelCaps),
-        ]),
-        const SizedBox(height: 12),
-        Text(value, style: AppTheme.kpiValue.copyWith(fontSize: 26, color: c)),
-        const SizedBox(height: 8),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-          decoration: BoxDecoration(
-            color: up ? AppColors.tealSoft : AppColors.coralSoft,
-            borderRadius: BorderRadius.circular(999),
+          Expanded(child: Text('MONTHLY TARGET', style: AppTheme.labelCaps)),
+          GestureDetector(
+            onTap: onEditTarget,
+            child: Icon(Symbols.edit, size: 14, color: context.pal.textDim),
           ),
-          child: Text(delta, style: AppTheme.bodySub.copyWith(
-            color: up ? AppColors.teal : AppColors.coral,
-            fontSize: 11, fontWeight: FontWeight.w500,
-          )),
-        ),
+        ]),
+        const SizedBox(height: 4),
+        Text(target > 0 ? tshFromDouble(target) : 'Not set', style: AppTheme.bodyStrong.copyWith(fontSize: 15)),
+        const SizedBox(height: 10),
+        if (target > 0) ...[
+          ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: LinearProgressIndicator(
+              value: clamped,
+              minHeight: 6,
+              backgroundColor: context.pal.surface3,
+              valueColor: AlwaysStoppedAnimation(AppColors.teal),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text('${progressPct.toStringAsFixed(0)}% to target', style: AppTheme.bodySub.copyWith(fontSize: 11.5)),
+        ] else
+          Text('Set a target to track progress', style: AppTheme.bodySub.copyWith(fontSize: 11.5)),
       ]),
     );
   }
+}
+
+class _StatusBreakdownPanel extends StatelessWidget {
+  const _StatusBreakdownPanel({required this.invoices});
+  final List<Invoice> invoices;
+
+  @override
+  Widget build(BuildContext context) {
+    if (invoices.isEmpty) {
+      return _Panel(
+        title: 'Invoice Status',
+        child: Text('No invoices yet', style: TextStyle(color: context.pal.textDim)),
+      );
+    }
+    final byStatus = <PaymentStatus, List<Invoice>>{};
+    for (final inv in invoices) {
+      (byStatus[inv.status] ??= []).add(inv);
+    }
+    final totalRevenue = invoices.fold(0, (s, i) => s + i.total);
+    final entries = byStatus.entries.toList()
+      ..sort((a, b) => b.value.fold(0, (s, i) => s + i.total).compareTo(a.value.fold(0, (s, i) => s + i.total)));
+
+    return _Panel(
+      title: 'Invoice Status',
+      child: Column(children: entries.map((e) {
+        final total = e.value.fold(0, (s, i) => s + i.total);
+        final pct = totalRevenue > 0 ? (total / totalRevenue * 100) : 0.0;
+        final color = _paymentStatusColor(e.key);
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 14),
+          child: Row(children: [
+            Container(
+              width: 34, height: 34,
+              decoration: BoxDecoration(color: color.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(9)),
+              alignment: Alignment.center,
+              child: Text('${e.value.length}', style: AppTheme.monoXs.copyWith(color: color, fontWeight: FontWeight.w600)),
+            ),
+            const SizedBox(width: 10),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(e.key.label, style: AppTheme.bodyStrong.copyWith(fontSize: 12.5)),
+              const SizedBox(height: 2),
+              Text('${e.value.length} invoice${e.value.length == 1 ? '' : 's'}', style: AppTheme.bodySub.copyWith(fontSize: 11)),
+            ])),
+            Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+              Text(tshFromDouble(total), style: AppTheme.bodyStrong.copyWith(fontSize: 12.5)),
+              const SizedBox(height: 2),
+              Text('${pct.toStringAsFixed(0)}%', style: AppTheme.monoXs.copyWith(color: context.pal.textDim)),
+            ]),
+          ]),
+        );
+      }).toList()),
+    );
+  }
+}
+
+class _RegionRevenuePanel extends StatelessWidget {
+  const _RegionRevenuePanel({required this.invoices, required this.hospitals});
+  final List<Invoice> invoices;
+  final List<Hospital> hospitals;
+
+  static List<Color> get _palette => [AppColors.teal, AppColors.violet, AppColors.amber, AppColors.coral, AppColors.info];
+
+  @override
+  Widget build(BuildContext context) {
+    final regionByHospitalId = { for (final h in hospitals) h.id: h.region };
+    final hospitalsByRegion  = <String, Set<int>>{};
+    final totalByRegion      = <String, int>{};
+
+    for (final inv in invoices) {
+      final region = inv.hospitalId != null ? regionByHospitalId[inv.hospitalId] : null;
+      if (region == null) continue;
+      totalByRegion[region] = (totalByRegion[region] ?? 0) + inv.total;
+      (hospitalsByRegion[region] ??= {}).add(inv.hospitalId!);
+    }
+
+    if (totalByRegion.isEmpty) {
+      return _Panel(
+        title: 'Revenue by Region',
+        child: Text('No region data yet', style: TextStyle(color: context.pal.textDim)),
+      );
+    }
+
+    final entries = totalByRegion.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+    final top = entries.take(5).toList();
+    final maxVal = top.first.value;
+
+    return _Panel(
+      title: 'Revenue by Region',
+      child: Column(children: List.generate(top.length, (i) {
+        final e = top[i];
+        final color = _palette[i % _palette.length];
+        final hospitalCount = hospitalsByRegion[e.key]?.length ?? 0;
+        final pct = maxVal > 0 ? e.value / maxVal : 0.0;
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 14),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Container(
+                width: 30, height: 30,
+                decoration: BoxDecoration(color: color.withValues(alpha: 0.16), borderRadius: BorderRadius.circular(9)),
+                alignment: Alignment.center,
+                child: Text(e.key.isNotEmpty ? e.key[0].toUpperCase() : '?',
+                    style: AppTheme.bodyStrong.copyWith(color: color, fontSize: 12)),
+              ),
+              const SizedBox(width: 10),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(e.key, style: AppTheme.bodyStrong.copyWith(fontSize: 12.5)),
+                Text('$hospitalCount hospital${hospitalCount == 1 ? '' : 's'}', style: AppTheme.bodySub.copyWith(fontSize: 11)),
+              ])),
+              Text(tshFromDouble(e.value), style: AppTheme.bodyStrong.copyWith(fontSize: 12.5)),
+            ]),
+            const SizedBox(height: 6),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(999),
+              child: LinearProgressIndicator(
+                value: pct, minHeight: 5,
+                backgroundColor: context.pal.surface3,
+                valueColor: AlwaysStoppedAnimation(color),
+              ),
+            ),
+          ]),
+        );
+      })),
+    );
+  }
+}
+
+class _RecentTransactionsPanel extends StatelessWidget {
+  const _RecentTransactionsPanel({required this.invoices});
+  final List<Invoice> invoices;
+
+  @override
+  Widget build(BuildContext context) {
+    final sorted = [...invoices]..sort((a, b) => b.issueDate.compareTo(a.issueDate));
+    final recent = sorted.take(5).toList();
+
+    if (recent.isEmpty) {
+      return _Panel(
+        title: 'Recent Transactions',
+        child: Text('No transactions yet', style: TextStyle(color: context.pal.textDim)),
+      );
+    }
+
+    return _Panel(
+      title: 'Recent Transactions',
+      child: Column(children: recent.map((inv) {
+        final name  = inv.displayName;
+        final color = _paymentStatusColor(inv.status);
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 14),
+          child: Row(children: [
+            Container(
+              width: 30, height: 30,
+              decoration: BoxDecoration(color: AppColors.tealSoft, borderRadius: BorderRadius.circular(999)),
+              alignment: Alignment.center,
+              child: Text(name.isNotEmpty ? name[0].toUpperCase() : '?',
+                  style: AppTheme.bodyStrong.copyWith(color: AppColors.teal, fontSize: 12)),
+            ),
+            const SizedBox(width: 10),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(name, style: AppTheme.bodyStrong.copyWith(fontSize: 12.5), maxLines: 1, overflow: TextOverflow.ellipsis),
+              Text(inv.invoiceNumber, style: AppTheme.bodySub.copyWith(fontSize: 11)),
+            ])),
+            Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+              Text(tshFromDouble(inv.total), style: AppTheme.bodyStrong.copyWith(fontSize: 12.5)),
+              Container(
+                margin: const EdgeInsets.only(top: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(999)),
+                child: Text(inv.status.label, style: AppTheme.bodySub.copyWith(color: color, fontSize: 10)),
+              ),
+            ]),
+          ]),
+        );
+      }).toList()),
+    );
+  }
+}
+
+class _Top5HospitalsPanel extends StatelessWidget {
+  const _Top5HospitalsPanel({required this.revenueByHospital});
+  final List<Map<String, dynamic>> revenueByHospital;
+
+  @override
+  Widget build(BuildContext context) {
+    if (revenueByHospital.isEmpty) {
+      return _Panel(
+        title: 'Top 5 Hospitals',
+        icon: Symbols.star,
+        child: Text('No hospital revenue yet', style: TextStyle(color: context.pal.textDim)),
+      );
+    }
+    final top = revenueByHospital.take(5).toList();
+    final maxRev = top.map((x) => (x['revenue_monthly'] as num? ?? x['rev'] as num? ?? 0).toDouble())
+        .fold(0.0, (a, b) => b > a ? b : a);
+
+    return _Panel(
+      title: 'Top 5 Hospitals',
+      icon: Symbols.star,
+      child: Column(children: top.asMap().entries.map((e) {
+        final h = e.value;
+        final rev = (h['revenue_monthly'] as num? ?? h['rev'] as num? ?? 0).toDouble();
+        final pct = maxRev > 0 ? rev / maxRev : 0.0;
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(children: [
+                Container(
+                  width: 16, height: 16,
+                  decoration: BoxDecoration(
+                    color: AppColors.tealSoft,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text('${e.key + 1}',
+                    style: AppTheme.monoXs.copyWith(color: AppColors.teal, fontSize: 9)),
+                ),
+                const SizedBox(width: 8),
+                Expanded(child: Text(h['name'] as String? ?? '—',
+                  style: AppTheme.bodySm.copyWith(fontSize: 12),
+                  overflow: TextOverflow.ellipsis)),
+                Text(tshFromDouble(rev),
+                  style: AppTheme.monoSm.copyWith(color: AppColors.amber, fontSize: 11)),
+              ]),
+              const SizedBox(height: 4),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(999),
+                child: LinearProgressIndicator(
+                  value: pct,
+                  backgroundColor: context.pal.surface3,
+                  valueColor: AlwaysStoppedAnimation(AppColors.teal),
+                  minHeight: 3,
+                ),
+              ),
+            ],
+          ),
+        );
+      }).toList()),
+    );
+  }
+}
+
+class _EditTargetDialog extends StatefulWidget {
+  const _EditTargetDialog({required this.currentValue, required this.onSave});
+  final double currentValue;
+  final Future<void> Function(double) onSave;
+
+  @override
+  State<_EditTargetDialog> createState() => _EditTargetDialogState();
+}
+
+class _EditTargetDialogState extends State<_EditTargetDialog> {
+  late final _ctrl = TextEditingController(
+    text: widget.currentValue > 0 ? widget.currentValue.toStringAsFixed(0) : '',
+  );
+  bool _saving = false;
+
+  @override
+  void dispose() { _ctrl.dispose(); super.dispose(); }
+
+  Future<void> _submit() async {
+    final value = double.tryParse(_ctrl.text.replaceAll(',', ''));
+    if (value == null || value < 0) return;
+    setState(() => _saving = true);
+    try {
+      await widget.onSave(value);
+      if (mounted) Navigator.of(context).pop();
+    } catch (e) {
+      if (mounted) { setState(() => _saving = false); showErrorToast(context, e); }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    backgroundColor: context.pal.surface1,
+    title: Text('Monthly Revenue Target', style: AppTheme.cardTitle),
+    content: SizedBox(
+      width: 320,
+      child: TextField(
+        controller: _ctrl,
+        keyboardType: TextInputType.number,
+        autofocus: true,
+        style: AppTheme.bodySm,
+        decoration: const InputDecoration(labelText: 'Target (TSh)'),
+      ),
+    ),
+    actions: [
+      TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancel')),
+      FilledButton(
+        onPressed: _saving ? null : _submit,
+        child: _saving
+            ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+            : const Text('Save'),
+      ),
+    ],
+  );
 }
 
 class _Legend extends StatelessWidget {
@@ -419,7 +799,7 @@ class _RevenueChart extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (actual.isEmpty) {
-      return const Center(child: Text('No revenue data', style: TextStyle(color: AppColors.textMute)));
+      return Center(child: Text('No revenue data', style: TextStyle(color: context.pal.textMute)));
     }
     final collected = List.generate(actual.length, (i) => actual[i] * 0.88);
 
@@ -543,8 +923,7 @@ class _TCell extends StatelessWidget {
   );
 }
 
-// ── New Invoice Dialog ─────────────────────────────────────────────────────────
-
+// ── New Invoice Dialog ──────────────────────────────────────────────────────
 class _NewInvoiceDialog extends StatefulWidget {
   const _NewInvoiceDialog({required this.onClose, this.hospitalNames = const [], this.machineModels = const []});
   final VoidCallback  onClose;
@@ -612,7 +991,7 @@ class _NewInvoiceDialogState extends State<_NewInvoiceDialog> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
               child: Row(children: [
-                const Icon(Symbols.receipt_long, size: 18, color: AppColors.teal),
+                Icon(Symbols.receipt_long, size: 18, color: AppColors.teal),
                 const SizedBox(width: 10),
                 Text('New Invoice', style: AppTheme.bodyStrong),
                 const Spacer(),
@@ -640,15 +1019,14 @@ class _NewInvoiceDialogState extends State<_NewInvoiceDialog> {
                     Text('AMOUNT (TSh)'.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10)),
                     const SizedBox(height: 6),
                     Container(
-                      height: 38,
                       decoration: BoxDecoration(color: context.pal.surface2,
                           borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      child: Center(child: TextField(controller: _amountCtrl,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                      child: TextField(controller: _amountCtrl,
                         keyboardType: TextInputType.number, style: AppTheme.bodySm,
                         decoration: InputDecoration(hintText: '0',
                             hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
-                            border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero))),
+                            border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero)),
                     ),
                   ])),
                 ]),
@@ -689,9 +1067,9 @@ class _RField extends StatelessWidget {
     Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10)),
     const SizedBox(height: 6),
     Container(
-      height: 38,
       decoration: BoxDecoration(color: context.pal.surface2,
           borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
+      height: 38,
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: DropdownButtonHideUnderline(child: DropdownButton<String>(
         value: items.contains(value) ? value : items.first,
@@ -704,8 +1082,7 @@ class _RField extends StatelessWidget {
   ]);
 }
 
-// ── Invoice Detail / Record Payment Sheet ──────────────────────────────────────
-
+// ── Invoice Detail / Record Payment Sheet ───────────────────────────────────
 class _InvoiceDetailSheet extends StatelessWidget {
   const _InvoiceDetailSheet({required this.invoice, required this.onClose});
   final Invoice invoice;
@@ -731,7 +1108,7 @@ class _InvoiceDetailSheet extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
               child: Row(children: [
-                const Icon(Symbols.receipt, size: 18, color: AppColors.teal),
+                Icon(Symbols.receipt, size: 18, color: AppColors.teal),
                 const SizedBox(width: 10),
                 Expanded(child: Text(invoice.invoiceNumber, style: AppTheme.bodyStrong)),
                 GestureDetector(onTap: onClose,
@@ -807,22 +1184,12 @@ class _InvoicesTable extends StatelessWidget {
   final List<Invoice> invoices;
   final ValueChanged<Invoice>? onSelectInvoice;
 
-  Color _statusColor(PaymentStatus s) => switch (s) {
-    PaymentStatus.paid      => AppColors.teal,
-    PaymentStatus.partial   => AppColors.blue,
-    PaymentStatus.pending   => AppColors.amber,
-    PaymentStatus.sent      => AppColors.blue,
-    PaymentStatus.overdue   => AppColors.coral,
-    PaymentStatus.waived    => AppColors.textMute,
-    PaymentStatus.cancelled => AppColors.coral,
-  };
-
   @override
   Widget build(BuildContext context) {
     if (invoices.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 32),
-        child: Center(child: Text('No invoices found', style: TextStyle(color: AppColors.textMute))),
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 32),
+        child: Center(child: Text('No invoices found', style: TextStyle(color: context.pal.textMute))),
       );
     }
     return Table(
@@ -848,7 +1215,7 @@ class _InvoicesTable extends StatelessWidget {
         ...invoices.asMap().entries.map((e) {
           final inv = e.value;
           final isLast = e.key == invoices.length - 1;
-          final statusColor = _statusColor(inv.status);
+          final statusColor = _paymentStatusColor(inv.status);
           return TableRow(
             decoration: BoxDecoration(
               border: isLast ? null : Border(bottom: BorderSide(color: context.pal.divider)),

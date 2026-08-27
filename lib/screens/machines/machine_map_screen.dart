@@ -1,156 +1,35 @@
-﻿import 'dart:math' as math;
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:material_symbols_icons/symbols.dart';
+import '../../models/hospital.dart';
 import '../../models/machine.dart';
+import '../../services/hospital_service.dart';
 import '../../services/machine_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/zones.dart';
+import '../../widgets/common/status_badge.dart';
 
 import '../../theme/app_palette.dart';
-// ── Zone / Region / District data ─────────────────────────────────────────────
 
-class _Zone {
-  const _Zone(this.key, this.label, this.regions);
-  final String key;
-  final String label;
-  final List<_Region> regions;
-
-  int get totalMachines => regions.fold(0, (s, r) => s + r.totalMachines);
-}
-
-class _Region {
-  const _Region(this.key, this.label, this.districts);
-  final String key;
-  final String label;
-  final List<_District> districts;
-
-  int get totalMachines => districts.fold(0, (s, d) => s + d.machines);
-}
-
-class _District {
-  const _District(this.label, this.machines);
-  final String label;
-  final int machines;
-}
-
-const _zones = [
-  _Zone('coastal', 'Coastal Zone', [
-    _Region('dsm', 'Dar es Salaam', [
-      _District('Ilala', 142), _District('Kinondoni', 98),
-      _District('Temeke', 56), _District('Ubungo', 44),
-    ]),
-    _Region('pwani', 'Pwani', [
-      _District('Bagamoyo', 18), _District('Kibaha', 22), _District('Kisarawe', 8),
-    ]),
-    _Region('tanga', 'Tanga', [
-      _District('Tanga City', 34), _District('Muheza', 12), _District('Korogwe', 9),
-    ]),
-  ]),
-  _Zone('northern', 'Northern Zone', [
-    _Region('arusha', 'Arusha', [
-      _District('Arusha City', 56), _District('Arumeru', 18), _District('Karatu', 7),
-    ]),
-    _Region('kilimanjaro', 'Kilimanjaro', [
-      _District('Moshi Urban', 48), _District('Moshi Rural', 22), _District('Same', 10),
-    ]),
-    _Region('manyara', 'Manyara', [
-      _District('Babati', 16), _District('Hanang', 9),
-    ]),
-  ]),
-  _Zone('lake', 'Lake Zone', [
-    _Region('mwanza', 'Mwanza', [
-      _District('Ilemela', 44), _District('Nyamagana', 38), _District('Magu', 12),
-    ]),
-    _Region('kagera', 'Kagera', [
-      _District('Bukoba Urban', 24), _District('Bukoba Rural', 11),
-    ]),
-    _Region('geita', 'Geita', [_District('Geita Town', 16)]),
-  ]),
-  _Zone('central', 'Central Zone', [
-    _Region('dodoma', 'Dodoma', [
-      _District('Dodoma City', 42), _District('Chamwino', 14), _District('Mpwapwa', 8),
-    ]),
-    _Region('singida', 'Singida', [
-      _District('Singida Urban', 16), _District('Singida Rural', 9),
-    ]),
-  ]),
-  _Zone('shighland', 'Southern Highland', [
-    _Region('mbeya', 'Mbeya', [
-      _District('Mbeya City', 28), _District('Mbarali', 9),
-    ]),
-    _Region('iringa', 'Iringa', [
-      _District('Iringa Urban', 18), _District('Kilolo', 9),
-    ]),
-  ]),
-  _Zone('southern', 'Southern Zone', [
-    _Region('lindi', 'Lindi', [
-      _District('Lindi Urban', 10), _District('Liwale', 4),
-    ]),
-    _Region('mtwara', 'Mtwara', [
-      _District('Mtwara Urban', 9),
-    ]),
-  ]),
-];
-
-// ── Map pin data with real Tanzania GPS coordinates ───────────────────────────
-
-class _Pin {
-  const _Pin(this.city, this.count, this.status, this.coords, this.zone);
-  final String city;
-  final int count;
-  final String status; // 'ok' | 'warn' | 'down'
-  final LatLng coords;
-  final String zone;
-}
-
-const _pins = [
-  _Pin('Dar es Salaam', 340, 'ok',   LatLng(-6.7924, 39.2083), 'coastal'),
-  _Pin('Arusha',         82, 'ok',   LatLng(-3.3869, 36.6830), 'northern'),
-  _Pin('Moshi',          80, 'warn', LatLng(-3.3545, 37.3411), 'northern'),
-  _Pin('Tanga',          55, 'ok',   LatLng(-5.0685, 39.0988), 'coastal'),
-  _Pin('Mwanza',         94, 'ok',   LatLng(-2.5164, 32.9175), 'lake'),
-  _Pin('Dodoma',         64, 'warn', LatLng(-6.1722, 35.7395), 'central'),
-  _Pin('Mbeya',          37, 'ok',   LatLng(-8.9000, 33.4667), 'shighland'),
-  _Pin('Morogoro',       44, 'down', LatLng(-6.8235, 37.6603), 'coastal'),
-  _Pin('Bukoba',         35, 'ok',   LatLng(-1.3317, 31.8167), 'lake'),
-  _Pin('Iringa',         27, 'ok',   LatLng(-7.7667, 35.7000), 'shighland'),
-  _Pin('Tabora',         28, 'warn', LatLng(-5.0167, 32.8000), 'central'),
-  _Pin('Mtwara',         19, 'ok',   LatLng(-10.2667, 40.1833), 'southern'),
-  _Pin('Lindi',          14, 'ok',   LatLng(-9.9942, 39.7175), 'southern'),
-  _Pin('Singida',        25, 'ok',   LatLng(-4.8167, 34.7500), 'central'),
-  _Pin('Geita',          16, 'warn', LatLng(-2.8667, 32.1667), 'lake'),
-  _Pin('Shinyanga',      22, 'ok',   LatLng(-3.6607, 33.4256), 'lake'),
-  _Pin('Kibaha',         30, 'ok',   LatLng(-6.7833, 38.9167), 'coastal'),
-  _Pin('Babati',         25, 'ok',   LatLng(-4.2167, 35.7500), 'northern'),
-  _Pin('Njombe',         18, 'ok',   LatLng(-9.3333, 34.7667), 'shighland'),
-  _Pin('Songea',         14, 'ok',   LatLng(-10.6831, 35.6536), 'southern'),
-];
-
-// ── Hospital drill-down data ───────────────────────────────────────────────────
-
-class _Hospital {
-  const _Hospital(this.name, this.district, this.machines, this.active);
-  final String name, district;
-  final int machines, active;
-}
-
-const _dsmHospitals = [
-  _Hospital('Muhimbili National Hospital',    'Ilala',      62, 58),
-  _Hospital('Aga Khan Hospital',              'Kinondoni',  44, 44),
-  _Hospital('Jakaya Kikwete Cardiac Inst.',   'Kinondoni',  38, 36),
-  _Hospital('TMJ Hospital',                  'Kinondoni',  28, 26),
-  _Hospital('CCBRT Disability Hospital',     'Kinondoni',  24, 22),
-  _Hospital('Mwananyamala Regional',         'Kinondoni',  22, 20),
-  _Hospital('Amana District Hospital',       'Ilala',      18, 16),
-  _Hospital('Temeke District Hospital',      'Temeke',     16, 14),
-];
-
-// ── Screen ────────────────────────────────────────────────────────────────────
-
+/// Real, hospital-aggregated fleet map. One marker per hospital (not per
+/// machine) — with hundreds of real installed machines, plotting every one
+/// individually would be unusable clutter. Each pin shows the hospital's
+/// short code + machine count (e.g. "KCMC (43)"); tapping it loads that
+/// hospital's real machine list into the detail panel. The zone tree on the
+/// left narrows both the map and the detail panel to a zone/region at a
+/// time. All data (zones, regions, hospitals, machine counts) is derived
+/// live from the real imported facility dataset — nothing here is
+/// hardcoded/sample data.
 class MachineMapScreen extends StatefulWidget {
-  const MachineMapScreen({super.key});
+  const MachineMapScreen({super.key, this.onApplyZones});
+
+  /// Called when the user taps "Apply to list" with the currently checked
+  /// zone keys — lets the parent (MachineListScreen) switch back to list
+  /// view pre-filtered to match.
+  final ValueChanged<Set<String>>? onApplyZones;
 
   @override
   State<MachineMapScreen> createState() => _MachineMapScreenState();
@@ -161,31 +40,24 @@ class _MachineMapScreenState extends State<MachineMapScreen> {
 
   String _mapMode = 'normal'; // 'normal' | 'satellite' | 'terrain'
   final Set<String> _overlays = {'hospitals', 'alerts'};
-  String _selectedZone = 'coastal';
-  String _selectedRegion = 'dsm';
-  String? _selectedHospital;
+  String? _selectedZone;
+  String? _selectedRegion;
+  Hospital? _selectedHospital;
   bool _filterOpen = false;
 
-  final Map<String, bool> _zoneExpanded = {
-    'coastal': true, 'northern': false, 'lake': false,
-    'central': false, 'shighland': false, 'southern': false,
-  };
-  final Set<String> _checkedZones = {'coastal'};
+  final Map<String, bool> _zoneExpanded = {};
+  final Set<String> _checkedZones = {}; // empty = all zones visible
 
-  // Live machine pins from API
-  List<Machine> _liveMachines = [];
+  List<Hospital> _hospitals = [];
+  bool _loadingHospitals = true;
+
+  List<Machine> _hospitalMachines = [];
+  bool _loadingMachines = false;
 
   @override
   void initState() {
     super.initState();
-    _loadPins();
-  }
-
-  Future<void> _loadPins() async {
-    try {
-      final machines = await MachineService.instance.mapPins();
-      if (mounted) setState(() => _liveMachines = machines);
-    } catch (_) {}
+    _loadHospitals();
   }
 
   @override
@@ -194,38 +66,83 @@ class _MachineMapScreenState extends State<MachineMapScreen> {
     super.dispose();
   }
 
-  // Build live markers for machines that have GPS coordinates
-  List<Marker> get _liveMarkers {
-    return _liveMachines
-        .where((m) => m.latitude != null && m.longitude != null)
-        .map((m) {
-      final color = switch (m.status) {
-        MachineStatus.down         => AppColors.coral,
-        MachineStatus.needsService => AppColors.amber,
-        _                          => AppColors.teal,
-      };
-      return Marker(
-        point: LatLng(m.latitude!, m.longitude!),
-        width: 28, height: 28,
-        child: Tooltip(
-          message: '${m.model} · ${m.hospital}',
-          child: Container(
-            decoration: BoxDecoration(
-              color: color,
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white, width: 2),
-              boxShadow: [BoxShadow(color: color.withValues(alpha: 0.5), blurRadius: 6)],
-            ),
-            child: const Icon(Symbols.medical_services, size: 12, color: Colors.white),
-          ),
-        ),
-      );
-    }).toList();
+  Future<void> _loadHospitals() async {
+    try {
+      final list = await HospitalService.instance.list();
+      if (mounted) {
+        setState(() {
+          _hospitals = list;
+          _loadingHospitals = false;
+          _selectedZone ??= _byZone.keys.isNotEmpty ? _byZone.keys.first : null;
+          if (_selectedZone != null) {
+            _zoneExpanded[_selectedZone!] = true;
+            final regions = _regionsInZone(_selectedZone!);
+            _selectedRegion ??= regions.keys.isNotEmpty ? regions.keys.first : null;
+          }
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loadingHospitals = false);
+    }
   }
 
-  _Zone get _activeZone  => _zones.firstWhere((z) => z.key == _selectedZone);
-  _Region get _activeRegion => _activeZone.regions
-      .firstWhere((r) => r.key == _selectedRegion, orElse: () => _activeZone.regions.first);
+  // ── Real data aggregation ────────────────────────────────────────────────
+
+  Map<String, List<Hospital>> get _byZone {
+    final map = <String, List<Hospital>>{};
+    for (final h in _hospitals) {
+      final z = h.zone;
+      if (z == null) continue;
+      map.putIfAbsent(z, () => []).add(h);
+    }
+    return map;
+  }
+
+  Map<String, List<Hospital>> _regionsInZone(String zone) {
+    final map = <String, List<Hospital>>{};
+    for (final h in _byZone[zone] ?? const <Hospital>[]) {
+      map.putIfAbsent(h.region, () => []).add(h);
+    }
+    return map;
+  }
+
+  int _sumMachines(List<Hospital> list) => list.fold(0, (s, h) => s + h.machineCount);
+
+  List<Hospital> get _visibleHospitals => _checkedZones.isEmpty
+      ? _hospitals
+      : _hospitals.where((h) => _checkedZones.contains(h.zone)).toList();
+
+  void _selectHospital(Hospital h) {
+    setState(() {
+      _selectedZone = h.zone ?? _selectedZone;
+      _selectedRegion = h.region;
+      _selectedHospital = h;
+      if (h.zone != null) _zoneExpanded[h.zone!] = true;
+    });
+    if (h.latitude != 0 && h.longitude != 0) {
+      _mapController.move(LatLng(h.latitude, h.longitude),
+          math.max(_mapController.camera.zoom, 7.5));
+    }
+    _loadMachinesFor(h);
+  }
+
+  void _clearSelectedHospital() => setState(() {
+    _selectedHospital = null;
+    _hospitalMachines = [];
+  });
+
+  Future<void> _loadMachinesFor(Hospital h) async {
+    setState(() {
+      _loadingMachines = true;
+      _hospitalMachines = [];
+    });
+    try {
+      final list = await MachineService.instance.list(hospitalId: h.id);
+      if (mounted) setState(() { _hospitalMachines = list; _loadingMachines = false; });
+    } catch (_) {
+      if (mounted) setState(() => _loadingMachines = false);
+    }
+  }
 
   // ── Tile URL per map mode ─────────────────────────────────────────────────
 
@@ -273,7 +190,6 @@ class _MachineMapScreenState extends State<MachineMapScreen> {
               _buildBottomStrip(),
             ],
           ),
-          // Filter overlay only needed for medium/narrow (wide shows it in bottom panel)
           if (!wide && _filterOpen) _buildFilterOverlay(),
         ],
       );
@@ -309,7 +225,6 @@ class _MachineMapScreenState extends State<MachineMapScreen> {
             const SizedBox(width: 12),
           ],
 
-          // Map mode toggle
           Container(
             height: 32,
             padding: const EdgeInsets.all(3),
@@ -332,7 +247,6 @@ class _MachineMapScreenState extends State<MachineMapScreen> {
           ),
           const SizedBox(width: 14),
 
-          // Overlay chips
           Expanded(
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
@@ -355,7 +269,6 @@ class _MachineMapScreenState extends State<MachineMapScreen> {
               ),
             ),
           ),
-
         ],
       ),
     );
@@ -370,17 +283,13 @@ class _MachineMapScreenState extends State<MachineMapScreen> {
   };
 
   // ── Layouts ───────────────────────────────────────────────────────────────
-  //
-  // Wide:   [Map ─ expanded] │ [Filter zones] │ [Zone details ◄ furthest right]
-  // Medium: [Map ─ expanded] │ [Zone details]   (filter via top-bar overlay)
-  // Narrow: [Map] stacked above [Zone details]
 
   Widget _buildWideLayout() => Row(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
       Expanded(child: _buildRealMap()),
       _buildFilterTree(width: 240),
-      _buildDrillDown(width: 280),
+      _buildDrillDown(width: 300),
     ],
   );
 
@@ -388,63 +297,48 @@ class _MachineMapScreenState extends State<MachineMapScreen> {
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
       Expanded(child: _buildRealMap()),
-      _buildDrillDown(width: 260),
+      _buildDrillDown(width: 280),
     ],
   );
 
   Widget _buildNarrowLayout() => Column(
     children: [
       Expanded(child: _buildRealMap()),
-      SizedBox(height: 220, child: _buildDrillDown()),
+      SizedBox(height: 240, child: _buildDrillDown()),
     ],
   );
 
   // ── Real map ──────────────────────────────────────────────────────────────
 
   Widget _buildRealMap() {
-    // Visible pins: either all or filtered to checked zones
-    final visiblePins = _checkedZones.isEmpty
-        ? _pins
-        : _pins.where((p) => _checkedZones.contains(p.zone)).toList();
+    final visible = _overlays.contains('hospitals')
+        ? _visibleHospitals.where((h) => h.latitude != 0 && h.longitude != 0).toList()
+        : <Hospital>[];
 
-    final markers = _overlays.contains('hospitals')
-        ? visiblePins.map((pin) => Marker(
-            point: pin.coords,
-            width: 110,
-            height: 56,
-            alignment: Alignment.bottomCenter,
-            child: _MapMarker(
-              pin: pin,
-              selected: pin.zone == _selectedZone,
-              onTap: () {
-                final zone = _zones.firstWhere((z) => z.key == pin.zone);
-                setState(() {
-                  _selectedZone = pin.zone;
-                  _selectedRegion = zone.regions.first.key;
-                  _selectedHospital = null;
-                  _zoneExpanded[pin.zone] = true;
-                  _mapController.move(pin.coords, math.max(
-                    _mapController.camera.zoom, 7.0));
-                });
-              },
-            ),
-          )).toList()
-        : <Marker>[];
+    final markers = visible.map((h) => Marker(
+          point: LatLng(h.latitude, h.longitude),
+          width: 130,
+          height: 80,
+          alignment: Alignment.bottomCenter,
+          child: _HospitalMarker(
+            hospital: h,
+            selected: h.zone != null && h.zone == _selectedZone,
+            onTap: () => _selectHospital(h),
+          ),
+        )).toList();
 
     return Stack(
       children: [
-        // ── Base map (north-up, rotation locked) ──────────────────────────
         ClipRect(
           child: FlutterMap(
             mapController: _mapController,
             options: const MapOptions(
               initialCenter: LatLng(-6.37, 34.89),
               initialZoom: 5.8,
-              initialRotation: 0,   // force north-up, no accidental rotation
+              initialRotation: 0,
               minZoom: 4.0,
               maxZoom: 16.0,
               interactionOptions: InteractionOptions(
-                // allow pan + zoom only — rotation gesture disabled
                 flags: InteractiveFlag.drag
                     | InteractiveFlag.flingAnimation
                     | InteractiveFlag.pinchMove
@@ -460,7 +354,7 @@ class _MachineMapScreenState extends State<MachineMapScreen> {
                   subdomains: _tileSubdomains,
                   userAgentPackageName: 'com.bienhypermed.app',
                 ),
-                MarkerLayer(markers: [...markers, ..._liveMarkers]),
+                MarkerLayer(markers: markers),
                 SimpleAttributionWidget(
                   source: Text(_attribution,
                     style: TextStyle(fontSize: 9, color: Colors.white54)),
@@ -470,7 +364,13 @@ class _MachineMapScreenState extends State<MachineMapScreen> {
             ),
           ),
 
-        // ── Floating controls (right edge) ─────────────────────────────────
+        if (_loadingHospitals)
+          const Positioned(
+            top: 12, left: 12,
+            child: SizedBox(width: 16, height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2)),
+          ),
+
         Positioned(
           right: 14,
           bottom: 36,
@@ -478,7 +378,6 @@ class _MachineMapScreenState extends State<MachineMapScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              // ── Satellite quick-toggle ──────────────────────────────────
               _FloatMapBtn(
                 icon: _mapMode == 'satellite'
                     ? Symbols.map
@@ -494,7 +393,6 @@ class _MachineMapScreenState extends State<MachineMapScreen> {
 
               const SizedBox(height: 6),
 
-              // ── Locate / reset ──────────────────────────────────────────
               _FloatMapBtn(
                 icon: Symbols.my_location,
                 tooltip: 'Reset to Tanzania overview',
@@ -504,7 +402,6 @@ class _MachineMapScreenState extends State<MachineMapScreen> {
 
               const SizedBox(height: 6),
 
-              // ── Zoom pad (+ and – joined) ───────────────────────────────
               Container(
                 width: 38,
                 decoration: BoxDecoration(
@@ -522,7 +419,6 @@ class _MachineMapScreenState extends State<MachineMapScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Zoom in
                     GestureDetector(
                       onTap: () {
                         final z = _mapController.camera.zoom;
@@ -539,7 +435,6 @@ class _MachineMapScreenState extends State<MachineMapScreen> {
                           size: 18, color: context.pal.textMute),
                       ),
                     ),
-                    // Zoom out
                     GestureDetector(
                       onTap: () {
                         final z = _mapController.camera.zoom;
@@ -566,6 +461,8 @@ class _MachineMapScreenState extends State<MachineMapScreen> {
   // ── Filter tree ───────────────────────────────────────────────────────────
 
   Widget _buildFilterTree({double? width}) {
+    final zoneKeys = zoneLabels.keys.where((k) => (_byZone[k]?.isNotEmpty ?? false)).toList();
+
     return Container(
       width: width,
       decoration: BoxDecoration(
@@ -591,32 +488,37 @@ class _MachineMapScreenState extends State<MachineMapScreen> {
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(vertical: 6),
               child: Column(
-                children: _zones.map((zone) => _ZoneItem(
-                  zone: zone,
-                  expanded: _zoneExpanded[zone.key] == true,
-                  checked: _checkedZones.contains(zone.key),
-                  selectedRegion: _selectedZone == zone.key ? _selectedRegion : null,
-                  onToggleExpand: () => setState(() =>
-                    _zoneExpanded[zone.key] = !(_zoneExpanded[zone.key] ?? false)),
-                  onToggleCheck: () => setState(() {
-                    if (_checkedZones.contains(zone.key)) {
-                      _checkedZones.remove(zone.key);
-                    } else {
-                      _checkedZones.add(zone.key);
-                    }
-                  }),
-                  onSelectRegion: (regionKey) => setState(() {
-                    _selectedZone = zone.key;
-                    _selectedRegion = regionKey;
-                    _selectedHospital = null;
-                    // Fly to zone's first pin
-                    final pin = _pins.firstWhere(
-                      (p) => p.zone == zone.key,
-                      orElse: () => _pins[0],
-                    );
-                    _mapController.move(pin.coords, 8.0);
-                  }),
-                )).toList(),
+                children: zoneKeys.map((zoneKey) {
+                  final regions = _regionsInZone(zoneKey);
+                  return _ZoneItem(
+                    zoneKey: zoneKey,
+                    label: zoneLabelFor(zoneKey),
+                    totalMachines: _sumMachines(_byZone[zoneKey] ?? const []),
+                    regions: regions,
+                    expanded: _zoneExpanded[zoneKey] == true,
+                    checked: _checkedZones.contains(zoneKey),
+                    selectedRegion: _selectedZone == zoneKey ? _selectedRegion : null,
+                    onToggleExpand: () => setState(() =>
+                      _zoneExpanded[zoneKey] = !(_zoneExpanded[zoneKey] ?? false)),
+                    onToggleCheck: () => setState(() {
+                      if (_checkedZones.contains(zoneKey)) {
+                        _checkedZones.remove(zoneKey);
+                      } else {
+                        _checkedZones.add(zoneKey);
+                      }
+                    }),
+                    onSelectRegion: (region) {
+                      setState(() {
+                        _selectedZone = zoneKey;
+                        _selectedRegion = region;
+                        _selectedHospital = null;
+                      });
+                      final hs = regions[region] ?? const <Hospital>[];
+                      final pin = hs.where((h) => h.latitude != 0 && h.longitude != 0).firstOrNull;
+                      if (pin != null) _mapController.move(LatLng(pin.latitude, pin.longitude), 7.5);
+                    },
+                  );
+                }).toList(),
               ),
             ),
           ),
@@ -629,15 +531,15 @@ class _MachineMapScreenState extends State<MachineMapScreen> {
               const SizedBox(width: 6),
               Text(
                 _checkedZones.isEmpty
-                    ? 'All 847 machines visible'
-                    : '$_visibleCount / 847 selected',
+                    ? 'All ${_sumMachines(_hospitals)} machines visible'
+                    : '${_sumMachines(_visibleHospitals)} / ${_sumMachines(_hospitals)} selected',
                 style: AppTheme.bodySm.copyWith(color: AppColors.teal, fontSize: 11.5)),
               const Spacer(),
               GestureDetector(
                 onTap: () => setState(() {
                   _checkedZones
                     ..clear()
-                    ..addAll(_zones.map((z) => z.key));
+                    ..addAll(zoneKeys);
                 }),
                 child: Text('All', style: AppTheme.bodySm.copyWith(
                   color: context.pal.textDim, fontSize: 11.5,
@@ -657,18 +559,11 @@ class _MachineMapScreenState extends State<MachineMapScreen> {
     );
   }
 
-  int get _visibleCount {
-    if (_checkedZones.isEmpty) return 847;
-    return _zones
-        .where((z) => _checkedZones.contains(z.key))
-        .fold(0, (s, z) => s + z.totalMachines);
-  }
-
   Widget _buildFilterOverlay() => Positioned(
     top: 48, left: 0, bottom: 0,
     child: Row(
       children: [
-        SizedBox(width: 220, child: _buildFilterTree(width: 220)),
+        SizedBox(width: 240, child: _buildFilterTree(width: 240)),
         GestureDetector(
           onTap: () => setState(() => _filterOpen = false),
           child: Container(width: 60, color: Colors.transparent),
@@ -680,8 +575,34 @@ class _MachineMapScreenState extends State<MachineMapScreen> {
   // ── Drill-down panel ──────────────────────────────────────────────────────
 
   Widget _buildDrillDown({double? width}) {
-    final zone   = _activeZone;
-    final region = _activeRegion;
+    if (_selectedHospital != null) {
+      return _buildHospitalDetail(_selectedHospital!, width: width);
+    }
+
+    final zoneKeys = zoneLabels.keys.where((k) => (_byZone[k]?.isNotEmpty ?? false)).toList();
+    if (zoneKeys.isEmpty) {
+      return Container(
+        width: width,
+        decoration: BoxDecoration(
+          color: context.pal.surface1,
+          border: Border(left: BorderSide(color: context.pal.border)),
+        ),
+        child: Center(
+          child: _loadingHospitals
+              ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+              : Text('No facility data yet', style: AppTheme.bodySub),
+        ),
+      );
+    }
+
+    final zoneKey = _selectedZone ?? zoneKeys.first;
+    final zoneHospitals = _byZone[zoneKey] ?? const <Hospital>[];
+    final regions = _regionsInZone(zoneKey);
+    final regionKey = _selectedRegion != null && regions.containsKey(_selectedRegion)
+        ? _selectedRegion!
+        : (regions.keys.isNotEmpty ? regions.keys.first : null);
+    final hospitalsInRegion = regionKey != null ? (regions[regionKey] ?? const <Hospital>[]) : const <Hospital>[];
+    final zoneTotal = _sumMachines(zoneHospitals);
 
     return Container(
       width: width,
@@ -693,7 +614,6 @@ class _MachineMapScreenState extends State<MachineMapScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Zone header
             Container(
               padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
               decoration: BoxDecoration(
@@ -710,49 +630,42 @@ class _MachineMapScreenState extends State<MachineMapScreen> {
                       ),
                     ),
                     const SizedBox(width: 7),
-                    Expanded(child: Text(zone.label,
+                    Expanded(child: Text(zoneLabelFor(zoneKey),
                       style: AppTheme.bodyStrong.copyWith(fontSize: 13))),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                       decoration: BoxDecoration(
                         color: AppColors.tealSoft,
                         borderRadius: BorderRadius.circular(999)),
-                      child: Text('${zone.totalMachines}',
+                      child: Text('$zoneTotal',
                         style: AppTheme.monoXs.copyWith(color: AppColors.teal)),
                     ),
                   ]),
                   const SizedBox(height: 8),
                   Row(children: [
-                    _DStat('${zone.regions.length}', 'REGIONS'),
+                    _DStat('${regions.length}', 'REGIONS'),
                     const SizedBox(width: 14),
-                    _DStat(
-                      '${zone.regions.fold(0, (s, r) => s + r.districts.length)}',
-                      'DISTRICTS'),
-                    const SizedBox(width: 14),
-                    _DStat('${zone.regions.length * 3 + 2}', 'HOSPITALS'),
+                    _DStat('${zoneHospitals.length}', 'HOSPITALS'),
                   ]),
                 ],
               ),
             ),
 
-            // Region list with progress bars
             Padding(
               padding: const EdgeInsets.fromLTRB(14, 10, 14, 4),
               child: Text('REGIONS', style: AppTheme.monoXs)),
-            ...zone.regions.map((r) {
-              final isActive = r.key == _selectedRegion;
+            ...regions.entries.map((e) {
+              final isActive = e.key == regionKey;
+              final regionTotal = _sumMachines(e.value);
               return GestureDetector(
                 onTap: () {
                   setState(() {
-                    _selectedRegion = r.key;
+                    _selectedZone = zoneKey;
+                    _selectedRegion = e.key;
                     _selectedHospital = null;
                   });
-                  // Fly to a pin in this region
-                  final pin = _pins.firstWhere(
-                    (p) => p.zone == zone.key,
-                    orElse: () => _pins[0],
-                  );
-                  _mapController.move(pin.coords, 8.0);
+                  final pin = e.value.where((h) => h.latitude != 0 && h.longitude != 0).firstOrNull;
+                  if (pin != null) _mapController.move(LatLng(pin.latitude, pin.longitude), 7.5);
                 },
                 child: Container(
                   margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -762,49 +675,13 @@ class _MachineMapScreenState extends State<MachineMapScreen> {
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(
                       color: isActive ? context.pal.borderStrong : Colors.transparent)),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(children: [
-                        Text(r.label, style: AppTheme.bodySm.copyWith(
-                          color: isActive ? context.pal.text : context.pal.textMute,
-                          fontWeight: FontWeight.w500, fontSize: 12.5)),
-                        const Spacer(),
-                        Text('${r.totalMachines}', style: AppTheme.monoXs.copyWith(
-                          color: isActive ? AppColors.teal : context.pal.textDim)),
-                      ]),
-                      const SizedBox(height: 6),
-                      ...r.districts.take(3).map((d) => Padding(
-                        padding: const EdgeInsets.only(bottom: 4),
-                        child: Row(children: [
-                          SizedBox(
-                            width: 70,
-                            child: Text(d.label,
-                              overflow: TextOverflow.ellipsis,
-                              style: AppTheme.bodySub.copyWith(fontSize: 10.5))),
-                          const SizedBox(width: 6),
-                          Expanded(child: Container(
-                            height: 3,
-                            decoration: BoxDecoration(
-                              color: context.pal.surface3,
-                              borderRadius: BorderRadius.circular(2)),
-                            child: FractionallySizedBox(
-                              widthFactor: math.min(1.0, d.machines / 150),
-                              alignment: Alignment.centerLeft,
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color: AppColors.teal.withValues(alpha: 0.7),
-                                  borderRadius: BorderRadius.circular(2)),
-                              ),
-                            ),
-                          )),
-                          const SizedBox(width: 6),
-                          Text('${d.machines}', style: AppTheme.monoXs.copyWith(
-                            fontSize: 9.5, color: context.pal.textDim)),
-                        ]),
-                      )),
-                    ],
-                  ),
+                  child: Row(children: [
+                    Expanded(child: Text(e.key, style: AppTheme.bodySm.copyWith(
+                      color: isActive ? context.pal.text : context.pal.textMute,
+                      fontWeight: FontWeight.w500, fontSize: 12.5))),
+                    Text('${e.value.length} hosp · $regionTotal', style: AppTheme.monoXs.copyWith(
+                      color: isActive ? AppColors.teal : context.pal.textDim, fontSize: 10)),
+                  ]),
                 ),
               );
             }),
@@ -812,38 +689,32 @@ class _MachineMapScreenState extends State<MachineMapScreen> {
             const SizedBox(height: 10),
             Container(height: 1, color: context.pal.border),
 
-            // Hospital list
             Padding(
               padding: const EdgeInsets.fromLTRB(14, 10, 14, 6),
               child: Row(children: [
                 Expanded(child: Text(
-                  'HOSPITALS — ${region.label.toUpperCase()}',
+                  regionKey != null ? 'HOSPITALS — ${regionKey.toUpperCase()}' : 'HOSPITALS',
                   style: AppTheme.monoXs,
                   overflow: TextOverflow.ellipsis)),
-                Text('${_dsmHospitals.length}',
+                Text('${hospitalsInRegion.length}',
                   style: AppTheme.monoXs.copyWith(color: context.pal.textDim)),
               ])),
-            ..._dsmHospitals.map((h) {
-              final isSelected = _selectedHospital == h.name;
+            ...hospitalsInRegion.map((h) {
               return GestureDetector(
-                onTap: () => setState(() =>
-                  _selectedHospital = isSelected ? null : h.name),
+                onTap: () => _selectHospital(h),
                 child: Container(
                   margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
                   decoration: BoxDecoration(
-                    color: isSelected ? AppColors.tealSoft : Colors.transparent,
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: isSelected ? AppColors.teal.withValues(alpha: 0.4) : Colors.transparent)),
+                  ),
                   child: Row(children: [
                     Container(
                       width: 26, height: 26,
                       decoration: BoxDecoration(
-                        color: isSelected ? AppColors.tealSoft : context.pal.surface3,
+                        color: context.pal.surface3,
                         borderRadius: BorderRadius.circular(6)),
-                      child: Icon(Symbols.local_hospital, size: 14,
-                        color: isSelected ? AppColors.teal : context.pal.textDim),
+                      child: Icon(Symbols.local_hospital, size: 14, color: context.pal.textDim),
                     ),
                     const SizedBox(width: 8),
                     Expanded(child: Column(
@@ -851,15 +722,11 @@ class _MachineMapScreenState extends State<MachineMapScreen> {
                       children: [
                         Text(h.name,
                           overflow: TextOverflow.ellipsis,
-                          style: AppTheme.bodySm.copyWith(
-                            fontSize: 11.5,
-                            color: isSelected ? context.pal.text : context.pal.textMute)),
+                          style: AppTheme.bodySm.copyWith(fontSize: 11.5, color: context.pal.textMute)),
                         Text(h.district, style: AppTheme.bodySub.copyWith(fontSize: 10)),
                       ])),
                     Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                      Text('${h.machines}', style: AppTheme.bodyStrong.copyWith(
-                        fontSize: 11.5,
-                        color: isSelected ? AppColors.teal : context.pal.text)),
+                      Text('${h.machineCount}', style: AppTheme.bodyStrong.copyWith(fontSize: 11.5)),
                       Text('machines', style: AppTheme.bodySub.copyWith(fontSize: 9.5)),
                     ]),
                   ]),
@@ -873,9 +740,120 @@ class _MachineMapScreenState extends State<MachineMapScreen> {
     );
   }
 
+  Widget _buildHospitalDetail(Hospital h, {double? width}) {
+    return Container(
+      width: width,
+      decoration: BoxDecoration(
+        color: context.pal.surface1,
+        border: Border(left: BorderSide(color: context.pal.border)),
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+              decoration: BoxDecoration(
+                border: Border(bottom: BorderSide(color: context.pal.border))),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  GestureDetector(
+                    onTap: _clearSelectedHospital,
+                    child: Row(children: [
+                      Icon(Symbols.arrow_back, size: 14, color: context.pal.textMute),
+                      const SizedBox(width: 4),
+                      Text('Back to ${zoneLabelFor(h.zone)}',
+                        style: AppTheme.bodySub.copyWith(fontSize: 11.5)),
+                    ]),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(h.name, style: AppTheme.bodyStrong.copyWith(fontSize: 14)),
+                  const SizedBox(height: 3),
+                  Text('${h.district} · ${h.region}', style: AppTheme.bodySub.copyWith(fontSize: 11.5)),
+                  const SizedBox(height: 10),
+                  Row(children: [
+                    _DStat('${h.machineCount}', 'MACHINES'),
+                    const SizedBox(width: 14),
+                    _DStat('${h.machinesOperational}', 'OPERATIONAL'),
+                    const SizedBox(width: 14),
+                    _DStat('${(h.uptimePct * 100).toStringAsFixed(0)}%', 'UPTIME'),
+                  ]),
+                ],
+              ),
+            ),
+
+            if (h.contactName != '—' || h.contactPhone != '—')
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: context.pal.surface2,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: context.pal.border),
+                  ),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    if (h.contactName != '—')
+                      Text(h.contactName, style: AppTheme.bodySm.copyWith(fontSize: 11.5)),
+                    if (h.contactPhone != '—')
+                      Text(h.contactPhone, style: AppTheme.monoXs.copyWith(
+                        color: context.pal.textMute, fontSize: 10.5)),
+                  ]),
+                ),
+              ),
+
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 14, 14, 6),
+              child: Row(children: [
+                Expanded(child: Text('MACHINES', style: AppTheme.monoXs)),
+                Text('${_hospitalMachines.length}',
+                  style: AppTheme.monoXs.copyWith(color: context.pal.textDim)),
+              ]),
+            ),
+            if (_loadingMachines)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 24),
+                child: Center(child: SizedBox(width: 18, height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2))),
+              )
+            else if (_hospitalMachines.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 24),
+                child: Center(child: Text('No machines on record', style: AppTheme.bodySub)),
+              )
+            else
+              ..._hospitalMachines.map((m) => Container(
+                margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                child: Row(children: [
+                  Expanded(child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(m.model, style: AppTheme.bodySm.copyWith(
+                        fontSize: 12, fontWeight: FontWeight.w500)),
+                      Text(m.serialNo, style: AppTheme.monoXs.copyWith(
+                        color: context.pal.textMute, fontSize: 10)),
+                    ],
+                  )),
+                  StatusBadge.machine(m.status),
+                ]),
+              )),
+            const SizedBox(height: 12),
+          ],
+        ),
+      ),
+    );
+  }
+
   // ── Bottom stats strip ────────────────────────────────────────────────────
 
   Widget _buildBottomStrip() {
+    final visible = _visibleHospitals;
+    final visibleMachines = _sumMachines(visible);
+    final visibleOperational = visible.fold(0, (s, h) => s + h.machinesOperational);
+    final districts = visible.map((h) => h.district).toSet().length;
+
     return Container(
       height: 48,
       decoration: BoxDecoration(
@@ -884,11 +862,11 @@ class _MachineMapScreenState extends State<MachineMapScreen> {
       child: Row(children: [
         const SizedBox(width: 16),
         for (final stat in [
-          ('VISIBLE', '$_visibleCount'),
-          ('HOSPITALS', '38'),
-          ('DISTRICTS', '24'),
-          ('OPERATIONAL', '${(_visibleCount * 0.92).round()}'),
-          ('ISSUES', '${(_visibleCount * 0.08).round()}'),
+          ('VISIBLE', '$visibleMachines'),
+          ('HOSPITALS', '${visible.length}'),
+          ('DISTRICTS', '$districts'),
+          ('OPERATIONAL', '$visibleOperational'),
+          ('ISSUES', '${visibleMachines - visibleOperational}'),
         ]) ...[
           _BottomStat(label: stat.$1, value: stat.$2),
           Container(
@@ -897,7 +875,7 @@ class _MachineMapScreenState extends State<MachineMapScreen> {
         ],
         const Spacer(),
         GestureDetector(
-          onTap: () {},
+          onTap: () => widget.onApplyZones?.call(_checkedZones),
           child: Container(
             height: 30,
             padding: const EdgeInsets.symmetric(horizontal: 14),
@@ -918,54 +896,53 @@ class _MachineMapScreenState extends State<MachineMapScreen> {
   }
 }
 
-// ── Map marker widget ─────────────────────────────────────────────────────────
+// ── Hospital marker widget ────────────────────────────────────────────────────
 
-class _MapMarker extends StatelessWidget {
-  const _MapMarker({required this.pin, required this.selected, required this.onTap});
-  final _Pin pin;
+class _HospitalMarker extends StatelessWidget {
+  const _HospitalMarker({required this.hospital, required this.selected, required this.onTap});
+  final Hospital hospital;
   final bool selected;
   final VoidCallback onTap;
 
-  Color get _color => switch (pin.status) {
-    'warn' => AppColors.amber,
-    'down' => AppColors.coral,
-    _      => AppColors.teal,
-  };
+  Color get _color {
+    if (hospital.machineCount == 0) return AppColors.amber;
+    if (hospital.machinesOperational == hospital.machineCount) return AppColors.teal;
+    if (hospital.machinesOperational == 0) return AppColors.coral;
+    return AppColors.amber;
+  }
 
   @override
   Widget build(BuildContext context) {
     final color = _color;
-    final dotSize = selected ? 18.0 : 11.0;
+    final dotSize = selected ? 18.0 : 12.0;
 
     return GestureDetector(
       onTap: onTap,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Label chip
-          if (selected || pin.count > 60)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: context.pal.surface1.withValues(alpha: 0.95),
-                borderRadius: BorderRadius.circular(4),
-                border: Border.all(color: selected ? color : context.pal.border),
-                boxShadow: [
-                  BoxShadow(color: Colors.black.withValues(alpha: 0.4),
-                    blurRadius: 6, offset: const Offset(0, 2)),
-                ],
-              ),
-              child: Text('${pin.city} · ${pin.count}',
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: context.pal.surface1.withValues(alpha: 0.95),
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(color: selected ? color : context.pal.border),
+              boxShadow: [
+                BoxShadow(color: Colors.black.withValues(alpha: 0.4),
+                  blurRadius: 6, offset: const Offset(0, 2)),
+              ],
+            ),
+            child: Tooltip(
+              message: hospital.name,
+              child: Text('${hospital.shortCode} (${hospital.machineCount})',
                 style: AppTheme.monoXs.copyWith(
                   fontSize: 9.5,
                   color: selected ? context.pal.text : context.pal.textMute,
                   fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
                 )),
-            )
-          else
-            const SizedBox(height: 16),
+            ),
+          ),
           const SizedBox(height: 3),
-          // Dot with optional pulse ring
           Stack(
             alignment: Alignment.center,
             children: [
@@ -994,9 +971,6 @@ class _MapMarker extends StatelessWidget {
                       blurRadius: selected ? 16 : 6),
                   ],
                 ),
-                child: selected
-                    ? null
-                    : null,
               ),
             ],
           ),
@@ -1010,16 +984,30 @@ class _MapMarker extends StatelessWidget {
 
 class _ZoneItem extends StatelessWidget {
   const _ZoneItem({
-    required this.zone,      required this.expanded,
-    required this.checked,   required this.selectedRegion,
+    required this.zoneKey,     required this.label,
+    required this.totalMachines, required this.regions,
+    required this.expanded,    required this.checked,
+    required this.selectedRegion,
     required this.onToggleExpand, required this.onToggleCheck,
     required this.onSelectRegion,
   });
-  final _Zone zone;
+  final String zoneKey;
+  final String label;
+  final int totalMachines;
+  final Map<String, List<Hospital>> regions;
   final bool expanded, checked;
   final String? selectedRegion;
   final VoidCallback onToggleExpand, onToggleCheck;
   final ValueChanged<String> onSelectRegion;
+
+  /// district -> total machine count, for one region's hospitals.
+  Map<String, int> _districtCounts(List<Hospital> hospitals) {
+    final map = <String, int>{};
+    for (final h in hospitals) {
+      map.update(h.district, (v) => v + h.machineCount, ifAbsent: () => h.machineCount);
+    }
+    return map;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1050,7 +1038,7 @@ class _ZoneItem extends StatelessWidget {
                 expanded ? Symbols.expand_more : Symbols.chevron_right,
                 size: 14, color: context.pal.textDim),
               const SizedBox(width: 4),
-              Expanded(child: Text(zone.label, style: AppTheme.bodySm.copyWith(
+              Expanded(child: Text(label, style: AppTheme.bodySm.copyWith(
                 color: checked ? context.pal.text : context.pal.textMute,
                 fontWeight: FontWeight.w500, fontSize: 12.5))),
               Container(
@@ -1058,7 +1046,7 @@ class _ZoneItem extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: context.pal.surface3,
                   borderRadius: BorderRadius.circular(999)),
-                child: Text('${zone.totalMachines}', style: AppTheme.monoXs.copyWith(
+                child: Text('$totalMachines', style: AppTheme.monoXs.copyWith(
                   fontSize: 10,
                   color: checked ? AppColors.teal : context.pal.textDim))),
             ]),
@@ -1068,30 +1056,56 @@ class _ZoneItem extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(left: 36),
             child: Column(
-              children: zone.regions.map((r) {
-                final isActive = r.key == selectedRegion;
-                return GestureDetector(
-                  onTap: () => onSelectRegion(r.key),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: isActive ? AppColors.tealSoft : Colors.transparent,
-                      borderRadius: BorderRadius.circular(6)),
-                    child: Row(children: [
-                      Container(
-                        width: 6, height: 6,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: regions.entries.map((e) {
+                final isActive = e.key == selectedRegion;
+                final regionTotal = e.value.fold(0, (s, h) => s + h.machineCount);
+                final districts = _districtCounts(e.value);
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    GestureDetector(
+                      onTap: () => onSelectRegion(e.key),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                         decoration: BoxDecoration(
-                          color: isActive ? AppColors.teal : context.pal.textDim,
-                          shape: BoxShape.circle)),
-                      const SizedBox(width: 8),
-                      Expanded(child: Text(r.label, style: AppTheme.bodySm.copyWith(
-                        color: isActive ? AppColors.teal : context.pal.textMute,
-                        fontSize: 12))),
-                      Text('${r.totalMachines}', style: AppTheme.monoXs.copyWith(
-                        fontSize: 9.5,
-                        color: isActive ? AppColors.teal : context.pal.textDim)),
-                    ]),
-                  ),
+                          color: isActive ? AppColors.tealSoft : Colors.transparent,
+                          borderRadius: BorderRadius.circular(6)),
+                        child: Row(children: [
+                          Container(
+                            width: 6, height: 6,
+                            decoration: BoxDecoration(
+                              color: isActive ? AppColors.teal : context.pal.textDim,
+                              shape: BoxShape.circle)),
+                          const SizedBox(width: 8),
+                          Expanded(child: Text(e.key, style: AppTheme.bodySm.copyWith(
+                            color: isActive ? AppColors.teal : context.pal.textMute,
+                            fontWeight: FontWeight.w500,
+                            fontSize: 12), overflow: TextOverflow.ellipsis)),
+                          Text('$regionTotal', style: AppTheme.monoXs.copyWith(
+                            fontSize: 9.5,
+                            color: isActive ? AppColors.teal : context.pal.textDim)),
+                        ]),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(left: 22),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: districts.entries.map((d) => Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 1.5),
+                          child: Row(children: [
+                            Expanded(child: Text(d.key, style: AppTheme.bodySub.copyWith(
+                              fontSize: 10.5), overflow: TextOverflow.ellipsis)),
+                            const SizedBox(width: 6),
+                            Text('${d.value}', style: AppTheme.monoXs.copyWith(
+                              fontSize: 9, color: context.pal.textDim)),
+                          ]),
+                        )).toList(),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                  ],
                 );
               }).toList(),
             ),

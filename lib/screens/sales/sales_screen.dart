@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import '../../models/sales_lead.dart';
 import '../../services/sales_service.dart';
@@ -14,7 +14,8 @@ String _isoDate(DateTime d) =>
     '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
 class SalesScreen extends StatefulWidget {
-  const SalesScreen({super.key});
+  const SalesScreen({super.key, this.initialLeadId});
+  final int? initialLeadId;
 
   @override
   State<SalesScreen> createState() => _SalesScreenState();
@@ -25,6 +26,7 @@ class _SalesScreenState extends State<SalesScreen> {
   List<SalesLead> _leads  = [];
   bool            _loading = true;
   String?         _error;
+  bool            _autoOpenedLead = false;
 
   @override
   void initState() {
@@ -36,10 +38,26 @@ class _SalesScreenState extends State<SalesScreen> {
     setState(() { _loading = true; _error = null; });
     try {
       final data = await SalesService.instance.list();
-      if (mounted) setState(() { _leads = data; _loading = false; });
+      if (mounted) {
+        setState(() { _leads = data; _loading = false; });
+        if (!_autoOpenedLead && widget.initialLeadId != null) {
+          _autoOpenedLead = true;
+          final matches = data.where((l) => l.id == widget.initialLeadId);
+          if (matches.isNotEmpty) {
+            final lead = matches.first;
+            WidgetsBinding.instance.addPostFrameCallback((_) => _openLead(lead));
+          }
+        }
+      }
     } catch (e) {
       if (mounted) setState(() { _error = friendlyError(e); _loading = false; });
     }
+  }
+
+  Future<void> _openLead(SalesLead lead) async {
+    if (!mounted) return;
+    final changed = await showDialog<bool>(context: context, builder: (_) => _LeadEditDialog(lead: lead));
+    if (changed == true) _load();
   }
 
   @override
@@ -249,14 +267,28 @@ class _KanbanCard extends StatelessWidget {
           Text(lead.contact,
             style: AppTheme.bodySub.copyWith(fontSize: 11.5)),
           const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-            decoration: BoxDecoration(
-              color: context.pal.surface3, borderRadius: BorderRadius.circular(4),
+          Wrap(spacing: 6, runSpacing: 4, children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+              decoration: BoxDecoration(
+                color: context.pal.surface3, borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(lead.machineType,
+                style: AppTheme.monoXs.copyWith(fontSize: 10.5, letterSpacing: 0.04)),
             ),
-            child: Text(lead.machineType,
-              style: AppTheme.monoXs.copyWith(fontSize: 10.5, letterSpacing: 0.04)),
-          ),
+            if (lead.source != null)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                decoration: BoxDecoration(
+                  color: (lead.source == LeadSource.tender ? AppColors.violet : context.pal.textDim)
+                      .withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(lead.source!.label, style: AppTheme.monoXs.copyWith(
+                    fontSize: 10.5, letterSpacing: 0.04,
+                    color: lead.source == LeadSource.tender ? AppColors.violet : context.pal.textMute)),
+              ),
+          ]),
           const SizedBox(height: 10),
           Text(
             'TSh ${(lead.dealValue / 1e6).toStringAsFixed(0)}M',
@@ -296,7 +328,7 @@ class _KanbanCard extends StatelessWidget {
   }
 }
 
-// ── Lead edit dialog ────────────────────────────────────────────────────────────
+// ── Lead edit dialog ───────────────────────────────────────────────────────
 
 class _LeadEditDialog extends StatefulWidget {
   const _LeadEditDialog({required this.lead});
@@ -374,7 +406,7 @@ class _LeadEditDialogState extends State<_LeadEditDialog> {
       padding: const EdgeInsets.all(20),
       child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          const Icon(Symbols.trending_up, size: 18, color: AppColors.teal),
+          Icon(Symbols.trending_up, size: 18, color: AppColors.teal),
           const SizedBox(width: 10),
           Expanded(child: Text(widget.lead.hospital, style: AppTheme.bodyStrong)),
           GestureDetector(onTap: () => Navigator.pop(context),
@@ -392,9 +424,9 @@ class _LeadEditDialogState extends State<_LeadEditDialog> {
         Text('SALES REP', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
         const SizedBox(height: 6),
         Container(
-          height: 38,
           decoration: BoxDecoration(color: context.pal.surface2,
               borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
+          height: 38,
           padding: const EdgeInsets.symmetric(horizontal: 12),
           child: _loadingStaff
               ? const Center(child: SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)))
@@ -471,7 +503,7 @@ class _LeadEditDialogState extends State<_LeadEditDialog> {
   );
 }
 
-// ── New Deal Dialog ────────────────────────────────────────────────────────────
+// ── New Deal Dialog ────────────────────────────────────────────────────────
 
 class _NewDealDialog extends StatefulWidget {
   const _NewDealDialog({required this.onClose, this.onSaved});
@@ -486,8 +518,10 @@ class _NewDealDialogState extends State<_NewDealDialog> {
   final _hospCtrl  = TextEditingController();
   final _contCtrl  = TextEditingController();
   final _valueCtrl = TextEditingController();
+  final _sourceNotesCtrl = TextEditingController();
   String  _machine = 'Hematology Analyzer';
   String  _stage   = 'lead';
+  String  _source  = 'other';
   int?    _assignedTo;
   DateTime? _followUpDate;
   List<StaffMember> _staff = [];
@@ -511,7 +545,7 @@ class _NewDealDialogState extends State<_NewDealDialog> {
 
   @override
   void dispose() {
-    _hospCtrl.dispose(); _contCtrl.dispose(); _valueCtrl.dispose();
+    _hospCtrl.dispose(); _contCtrl.dispose(); _valueCtrl.dispose(); _sourceNotesCtrl.dispose();
     super.dispose();
   }
 
@@ -525,6 +559,8 @@ class _NewDealDialogState extends State<_NewDealDialog> {
         'machine_type': _machine,
         'deal_value':  int.tryParse(_valueCtrl.text.replaceAll(',', '')) ?? 0,
         'stage':       _stage,
+        'source':       _source,
+        'source_notes': _sourceNotesCtrl.text.trim().isEmpty ? null : _sourceNotesCtrl.text.trim(),
         'assigned_to': _assignedTo,
         'follow_up_date': _followUpDate != null ? _isoDate(_followUpDate!) : null,
       });
@@ -557,7 +593,7 @@ class _NewDealDialogState extends State<_NewDealDialog> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
               child: Row(children: [
-                const Icon(Symbols.trending_up, size: 18, color: AppColors.teal),
+                Icon(Symbols.trending_up, size: 18, color: AppColors.teal),
                 const SizedBox(width: 10),
                 Text('New Deal', style: AppTheme.bodyStrong),
                 const Spacer(),
@@ -598,10 +634,9 @@ class _NewDealDialogState extends State<_NewDealDialog> {
                       Text('SALES REP', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
                       const SizedBox(height: 6),
                       Container(
-                        height: 38,
                         decoration: BoxDecoration(color: context.pal.surface2,
                             borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                         child: _loadingStaff
                             ? const Center(child: SizedBox(width: 14, height: 14,
                                 child: CircularProgressIndicator(strokeWidth: 2)))
@@ -619,6 +654,18 @@ class _NewDealDialogState extends State<_NewDealDialog> {
                       ),
                     ]),
                   ),
+                ]),
+                const SizedBox(height: 14),
+                Row(children: [
+                  Expanded(child: _SDrop(
+                    label: 'Source',
+                    value: _source,
+                    items: const ['referral', 'tender', 'inbound_call', 'walk_in', 'other'],
+                    display: const ['Referral', 'Tender', 'Inbound Call', 'Walk-in', 'Other'],
+                    onChanged: (v) => setState(() => _source = v),
+                  )),
+                  const SizedBox(width: 14),
+                  Expanded(child: _SField('Source Notes (optional)', _sourceNotesCtrl, 'e.g. tender ref #, referrer name')),
                 ]),
                 const SizedBox(height: 14),
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -697,16 +744,15 @@ class _SField extends StatelessWidget {
     Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10)),
     const SizedBox(height: 6),
     Container(
-      height: 38,
       decoration: BoxDecoration(color: context.pal.surface2,
           borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: Center(child: TextField(controller: ctrl,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      child: TextField(controller: ctrl,
         keyboardType: numeric ? TextInputType.number : TextInputType.text,
         style: AppTheme.bodySm,
         decoration: InputDecoration(hintText: hint,
             hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
-            border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero))),
+            border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero)),
     ),
   ]);
 }
@@ -724,9 +770,9 @@ class _SDrop extends StatelessWidget {
     Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10)),
     const SizedBox(height: 6),
     Container(
-      height: 38,
       decoration: BoxDecoration(color: context.pal.surface2,
           borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
+      height: 38,
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: DropdownButtonHideUnderline(child: DropdownButton<String>(
         value: value, isExpanded: true,

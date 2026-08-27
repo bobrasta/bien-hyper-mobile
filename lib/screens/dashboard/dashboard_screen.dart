@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
+import '../../models/hospital.dart';
 import '../../models/service_ticket.dart';
 import '../../services/auth_service.dart';
 import '../../services/dashboard_service.dart';
+import '../../services/hospital_service.dart';
 import '../../services/ticket_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
@@ -31,6 +33,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   bool    _loading  = true;
   String? _error;
   String  _userName = '';
+  List<Hospital> _allHospitals = [];
 
   @override
   void initState() {
@@ -44,12 +47,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final results = await Future.wait([
         DashboardService.instance.load(),
         AuthService.instance.getStoredUserName(),
+        HospitalService.instance.list(),
       ]);
       if (mounted) {
         setState(() {
-          _data     = results[0] as DashboardData;
-          _userName = results[1] as String? ?? '';
-          _loading  = false;
+          _data         = results[0] as DashboardData;
+          _userName     = results[1] as String? ?? '';
+          _allHospitals = results[2] as List<Hospital>;
+          _loading      = false;
         });
       }
     } catch (e) {
@@ -115,7 +120,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        "Here's what's happening across your fleet today · $dateStr",
+                        "Here's what's happening across your fleet today —'$dateStr",
                         style: AppTheme.bodySub,
                       ),
                     ],
@@ -204,7 +209,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         _CardHeaderRow(
                           icon: Symbols.public,
-                          title: 'Fleet Deployment · Tanzania',
+                          title: 'Fleet Deployment — Tanzania',
                           trailing: Wrap(spacing: 14, children: [
                             _LegendDot(color: AppColors.teal,  label: 'Operational'),
                             _LegendDot(color: AppColors.amber, label: 'Service'),
@@ -213,9 +218,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         ),
                         Padding(
                           padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-                          child: TanzaniaMapWidget(
-                            totalMachines:  d?.totalMachines,
-                            totalHospitals: d?.totalHospitals,
+                          child: FleetMapWidget(
+                            hospitals:     _allHospitals,
+                            totalMachines: d?.totalMachines,
+                            uptimePct:     d?.uptimePct,
                           ),
                         ),
                       ]),
@@ -531,7 +537,7 @@ class _HospitalRanking extends StatelessWidget {
                   child: LinearProgressIndicator(
                     value: pct,
                     backgroundColor: context.pal.surface3,
-                    valueColor: const AlwaysStoppedAnimation(AppColors.teal),
+                    valueColor: AlwaysStoppedAnimation(AppColors.teal),
                     minHeight: 4,
                   ),
                 )),
@@ -558,7 +564,7 @@ class _HospitalRanking extends StatelessWidget {
   }
 }
 
-// ── Tickets table ─────────────────────────────────────────────────────────────
+// ── Tickets table ────────────────────────────────────────────────────────────
 
 class _TicketsTable extends StatelessWidget {
   const _TicketsTable({required this.data});
@@ -580,7 +586,7 @@ class _TicketsTable extends StatelessWidget {
     // Map raw API data to display fields — handles both nested and flat structures
     ServiceTicket toTicket(Map<String, dynamic> raw) => ServiceTicket(
       dbId:               (raw['id'] as num? ?? 0).toInt(),
-      id:                 raw['ticket_number'] as String? ?? '#—',
+      id:                 raw['ticket_number'] as String? ?? '—',
       machineName:        raw['machine_name']  as String? ?? '—',
       machineType:        raw['machine_type']  as String? ?? '—',
       hospital:           raw['hospital'] is Map
@@ -714,7 +720,7 @@ class _Cell extends StatelessWidget {
   );
 }
 
-// ── New Service Ticket Dialog ─────────────────────────────────────────────────
+// ── New Service Ticket Dialog ────────────────────────────────────────────────
 
 class _NewTicketDialog extends StatefulWidget {
   const _NewTicketDialog({required this.onClose, this.onSaved});
@@ -773,7 +779,7 @@ class _NewTicketDialogState extends State<_NewTicketDialog> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
               child: Row(children: [
-                const Icon(Symbols.confirmation_number, size: 18, color: AppColors.teal),
+                Icon(Symbols.confirmation_number, size: 18, color: AppColors.teal),
                 const SizedBox(width: 10),
                 Text('New Service Ticket', style: AppTheme.bodyStrong),
                 const Spacer(),
@@ -815,13 +821,13 @@ class _NewTicketDialogState extends State<_NewTicketDialog> {
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(color: context.pal.border),
                     ),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                     child: TextField(
                       controller: _descCtrl,
                       maxLines: null, expands: true,
                       style: AppTheme.bodySm,
                       decoration: InputDecoration(
-                        hintText: 'Describe the fault or required work…',
+                        hintText: 'Describe the fault or required work',
                         hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
                         border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero,
                       ),
@@ -876,12 +882,12 @@ class _TField extends StatelessWidget {
     Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10)),
     const SizedBox(height: 6),
     Container(
-      height: 38,
       decoration: BoxDecoration(
         color: context.pal.surface2,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: context.pal.border),
       ),
+      height: 38,
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: DropdownButtonHideUnderline(child: DropdownButton<String>(
         value: items.contains(value) ? value : items.first,

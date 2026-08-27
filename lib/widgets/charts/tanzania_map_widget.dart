@@ -1,67 +1,184 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:material_symbols_icons/symbols.dart';
+import '../../models/hospital.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
-
 import '../../theme/app_palette.dart';
-class TanzaniaMapWidget extends StatelessWidget {
-  const TanzaniaMapWidget({super.key, this.totalMachines, this.totalHospitals, this.pins = const []});
+
+/// Real interactive fleet map for the dashboard — same OSM/CartoDB tile
+/// engine as MachineMapScreen, plotting every hospital that has real GPS
+/// coordinates as a status-colored pin. Replaces the old hand-drawn
+/// Tanzania-outline painter, which only ever showed the top-5-by-revenue
+/// hospitals and a handful of hardcoded stats (REGIONS/ACTIVE TECHS never
+/// reflected real data).
+class FleetMapWidget extends StatefulWidget {
+  const FleetMapWidget({
+    super.key,
+    required this.hospitals,
+    this.totalMachines,
+    this.uptimePct,
+  });
+  final List<Hospital> hospitals;
   final int? totalMachines;
-  final int? totalHospitals;
-  final List<Map<String, dynamic>> pins;
+  final double? uptimePct;
+
+  @override
+  State<FleetMapWidget> createState() => _FleetMapWidgetState();
+}
+
+class _FleetMapWidgetState extends State<FleetMapWidget> {
+  final _mapController = MapController();
+
+  @override
+  void dispose() {
+    _mapController.dispose();
+    super.dispose();
+  }
+
+  Color _statusColor(Hospital h) {
+    if (h.machineCount == 0) return AppColors.amber;
+    if (h.machinesOperational == h.machineCount) return AppColors.teal;
+    if (h.machinesOperational == 0) return AppColors.coral;
+    return AppColors.amber;
+  }
+
+  void _zoomBy(double delta) {
+    final z = _mapController.camera.zoom;
+    _mapController.move(_mapController.camera.center, (z + delta).clamp(4.0, 12.0));
+  }
 
   @override
   Widget build(BuildContext context) {
+    final pinned = widget.hospitals.where((h) => h.latitude != 0 && h.longitude != 0).toList();
+    final regions = widget.hospitals.map((h) => h.region).where((r) => r != '—').toSet().length;
+    final machineTotal = widget.totalMachines ?? pinned.fold<int>(0, (s, h) => s + h.machineCount);
+
     return SizedBox(
-      height: 296,
-      child: LayoutBuilder(builder: (context, constraints) {
-        final w = constraints.maxWidth;
-        final h = constraints.maxHeight;
-        return Stack(
-          clipBehavior: Clip.none,
-          children: [
-            // SVG-equivalent background + outline
-            CustomPaint(
-              size: Size(w, h),
-              painter: _TanzaniaPainter(context.pal),
-            ),
-            // City pins
-            for (final pin in pins)
-              Positioned(
-                left: pin['x'] * w,
-                top:  pin['y'] * h,
-                child: _MapPin(
-                  city:   pin['city'],
-                  count:  pin['count'],
-                  status: pin['status'],
-                  large:  pin['lg'] == true,
+      height: 320,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(AppColors.rLg),
+            child: FlutterMap(
+              mapController: _mapController,
+              options: const MapOptions(
+                initialCenter: LatLng(-6.37, 34.89),
+                initialZoom: 5.4,
+                initialRotation: 0,
+                minZoom: 4.0,
+                maxZoom: 12.0,
+                interactionOptions: InteractionOptions(
+                  flags: InteractiveFlag.drag
+                      | InteractiveFlag.flingAnimation
+                      | InteractiveFlag.pinchMove
+                      | InteractiveFlag.pinchZoom
+                      | InteractiveFlag.scrollWheelZoom
+                      | InteractiveFlag.doubleTapZoom,
                 ),
               ),
-            // Bottom stats strip
-            Positioned(
-              bottom: 8, left: 16, right: 16,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                decoration: BoxDecoration(
-                  color: const Color(0xD90F1117),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: context.pal.border),
+              children: [
+                TileLayer(
+                  urlTemplate: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+                  subdomains: const ['a', 'b', 'c', 'd'],
+                  userAgentPackageName: 'com.bienhypermed.app',
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    const _Stat(label: 'REGIONS',      value: '11'),
-                    _Stat(label: 'HOSPITALS',   value: '${totalHospitals ?? 42}'),
-                    _Stat(label: 'MACHINES',    value: '${totalMachines  ?? 847}'),
-                    const _Stat(label: 'ACTIVE TECHS', value: '18'),
-                  ],
+                MarkerLayer(markers: [
+                  for (final h in pinned)
+                    Marker(
+                      point: LatLng(h.latitude, h.longitude),
+                      width: 20,
+                      height: 20,
+                      child: Tooltip(
+                        message: '${h.name} · ${h.machinesOperational}/${h.machineCount}',
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: _statusColor(h),
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 1.5),
+                            boxShadow: [
+                              BoxShadow(color: _statusColor(h).withValues(alpha: 0.5), blurRadius: 6),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                ]),
+                SimpleAttributionWidget(
+                  source: const Text('© CartoDB · © OpenStreetMap contributors',
+                      style: TextStyle(fontSize: 9, color: Colors.white54)),
+                  backgroundColor: const Color(0xAA0F1117),
                 ),
+              ],
+            ),
+          ),
+
+          // Zoom controls
+          Positioned(
+            right: 10,
+            top: 10,
+            child: Column(children: [
+              _ZoomBtn(icon: Symbols.add, onTap: () => _zoomBy(1)),
+              const SizedBox(height: 4),
+              _ZoomBtn(icon: Symbols.remove, onTap: () => _zoomBy(-1)),
+            ]),
+          ),
+
+          // Bottom stats strip
+          Positioned(
+            bottom: 8,
+            left: 8,
+            right: 8,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xD90F1117),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: context.pal.border),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _Stat(label: 'REGIONS', value: '$regions'),
+                  _Stat(label: 'HOSPITALS', value: '${widget.hospitals.length}'),
+                  _Stat(label: 'MACHINES', value: '$machineTotal'),
+                  _Stat(
+                    label: 'UPTIME',
+                    value: widget.uptimePct != null
+                        ? '${(widget.uptimePct! * 100).toStringAsFixed(0)}%'
+                        : '—',
+                  ),
+                ],
               ),
             ),
-          ],
-        );
-      }),
+          ),
+        ],
+      ),
     );
   }
+}
+
+class _ZoomBtn extends StatelessWidget {
+  const _ZoomBtn({required this.icon, required this.onTap});
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: onTap,
+    child: Container(
+      width: 26,
+      height: 26,
+      decoration: BoxDecoration(
+        color: const Color(0xD90F1117),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: Colors.white24),
+      ),
+      child: Icon(icon, size: 15, color: Colors.white70),
+    ),
+  );
 }
 
 class _Stat extends StatelessWidget {
@@ -83,148 +200,4 @@ class _Stat extends StatelessWidget {
       ],
     );
   }
-}
-
-class _MapPin extends StatelessWidget {
-  const _MapPin({
-    required this.city,
-    required this.count,
-    required this.status,
-    this.large = false,
-  });
-  final String city;
-  final int count;
-  final String status;
-  final bool large;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = switch (status) {
-      'amber' => AppColors.amber,
-      'down'  => AppColors.coral,
-      _       => AppColors.teal,
-    };
-    final size = large ? 22.0 : 14.0;
-
-    return Transform.translate(
-      offset: Offset(-size / 2, -size / 2),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Label above pin
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-            decoration: BoxDecoration(
-              color: context.pal.surface1,
-              borderRadius: BorderRadius.circular(4),
-              border: Border.all(color: context.pal.border),
-            ),
-            child: Text('$city · $count',
-              style: AppTheme.monoXs.copyWith(fontSize: 9.5, color: context.pal.text)),
-          ),
-          const SizedBox(height: 2),
-          // Pin dot
-          Container(
-            width: size, height: size,
-            decoration: BoxDecoration(
-              color: color,
-              shape: BoxShape.circle,
-              border: Border.all(color: context.pal.bg, width: 2),
-              boxShadow: [
-                BoxShadow(color: color.withValues(alpha: 0.5), blurRadius: 12),
-                BoxShadow(color: color, blurRadius: 0, spreadRadius: 1),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Custom painter — draws Tanzania country outline + lakes + grid
-class _TanzaniaPainter extends CustomPainter {
-  const _TanzaniaPainter(this.pal);
-  final AppPalette pal;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final sx = size.width  / 400;
-    final sy = size.height / 300;
-
-    // Grid
-    final gridPaint = Paint()
-      ..color = const Color(0x06FFFFFF)
-      ..strokeWidth = 0.5
-      ..style = PaintingStyle.stroke;
-    for (double x = 0; x <= 400; x += 20) {
-      canvas.drawLine(Offset(x * sx, 0), Offset(x * sx, size.height), gridPaint);
-    }
-    for (double y = 0; y <= 300; y += 20) {
-      canvas.drawLine(Offset(0, y * sy), Offset(size.width, y * sy), gridPaint);
-    }
-
-    // Tanzania outline (from screen1-dashboard.jsx SVG path)
-    final raw = [
-      Offset(60,80), Offset(100,55), Offset(140,50), Offset(180,45),
-      Offset(220,40), Offset(260,50), Offset(290,55), Offset(310,75),
-      Offset(320,110), Offset(325,140), Offset(320,170), Offset(310,200),
-      Offset(300,225), Offset(290,245), Offset(280,260), Offset(250,265),
-      Offset(220,268), Offset(190,270), Offset(160,265), Offset(130,255),
-      Offset(100,240), Offset(80,220), Offset(65,190), Offset(55,160),
-      Offset(50,130), Offset(55,100), Offset(60,80),
-    ];
-    final pts = raw.map((p) => Offset(p.dx * sx, p.dy * sy)).toList();
-
-    // Fill
-    final fillPaint = Paint()
-      ..shader = LinearGradient(
-        begin: Alignment.topLeft, end: Alignment.bottomRight,
-        colors: [pal.surface2, pal.topbarBg],
-      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height))
-      ..style = PaintingStyle.fill;
-    final borderPaint = Paint()
-      ..color = AppColors.teal.withValues(alpha: 0.35)
-      ..strokeWidth = 1.5
-      ..style = PaintingStyle.stroke;
-
-    final path = Path()..moveTo(pts[0].dx, pts[0].dy);
-    for (int i = 1; i < pts.length; i++) { path.lineTo(pts[i].dx, pts[i].dy); }
-    path.close();
-    canvas.drawPath(path, fillPaint);
-    canvas.drawPath(path, borderPaint);
-
-    // Lake Victoria (ellipse)
-    final lakePaint = Paint()
-      ..color = pal.bg
-      ..style = PaintingStyle.fill;
-    final lakeBorderPaint = Paint()
-      ..color = AppColors.info.withValues(alpha: 0.4)
-      ..strokeWidth = 1
-      ..style = PaintingStyle.stroke;
-    canvas.drawOval(
-      Rect.fromCenter(center: Offset(130*sx, 68*sy), width: 68*sx, height: 36*sy),
-      lakePaint,
-    );
-    canvas.drawOval(
-      Rect.fromCenter(center: Offset(130*sx, 68*sy), width: 68*sx, height: 36*sy),
-      lakeBorderPaint,
-    );
-
-    // "TANZANIA" ghost text
-    final tp = TextPainter(
-      text: TextSpan(
-        text: 'TANZANIA',
-        style: TextStyle(
-          fontSize: 44 * sx, fontWeight: FontWeight.w700,
-          color: AppColors.text.withValues(alpha: 0.06), letterSpacing: 6 * sx,
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    tp.paint(canvas, Offset(size.width / 2 - tp.width / 2, 150 * sy - tp.height / 2));
-  }
-
-  @override
-  bool shouldRepaint(_TanzaniaPainter old) => old.pal != pal;
 }

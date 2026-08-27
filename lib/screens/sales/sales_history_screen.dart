@@ -561,7 +561,7 @@ class _InvoiceDetailDialog extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
             child: Row(children: [
-              const Icon(Symbols.receipt_long, size: 18, color: AppColors.teal),
+              Icon(Symbols.receipt_long, size: 18, color: AppColors.teal),
               const SizedBox(width: 10),
               Expanded(child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start, children: [

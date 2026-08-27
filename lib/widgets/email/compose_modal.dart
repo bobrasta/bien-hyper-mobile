@@ -140,7 +140,7 @@ class _ComposeModalState extends State<ComposeModal> {
                 Padding(
                   padding: const EdgeInsets.only(bottom: 8),
                   child: Text(_error!,
-                      style: const TextStyle(color: AppColors.coral, fontSize: 12.5)),
+                      style: TextStyle(color: AppColors.coral, fontSize: 12.5)),
                 ),
               Row(children: [
                 GestureDetector(

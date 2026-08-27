@@ -21,12 +21,17 @@ class NavDestination {
 
 const _operations = [
   NavDestination(icon: Symbols.space_dashboard,         label: 'Dashboard',  key: 'dashboard'),
+  NavDestination(icon: Symbols.fact_check,              label: 'Approvals', key: 'approvals'),
   NavDestination(icon: Symbols.precision_manufacturing, label: 'Machines',   key: 'machines'),
   NavDestination(icon: Symbols.local_hospital,          label: 'Hospitals',  key: 'hospitals'),
   NavDestination(icon: Symbols.build_circle,            label: 'Service',    key: 'service'),
   // 'inventory' key triggers the expandable group — rendered separately below
   NavDestination(icon: Symbols.inventory_2,             label: 'Inventory',  key: 'inventory'),
+  // Task-assignment/availability board — Operations' job, not HR's.
   NavDestination(icon: Symbols.badge,                   label: 'Staff',      key: 'staff'),
+  // Every role can request their own leave — this is personal self-service,
+  // not an HR-department tool, so it doesn't belong under the HR section
+  // header even though HR also manages the approvals for it separately.
   NavDestination(icon: Symbols.event,                   label: 'My Leave',   key: 'my_leave'),
 ];
 const _business = [
@@ -37,7 +42,19 @@ const _business = [
   NavDestination(icon: Symbols.account_balance,         label: 'Finance',    key: 'finance'),
   NavDestination(icon: Symbols.groups,                  label: 'Customers',  key: 'customers'),
   NavDestination(icon: Symbols.mail,                    label: 'Email',      key: 'email'),
-  NavDestination(icon: Symbols.how_to_reg,              label: 'HR',         key: 'hr_approvals'),
+];
+const _hr = [
+  NavDestination(icon: Symbols.space_dashboard,         label: 'HR Dashboard', key: 'hr_dashboard'),
+  // Personal-info directory — position, statutory IDs, contracts,
+  // discipline, career progression. Not the operational task-board above.
+  NavDestination(icon: Symbols.badge,                   label: 'Directory',  key: 'hr_directory'),
+  NavDestination(icon: Symbols.person_search,           label: 'Recruitment', key: 'hr_recruitment'),
+  NavDestination(icon: Symbols.calendar_month,          label: 'Leave Calendar', key: 'hr_leave_calendar'),
+  NavDestination(icon: Symbols.fingerprint,             label: 'Attendance', key: 'hr_attendance'),
+  NavDestination(icon: Symbols.payments,                label: 'Payroll',    key: 'hr_payroll'),
+  NavDestination(icon: Symbols.how_to_reg,              label: 'HR Approvals', key: 'hr_approvals'),
+  NavDestination(icon: Symbols.assessment,              label: 'Reports',    key: 'hr_reports'),
+  NavDestination(icon: Symbols.settings_applications,   label: 'HR Settings', key: 'hr_settings'),
 ];
 
 // Sub-items shown when Sales group is expanded
@@ -61,8 +78,9 @@ const _financeChildren = [
 ];
 
 const _system = [
-  NavDestination(icon: Symbols.assessment,              label: 'Reports',    key: 'reports'),
-  NavDestination(icon: Symbols.settings,                label: 'Settings',   key: 'settings'),
+  NavDestination(icon: Symbols.assessment,              label: 'Reports',       key: 'reports'),
+  NavDestination(icon: Symbols.notifications,           label: 'Notifications', key: 'notifications'),
+  NavDestination(icon: Symbols.settings,                label: 'Settings',      key: 'settings'),
 ];
 
 // Sub-items shown when Inventory group is expanded
@@ -107,6 +125,7 @@ class Sidebar extends StatelessWidget {
             items.where((d) => canShow(d.key)).toList();
 
         final ops = filter(_operations);
+        final hr  = filter(_hr);
         final biz = filter(_business);
         final sys = filter(_system);
 
@@ -132,6 +151,10 @@ class Sidebar extends StatelessWidget {
                               onSelect: onSelect,
                             )
                           : _NavItem(d, active: d.key == activeKey, onTap: () => onSelect(d.key))),
+                      ],
+                      if (hr.isNotEmpty) ...[
+                        _SectionLabel('HR'),
+                        ...hr.map((d) => _NavItem(d, active: d.key == activeKey, onTap: () => onSelect(d.key))),
                       ],
                       if (biz.isNotEmpty) ...[
                         _SectionLabel('Business'),

@@ -21,8 +21,13 @@ class LeaveService {
     return LeaveRequest.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
   }
 
-  Future<LeaveRequest> approve(int id) async {
-    final res = await _dio.post('/leave-requests/$id/approve');
+  /// [daysCountOverride] is required by the backend when the leave type's
+  /// `requires_manual_days` is true (Compassionate) — the approver sets
+  /// the final day count rather than trusting the requester's date range.
+  Future<LeaveRequest> approve(int id, {int? daysCountOverride}) async {
+    final res = await _dio.post('/leave-requests/$id/approve', data: {
+      'days_count': ?daysCountOverride,
+    });
     return LeaveRequest.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
   }
 
@@ -34,5 +39,27 @@ class LeaveService {
   Future<LeaveRequest> cancel(int id) async {
     final res = await _dio.post('/leave-requests/$id/cancel');
     return LeaveRequest.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+  }
+
+  Future<List<LeaveTypeCatalogEntry>> types({bool activeOnly = false}) async {
+    final res = await _dio.get('/leave-types', queryParameters: {
+      if (activeOnly) 'active_only': 'true',
+    });
+    final (data, _) = ApiClient.unwrapList(res);
+    return data.map((j) => LeaveTypeCatalogEntry.fromJson(j as Map<String, dynamic>)).toList();
+  }
+
+  Future<LeaveTypeCatalogEntry> updateType(int id, Map<String, dynamic> data) async {
+    final res = await _dio.put('/leave-types/$id', data: data);
+    return LeaveTypeCatalogEntry.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+  }
+
+  Future<List<LeaveBalanceEntry>> balances({int? userId, int? year}) async {
+    final res = await _dio.get('/leave-balances', queryParameters: {
+      'user_id': ?userId,
+      'year':    ?year,
+    });
+    final (data, _) = ApiClient.unwrapList(res);
+    return data.map((j) => LeaveBalanceEntry.fromJson(j as Map<String, dynamic>)).toList();
   }
 }

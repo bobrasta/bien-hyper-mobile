@@ -58,13 +58,19 @@ class _PurchaseOrdersScreenState extends State<PurchaseOrdersScreen> {
   }
 
   static Color _statusColor(String s) => switch (s) {
-    'draft'              => AppColors.textDim,
-    'sent'               => AppColors.blue,
-    'acknowledged'       => AppColors.violet,
-    'partially_received' => AppColors.amber,
-    'received'           => AppColors.teal,
-    'cancelled'          => AppColors.coral,
-    _                    => AppColors.textDim,
+    'draft'                      => AppColors.textDim,
+    'pending_sales_manager'      => AppColors.amber,
+    'pending_director_review'    => AppColors.amber,
+    'pending_payment_initiation' => AppColors.amber,
+    'pending_director_final'     => AppColors.amber,
+    'approved'                   => AppColors.violet,
+    'rejected'                   => AppColors.coral,
+    'sent'                       => AppColors.blue,
+    'acknowledged'               => AppColors.violet,
+    'partially_received'         => AppColors.amber,
+    'received'                   => AppColors.teal,
+    'cancelled'                  => AppColors.coral,
+    _                            => AppColors.textDim,
   };
 
   @override
@@ -149,6 +155,9 @@ class _PurchaseOrdersScreenState extends State<PurchaseOrdersScreen> {
               po: _selected!,
               statusColor: _statusColor(_selected!.status),
               onClose:  () => setState(() => _selected = null),
+              onSubmitForApproval: () => _doAction(
+                () => PurchaseOrderService.instance.submitForApproval(_selected!.id),
+                'Submitted for approval'),
               onSend:   () => _doAction(
                 () => PurchaseOrderService.instance.send(_selected!.id), 'PO sent to supplier'),
               onCancel: () => _doAction(
@@ -218,12 +227,12 @@ class _PORow extends StatelessWidget {
 class _PODetailPanel extends StatelessWidget {
   const _PODetailPanel({
     required this.po, required this.statusColor, required this.onClose,
-    this.onSend, this.onCancel, this.onReceive,
+    this.onSubmitForApproval, this.onSend, this.onCancel, this.onReceive,
   });
   final PurchaseOrder po;
   final Color statusColor;
   final VoidCallback onClose;
-  final VoidCallback? onSend, onCancel, onReceive;
+  final VoidCallback? onSubmitForApproval, onSend, onCancel, onReceive;
 
   @override
   Widget build(BuildContext context) => SingleChildScrollView(
@@ -255,6 +264,12 @@ class _PODetailPanel extends StatelessWidget {
         _Row('Expected', formatDate(po.expectedDeliveryDate!)),
       if (po.sentAt != null) _Row('Sent At', formatDate(po.sentAt!)),
       _Row('Created', formatDate(po.createdAt)),
+      if (po.salesApprovedByName != null) _Row('Sales Approved By', po.salesApprovedByName!),
+      if (po.directorReviewedByName != null) _Row('Director Reviewed By', po.directorReviewedByName!),
+      if (po.paymentInitiatedByName != null) _Row('Payment Initiated By', po.paymentInitiatedByName!),
+      if (po.directorApprovedByName != null) _Row('Final Approval By', po.directorApprovedByName!),
+      if (po.rejectedByName != null) _Row('Rejected By', po.rejectedByName!),
+      if (po.rejectionReason != null) _Row('Rejection Reason', po.rejectionReason!),
       if (po.notes != null) ...[
         const SizedBox(height: 10),
         Text(po.notes!, style: AppTheme.bodySub.copyWith(fontSize: 12.5)),
@@ -293,7 +308,20 @@ class _PODetailPanel extends StatelessWidget {
       ],
       const SizedBox(height: 20),
       // Action buttons
-      if (po.status == 'draft')
+      if (po.status == 'draft') ...[
+        _ActionBtn(label: 'Submit for Approval', color: AppColors.blue,
+            icon: Symbols.send, onTap: onSubmitForApproval),
+        const SizedBox(height: 8),
+      ],
+      if (const {
+        'pending_sales_manager', 'pending_director_review',
+        'pending_payment_initiation', 'pending_director_final',
+      }.contains(po.status)) ...[
+        Text('Review this order from the Approvals screen — the right stage owner needs to act on it there.',
+            style: AppTheme.bodySub.copyWith(fontSize: 11.5, fontStyle: FontStyle.italic)),
+        const SizedBox(height: 8),
+      ],
+      if (po.status == 'approved')
         _ActionBtn(label: 'Send to Supplier', color: AppColors.blue,
             icon: Symbols.send, onTap: onSend),
       if (['sent', 'acknowledged', 'partially_received'].contains(po.status)) ...[
@@ -422,7 +450,7 @@ class _GrnModalState extends State<_GrnModal> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
               child: Row(children: [
-                const Icon(Symbols.move_to_inbox, size: 18, color: AppColors.teal),
+                Icon(Symbols.move_to_inbox, size: 18, color: AppColors.teal),
                 const SizedBox(width: 10),
                 Expanded(child: Text('Goods Received — ${widget.po.poNumber}',
                     style: AppTheme.bodyStrong, overflow: TextOverflow.ellipsis)),
@@ -469,7 +497,7 @@ class _GrnModalState extends State<_GrnModal> {
                 }),
                 if (_error != null) ...[
                   const SizedBox(height: 8),
-                  Text(_error!, style: const TextStyle(color: AppColors.coral, fontSize: 12.5)),
+                  Text(_error!, style: TextStyle(color: AppColors.coral, fontSize: 12.5)),
                 ],
               ]),
             )),

@@ -24,10 +24,42 @@ PipelineStage _parseStage(String s) => switch (s) {
   _                => PipelineStage.lead,
 };
 
+// referral | tender | inbound_call | walk_in | other
+enum LeadSource { referral, tender, inboundCall, walkIn, other }
+
+extension LeadSourceX on LeadSource {
+  String get label => switch (this) {
+    LeadSource.referral    => 'Referral',
+    LeadSource.tender      => 'Tender',
+    LeadSource.inboundCall => 'Inbound Call',
+    LeadSource.walkIn      => 'Walk-in',
+    LeadSource.other       => 'Other',
+  };
+
+  String get apiValue => switch (this) {
+    LeadSource.referral    => 'referral',
+    LeadSource.tender      => 'tender',
+    LeadSource.inboundCall => 'inbound_call',
+    LeadSource.walkIn      => 'walk_in',
+    LeadSource.other       => 'other',
+  };
+}
+
+LeadSource? _parseSource(String? s) => switch (s) {
+  'referral'     => LeadSource.referral,
+  'tender'       => LeadSource.tender,
+  'inbound_call' => LeadSource.inboundCall,
+  'walk_in'      => LeadSource.walkIn,
+  'other'        => LeadSource.other,
+  _              => null,
+};
+
 class SalesLead {
   final int    id;
   final String hospital;
   final String contact;
+  final LeadSource? source;
+  final String? sourceNotes;
   final String machineType;
   final int    dealValue;
   final int    daysInStage;
@@ -41,6 +73,8 @@ class SalesLead {
     required this.id,
     required this.hospital,
     required this.contact,
+    this.source,
+    this.sourceNotes,
     required this.machineType,
     required this.dealValue,
     required this.daysInStage,
@@ -57,6 +91,8 @@ class SalesLead {
         ? (j['hospital'] as Map)['name'] as String? ?? j['hospital_name'] as String? ?? '—'
         : j['hospital'] as String? ?? j['hospital_name_raw'] as String? ?? j['hospital_name'] as String? ?? '—',
     contact:     j['contact']      as String? ?? j['contact_name_raw'] as String? ?? j['contact_name'] as String? ?? '—',
+    source:      _parseSource(j['source'] as String?),
+    sourceNotes: j['source_notes'] as String?,
     machineType: j['machine_type'] as String? ?? '—',
     dealValue:   (j['deal_value']  as num? ?? 0).toInt(),
     daysInStage: (j['days_in_stage'] as num? ?? 0).toInt(),

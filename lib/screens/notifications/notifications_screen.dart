@@ -9,11 +9,22 @@ import '../../theme/app_theme.dart';
 import '../../widgets/common/shimmer_box.dart';
 
 class NotificationsScreen extends StatefulWidget {
-  const NotificationsScreen({super.key});
+  const NotificationsScreen({super.key, this.onOpenNotification});
+  final ValueChanged<AppNotification>? onOpenNotification;
 
   @override
   State<NotificationsScreen> createState() => _NotificationsScreenState();
 }
+
+const _categoryOrder = ['Approvals', 'Service', 'HR', 'Sales', 'Updates', 'System'];
+const _categoryHeaders = {
+  'Approvals': 'Approvals Needed',
+  'Service':   'Assigned to You',
+  'HR':        'HR',
+  'Sales':     'Sales',
+  'Updates':   'Updates',
+  'System':    'System',
+};
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
   List<AppNotification> _notifications = [];
@@ -66,6 +77,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     try { await NotificationService.instance.markRead(n.id); } catch (_) {}
   }
 
+  void _open(AppNotification n) {
+    _markRead(n);
+    widget.onOpenNotification?.call(n);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -81,7 +97,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('Notifications', style: AppTheme.pageTitle),
               const SizedBox(height: 2),
-              Text('Tap a notification to mark it as read.',
+              Text('Tap a notification to act on it.',
                   style: AppTheme.bodySub.copyWith(fontSize: 12.5)),
             ])),
             if (_unreadCount > 0) ...[
@@ -147,16 +163,44 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       ]));
     }
 
-    return ListView.builder(
-      padding: EdgeInsets.zero,
-      itemCount: _notifications.length,
-      itemBuilder: (context, i) => _NotificationRow(
-        notification: _notifications[i],
-        isLast: i == _notifications.length - 1,
-        onTap: () => _markRead(_notifications[i]),
-      ),
-    );
+    final grouped = <String, List<AppNotification>>{};
+    for (final n in _notifications) {
+      grouped.putIfAbsent(n.type.category, () => []).add(n);
+    }
+    final sections = _categoryOrder.where((c) => grouped[c]?.isNotEmpty == true).toList();
+
+    final children = <Widget>[];
+    for (final cat in sections) {
+      final items = grouped[cat]!;
+      children.add(_CategoryHeader(_categoryHeaders[cat] ?? cat, count: items.length));
+      for (var i = 0; i < items.length; i++) {
+        children.add(_NotificationRow(
+          notification: items[i],
+          isLast: i == items.length - 1,
+          onTap: () => _open(items[i]),
+        ));
+      }
+    }
+    return ListView(padding: EdgeInsets.zero, children: children);
   }
+}
+
+class _CategoryHeader extends StatelessWidget {
+  const _CategoryHeader(this.label, {required this.count});
+  final String label;
+  final int count;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: double.infinity,
+    padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
+    color: context.pal.surface2,
+    child: Row(children: [
+      Text(label.toUpperCase(), style: AppTheme.labelCaps),
+      const SizedBox(width: 6),
+      Text('($count)', style: AppTheme.monoXs.copyWith(color: context.pal.textDim)),
+    ]),
+  );
 }
 
 class _NotificationRow extends StatelessWidget {
@@ -170,45 +214,11 @@ class _NotificationRow extends StatelessWidget {
   final bool isLast;
   final VoidCallback onTap;
 
-  IconData get _icon => switch (notification.type) {
-    NotificationType.serviceDue        => Symbols.build,
-    NotificationType.ticketAssigned    => Symbols.confirmation_number,
-    NotificationType.ticketUpdated     => Symbols.update,
-    NotificationType.paymentOverdue    => Symbols.warning,
-    NotificationType.warrantyExpiring  => Symbols.workspace_premium,
-    NotificationType.dealUpdated       => Symbols.trending_up,
-    NotificationType.leadFollowUp      => Symbols.hourglass_top,
-    NotificationType.taskAssigned      => Symbols.assignment_ind,
-    NotificationType.taskCompleted     => Symbols.task_alt,
-    NotificationType.stockPullRequired => Symbols.inventory_2,
-    NotificationType.leaveRequested    => Symbols.event_busy,
-    NotificationType.leaveApproved     => Symbols.event_available,
-    NotificationType.leaveRejected     => Symbols.event_busy,
-    NotificationType.lateArrival       => Symbols.schedule,
-    NotificationType.system            => Symbols.info,
-  };
-
-  Color get _color => switch (notification.type) {
-    NotificationType.serviceDue        => AppColors.amber,
-    NotificationType.ticketAssigned    => AppColors.teal,
-    NotificationType.ticketUpdated     => AppColors.blue,
-    NotificationType.paymentOverdue    => AppColors.coral,
-    NotificationType.warrantyExpiring  => AppColors.amber,
-    NotificationType.dealUpdated       => AppColors.violet,
-    NotificationType.leadFollowUp      => AppColors.amber,
-    NotificationType.taskAssigned      => AppColors.blue,
-    NotificationType.taskCompleted     => AppColors.teal,
-    NotificationType.stockPullRequired => AppColors.violet,
-    NotificationType.leaveRequested    => AppColors.amber,
-    NotificationType.leaveApproved     => AppColors.teal,
-    NotificationType.leaveRejected     => AppColors.coral,
-    NotificationType.lateArrival       => AppColors.amber,
-    NotificationType.system            => AppColors.textMute,
-  };
-
   @override
   Widget build(BuildContext context) {
     final unread = !notification.isRead;
+    final color = notification.type.color;
+    final action = notification.type.actionLabel;
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -222,10 +232,10 @@ class _NotificationRow extends StatelessWidget {
           Container(
             width: 36, height: 36,
             decoration: BoxDecoration(
-              color: _color.withValues(alpha: 0.12),
+              color: color.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(9),
             ),
-            child: Icon(_icon, size: 18, color: _color),
+            child: Icon(notification.type.icon, size: 18, color: color),
           ),
           const SizedBox(width: 14),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -238,7 +248,7 @@ class _NotificationRow extends StatelessWidget {
               if (unread)
                 Container(
                   width: 8, height: 8,
-                  decoration: const BoxDecoration(
+                  decoration: BoxDecoration(
                       color: AppColors.teal, shape: BoxShape.circle),
                 ),
             ]),
@@ -246,21 +256,23 @@ class _NotificationRow extends StatelessWidget {
             Text(notification.body,
                 style: AppTheme.bodySub.copyWith(fontSize: 12.5, height: 1.4),
                 maxLines: 3, overflow: TextOverflow.ellipsis),
-            const SizedBox(height: 5),
+            const SizedBox(height: 7),
             Row(children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                decoration: BoxDecoration(
-                  color: _color.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(notification.type.label,
-                    style: AppTheme.monoXs.copyWith(color: _color, fontSize: 10)),
-              ),
-              const SizedBox(width: 8),
               Text(notification.createdAt,
                   style: AppTheme.monoXs.copyWith(
                       color: context.pal.textDim, fontSize: 10.5)),
+              if (action != null) ...[
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(action, style: AppTheme.bodySub.copyWith(
+                      color: color, fontSize: 11, fontWeight: FontWeight.w600)),
+                ),
+              ],
             ]),
           ])),
         ]),

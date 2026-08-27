@@ -29,22 +29,29 @@ class SparePart {
     this.compatibleModels = const [],
   });
 
-  factory SparePart.fromJson(Map<String, dynamic> j) => SparePart(
-    id:             (j['id'] as num).toInt(),
-    sku:            j['sku']           as String? ?? j['part_number'] as String? ?? '—',
-    name:           j['name']          as String? ?? '—',
-    category:       j['category']      as String? ?? 'machine_part',
-    unitOfMeasure:  j['unit_of_measure'] as String? ?? 'piece',
-    unitCost:       (j['unit_cost']    as num? ?? 0).toDouble(),
-    currency:       j['currency']      as String? ?? 'TZS',
-    stockQty:       (j['stock_qty']    as num? ?? 0).toInt(),
-    reorderLevel:   (j['reorder_level'] as num? ?? 0).toInt(),
-    isLowStock:     j['is_low_stock']  as bool? ?? false,
-    supplier:       j['supplier']      as String? ?? '—',
-    isActive:       j['is_active']     as bool? ?? true,
-    compatibleModels: (j['compatible_models'] as List? ?? [])
-        .map((e) => e.toString()).toList(),
-  );
+  factory SparePart.fromJson(Map<String, dynamic> j) {
+    final categoryObj = j['category'];
+    final categoryName = categoryObj is Map
+        ? (categoryObj['name'] as String? ?? 'machine_part')
+        : (categoryObj as String? ?? 'machine_part');
+
+    return SparePart(
+      id:             (j['id'] as num).toInt(),
+      sku:            j['sku']           as String? ?? j['part_number'] as String? ?? '—',
+      name:           j['name']          as String? ?? '—',
+      category:       categoryName,
+      unitOfMeasure:  j['unit_of_measure'] as String? ?? 'piece',
+      unitCost:       (j['unit_cost']    as num? ?? 0).toDouble(),
+      currency:       j['currency']      as String? ?? 'TZS',
+      stockQty:       (j['stock_qty']    as num? ?? 0).toInt(),
+      reorderLevel:   (j['reorder_level'] as num? ?? 0).toInt(),
+      isLowStock:     j['is_low_stock']  as bool? ?? false,
+      supplier:       j['supplier']      as String? ?? '—',
+      isActive:       j['is_active']     as bool? ?? true,
+      compatibleModels: (j['compatible_models'] as List? ?? [])
+          .map((e) => e.toString()).toList(),
+    );
+  }
 
   bool get isOutOfStock => stockQty == 0;
 

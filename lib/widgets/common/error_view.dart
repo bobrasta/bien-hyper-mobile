@@ -28,15 +28,15 @@ class ErrorView extends StatelessWidget {
           border: Border.all(color: AppColors.coral.withValues(alpha: 0.3)),
         ),
         child: Row(children: [
-          const Icon(Symbols.error_outline, size: 16, color: AppColors.coral),
+          Icon(Symbols.error_outline, size: 16, color: AppColors.coral),
           const SizedBox(width: 10),
           Expanded(child: Text(message,
-              style: const TextStyle(color: AppColors.coral, fontSize: 13))),
+              style: TextStyle(color: AppColors.coral, fontSize: 13))),
           if (onRetry != null) ...[
             const SizedBox(width: 8),
             GestureDetector(
               onTap: onRetry,
-              child: const Text('Retry',
+              child: Text('Retry',
                   style: TextStyle(
                       color: AppColors.coral,
                       fontWeight: FontWeight.w600,
@@ -57,7 +57,7 @@ class ErrorView extends StatelessWidget {
               color: AppColors.coralSoft,
               borderRadius: BorderRadius.circular(16),
             ),
-            child: const Icon(Symbols.cloud_off, size: 28, color: AppColors.coral),
+            child: Icon(Symbols.cloud_off, size: 28, color: AppColors.coral),
           ),
           const SizedBox(height: 16),
           Text('Something went wrong',
@@ -78,7 +78,7 @@ class ErrorView extends StatelessWidget {
                   border: Border.all(color: context.pal.border),
                 ),
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  const Icon(Symbols.refresh, size: 16, color: AppColors.teal),
+                  Icon(Symbols.refresh, size: 16, color: AppColors.teal),
                   const SizedBox(width: 8),
                   Text('Try again',
                       style: AppTheme.bodySm.copyWith(color: AppColors.teal,

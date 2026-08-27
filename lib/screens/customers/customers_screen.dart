@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import '../../models/contact.dart';
 import '../../services/contact_service.dart';
@@ -123,7 +123,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
       LayoutBuilder(builder: (ctx, cst) {
         final narrow = cst.maxWidth < 640;
 
-        // ── Left pane (contact list) ───────────────────────────────────────
+        // ── Left pane (contact list) ────────────────────────────────────────
         Widget listPane = Container(
           decoration: BoxDecoration(
             border: Border(right: BorderSide(
@@ -238,7 +238,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
           ]),
         );
 
-        // ── Narrow: list or detail ─────────────────────────────────────────
+        // ── Narrow: list or detail ──────────────────────────────────────────
         if (narrow) {
           if (_showDetail && contact != null) {
             return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -250,7 +250,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
                     border: Border(bottom: BorderSide(color: context.pal.border)),
                   ),
                   child: Row(children: [
-                    const Icon(Symbols.arrow_back, size: 16, color: AppColors.teal),
+                    Icon(Symbols.arrow_back, size: 16, color: AppColors.teal),
                     const SizedBox(width: 8),
                     Text('Back to contacts', style: AppTheme.bodySm.copyWith(color: AppColors.teal)),
                   ]),
@@ -269,7 +269,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
           return listPane;
         }
 
-        // ── Wide: side-by-side ─────────────────────────────────────────────
+        // ── Wide: side-by-side ──────────────────────────────────────────────
         return Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           SizedBox(width: 340, child: listPane),
           Expanded(
@@ -326,8 +326,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
   }
 }
 
-// ── Sub-widgets ───────────────────────────────────────────────────────────────
-
+// ── Sub-widgets ─────────────────────────────────────────────────────────────
 class _TagChip extends StatelessWidget {
   const _TagChip({required this.label, required this.value, required this.active, required this.onTap});
   final String label, value; final bool active; final VoidCallback onTap;
@@ -388,7 +387,7 @@ class _ContactListItem extends StatelessWidget {
         ])),
         if (contact.nextFollowupAt != null) ...[
           Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            const Icon(Symbols.calendar_today, size: 12, color: AppColors.amber),
+            Icon(Symbols.calendar_today, size: 12, color: AppColors.amber),
             const SizedBox(height: 2),
             Text(contact.nextFollowupAt!, style: AppTheme.monoXs.copyWith(color: AppColors.amber, fontSize: 10)),
           ]),
@@ -658,7 +657,7 @@ class _ContactDetail extends StatelessWidget {
                           if (ix.nextAction != null) ...[
                             const SizedBox(height: 4),
                             Row(children: [
-                              const Icon(Symbols.arrow_forward, size: 12, color: AppColors.amber),
+                              Icon(Symbols.arrow_forward, size: 12, color: AppColors.amber),
                               const SizedBox(width: 4),
                               Flexible(child: Text(
                                 '${ix.nextAction!}${ix.nextActionDate != null ? "  ·  ${ix.nextActionDate}" : ""}',
@@ -690,8 +689,7 @@ class _DetailRow extends StatelessWidget {
   ]);
 }
 
-// ── Add Contact Dialog ─────────────────────────────────────────────────────────
-
+// ── Add Contact Dialog ──────────────────────────────────────────────────────
 class _AddContactDialog extends StatefulWidget {
   const _AddContactDialog({required this.onClose, required this.hospitalNames, this.onSaved});
   final VoidCallback  onClose;
@@ -780,8 +778,7 @@ class _AddContactDialogState extends State<_AddContactDialog> {
   }
 }
 
-// ── Log Interaction Dialog ─────────────────────────────────────────────────────
-
+// ── Log Interaction Dialog ──────────────────────────────────────────────────
 class _LogInteractionDialog extends StatefulWidget {
   const _LogInteractionDialog({required this.onClose, this.contact, this.onSaved});
   final VoidCallback  onClose;
@@ -793,7 +790,7 @@ class _LogInteractionDialog extends StatefulWidget {
 
 class _LogInteractionDialogState extends State<_LogInteractionDialog> {
   String    _type    = 'call';
-  String    _outcome = 'Positive — follow-up needed';
+  String    _outcome = 'Positive —follow-up needed';
   DateTime? _nextActionDate;
   bool      _saving  = false;
   String?   _error;
@@ -861,7 +858,7 @@ class _LogInteractionDialogState extends State<_LogInteractionDialog> {
           height: 80,
           decoration: BoxDecoration(color: context.pal.surface2,
               borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
           child: TextField(controller: _summaryCtrl, maxLines: null, expands: true,
             style: AppTheme.bodySm,
             decoration: InputDecoration(hintText: 'What was discussed?',
@@ -874,7 +871,7 @@ class _LogInteractionDialogState extends State<_LogInteractionDialog> {
         label: 'Outcome',
         value: _outcome,
         items: const [
-          'Positive — follow-up needed',
+          'Positive —follow-up needed',
           'Proposal requested',
           'Contract signed',
           'Not interested',
@@ -903,7 +900,7 @@ class _LogInteractionDialogState extends State<_LogInteractionDialog> {
                   color: _nextActionDate != null ? AppColors.teal : context.pal.textDim),
               const SizedBox(width: 8),
               Text(
-                _nextActionDate != null ? _fmtDate(_nextActionDate!) : 'Optional — pick a date',
+                _nextActionDate != null ? _fmtDate(_nextActionDate!) : 'Optional —pick a date',
                 style: AppTheme.bodySm.copyWith(
                   color: _nextActionDate != null ? context.pal.text : context.pal.textDim),
               ),
@@ -913,14 +910,13 @@ class _LogInteractionDialogState extends State<_LogInteractionDialog> {
       ]),
       if (_error != null) ...[
         const SizedBox(height: 8),
-        Text(_error!, style: const TextStyle(color: AppColors.coral, fontSize: 12.5)),
+        Text(_error!, style: TextStyle(color: AppColors.coral, fontSize: 12.5)),
       ],
     ]),
   );
 }
 
-// ── Schedule Follow-up Dialog ─────────────────────────────────────────────────
-
+// ── Schedule Follow-up Dialog ───────────────────────────────────────────────
 class _ScheduleFollowupDialog extends StatefulWidget {
   const _ScheduleFollowupDialog({required this.contact, required this.onClose, this.onSaved});
   final Contact      contact;
@@ -1003,14 +999,13 @@ class _ScheduleFollowupDialogState extends State<_ScheduleFollowupDialog> {
       ),
       if (_error != null) ...[
         const SizedBox(height: 8),
-        Text(_error!, style: const TextStyle(color: AppColors.coral, fontSize: 12.5)),
+        Text(_error!, style: TextStyle(color: AppColors.coral, fontSize: 12.5)),
       ],
     ]),
   );
 }
 
-// ── Shared modal shell ─────────────────────────────────────────────────────────
-
+// ── Shared modal shell ──────────────────────────────────────────────────────
 class _ModalShell extends StatelessWidget {
   const _ModalShell({
     required this.onClose,
@@ -1096,14 +1091,13 @@ class _CField extends StatelessWidget {
     Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10)),
     const SizedBox(height: 6),
     Container(
-      height: 38,
       decoration: BoxDecoration(color: context.pal.surface2,
           borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: Center(child: TextField(controller: ctrl, style: AppTheme.bodySm,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      child: TextField(controller: ctrl, style: AppTheme.bodySm,
         decoration: InputDecoration(hintText: hint,
             hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
-            border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero))),
+            border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero)),
     ),
   ]);
 }
@@ -1121,9 +1115,9 @@ class _CDropdown extends StatelessWidget {
     Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10)),
     const SizedBox(height: 6),
     Container(
-      height: 38,
       decoration: BoxDecoration(color: context.pal.surface2,
           borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
+      height: 38,
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: DropdownButtonHideUnderline(child: DropdownButton<String>(
         value: value, isExpanded: true,
@@ -1138,8 +1132,7 @@ class _CDropdown extends StatelessWidget {
   ]);
 }
 
-// ── Edit Contact Dialog ────────────────────────────────────────────────────────
-
+// ── Edit Contact Dialog ─────────────────────────────────────────────────────
 class _EditContactDialog extends StatefulWidget {
   const _EditContactDialog({required this.contact, required this.onClose, required this.hospitalNames, this.onSaved});
   final Contact      contact;

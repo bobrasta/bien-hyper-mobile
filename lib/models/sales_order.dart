@@ -69,6 +69,7 @@ class SalesOrder {
     this.commissionAmount,
     required this.confirmedAt,
     required this.deliveredAt,
+    this.deliveredByName,
     required this.createdAt,
     required this.items,
   });
@@ -100,6 +101,7 @@ class SalesOrder {
   final int? commissionAmount;
   final String? confirmedAt;
   final String? deliveredAt;
+  final String? deliveredByName;
   final String createdAt;
   final List<SalesOrderItem> items;
 
@@ -144,6 +146,7 @@ class SalesOrder {
     commissionAmount:     (j['commission_amount'] as num?)?.toInt(),
     confirmedAt:          j['confirmed_at'] as String?,
     deliveredAt:          j['delivered_at'] as String?,
+    deliveredByName:      j['delivered_by_name'] as String?,
     createdAt:            j['created_at'] as String,
     items: (j['items'] as List<dynamic>? ?? [])
         .map((e) => SalesOrderItem.fromJson(e as Map<String, dynamic>))

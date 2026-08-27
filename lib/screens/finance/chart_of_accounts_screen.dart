@@ -205,7 +205,7 @@ class _JournalTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (entries.isEmpty) {
-      return const Center(child: Text('No postings yet', style: TextStyle(color: AppColors.textMute)));
+      return Center(child: Text('No postings yet', style: TextStyle(color: context.pal.textMute)));
     }
     return SingleChildScrollView(
       padding: EdgeInsets.all(pad),

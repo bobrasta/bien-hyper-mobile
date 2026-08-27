@@ -105,7 +105,7 @@ class _InventoryItemsScreenState extends State<InventoryItemsScreen> {
   // pick a stable color by hashing the name across a small fixed palette.
   static String _catLabel(String cat) => cat;
 
-  static const _catPalette = [
+  static List<Color> get _catPalette => [
     AppColors.teal, AppColors.blue, AppColors.violet,
     AppColors.amber, AppColors.coral, AppColors.info,
   ];
@@ -177,14 +177,14 @@ class _InventoryItemsScreenState extends State<InventoryItemsScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                   decoration: BoxDecoration(border: Border(bottom: BorderSide(color: context.pal.border))),
                   child: Row(children: [
-                    _Th('SKU', flex: 1), _Th('Name / Manufacturer', flex: 3),
+                    _Th('Name / Manufacturer', flex: 3),
                     _Th('Category', flex: 2), _Th('Stock', flex: 1),
                     _Th('Reorder', flex: 1), _Th('Unit Cost', flex: 1),
                     const SizedBox(width: 64),
                   ]),
                 ),
                 if (_loading)
-                  shimmerTable(count: 8, cols: 6)
+                  shimmerTable(count: 8, cols: 5)
                 else if (_error != null)
                   ErrorView(message: _error!, onRetry: _load, compact: true)
                 else if (items.isEmpty)
@@ -260,7 +260,7 @@ class _InventoryItemsScreenState extends State<InventoryItemsScreen> {
   }
 }
 
-// ── Item row ──────────────────────────────────────────────────────────────────
+// ── Item row ─────────────────────────────────────────────────────────────────
 
 class _ItemRow extends StatelessWidget {
   const _ItemRow({
@@ -289,14 +289,13 @@ class _ItemRow extends StatelessWidget {
           border: Border(bottom: BorderSide(color: context.pal.divider)),
         ),
         child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
-          Expanded(flex: 1, child: Text(item.sku,
-              style: AppTheme.monoXs.copyWith(color: context.pal.textMute, fontSize: 11))),
           Expanded(flex: 3, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
               Expanded(child: Text(item.name, style: AppTheme.bodyStrong.copyWith(fontSize: 12.5))),
               if (item.hasCe)  _CertBadge('CE'),
               if (item.hasFda) _CertBadge('FDA'),
               if (item.hasTbs) _CertBadge('TBS'),
+              if (item.needsReview) const _ReviewBadge(),
             ]),
             if (item.manufacturer != null)
               Text(item.manufacturer!, style: AppTheme.bodySub.copyWith(fontSize: 11),
@@ -326,7 +325,7 @@ class _ItemRow extends StatelessWidget {
                   style: AppTheme.monoXs.copyWith(color: stockColor, fontWeight: FontWeight.w700)),
             ]),
           ))),
-          Expanded(flex: 1, child: Text('≥${item.reorderLevel}',
+          Expanded(flex: 1, child: Text('— ${item.reorderLevel}',
               style: AppTheme.monoXs.copyWith(color: context.pal.textDim))),
           Expanded(flex: 1, child: Text(tshFromDouble(item.unitCost),
               style: AppTheme.bodyStrong.copyWith(fontSize: 12.5))),
@@ -336,7 +335,7 @@ class _ItemRow extends StatelessWidget {
                 child: Icon(Symbols.edit, size: 15, color: context.pal.textDim)),
             const SizedBox(width: 12),
             GestureDetector(onTap: onDelete,
-                child: const Icon(Symbols.delete_outline, size: 15, color: AppColors.coral)),
+                child: Icon(Symbols.delete_outline, size: 15, color: AppColors.coral)),
           ])),
         ]),
       ),
@@ -344,7 +343,7 @@ class _ItemRow extends StatelessWidget {
   }
 }
 
-// ── Detail panel ───────────────────────────────────────────────────────────────
+// ── Detail panel ─────────────────────────────────────────────────────────────
 
 class _ItemDetailPanel extends StatelessWidget {
   const _ItemDetailPanel({
@@ -503,7 +502,7 @@ class _Row extends StatelessWidget {
   );
 }
 
-// ── Record Movement modal ──────────────────────────────────────────────────────
+// ── Record Movement modal ────────────────────────────────────────────────────
 
 class _RecordMovementModal extends StatefulWidget {
   const _RecordMovementModal({required this.item, required this.onClose, this.onSaved});
@@ -594,7 +593,7 @@ class _RecordMovementModalState extends State<_RecordMovementModal> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
               child: Row(children: [
-                const Icon(Symbols.swap_vert, size: 18, color: AppColors.teal),
+                Icon(Symbols.swap_vert, size: 18, color: AppColors.teal),
                 const SizedBox(width: 10),
                 Expanded(child: Text('Record Movement — ${widget.item.name}',
                     style: AppTheme.bodyStrong, overflow: TextOverflow.ellipsis)),
@@ -608,9 +607,9 @@ class _RecordMovementModalState extends State<_RecordMovementModal> {
                 Text('MOVEMENT TYPE', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
                 const SizedBox(height: 6),
                 Container(
-                  height: 38,
                   decoration: BoxDecoration(color: context.pal.surface2,
                       borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
+                  height: 38,
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   child: DropdownButtonHideUnderline(child: DropdownButton<String>(
                     value: _type, isExpanded: true,
@@ -629,9 +628,9 @@ class _RecordMovementModalState extends State<_RecordMovementModal> {
                   const ShimmerBox(height: 38, radius: 8)
                 else
                   Container(
-                    height: 38,
                     decoration: BoxDecoration(color: context.pal.surface2,
                         borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
+                    height: 38,
                     padding: const EdgeInsets.symmetric(horizontal: 12),
                     child: DropdownButtonHideUnderline(child: DropdownButton<int>(
                       value: _locationId, isExpanded: true,
@@ -654,9 +653,9 @@ class _RecordMovementModalState extends State<_RecordMovementModal> {
                     const ShimmerBox(height: 38, radius: 8)
                   else
                     Container(
-                      height: 38,
                       decoration: BoxDecoration(color: context.pal.surface2,
                           borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
+                      height: 38,
                       padding: const EdgeInsets.symmetric(horizontal: 12),
                       child: DropdownButtonHideUnderline(child: DropdownButton<int>(
                         value: _toLocationId, isExpanded: true,
@@ -674,34 +673,34 @@ class _RecordMovementModalState extends State<_RecordMovementModal> {
                 const SizedBox(height: 12),
                 Text('QUANTITY', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
                 const SizedBox(height: 6),
-                Container(height: 38,
+                Container(
                   decoration: BoxDecoration(color: context.pal.surface2,
                       borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: Center(child: TextField(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  child: TextField(
                     controller: _qtyCtrl,
                     keyboardType: TextInputType.number, style: AppTheme.bodySm,
                     decoration: InputDecoration(hintText: '1', hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
                         border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero),
-                  )),
+                  ),
                 ),
                 const SizedBox(height: 12),
                 Text('NOTES (optional)', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
                 const SizedBox(height: 6),
-                Container(height: 38,
+                Container(
                   decoration: BoxDecoration(color: context.pal.surface2,
                       borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: Center(child: TextField(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  child: TextField(
                     controller: _notesCtrl, style: AppTheme.bodySm,
                     decoration: InputDecoration(hintText: 'e.g. received from supplier',
                         hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
                         border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero),
-                  )),
+                  ),
                 ),
                 if (_error != null) ...[
                   const SizedBox(height: 8),
-                  Text(_error!, style: const TextStyle(color: AppColors.coral, fontSize: 12.5)),
+                  Text(_error!, style: TextStyle(color: AppColors.coral, fontSize: 12.5)),
                 ],
               ]),
             ),
@@ -735,7 +734,7 @@ class _RecordMovementModalState extends State<_RecordMovementModal> {
   );
 }
 
-// ── Add / Edit modal ───────────────────────────────────────────────────────────
+// ── Add / Edit modal ─────────────────────────────────────────────────────────
 
 class _ItemFormModal extends StatefulWidget {
   const _ItemFormModal({this.item, required this.catLabel, required this.catColor,
@@ -763,6 +762,7 @@ class _ItemFormModalState extends State<_ItemFormModal> {
   late bool   _hasFda   = widget.item?.hasFda ?? false;
   late bool   _hasTbs   = widget.item?.hasTbs ?? false;
   late bool   _createsMachineRecord = widget.item?.createsMachineRecord ?? false;
+  late bool   _needsReview = widget.item?.needsReview ?? false;
   late final _warrantyCtrl = TextEditingController(
       text: widget.item?.warrantyMonths?.toString() ?? '');
   bool    _saving = false;
@@ -823,6 +823,7 @@ class _ItemFormModalState extends State<_ItemFormModal> {
         'has_tbs':        _hasTbs,
         'creates_machine_record': _createsMachineRecord,
         'warranty_months': _warrantyCtrl.text.trim().isEmpty ? null : int.tryParse(_warrantyCtrl.text.trim()),
+        if (_isEdit) 'needs_review': _needsReview,
       };
       if (_isEdit) {
         await InventoryService.instance.update(widget.item!.id, data);
@@ -924,9 +925,16 @@ class _ItemFormModalState extends State<_ItemFormModal> {
                         label: 'Warranty (months)', ctrl: _warrantyCtrl, hint: '12', numeric: true)),
                   ],
                 ]),
+                if (_isEdit) ...[
+                  const SizedBox(height: 14),
+                  Row(children: [
+                    _CheckChip(label: 'Needs Review', value: _needsReview,
+                        onChanged: (v) => setState(() => _needsReview = v)),
+                  ]),
+                ],
                 if (_error != null) ...[
                   const SizedBox(height: 10),
-                  Text(_error!, style: const TextStyle(color: AppColors.coral, fontSize: 12.5)),
+                  Text(_error!, style: TextStyle(color: AppColors.coral, fontSize: 12.5)),
                 ],
               ]),
             )),
@@ -961,7 +969,7 @@ class _ItemFormModalState extends State<_ItemFormModal> {
   );
 }
 
-// ── Shared widgets ─────────────────────────────────────────────────────────────
+// ── Shared widgets ───────────────────────────────────────────────────────────
 
 class _CertBadge extends StatelessWidget {
   const _CertBadge(this.label, {this.large = false});
@@ -979,6 +987,25 @@ class _CertBadge extends StatelessWidget {
     ),
     child: Text(label, style: AppTheme.monoXs.copyWith(
         color: AppColors.teal, fontSize: large ? 10.5 : 9, fontWeight: FontWeight.w700)),
+  );
+}
+
+// Flags an item created via quick-add (e.g. cannibalized from a machine
+// mid-service) that still needs a real SKU/cost/category filled in.
+class _ReviewBadge extends StatelessWidget {
+  const _ReviewBadge();
+
+  @override
+  Widget build(BuildContext context) => Container(
+    margin: const EdgeInsets.only(left: 4),
+    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+    decoration: BoxDecoration(
+      color: AppColors.amber.withValues(alpha: 0.12),
+      borderRadius: BorderRadius.circular(4),
+      border: Border.all(color: AppColors.amber.withValues(alpha: 0.4)),
+    ),
+    child: Text('REVIEW', style: AppTheme.monoXs.copyWith(
+        color: AppColors.amber, fontSize: 9, fontWeight: FontWeight.w700)),
   );
 }
 
@@ -1026,7 +1053,7 @@ class _SearchBox extends StatelessWidget {
       Expanded(child: TextField(
         onChanged: onChanged, style: AppTheme.bodySm,
         decoration: InputDecoration(
-          hintText: 'Search name, SKU, manufacturer…',
+          hintText: 'Search name, SKU, manufacturer—',
           hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
           border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero,
         ),
@@ -1046,17 +1073,17 @@ class _Field extends StatelessWidget {
   Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
     Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10)),
     const SizedBox(height: 6),
-    Container(height: 38,
+    Container(
       decoration: BoxDecoration(color: context.pal.surface2,
           borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: Center(child: TextField(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      child: TextField(
         controller: ctrl, style: AppTheme.bodySm,
         keyboardType: numeric ? TextInputType.number : TextInputType.text,
         decoration: InputDecoration(hintText: hint,
             hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
             border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero),
-      )),
+      ),
     ),
   ]);
 }
@@ -1073,9 +1100,10 @@ class _Dropdown extends StatelessWidget {
   Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
     Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10)),
     const SizedBox(height: 6),
-    Container(height: 38,
+    Container(
       decoration: BoxDecoration(color: context.pal.surface2,
           borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
+      height: 38,
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: DropdownButtonHideUnderline(child: DropdownButton<String>(
         value: items.contains(value) ? value : items.first, isExpanded: true,
@@ -1112,9 +1140,8 @@ class _CategoryFilterDropdown extends StatelessWidget {
   Widget build(BuildContext context) {
     final total = categories.values.fold(0, (a, b) => a + b);
     return Container(
-      height: 32,
       width: 220,
-      padding: const EdgeInsets.symmetric(horizontal: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
         color: context.pal.surface2,
         borderRadius: BorderRadius.circular(6),

@@ -60,7 +60,7 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
 
     return Stack(children: [
       Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        // ── Header ──
+        // ── Header ───────────────────────────────────────────────────────────
         Container(
           padding: const EdgeInsets.fromLTRB(24, 18, 24, 14),
           decoration: BoxDecoration(border: Border(bottom: BorderSide(color: context.pal.border))),
@@ -105,7 +105,7 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
                 onPressed: () => setState(() => _showAdd = true)),
           ]),
         ),
-        // ── Two-panel body ──
+        // ── Two-panel body ───────────────────────────────────────────────────
         Expanded(child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           // List panel
           Expanded(flex: 3, child: RefreshIndicator(
@@ -180,7 +180,7 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
   };
 }
 
-// ── Supplier row ───────────────────────────────────────────────────────────────
+// ── Supplier row ─────────────────────────────────────────────────────────────
 
 class _SupplierRow extends StatelessWidget {
   const _SupplierRow({required this.supplier, required this.selected,
@@ -251,7 +251,7 @@ class _SupplierRow extends StatelessWidget {
   };
 }
 
-// ── Supplier detail panel ──────────────────────────────────────────────────────
+// ── Supplier detail panel ────────────────────────────────────────────────────
 
 class _SupplierDetailPanel extends StatelessWidget {
   const _SupplierDetailPanel({required this.supplier, required this.onClose, this.onEdit});
@@ -356,7 +356,7 @@ class _ClickRow extends StatelessWidget {
   );
 }
 
-// ── Add / Edit modal ───────────────────────────────────────────────────────────
+// ── Add / Edit modal ─────────────────────────────────────────────────────────
 
 class _SupplierFormModal extends StatefulWidget {
   const _SupplierFormModal({this.supplier, required this.onClose, this.onSaved});
@@ -450,7 +450,7 @@ class _SupplierFormModalState extends State<_SupplierFormModal> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
               child: Row(children: [
-                const Icon(Symbols.business, size: 18, color: AppColors.teal),
+                Icon(Symbols.business, size: 18, color: AppColors.teal),
                 const SizedBox(width: 10),
                 Text(_isEdit ? 'Edit: ${widget.supplier!.name}' : 'Add Supplier',
                     style: AppTheme.bodyStrong),
@@ -530,7 +530,7 @@ class _SupplierFormModalState extends State<_SupplierFormModal> {
                 _Fld('Notes', _notesCtrl, 'Optional notes about this supplier'),
                 if (_error != null) ...[
                   const SizedBox(height: 10),
-                  Text(_error!, style: const TextStyle(color: AppColors.coral, fontSize: 12.5)),
+                  Text(_error!, style: TextStyle(color: AppColors.coral, fontSize: 12.5)),
                 ],
               ]),
             )),
@@ -565,7 +565,7 @@ class _SupplierFormModalState extends State<_SupplierFormModal> {
   );
 }
 
-// ── Local-only form widgets ────────────────────────────────────────────────────
+// ── Local-only form widgets ──────────────────────────────────────────────────
 
 class _Fld extends StatelessWidget {
   const _Fld(this.label, this.ctrl, this.hint);
@@ -576,16 +576,16 @@ class _Fld extends StatelessWidget {
   Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
     Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10)),
     const SizedBox(height: 6),
-    Container(height: 38,
+    Container(
       decoration: BoxDecoration(color: context.pal.surface2,
           borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: Center(child: TextField(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      child: TextField(
         controller: ctrl, style: AppTheme.bodySm,
         decoration: InputDecoration(hintText: hint,
             hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
             border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero),
-      )),
+      ),
     ),
   ]);
 }
@@ -601,9 +601,10 @@ class _DD extends StatelessWidget {
   Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
     Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10)),
     const SizedBox(height: 6),
-    Container(height: 38,
+    Container(
       decoration: BoxDecoration(color: context.pal.surface2,
           borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
+      height: 38,
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: DropdownButtonHideUnderline(child: DropdownButton<String>(
         value: items.contains(value) ? value : items.first, isExpanded: true,

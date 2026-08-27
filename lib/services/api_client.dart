@@ -10,11 +10,13 @@ class ApiClient {
   ApiClient._();
   static final instance = ApiClient._();
 
-  // Override at build time:
-  //   flutter build windows --dart-define=API_BASE_URL=https://hypermed-api-production.up.railway.app/api/v1
+  // Default points at the Railway-hosted backend so every device (phone,
+  // tablet, laptop) reaches the same real data without extra build flags —
+  // set for the multi-device demo. Override back to local dev with:
+  //   flutter run --dart-define=API_BASE_URL=http://hypermed.local:8080/api/v1
   static const baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://hypermed.local:8080/api/v1',
+    defaultValue: 'https://hypermed-api-production.up.railway.app/api/v1',
   );
 
   // In-memory cache store shared across all requests — 10 MB cap.
@@ -50,7 +52,8 @@ class ApiClient {
     final d = Dio(BaseOptions(
       baseUrl:        baseUrl,
       connectTimeout: const Duration(seconds: 10),
-      receiveTimeout: const Duration(seconds: 60),
+      receiveTimeout: const Duration(seconds: 15),
+      sendTimeout:    const Duration(seconds: 15),
       headers: {
         'Accept':          'application/json',
         'Accept-Encoding': 'gzip',

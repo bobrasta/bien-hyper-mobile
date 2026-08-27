@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'app_theme.dart';
 
 /// Hypermed design tokens — ported from the gwgps Fleet Command design
 /// system (see gwgps-app/public/css/fleet-command.css + theme-overrides.css).
@@ -24,27 +25,42 @@ class AppColors {
   static const Color textMute    = Color(0xFFA3ABB4); // gwgps --text-dim (1st tier)
   static const Color textDim     = Color(0xFF6A727B); // gwgps --text-mute (2nd tier)
 
-  // ── Brand — accent green (gwgps --accent) ──────────────────
-  // `teal`/`blue` kept as aliases for backward compat across existing screens
-  // — both now map to the brand accent green, not the old blue.
-  static const Color teal        = Color(0xFF22C55E);
-  static const Color tealSoft    = Color(0x2422C55E);
-  static const Color tealGlow    = Color(0x5922C55E);
+  // ── Brand — accent (theme-reactive) ─────────────────────────
+  // `teal`/`blue`/`green` are aliases of ONE brand-accent concept (kept
+  // separately named for backward compat across existing call sites) — all
+  // three now read the active theme's AppPalette.blue/statusWarning/
+  // statusCritical live, via AppTheme.pal, instead of a fixed hardcoded
+  // green. Previously these were `const`, which meant no theme (including a
+  // future one) could ever actually change them — every button/badge across
+  // the app rendered the same green regardless of selected theme. Getters
+  // are not compile-time constants, so any `const` expression wrapping one
+  // of these now needs that `const` removed (flutter analyze finds them all
+  // — see the sweep after this change in project memory).
+  static Color get teal        => AppTheme.pal.blue;
+  static Color get tealSoft    => AppTheme.pal.blue.withValues(alpha: 0.14);
+  static Color get tealGlow    => AppTheme.pal.blue.withValues(alpha: 0.35);
 
-  static const Color blue        = Color(0xFF22C55E); // brand accent (was blue)
-  static const Color blueSoft    = Color(0x2422C55E);
-  static const Color blueStrong  = Color(0xFF4ADE80); // hover / lighter accent
+  static Color get blue        => AppTheme.pal.blue;
+  static Color get blueSoft    => AppTheme.pal.blue.withValues(alpha: 0.14);
+  // AppPalette.light/neutral's blue700 (0xFF16A34A) doesn't match this
+  // fixed value's old dark-mode-tuned green (0xFF4ADE80) — pin it for every
+  // pre-existing theme so this change is invisible there, and only let it
+  // vary for themes added after this fix (fundify's own blue700).
+  static Color get blueStrong  => switch (themeNotifier.value) {
+    AppThemeMode.dark || AppThemeMode.light || AppThemeMode.neutral => const Color(0xFF4ADE80),
+    AppThemeMode.fundify || AppThemeMode.aurora => AppTheme.pal.blue700,
+  };
 
-  static const Color green       = Color(0xFF22C55E); // success — same as accent in gwgps
-  static const Color greenSoft   = Color(0x2422C55E);
+  static Color get green       => AppTheme.pal.green;
+  static Color get greenSoft   => AppTheme.pal.green.withValues(alpha: 0.14);
 
-  static const Color amber       = Color(0xFFF59E0B); // warning (gwgps --warn)
-  static const Color amberSoft   = Color(0x24F59E0B);
+  static Color get amber       => AppTheme.pal.statusWarning;
+  static Color get amberSoft   => AppTheme.pal.statusWarning.withValues(alpha: 0.14);
 
-  static const Color coral       = Color(0xFFF04438); // critical (gwgps --danger)
-  static const Color coralSoft   = Color(0x24F04438);
+  static Color get coral       => AppTheme.pal.statusCritical;
+  static Color get coralSoft   => AppTheme.pal.statusCritical.withValues(alpha: 0.14);
 
-  static const Color violet      = Color(0xFFA78BFA); // gwgps --violet
+  static const Color violet      = Color(0xFFA78BFA); // gwgps --violet — secondary accent, not part of the brand-accent leak this fixes
   static const Color violetSoft  = Color(0x29A78BFA);
 
   static const Color info        = Color(0xFF38BDF8); // gwgps --info
@@ -55,22 +71,22 @@ class AppColors {
   static const double rLg = 18;
   static const double rXl = 24;
 
-  // ── Gradient presets ──────────────────────────────────────
-  static const LinearGradient avatarGradient = LinearGradient(
+  // ── Gradient presets (getters — colors above are no longer const) ──
+  static LinearGradient get avatarGradient => LinearGradient(
     begin: Alignment.topLeft, end: Alignment.bottomRight,
     colors: [blue, violet],
   );
-  static const LinearGradient avatarTealGradient = LinearGradient(
+  static LinearGradient get avatarTealGradient => LinearGradient(
     begin: Alignment.topLeft, end: Alignment.bottomRight,
-    colors: [teal, Color(0xFF2F7FC2)],
+    colors: [teal, const Color(0xFF2F7FC2)],
   );
-  static const LinearGradient avatarAmberGradient = LinearGradient(
+  static LinearGradient get avatarAmberGradient => LinearGradient(
     begin: Alignment.topLeft, end: Alignment.bottomRight,
-    colors: [amber, Color(0xFFB8900A)],
+    colors: [amber, const Color(0xFFB8900A)],
   );
-  static const LinearGradient avatarCoralGradient = LinearGradient(
+  static LinearGradient get avatarCoralGradient => LinearGradient(
     begin: Alignment.topLeft, end: Alignment.bottomRight,
-    colors: [coral, Color(0xFFB83A38)],
+    colors: [coral, const Color(0xFFB83A38)],
   );
   static const LinearGradient avatarVioletGradient = LinearGradient(
     begin: Alignment.topLeft, end: Alignment.bottomRight,

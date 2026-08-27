@@ -16,7 +16,7 @@ import '../../utils/api_error.dart';
 import '../../widgets/common/app_button.dart';
 import '../../widgets/common/error_view.dart';
 
-// ── Helpers ────────────────────────────────────────────────────────────────────
+// ── Helpers ──────────────────────────────────────────────────────────────────
 
 String _fmtAmount(int tzs) {
   final s = tzs.abs().toString();
@@ -59,7 +59,7 @@ class _CartLine {
   }
 }
 
-// ── Screen ─────────────────────────────────────────────────────────────────────
+// ── Screen ───────────────────────────────────────────────────────────────────
 
 class PosScreen extends StatefulWidget {
   const PosScreen({super.key});
@@ -315,7 +315,7 @@ class _PosScreenState extends State<PosScreen> {
             onSubmitted: _onScanSubmit,
             style: AppTheme.bodySm,
             decoration: InputDecoration(
-              hintText: 'Scan barcode or search by name / SKU…',
+              hintText: 'Scan barcode or search by name / SKU—',
               hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
               prefixIcon: Icon(Symbols.barcode_scanner, size: 18, color: context.pal.textDim),
               filled: true, fillColor: context.pal.surface2,
@@ -530,14 +530,13 @@ class _PosScreenState extends State<PosScreen> {
   );
 
   Widget _miniPriceField(String hint, TextEditingController ctrl, BuildContext context) => Container(
-    height: 30,
-    padding: const EdgeInsets.symmetric(horizontal: 8),
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
     decoration: BoxDecoration(
       color: context.pal.surface1,
       borderRadius: BorderRadius.circular(6),
       border: Border.all(color: context.pal.border),
     ),
-    child: Center(child: TextField(
+    child: TextField(
       controller: ctrl,
       keyboardType: TextInputType.number,
       onChanged: (_) => setState(() {}),
@@ -546,7 +545,7 @@ class _PosScreenState extends State<PosScreen> {
         hintText: hint, hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim, fontSize: 11),
         border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero,
       ),
-    )),
+    ),
   );
 
   Widget _field(String label, TextEditingController ctrl, BuildContext context,
@@ -555,8 +554,7 @@ class _PosScreenState extends State<PosScreen> {
         Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 9.5)),
         const SizedBox(height: 5),
         Container(
-          height: 34,
-          padding: const EdgeInsets.symmetric(horizontal: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
           decoration: BoxDecoration(
             color: context.pal.surface2,
             borderRadius: BorderRadius.circular(7),
@@ -581,7 +579,7 @@ class _PosScreenState extends State<PosScreen> {
       Text('SHIP FROM LOCATION', style: AppTheme.labelCaps.copyWith(fontSize: 9.5)),
       const SizedBox(height: 5),
       Container(
-        height: 34,
+        height: 38,
         padding: const EdgeInsets.symmetric(horizontal: 10),
         decoration: BoxDecoration(
           color: context.pal.surface2,
@@ -605,7 +603,7 @@ class _PosScreenState extends State<PosScreen> {
       Text('HOSPITAL (OPTIONAL)', style: AppTheme.labelCaps.copyWith(fontSize: 9.5)),
       const SizedBox(height: 5),
       Container(
-        height: 34,
+        height: 38,
         padding: const EdgeInsets.symmetric(horizontal: 10),
         decoration: BoxDecoration(
           color: context.pal.surface2,
@@ -633,7 +631,7 @@ class _PosScreenState extends State<PosScreen> {
       Text('PAYMENT METHOD', style: AppTheme.labelCaps.copyWith(fontSize: 9.5)),
       const SizedBox(height: 5),
       Container(
-        height: 34,
+        height: 38,
         padding: const EdgeInsets.symmetric(horizontal: 10),
         decoration: BoxDecoration(
           color: context.pal.surface2,
@@ -680,7 +678,7 @@ class _PosScreenState extends State<PosScreen> {
   );
 }
 
-// ── Receipt dialog ─────────────────────────────────────────────────────────────
+// ── Receipt dialog ───────────────────────────────────────────────────────────
 
 class _ReceiptDialog extends StatelessWidget {
   const _ReceiptDialog({required this.salesOrder, required this.invoice});
@@ -733,7 +731,7 @@ class _ReceiptDialog extends StatelessWidget {
   );
 }
 
-// ── Pending-approval dialog ─────────────────────────────────────────────────────
+// ── Pending-approval dialog ──────────────────────────────────────────────────
 
 class _PendingApprovalDialog extends StatelessWidget {
   const _PendingApprovalDialog({required this.orderNumber, required this.message});
@@ -758,7 +756,7 @@ class _PendingApprovalDialog extends StatelessWidget {
         const SizedBox(height: 10),
         Text(message, style: AppTheme.bodySm),
         const SizedBox(height: 6),
-        Text('The sale has been saved as a pending order under Sales → Orders — it will complete once approved.',
+        Text('The sale has been saved as a pending order under Sales — Orders — it will complete once approved.',
             style: AppTheme.bodySub),
         const SizedBox(height: 20),
         SizedBox(

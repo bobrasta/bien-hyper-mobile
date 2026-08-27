@@ -1,5 +1,6 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
+import '../../main.dart' show userRoleNotifier, hasStaffManageAuthority;
 import '../../models/service_ticket.dart';
 import '../../models/task_item.dart';
 import '../../services/staff_service.dart';
@@ -13,8 +14,7 @@ import '../../widgets/common/app_button.dart';
 import '../../widgets/common/avatar_widget.dart';
 import '../../theme/app_palette.dart';
 
-// ── Local data models ──────────────────────────────────────────────────────────
-
+// ── Local data models ───────────────────────────────────────────────────────
 class _Task {
   const _Task({
     required this.id,           required this.title,
@@ -59,10 +59,10 @@ class _TeamMember {
   final int?    staffIntId;
 }
 
-// ── Screen ─────────────────────────────────────────────────────────────────────
-
+// ── Screen ──────────────────────────────────────────────────────────────────
 class StaffScreen extends StatefulWidget {
-  const StaffScreen({super.key});
+  const StaffScreen({super.key, this.initialTaskId});
+  final int? initialTaskId;
   @override
   State<StaffScreen> createState() => _StaffScreenState();
 }
@@ -71,6 +71,7 @@ class _StaffScreenState extends State<StaffScreen> {
   int _typeTab      = 0;
   int _selectedTask = 0;
   int _narrowPane   = 0;
+  bool _autoSelectedTask = false;
 
   List<_TeamMember> _liveTeam         = [];
   List<_Task>       _liveFieldTasks   = [];
@@ -80,6 +81,8 @@ class _StaffScreenState extends State<StaffScreen> {
   bool _loadingTasks = true;
   bool _showNewTask  = false;
   bool _showNewStaff = false;
+
+  bool get _canManageStaff => hasStaffManageAuthority(userRoleNotifier.value);
 
   int?    _filterStaffId;
   String? _filterStaffName;
@@ -94,6 +97,11 @@ class _StaffScreenState extends State<StaffScreen> {
 
   Future<void> _load() async {
     await Future.wait([_loadStaff(), _loadFieldTickets(), _loadGeneralTasks()]);
+    if (!_autoSelectedTask && widget.initialTaskId != null && mounted) {
+      _autoSelectedTask = true;
+      final idx = _allTasks.indexWhere((t) => t.isGeneral && t.dbId == widget.initialTaskId);
+      if (idx >= 0) _selectTask(idx);
+    }
   }
 
   Future<void> _loadStaff() async {
@@ -137,8 +145,7 @@ class _StaffScreenState extends State<StaffScreen> {
     } catch (_) {}
   }
 
-  // ── Model converters ─────────────────────────────────────────────────────────
-
+  // ── Model converters ──────────────────────────────────────────────────────
   static _TeamMember _staffToTeamMember(StaffMember s) => _TeamMember(
     id:          's${s.id}',
     name:        s.name,
@@ -212,8 +219,7 @@ class _StaffScreenState extends State<StaffScreen> {
     rawTask:          t,
   );
 
-  // ── Task grouping ─────────────────────────────────────────────────────────────
-
+  // ── Task grouping ─────────────────────────────────────────────────────────
   static const _typeKeys = ['', 'field', 'sales', 'office', 'finance', 'cs', 'general'];
 
   _Task? get _task {
@@ -246,8 +252,7 @@ class _StaffScreenState extends State<StaffScreen> {
     return out;
   }
 
-  // ── Actions ──────────────────────────────────────────────────────────────────
-
+  // ── Actions ───────────────────────────────────────────────────────────────
   void _filterByStaff(int staffId, String staffName) {
     setState(() {
       if (_filterStaffId == staffId) {
@@ -319,8 +324,7 @@ class _StaffScreenState extends State<StaffScreen> {
     await CsvExport.tasks(rawItems, staffName: _filterStaffName);
   }
 
-  // ── Builders ──────────────────────────────────────────────────────────────────
-
+  // ── Builders ──────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(builder: (ctx, cst) {
@@ -356,7 +360,7 @@ class _StaffScreenState extends State<StaffScreen> {
         onAssign: _assignTask,
         filterStaffId:   _filterStaffId,
         onFilterByStaff: _filterByStaff,
-        onAddStaff: () => setState(() => _showNewStaff = true),
+        onAddStaff: _canManageStaff ? () => setState(() => _showNewStaff = true) : null,
       )),
     ]),
     if (_showNewTask) _newTaskOverlay(),
@@ -406,7 +410,7 @@ class _StaffScreenState extends State<StaffScreen> {
           onAssign: (m) { _assignTask(m); setState(() => _narrowPane = 1); },
           filterStaffId:   _filterStaffId,
           onFilterByStaff: _filterByStaff,
-          onAddStaff: () => setState(() => _showNewStaff = true),
+          onAddStaff: _canManageStaff ? () => setState(() => _showNewStaff = true) : null,
         )),
       ]),
       _ => _TaskListPane(
@@ -470,8 +474,7 @@ class _StaffScreenState extends State<StaffScreen> {
   }
 }
 
-// ── Task list pane ─────────────────────────────────────────────────────────────
-
+// ── Task list pane ──────────────────────────────────────────────────────────
 class _TaskListPane extends StatelessWidget {
   const _TaskListPane({
     required this.typeTab, required this.onTypeTab,
@@ -493,7 +496,7 @@ class _TaskListPane extends StatelessWidget {
   final VoidCallback? onExport;
 
   static const _tabs = ['All', 'Field', 'Sales', 'Office', 'Finance', 'CS', 'General'];
-  static const _tabColors = [
+  static List<Color> get _tabColors => [
     AppColors.textMute, AppColors.teal, AppColors.violet,
     AppColors.blue, AppColors.amber, AppColors.coral, AppColors.textDim,
   ];
@@ -770,8 +773,7 @@ class _TaskListItem extends StatelessWidget {
   );
 }
 
-// ── Task detail pane ───────────────────────────────────────────────────────────
-
+// ── Task detail pane ────────────────────────────────────────────────────────
 class _TaskDetailPane extends StatelessWidget {
   const _TaskDetailPane({
     required this.task,
@@ -962,7 +964,7 @@ class _TaskDetailPane extends StatelessWidget {
               color: AppColors.tealSoft, borderRadius: BorderRadius.circular(8),
               border: Border.all(color: AppColors.teal.withValues(alpha: 0.3))),
             child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              const Icon(Symbols.check_circle, size: 16, color: AppColors.teal),
+              Icon(Symbols.check_circle, size: 16, color: AppColors.teal),
               const SizedBox(width: 8),
               Text('Completed', style: AppTheme.bodyStrong.copyWith(
                   color: AppColors.teal, fontSize: 13)),
@@ -973,8 +975,7 @@ class _TaskDetailPane extends StatelessWidget {
   }
 }
 
-// ── Timeline widget ────────────────────────────────────────────────────────────
-
+// ── Timeline widget ─────────────────────────────────────────────────────────
 class _Timeline extends StatelessWidget {
   const _Timeline({required this.assignedAt, this.startedAt, this.completedAt});
   final String  assignedAt;
@@ -1042,8 +1043,7 @@ class _TimeStep extends StatelessWidget {
   }
 }
 
-// ── Team availability pane ────────────────────────────────────────────────────
-
+// ── Team availability pane ──────────────────────────────────────────────────
 class _TeamAvailabilityPane extends StatelessWidget {
   const _TeamAvailabilityPane({
     required this.task, required this.team, required this.onAssign,
@@ -1087,7 +1087,7 @@ class _TeamAvailabilityPane extends StatelessWidget {
                   child: Container(
                     width: 22, height: 22,
                     decoration: BoxDecoration(color: AppColors.tealSoft, borderRadius: BorderRadius.circular(6)),
-                    child: const Icon(Symbols.person_add, size: 13, color: AppColors.teal),
+                    child: Icon(Symbols.person_add, size: 13, color: AppColors.teal),
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -1146,7 +1146,7 @@ class _TeamAvailabilityPane extends StatelessWidget {
               ),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Row(children: [
-                  const Icon(Symbols.auto_fix_high, size: 13, color: AppColors.teal),
+                  Icon(Symbols.auto_fix_high, size: 13, color: AppColors.teal),
                   const SizedBox(width: 6),
                   Text('Auto-route Rules', style: AppTheme.bodyStrong.copyWith(fontSize: 12)),
                   const Spacer(),
@@ -1163,7 +1163,7 @@ class _TeamAvailabilityPane extends StatelessWidget {
                     'Nearest available technician'),
                 const SizedBox(height: 6),
                 _AutoRule(Symbols.business_center, 'Office & account tasks',
-                    'Account owner → team-lead fallback'),
+                    'Account owner →team-lead fallback'),
               ]),
             ),
           ),
@@ -1173,8 +1173,7 @@ class _TeamAvailabilityPane extends StatelessWidget {
   }
 }
 
-// ── Narrow back bar ───────────────────────────────────────────────────────────
-
+// ── Narrow back bar ─────────────────────────────────────────────────────────
 class _NarrowBack extends StatelessWidget {
   const _NarrowBack({required this.label, required this.onBack});
   final String label;
@@ -1188,7 +1187,7 @@ class _NarrowBack extends StatelessWidget {
       decoration: BoxDecoration(
           border: Border(bottom: BorderSide(color: context.pal.border))),
       child: Row(children: [
-        const Icon(Symbols.arrow_back, size: 16, color: AppColors.teal),
+        Icon(Symbols.arrow_back, size: 16, color: AppColors.teal),
         const SizedBox(width: 8),
         Text(label, style: AppTheme.bodySub.copyWith(color: AppColors.teal)),
       ]),
@@ -1196,8 +1195,7 @@ class _NarrowBack extends StatelessWidget {
   );
 }
 
-// ── Section card ──────────────────────────────────────────────────────────────
-
+// ── Section card ────────────────────────────────────────────────────────────
 class _SectionCard extends StatelessWidget {
   const _SectionCard({required this.icon, required this.title, required this.child});
   final IconData icon;
@@ -1227,8 +1225,7 @@ class _SectionCard extends StatelessWidget {
   );
 }
 
-// ── Group header ──────────────────────────────────────────────────────────────
-
+// ── Group header ────────────────────────────────────────────────────────────
 class _GroupHeader extends StatelessWidget {
   const _GroupHeader(this.label);
   final String label;
@@ -1240,8 +1237,7 @@ class _GroupHeader extends StatelessWidget {
   );
 }
 
-// ── Team member row ───────────────────────────────────────────────────────────
-
+// ── Team member row ─────────────────────────────────────────────────────────
 class _TeamMemberRow extends StatelessWidget {
   const _TeamMemberRow({
     required this.member, required this.currentTask, required this.onAssign,
@@ -1371,8 +1367,7 @@ class _TeamMemberRow extends StatelessWidget {
   }
 }
 
-// ── Small helpers ─────────────────────────────────────────────────────────────
-
+// ── Small helpers ───────────────────────────────────────────────────────────
 class _Badge extends StatelessWidget {
   const _Badge(this.label, this.fg, this.bg);
   final String label; final Color fg, bg;
@@ -1485,8 +1480,7 @@ class _AutoRule extends StatelessWidget {
   ]);
 }
 
-// ── New Task Dialog ────────────────────────────────────────────────────────────
-
+// ── New Task Dialog ─────────────────────────────────────────────────────────
 class _NewTaskDialog extends StatefulWidget {
   const _NewTaskDialog({required this.teamMembers, required this.onClose, this.onSaved});
   final List<_TeamMember> teamMembers;
@@ -1613,7 +1607,7 @@ class _NewTaskDialogState extends State<_NewTaskDialog> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
               child: Row(children: [
-                const Icon(Symbols.task_alt, size: 18, color: AppColors.teal),
+                Icon(Symbols.task_alt, size: 18, color: AppColors.teal),
                 const SizedBox(width: 10),
                 Text('New Task', style: AppTheme.bodyStrong),
                 const Spacer(),
@@ -1683,7 +1677,7 @@ class _NewTaskDialogState extends State<_NewTaskDialog> {
                         Text(
                           _dueDate != null
                             ? '${_dueDate!.day} ${_months[_dueDate!.month - 1]} ${_dueDate!.year}'
-                            : 'Select due date…',
+                            : 'Select due date—',
                           style: AppTheme.bodySm.copyWith(
                             color: _dueDate != null ? context.pal.text : context.pal.textDim),
                         ),
@@ -1702,7 +1696,7 @@ class _NewTaskDialogState extends State<_NewTaskDialog> {
                     decoration: BoxDecoration(
                       color: context.pal.surface2, borderRadius: BorderRadius.circular(8),
                       border: Border.all(color: context.pal.border)),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                     child: TextField(
                       controller: _descCtrl, maxLines: null, expands: true,
                       style: AppTheme.bodySm,
@@ -1717,7 +1711,7 @@ class _NewTaskDialogState extends State<_NewTaskDialog> {
                 if (_error != null) ...[
                   const SizedBox(height: 8),
                   Row(children: [
-                    const Icon(Icons.error_outline, size: 14, color: AppColors.coral),
+                    Icon(Icons.error_outline, size: 14, color: AppColors.coral),
                     const SizedBox(width: 6),
                     Expanded(child: Text(_error!,
                       style: AppTheme.bodySub.copyWith(color: AppColors.coral, fontSize: 12))),
@@ -1764,9 +1758,9 @@ class _NewTaskDialogState extends State<_NewTaskDialog> {
       Text('ASSIGN TO', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
       const SizedBox(height: 6),
       Container(
-        height: 38,
         decoration: BoxDecoration(color: context.pal.surface2,
             borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
+        height: 38,
         padding: const EdgeInsets.symmetric(horizontal: 12),
         child: DropdownButtonHideUnderline(child: DropdownButton<String>(
           value: names.contains(current) ? current : names.first,
@@ -1793,8 +1787,7 @@ class _NewTaskDialogState extends State<_NewTaskDialog> {
   }
 }
 
-// ── New staff dialog ────────────────────────────────────────────────────────────
-
+// ── New staff dialog ────────────────────────────────────────────────────────
 class _NewStaffDialog extends StatefulWidget {
   const _NewStaffDialog({required this.onClose, this.onSaved});
   final VoidCallback  onClose;
@@ -1815,21 +1808,24 @@ class _NewStaffDialogState extends State<_NewStaffDialog> {
 
   // Ordered so the manager tiers sit next to their department's staff tier.
   static const _roleOrder = [
-    'super_admin', 'admin',
+    'super_admin', 'admin', 'cto',
     'sales_manager', 'sales',
     'finance_manager', 'finance',
-    'technician', 'cs', 'storekeeper',
+    'technician', 'team_leader', 'cs', 'storekeeper', 'hr',
   ];
   static const _roleLabels = {
     'super_admin':     'Super Admin',
     'admin':           'Director',
+    'cto':             'CTO',
     'sales_manager':   'Sales Manager',
     'sales':           'Sales Staff',
     'finance_manager': 'Finance Manager',
     'finance':         'Accountant',
     'technician':      'Technician',
+    'team_leader':     'Team Leader',
     'cs':              'Customer Service',
     'storekeeper':     'Storekeeper',
+    'hr':              'HR',
   };
 
   @override
@@ -1884,7 +1880,7 @@ class _NewStaffDialogState extends State<_NewStaffDialog> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
               child: Row(children: [
-                const Icon(Symbols.person_add, size: 18, color: AppColors.teal),
+                Icon(Symbols.person_add, size: 18, color: AppColors.teal),
                 const SizedBox(width: 10),
                 Text('Add Staff Member', style: AppTheme.bodyStrong),
                 const Spacer(),
@@ -1918,13 +1914,13 @@ class _NewStaffDialogState extends State<_NewStaffDialog> {
                 Row(children: [
                   Icon(Symbols.info, size: 13, color: context.pal.textDim),
                   const SizedBox(width: 6),
-                  Expanded(child: Text('A temporary password is generated — the new user should change it on first login.',
+                  Expanded(child: Text('A temporary password is generated —the new user should change it on first login.',
                       style: AppTheme.bodySub.copyWith(fontSize: 11, color: context.pal.textDim))),
                 ]),
                 if (_error != null) ...[
                   const SizedBox(height: 10),
                   Row(children: [
-                    const Icon(Icons.error_outline, size: 14, color: AppColors.coral),
+                    Icon(Icons.error_outline, size: 14, color: AppColors.coral),
                     const SizedBox(width: 6),
                     Expanded(child: Text(_error!,
                       style: AppTheme.bodySub.copyWith(color: AppColors.coral, fontSize: 12))),
@@ -1963,8 +1959,7 @@ class _NewStaffDialogState extends State<_NewStaffDialog> {
   );
 }
 
-// ── Dialog field helpers ──────────────────────────────────────────────────────
-
+// ── Dialog field helpers ────────────────────────────────────────────────────
 class _TF extends StatelessWidget {
   const _TF(this.label, this.ctrl, this.hint);
   final String label, hint;
@@ -1975,14 +1970,13 @@ class _TF extends StatelessWidget {
     Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10)),
     const SizedBox(height: 6),
     Container(
-      height: 38,
       decoration: BoxDecoration(color: context.pal.surface2,
           borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: Center(child: TextField(controller: ctrl, style: AppTheme.bodySm,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      child: TextField(controller: ctrl, style: AppTheme.bodySm,
         decoration: InputDecoration(hintText: hint,
             hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
-            border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero))),
+            border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero)),
     ),
   ]);
 }
@@ -2002,9 +1996,9 @@ class _TDrop extends StatelessWidget {
     Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10)),
     const SizedBox(height: 6),
     Container(
-      height: 38,
       decoration: BoxDecoration(color: context.pal.surface2,
           borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
+      height: 38,
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: DropdownButtonHideUnderline(child: DropdownButton<String>(
         value: items.contains(value) ? value : items.first,

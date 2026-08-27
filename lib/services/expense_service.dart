@@ -40,4 +40,22 @@ class ExpenseService {
   }
 
   Future<void> delete(int id) => _dio.delete('/expenses/$id');
+
+  Future<Expense> approve(int id) async {
+    final res = await _dio.post('/expenses/$id/approve');
+    return Expense.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+  }
+
+  Future<Expense> escalate(int id, {String? reason}) async {
+    final res = await _dio.post('/expenses/$id/escalate', data: {'escalation_reason': reason});
+    return Expense.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+  }
+
+  Future<Expense> reject(int id, {String? reason}) async {
+    final res = await _dio.post('/expenses/$id/reject', data: {'rejection_reason': reason});
+    return Expense.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+  }
+
+  Future<void> setCategoryRequiresDirector(int categoryId, bool value) =>
+      _dio.put('/expense-categories/$categoryId', data: {'requires_director_approval': value});
 }

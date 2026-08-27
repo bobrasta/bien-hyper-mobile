@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
+import '../../main.dart' show userIdNotifier;
 import '../../models/leave_request.dart';
 import '../../services/late_arrival_service.dart';
 import '../../services/leave_service.dart';
@@ -20,6 +21,7 @@ class MyLeaveScreen extends StatefulWidget {
 
 class _MyLeaveScreenState extends State<MyLeaveScreen> {
   List<LeaveRequest> _requests = [];
+  List<LeaveBalanceEntry> _balances = [];
   bool    _loading = true;
   String? _error;
   bool    _showRequestDialog = false;
@@ -34,8 +36,19 @@ class _MyLeaveScreenState extends State<MyLeaveScreen> {
   Future<void> _load() async {
     setState(() { _loading = true; _error = null; });
     try {
-      final list = await LeaveService.instance.list();
-      if (mounted) setState(() { _requests = list; _loading = false; });
+      // Always scope to the logged-in user's own requests — HR/admin callers
+      // get everyone's by default otherwise, which is wrong on a screen
+      // titled "My Leave" (hr_approval_screen.dart is the intentional
+      // company-wide view for those roles).
+      final results = await Future.wait([
+        LeaveService.instance.list(userId: userIdNotifier.value),
+        LeaveService.instance.balances(),
+      ]);
+      if (mounted) setState(() {
+        _requests = results[0] as List<LeaveRequest>;
+        _balances = results[1] as List<LeaveBalanceEntry>;
+        _loading = false;
+      });
     } catch (e) {
       if (mounted) setState(() { _error = friendlyError(e); _loading = false; });
     }
@@ -81,12 +94,16 @@ class _MyLeaveScreenState extends State<MyLeaveScreen> {
                 return Row(crossAxisAlignment: CrossAxisAlignment.end, children: [titleBlock, const Spacer(), actions]);
               }),
               const SizedBox(height: 24),
+              if (!_loading && _error == null && _balances.isNotEmpty) ...[
+                _BalanceSummaryRow(balances: _balances),
+                const SizedBox(height: 20),
+              ],
               if (_loading)
                 const Center(child: Padding(padding: EdgeInsets.symmetric(vertical: 48), child: CircularProgressIndicator(strokeWidth: 2)))
               else if (_error != null)
                 ErrorView(message: _error!, onRetry: _load)
               else if (_requests.isEmpty)
-                const Padding(padding: EdgeInsets.symmetric(vertical: 32), child: Center(child: Text('No leave requests yet', style: TextStyle(color: AppColors.textMute))))
+                Padding(padding: const EdgeInsets.symmetric(vertical: 32), child: Center(child: Text('No leave requests yet', style: TextStyle(color: context.pal.textMute))))
               else
                 Column(children: _requests.map((r) => _LeaveCard(request: r, onCancel: () => _cancel(r))).toList()),
             ]),
@@ -104,6 +121,32 @@ class _MyLeaveScreenState extends State<MyLeaveScreen> {
         ),
     ]);
   }
+}
+
+class _BalanceSummaryRow extends StatelessWidget {
+  const _BalanceSummaryRow({required this.balances});
+  final List<LeaveBalanceEntry> balances;
+
+  @override
+  Widget build(BuildContext context) => SingleChildScrollView(
+    scrollDirection: Axis.horizontal,
+    child: Row(children: balances.map((b) => Container(
+      margin: const EdgeInsets.only(right: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: context.pal.surface1,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: context.pal.border),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(b.leaveTypeLabel, style: AppTheme.bodySub.copyWith(fontSize: 11)),
+        const SizedBox(height: 2),
+        Text('${b.remainingDays.toStringAsFixed(b.remainingDays.truncateToDouble() == b.remainingDays ? 0 : 1)} left',
+            style: AppTheme.bodyStrong.copyWith(fontSize: 14)),
+        Text('of ${b.allocatedDays.toStringAsFixed(0)} days', style: AppTheme.bodySub.copyWith(fontSize: 10.5)),
+      ]),
+    )).toList()),
+  );
 }
 
 class _LeaveCard extends StatelessWidget {
@@ -131,7 +174,7 @@ class _LeaveCard extends StatelessWidget {
       Row(children: [
         Icon(Symbols.event, size: 16, color: _statusColor),
         const SizedBox(width: 8),
-        Text(request.type.label, style: AppTheme.bodyStrong.copyWith(fontSize: 13.5)),
+        Text(request.displayLabel, style: AppTheme.bodyStrong.copyWith(fontSize: 13.5)),
         const Spacer(),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -140,7 +183,7 @@ class _LeaveCard extends StatelessWidget {
         ),
       ]),
       const SizedBox(height: 10),
-      Text('${request.startDate} → ${request.endDate}  ·  ${request.daysCount} day(s)', style: AppTheme.bodySm.copyWith(fontSize: 12.5)),
+      Text('${request.startDate} — ${request.endDate}  ·  ${request.daysCount} day(s)', style: AppTheme.bodySm.copyWith(fontSize: 12.5)),
       if (request.reason != null && request.reason!.isNotEmpty) ...[
         const SizedBox(height: 4),
         Text(request.reason!, style: AppTheme.bodySub.copyWith(fontSize: 12)),
@@ -176,12 +219,35 @@ class _RequestLeaveDialog extends StatefulWidget {
 }
 
 class _RequestLeaveDialogState extends State<_RequestLeaveDialog> {
-  LeaveType _type = LeaveType.vacation;
+  List<LeaveTypeCatalogEntry> _types = [];
+  LeaveTypeCatalogEntry? _type;
+  bool _loadingTypes = true;
   DateTime  _start = DateTime.now();
   DateTime  _end   = DateTime.now();
   final _reasonCtrl = TextEditingController();
   bool    _saving = false;
   String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTypes();
+  }
+
+  Future<void> _loadTypes() async {
+    try {
+      // Public Holiday populates itself from the calendar — not requestable.
+      final list = (await LeaveService.instance.types(activeOnly: true))
+          .where((t) => !t.autoFromCalendar).toList();
+      if (mounted) setState(() {
+        _types = list;
+        _type = list.isNotEmpty ? list.first : null;
+        _loadingTypes = false;
+      });
+    } catch (e) {
+      if (mounted) setState(() { _error = friendlyError(e); _loadingTypes = false; });
+    }
+  }
 
   @override
   void dispose() { _reasonCtrl.dispose(); super.dispose(); }
@@ -202,12 +268,12 @@ class _RequestLeaveDialogState extends State<_RequestLeaveDialog> {
   }
 
   Future<void> _save() async {
-    if (_saving) return;
+    if (_saving || _type == null) return;
     if (_end.isBefore(_start)) { setState(() => _error = 'End date must be on or after start date.'); return; }
     setState(() { _saving = true; _error = null; });
     try {
       await LeaveService.instance.create({
-        'type': _type.apiValue, 'start_date': _iso(_start), 'end_date': _iso(_end),
+        'leave_type_id': _type!.id, 'start_date': _iso(_start), 'end_date': _iso(_end),
         'reason': _reasonCtrl.text.trim().isEmpty ? null : _reasonCtrl.text.trim(),
       });
       widget.onSaved();
@@ -236,7 +302,7 @@ class _RequestLeaveDialogState extends State<_RequestLeaveDialog> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
               child: Row(children: [
-                const Icon(Symbols.event, size: 18, color: AppColors.teal),
+                Icon(Symbols.event, size: 18, color: AppColors.teal),
                 const SizedBox(width: 10),
                 Text('Request Leave', style: AppTheme.bodyStrong),
                 const Spacer(),
@@ -250,23 +316,30 @@ class _RequestLeaveDialogState extends State<_RequestLeaveDialog> {
                   Container(
                     width: double.infinity, padding: const EdgeInsets.all(10), margin: const EdgeInsets.only(bottom: 12),
                     decoration: BoxDecoration(color: AppColors.coralSoft, borderRadius: BorderRadius.circular(8)),
-                    child: Text(_error!, style: const TextStyle(color: AppColors.coral, fontSize: 12)),
+                    child: Text(_error!, style: TextStyle(color: AppColors.coral, fontSize: 12)),
                   ),
                 ],
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text('LEAVE TYPE', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
                   const SizedBox(height: 6),
                   Container(
-                    height: 38,
                     decoration: BoxDecoration(color: context.pal.surface2, borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
+                    height: 38,
                     padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: DropdownButtonHideUnderline(child: DropdownButton<LeaveType>(
-                      value: _type, isExpanded: true, dropdownColor: context.pal.surface2, style: AppTheme.bodySm,
-                      icon: Icon(Symbols.expand_more, size: 16, color: context.pal.textDim),
-                      items: LeaveType.values.map((t) => DropdownMenuItem(value: t, child: Text(t.label))).toList(),
-                      onChanged: (v) => setState(() => _type = v ?? LeaveType.vacation),
-                    )),
+                    child: _loadingTypes
+                        ? const Center(child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)))
+                        : DropdownButtonHideUnderline(child: DropdownButton<LeaveTypeCatalogEntry>(
+                            value: _type, isExpanded: true, dropdownColor: context.pal.surface2, style: AppTheme.bodySm,
+                            icon: Icon(Symbols.expand_more, size: 16, color: context.pal.textDim),
+                            items: _types.map((t) => DropdownMenuItem(value: t, child: Text(t.label))).toList(),
+                            onChanged: (v) => setState(() => _type = v),
+                          )),
                   ),
+                  if (_type?.requiresManualDays == true) ...[
+                    const SizedBox(height: 6),
+                    Text('The final day count for ${_type!.label} leave is set by the approver, not the date range below.',
+                        style: AppTheme.bodySub.copyWith(fontSize: 11, color: context.pal.textDim)),
+                  ],
                 ]),
                 const SizedBox(height: 14),
                 Row(children: [
@@ -286,9 +359,9 @@ class _RequestLeaveDialogState extends State<_RequestLeaveDialog> {
                   Container(
                     height: 70,
                     decoration: BoxDecoration(color: context.pal.surface2, borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                     child: TextField(controller: _reasonCtrl, maxLines: null, expands: true, style: AppTheme.bodySm,
-                        decoration: const InputDecoration(border: InputBorder.none, isDense: true, hintText: 'Any details HR should know…')),
+                        decoration: const InputDecoration(border: InputBorder.none, isDense: true, hintText: 'Any details HR should know—')),
                   ),
                 ]),
               ]),
@@ -341,7 +414,7 @@ class _DateField extends StatelessWidget {
   ]);
 }
 
-// ── Running Late dialog ────────────────────────────────────────────────────
+// ── Running Late dialog ──────────────────────────────────────────────────────
 
 class _RunningLateDialog extends StatefulWidget {
   const _RunningLateDialog({required this.onClose});
@@ -393,7 +466,7 @@ class _RunningLateDialogState extends State<_RunningLateDialog> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
               child: Row(children: [
-                const Icon(Symbols.schedule, size: 18, color: AppColors.amber),
+                Icon(Symbols.schedule, size: 18, color: AppColors.amber),
                 const SizedBox(width: 10),
                 Text('Running Late', style: AppTheme.bodyStrong),
                 const Spacer(),
@@ -407,9 +480,8 @@ class _RunningLateDialogState extends State<_RunningLateDialog> {
                   Text('EXPECTED ARRIVAL (OPTIONAL)', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
                   const SizedBox(height: 6),
                   Container(
-                    height: 38,
                     decoration: BoxDecoration(color: context.pal.surface2, borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                     child: TextField(controller: _timeCtrl, style: AppTheme.bodySm,
                         decoration: const InputDecoration(border: InputBorder.none, isDense: true, hintText: 'e.g. 9:30am')),
                   ),
@@ -421,9 +493,9 @@ class _RunningLateDialogState extends State<_RunningLateDialog> {
                   Container(
                     height: 70,
                     decoration: BoxDecoration(color: context.pal.surface2, borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                     child: TextField(controller: _reasonCtrl, maxLines: null, expands: true, style: AppTheme.bodySm,
-                        decoration: const InputDecoration(border: InputBorder.none, isDense: true, hintText: 'e.g. Traffic, appointment…')),
+                        decoration: const InputDecoration(border: InputBorder.none, isDense: true, hintText: 'e.g. Traffic, appointment—')),
                   ),
                 ]),
               ]),

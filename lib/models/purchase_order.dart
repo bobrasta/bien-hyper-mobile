@@ -53,7 +53,10 @@ class PurchaseOrder {
   final String poNumber;
   final int?   supplierId;
   final String? supplierName;
-  final String status;         // draft | sent | acknowledged | partially_received | received | cancelled
+  // draft | pending_sales_manager | pending_director_review |
+  // pending_payment_initiation | pending_director_final | approved |
+  // rejected | sent | acknowledged | partially_received | received | cancelled
+  final String status;
   final String? orderedByName;
   final DateTime? expectedDeliveryDate;
   final DateTime? actualDeliveryDate;
@@ -65,6 +68,18 @@ class PurchaseOrder {
   final String? notes;
   final DateTime createdAt;
   final List<PurchaseOrderItem> items;
+
+  final String? salesApprovedByName;
+  final DateTime? salesApprovedAt;
+  final String? directorReviewedByName;
+  final DateTime? directorReviewedAt;
+  final String? paymentInitiatedByName;
+  final DateTime? paymentInitiatedAt;
+  final String? directorApprovedByName;
+  final DateTime? directorApprovedAt;
+  final String? rejectedByName;
+  final DateTime? rejectedAt;
+  final String? rejectionReason;
 
   const PurchaseOrder({
     required this.id,
@@ -83,11 +98,29 @@ class PurchaseOrder {
     this.notes,
     required this.createdAt,
     this.items = const [],
+    this.salesApprovedByName,
+    this.salesApprovedAt,
+    this.directorReviewedByName,
+    this.directorReviewedAt,
+    this.paymentInitiatedByName,
+    this.paymentInitiatedAt,
+    this.directorApprovedByName,
+    this.directorApprovedAt,
+    this.rejectedByName,
+    this.rejectedAt,
+    this.rejectionReason,
   });
 
   factory PurchaseOrder.fromJson(Map<String, dynamic> j) {
-    final supplier   = j['supplier']   as Map<String, dynamic>?;
-    final orderedBy  = j['ordered_by'] as Map<String, dynamic>?;
+    final supplier            = j['supplier']              as Map<String, dynamic>?;
+    final orderedBy           = j['ordered_by']             as Map<String, dynamic>?;
+    final salesApprovedBy     = j['sales_approved_by']      as Map<String, dynamic>?;
+    final directorReviewedBy  = j['director_reviewed_by']   as Map<String, dynamic>?;
+    final paymentInitiatedBy  = j['payment_initiated_by']   as Map<String, dynamic>?;
+    final directorApprovedBy  = j['director_approved_by']   as Map<String, dynamic>?;
+    final rejectedBy          = j['rejected_by']            as Map<String, dynamic>?;
+
+    DateTime? parseDt(String? key) => j[key] != null ? DateTime.tryParse(j[key] as String) : null;
 
     return PurchaseOrder(
       id:                   (j['id'] as num).toInt(),
@@ -110,16 +143,33 @@ class PurchaseOrder {
       createdAt:            DateTime.tryParse(j['created_at'] as String? ?? '') ?? DateTime.now(),
       items:                (j['items'] as List? ?? [])
           .map((i) => PurchaseOrderItem.fromJson(i as Map<String, dynamic>)).toList(),
+      salesApprovedByName:    salesApprovedBy?['name'] as String?,
+      salesApprovedAt:        parseDt('sales_approved_at'),
+      directorReviewedByName: directorReviewedBy?['name'] as String?,
+      directorReviewedAt:     parseDt('director_reviewed_at'),
+      paymentInitiatedByName: paymentInitiatedBy?['name'] as String?,
+      paymentInitiatedAt:     parseDt('payment_initiated_at'),
+      directorApprovedByName: directorApprovedBy?['name'] as String?,
+      directorApprovedAt:     parseDt('director_approved_at'),
+      rejectedByName:         rejectedBy?['name'] as String?,
+      rejectedAt:             parseDt('rejected_at'),
+      rejectionReason:        j['rejection_reason'] as String?,
     );
   }
 
   String get statusLabel => switch (status) {
-    'draft'               => 'Draft',
-    'sent'                => 'Sent',
-    'acknowledged'        => 'Acknowledged',
-    'partially_received'  => 'Partial GRN',
-    'received'            => 'Received',
-    'cancelled'           => 'Cancelled',
-    _                     => status,
+    'draft'                       => 'Draft',
+    'pending_sales_manager'       => 'Awaiting Sales Approval',
+    'pending_director_review'     => 'Awaiting Director Review',
+    'pending_payment_initiation'  => 'Awaiting Payment',
+    'pending_director_final'      => 'Awaiting Final Approval',
+    'approved'                    => 'Approved',
+    'rejected'                    => 'Rejected',
+    'sent'                        => 'Sent',
+    'acknowledged'                => 'Acknowledged',
+    'partially_received'          => 'Partial GRN',
+    'received'                    => 'Received',
+    'cancelled'                   => 'Cancelled',
+    _                             => status,
   };
 }

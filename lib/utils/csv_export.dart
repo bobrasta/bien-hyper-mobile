@@ -2,7 +2,9 @@ import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 
+import '../models/chart_of_account.dart';
 import '../models/contact.dart';
+import '../models/permission.dart';
 import '../models/service_ticket.dart';
 import '../models/inventory_item.dart';
 import '../models/spare_part.dart';
@@ -11,8 +13,19 @@ import '../models/task_item.dart';
 class CsvExport {
   CsvExport._();
 
+  /// file_picker has no Android implementation in this build (its legacy
+  /// Kotlin Gradle Plugin declaration is incompatible with AGP 9's built-in
+  /// Kotlin, and no fixed release exists upstream yet) — CSV export/import
+  /// remains fully available on Windows/desktop.
+  static void _checkSupported() {
+    if (Platform.isAndroid) {
+      throw Exception('CSV export isn\'t available on Android in this build — use the desktop app instead.');
+    }
+  }
+
   static Future<String?> tickets(List<ServiceTicket> items) async {
-    final path = await FilePicker.platform.saveFile(
+    _checkSupported();
+    final path = await FilePicker.saveFile(
       dialogTitle: 'Export Service Tickets',
       fileName: 'tickets_${_today()}.csv',
       type: FileType.custom,
@@ -35,7 +48,8 @@ class CsvExport {
   }
 
   static Future<String?> inventoryItems(List<InventoryItem> items) async {
-    final path = await FilePicker.platform.saveFile(
+    _checkSupported();
+    final path = await FilePicker.saveFile(
       dialogTitle: 'Export Inventory',
       fileName: 'inventory_${_today()}.csv',
       type: FileType.custom,
@@ -59,7 +73,8 @@ class CsvExport {
   }
 
   static Future<String?> inventory(List<SparePart> items) async {
-    final path = await FilePicker.platform.saveFile(
+    _checkSupported();
+    final path = await FilePicker.saveFile(
       dialogTitle: 'Export Inventory',
       fileName: 'inventory_${_today()}.csv',
       type: FileType.custom,
@@ -83,7 +98,8 @@ class CsvExport {
   }
 
   static Future<String?> contacts(List<Contact> items) async {
-    final path = await FilePicker.platform.saveFile(
+    _checkSupported();
+    final path = await FilePicker.saveFile(
       dialogTitle: 'Export Contacts',
       fileName: 'contacts_${_today()}.csv',
       type: FileType.custom,
@@ -107,8 +123,9 @@ class CsvExport {
   }
 
   static Future<String?> tasks(List<TaskItem> items, {String? staffName}) async {
+    _checkSupported();
     final label = staffName != null ? staffName.replaceAll(' ', '_') : 'all';
-    final path  = await FilePicker.platform.saveFile(
+    final path  = await FilePicker.saveFile(
       dialogTitle: 'Export Task Report',
       fileName: 'tasks_${label}_${_today()}.csv',
       type: FileType.custom,
@@ -124,6 +141,80 @@ class CsvExport {
         t.title, t.category, t.taskType, t.priority, t.status,
         t.assigneeName ?? '', t.dueDate ?? '', t.startedAt ?? '',
         t.completedAt ?? '', t.createdAt, t.description ?? '',
+      ]));
+    }
+    await File(path).writeAsString(buf.toString(), flush: true);
+    return path;
+  }
+
+  static Future<String?> financeSummary({
+    required String periodLabel,
+    required int revenue,
+    required int totalExpenses,
+    required int netProfit,
+    required int netCashFlow,
+    required int totalOutstanding,
+    required int totalAssets,
+    required int totalLiabilities,
+    required int totalEquity,
+    required List<Map<String, dynamic>> expensesByCategory,
+    required List<LedgerEntry> recentActivity,
+  }) async {
+    _checkSupported();
+    final path = await FilePicker.saveFile(
+      dialogTitle: 'Export Finance Report',
+      fileName: 'finance_overview_${_today()}.csv',
+      type: FileType.custom,
+      allowedExtensions: ['csv'],
+    );
+    if (path == null) return null;
+
+    final buf = StringBuffer();
+    buf.writeln(_row(['Finance Overview', periodLabel]));
+    buf.writeln();
+    buf.writeln(_row(['Metric', 'Value (TZS)']));
+    buf.writeln(_row(['Revenue', revenue.toString()]));
+    buf.writeln(_row(['Total Expenses', totalExpenses.toString()]));
+    buf.writeln(_row(['Net Profit', netProfit.toString()]));
+    buf.writeln(_row(['Net Cash Flow', netCashFlow.toString()]));
+    buf.writeln(_row(['AR Outstanding', totalOutstanding.toString()]));
+    buf.writeln(_row(['Total Assets', totalAssets.toString()]));
+    buf.writeln(_row(['Total Liabilities', totalLiabilities.toString()]));
+    buf.writeln(_row(['Total Equity', totalEquity.toString()]));
+    buf.writeln();
+    buf.writeln(_row(['Expense Category', 'Total (TZS)']));
+    for (final e in expensesByCategory) {
+      buf.writeln(_row(['${e['category']}', '${e['total']}']));
+    }
+    buf.writeln();
+    buf.writeln(_row(['Recent Ledger Activity']));
+    buf.writeln(_row(['Date', 'Account', 'Type', 'Amount (TZS)', 'Description']));
+    for (final a in recentActivity) {
+      buf.writeln(_row([
+        a.createdAt?.toIso8601String().substring(0, 10) ?? '',
+        a.accountName, a.type, a.amount.toString(), a.description ?? '',
+      ]));
+    }
+    await File(path).writeAsString(buf.toString(), flush: true);
+    return path;
+  }
+
+  static Future<String?> permissionAuditLog(List<UserPermissionOverride> entries) async {
+    _checkSupported();
+    final path = await FilePicker.saveFile(
+      dialogTitle: 'Export Permission Audit Log',
+      fileName: 'permission_audit_${_today()}.csv',
+      type: FileType.custom,
+      allowedExtensions: ['csv'],
+    );
+    if (path == null) return null;
+
+    final buf = StringBuffer();
+    buf.writeln(_row(['Member', 'Permission', 'Effect', 'Scope', 'Reason', 'Granted By', 'Date']));
+    for (final e in entries) {
+      buf.writeln(_row([
+        e.userName ?? '', e.label, e.effect, e.scope ?? '',
+        e.reason ?? '', e.createdByName ?? '', e.createdAt ?? '',
       ]));
     }
     await File(path).writeAsString(buf.toString(), flush: true);

@@ -69,7 +69,16 @@ class _LoginScreenState extends State<LoginScreen>
       final user = data['user'] as Map?;
       final userName = user?['name'] as String?;
       final userRole = user?['role'] as String?;
+      final userId   = user?['id'];
       if (userName != null) userNameNotifier.value = userName;
+      if (userId is num) userIdNotifier.value = userId.toInt();
+      // Fetch permissions BEFORE setting the role — the sidebar/app-shell
+      // rebuild the moment userRoleNotifier changes, and only listen to that
+      // notifier, not userPermissionsNotifier. If the role were set first,
+      // allowedScreenKeys() would run once with stale (empty) permissions,
+      // fall back to the legacy hardcoded table, and never get a second
+      // chance to react once the real permissions arrived a moment later.
+      await refreshPermissions();
       if (userRole != null) userRoleNotifier.value = userRole;
     } on AuthException catch (e) {
       setState(() { _error = e.message; _loading = false; });
@@ -119,15 +128,7 @@ class _LoginScreenState extends State<LoginScreen>
 
               // Mini brand mark
               Row(children: [
-                Container(
-                  width: 34, height: 34,
-                  decoration: BoxDecoration(
-                    color: AppColors.tealSoft,
-                    borderRadius: BorderRadius.circular(9),
-                    border: Border.all(color: AppColors.teal.withValues(alpha: 0.3)),
-                  ),
-                  child: const Icon(Symbols.medical_services, size: 18, color: AppColors.teal),
-                ),
+                Image.asset('assets/images/hypermed_icon.png', height: 28, fit: BoxFit.contain),
                 const SizedBox(width: 10),
                 Text('Hypermed',
                   style: AppTheme.bodyStrong.copyWith(
@@ -444,12 +445,12 @@ class _ErrorBanner extends StatelessWidget {
       border: Border.all(color: AppColors.coral.withValues(alpha: 0.35)),
     ),
     child: Row(children: [
-      const Icon(Symbols.error_outline, size: 16, color: AppColors.coral),
+      Icon(Symbols.error_outline, size: 16, color: AppColors.coral),
       const SizedBox(width: 10),
       Expanded(
         child: Text(
           message,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 13,
             color: AppColors.coral,
           ),
@@ -486,15 +487,7 @@ class _BrandPanel extends StatelessWidget {
       const Spacer(),
 
       // Logo icon
-      Container(
-        width: 60, height: 60,
-        decoration: BoxDecoration(
-          color: AppColors.tealSoft,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: AppColors.teal.withValues(alpha: 0.3)),
-        ),
-        child: const Icon(Symbols.medical_services, size: 30, color: AppColors.teal),
-      ),
+      Image.asset('assets/images/hypermed_icon.png', height: 56, fit: BoxFit.contain),
       const SizedBox(height: 22),
 
       // Name
@@ -511,7 +504,7 @@ class _BrandPanel extends StatelessWidget {
 
       // Tagline
       const Text(
-        'Medical Equipment\nManagement Platform',
+        'Biomedical Enterprise\nPlatform',
         style: TextStyle(
           color: AppColors.textMute,
           fontSize: 15.5,
@@ -543,15 +536,7 @@ class _BrandPanel extends StatelessWidget {
   );
 
   Widget _buildCompact() => Row(children: [
-    Container(
-      width: 42, height: 42,
-      decoration: BoxDecoration(
-        color: AppColors.tealSoft,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.teal.withValues(alpha: 0.3)),
-      ),
-      child: const Icon(Symbols.medical_services, size: 22, color: AppColors.teal),
-    ),
+    Image.asset('assets/images/hypermed_icon.png', height: 38, fit: BoxFit.contain),
     const SizedBox(width: 14),
     const Column(
       mainAxisSize: MainAxisSize.min,
@@ -564,7 +549,7 @@ class _BrandPanel extends StatelessWidget {
             fontWeight: FontWeight.w700,
           )),
         SizedBox(height: 2),
-        Text('Medical Equipment Platform',
+        Text('Biomedical Enterprise Platform',
           style: TextStyle(
             color: AppColors.textMute,
             fontSize: 12,

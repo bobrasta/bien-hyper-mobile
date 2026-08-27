@@ -1,19 +1,24 @@
-﻿import 'package:file_picker/file_picker.dart';
+import 'package:file_picker/file_picker.dart';
+import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../main.dart' show hasCtoApprovalAuthority, userRoleNotifier, userIdNotifier;
 import '../../models/hospital.dart';
 import '../../utils/csv_export.dart';
+import '../../models/inventory_item.dart';
 import '../../models/machine.dart';
 import '../../models/serial_number.dart';
 import '../../models/service_ticket.dart';
 import '../../models/spare_part.dart';
 import '../../services/hospital_service.dart';
+import '../../services/inventory_service.dart';
 import '../../services/machine_service.dart';
 import '../../services/serial_number_service.dart';
 import '../../services/spare_part_service.dart';
 import '../../services/staff_service.dart';
 import '../../services/ticket_service.dart';
+import 'travel_plan_dialog.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_palette.dart';
 import '../../theme/app_theme.dart';
@@ -56,7 +61,8 @@ IconData _attIcon(String? mime) {
   return Symbols.attach_file;
 }
 class ServiceTicketScreen extends StatefulWidget {
-  const ServiceTicketScreen({super.key});
+  const ServiceTicketScreen({super.key, this.initialTicketId});
+  final int? initialTicketId;
 
   @override
   State<ServiceTicketScreen> createState() => _ServiceTicketScreenState();
@@ -66,6 +72,8 @@ class _ServiceTicketScreenState extends State<ServiceTicketScreen> {
   int _selectedIdx = 0;
   TicketStatus? _filter;
   bool _showNew = false;
+  bool _showTravelPlan = false;
+  ServiceTicket? _travelPlanTicket;
 
   List<ServiceTicket> _tickets        = [];
   bool                _loading        = true;
@@ -79,8 +87,9 @@ class _ServiceTicketScreenState extends State<ServiceTicketScreen> {
   List<Map<String, dynamic>>   _parts        = [];
   List<TicketAttachment>       _attachments  = [];
   bool                         _uploadingAttachment = false;
+  bool                         _acknowledging = false;
 
-  // Staff — loaded once at screen init; Future is reused by every dialog.
+  // Staff —loaded once at screen init; Future is reused by every dialog.
   Map<int, StaffMember>          _staffById     = {};
   late final Future<List<StaffMember>> _staffFuture = _fetchStaff();
 
@@ -118,8 +127,12 @@ class _ServiceTicketScreenState extends State<ServiceTicketScreen> {
     try {
       final data = await TicketService.instance.list();
       if (mounted) {
-        setState(() { _tickets = data; _loading = false; _selectedIdx = 0; _loadedDbId = null; });
-        if (data.isNotEmpty) _loadDetail(data[0]);
+        final wanted = widget.initialTicketId == null
+            ? -1
+            : data.indexWhere((t) => t.dbId == widget.initialTicketId);
+        final idx = wanted >= 0 ? wanted : 0;
+        setState(() { _tickets = data; _loading = false; _selectedIdx = idx; _loadedDbId = null; });
+        if (data.isNotEmpty) _loadDetail(data[idx]);
       }
     } catch (e) {
       if (mounted) setState(() { _loadError = friendlyError(e); _loading = false; });
@@ -179,6 +192,26 @@ class _ServiceTicketScreenState extends State<ServiceTicketScreen> {
     if (idx >= 0 && idx < tickets.length) _loadDetail(tickets[idx]);
   }
 
+  Future<void> _acknowledge(ServiceTicket ticket) async {
+    if (_acknowledging) return;
+    setState(() => _acknowledging = true);
+    try {
+      final updated = await TicketService.instance.acknowledge(ticket.dbId);
+      if (mounted) {
+        setState(() {
+          _acknowledging = false;
+          if (_detailTicket?.dbId == updated.dbId) _detailTicket = updated;
+        });
+        showSuccessToast(context, 'Assignment acknowledged');
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _acknowledging = false);
+        showErrorToast(context, e);
+      }
+    }
+  }
+
   Future<void> _resolve(ServiceTicket ticket, {String? notes}) async {
     if (_resolving) return;
     setState(() => _resolving = true);
@@ -202,6 +235,10 @@ class _ServiceTicketScreenState extends State<ServiceTicketScreen> {
         onConfirm: (notes) => _resolve(ticket, notes: notes),
       ),
     );
+  }
+
+  void _showTravelPlanDialog(ServiceTicket ticket) {
+    setState(() { _travelPlanTicket = ticket; _showTravelPlan = true; });
   }
 
   void _showAddPartDialog(BuildContext context, ServiceTicket ticket) {
@@ -240,7 +277,11 @@ class _ServiceTicketScreenState extends State<ServiceTicketScreen> {
   }
 
   Future<void> _uploadAttachment(ServiceTicket ticket) async {
-    final result = await FilePicker.platform.pickFiles(allowMultiple: false, withData: false);
+    if (Platform.isAndroid) {
+      showErrorToast(context, Exception('File attachments aren\'t available on Android in this build —use the desktop app instead.'));
+      return;
+    }
+    final result = await FilePicker.pickFiles(allowMultiple: false, withData: false);
     if (result == null || result.files.isEmpty) return;
     final file = result.files.first;
     if (file.path == null) return;
@@ -344,7 +385,7 @@ class _ServiceTicketScreenState extends State<ServiceTicketScreen> {
 
     return Stack(children: [
       Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        // ── Header ─────────────────────────────────────────────────────────────
+        // ── Header ───────────────────────────────────────────────────────────
         Container(
           padding: const EdgeInsets.fromLTRB(24, 18, 24, 14),
           decoration: BoxDecoration(border: Border(bottom: BorderSide(color: context.pal.border))),
@@ -380,7 +421,7 @@ class _ServiceTicketScreenState extends State<ServiceTicketScreen> {
           ]),
         ),
 
-        // ── Two-panel ───────────────────────────────────────────────────────────
+        // ── Two-panel ───────────────────────────────────────────────────────
         Expanded(
           child: LayoutBuilder(builder: (context, constraints) {
             final listWidth = Responsive.isNarrow(constraints.maxWidth) ? constraints.maxWidth
@@ -399,7 +440,7 @@ class _ServiceTicketScreenState extends State<ServiceTicketScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                     decoration: BoxDecoration(border: Border(bottom: BorderSide(color: context.pal.border))),
                     child: Row(children: [
-                      const Icon(Symbols.arrow_back, size: 16, color: AppColors.teal),
+                      Icon(Symbols.arrow_back, size: 16, color: AppColors.teal),
                       const SizedBox(width: 8),
                       Text('Back to list', style: AppTheme.bodySm.copyWith(color: AppColors.teal)),
                     ]),
@@ -421,7 +462,10 @@ class _ServiceTicketScreenState extends State<ServiceTicketScreen> {
                     onAddPart: () => _showAddPartDialog(context, ticket),
                     onAddChecklistItem: () => _showAddChecklistItemDialog(context, ticket),
                     onUploadAttachment: () => _uploadAttachment(ticket),
-                    onDeleteAttachment: (id) => _deleteAttachment(ticket, id))),
+                    onDeleteAttachment: (id) => _deleteAttachment(ticket, id),
+                    onAcknowledge: () => _acknowledge(ticket),
+                    acknowledging: _acknowledging,
+                    onSubmitTravelPlan: () => _showTravelPlanDialog(ticket))),
               ]);
             }
 
@@ -455,6 +499,9 @@ class _ServiceTicketScreenState extends State<ServiceTicketScreen> {
                       onAddChecklistItem: () => _showAddChecklistItemDialog(context, ticket),
                       onUploadAttachment: () => _uploadAttachment(ticket),
                       onDeleteAttachment: (id) => _deleteAttachment(ticket, id),
+                      onAcknowledge: () => _acknowledge(ticket),
+                      acknowledging: _acknowledging,
+                      onSubmitTravelPlan: () => _showTravelPlanDialog(ticket),
                     ),
             ),
           ]);  // Row
@@ -469,12 +516,20 @@ class _ServiceTicketScreenState extends State<ServiceTicketScreen> {
           onClose: () => setState(() => _showNew = false),
           onSaved: () { setState(() => _showNew = false); _load(); },
         ),
+      if (_showTravelPlan)
+        TravelPlanDialog(
+          ticket: _travelPlanTicket,
+          onClose: () => setState(() => _showTravelPlan = false),
+          onSaved: () {
+            setState(() => _showTravelPlan = false);
+            showSuccessToast(context, 'Travel plan submitted for approval');
+          },
+        ),
     ]);
   }
 }
 
-// ── Ticket list row ────────────────────────────────────────────────────────────
-
+// ── Ticket list row ─────────────────────────────────────────────────────────
 class _TicketListRow extends StatelessWidget {
   const _TicketListRow({
     required this.ticket,
@@ -530,8 +585,7 @@ class _TicketListRow extends StatelessWidget {
   );
 }
 
-// ── Ticket detail panel ────────────────────────────────────────────────────────
-
+// ── Ticket detail panel ─────────────────────────────────────────────────────
 class _TicketDetailPanel extends StatelessWidget {
   const _TicketDetailPanel({
     required this.ticket,
@@ -550,6 +604,9 @@ class _TicketDetailPanel extends StatelessWidget {
     this.onAddChecklistItem,
     this.onUploadAttachment,
     this.onDeleteAttachment,
+    this.onAcknowledge,
+    this.acknowledging = false,
+    this.onSubmitTravelPlan,
   });
   final ServiceTicket ticket;
   final ServiceTicket? detailTicket;
@@ -567,6 +624,9 @@ class _TicketDetailPanel extends StatelessWidget {
   final VoidCallback? onAddChecklistItem;
   final VoidCallback?      onUploadAttachment;
   final ValueChanged<int>? onDeleteAttachment;
+  final VoidCallback? onAcknowledge;
+  final bool acknowledging;
+  final VoidCallback? onSubmitTravelPlan;
 
   @override
   Widget build(BuildContext context) {
@@ -575,6 +635,9 @@ class _TicketDetailPanel extends StatelessWidget {
     final techName = tech?.name ?? (t.technicianName != '—' ? t.technicianName : '—');
     final resNotes = t.resolutionNotes;
     final isResolved = t.status == TicketStatus.resolved;
+    final isAssignee = t.assignedToId != null && t.assignedToId == userIdNotifier.value;
+    final needsAcknowledgement = isAssignee && t.acknowledgedAt == null;
+    final canSubmitTravelPlan = isAssignee && t.acknowledgedAt != null && !isResolved;
 
     return SingleChildScrollView(
     padding: const EdgeInsets.all(24),
@@ -601,7 +664,65 @@ class _TicketDetailPanel extends StatelessWidget {
       ]),
       const SizedBox(height: 20),
 
-      // Info grid — hospital, ward, reported
+      // Acknowledge-assignment banner —shown only to the assignee, only
+      // until they've acknowledged.
+      if (needsAcknowledgement) ...[
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: AppColors.amber.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(AppColors.rLg),
+            border: Border.all(color: AppColors.amber.withValues(alpha: 0.35)),
+          ),
+          child: Row(children: [
+            Icon(Symbols.notification_important, size: 18, color: AppColors.amber),
+            const SizedBox(width: 10),
+            Expanded(child: Text(
+                "You've been assigned this ticket —acknowledge to confirm you've seen it.",
+                style: AppTheme.bodySm.copyWith(color: context.pal.text))),
+            const SizedBox(width: 12),
+            AppButton(
+              label: acknowledging ? 'Acknowledging…' : 'Acknowledge',
+              icon: Symbols.done_all,
+              variant: BtnVariant.primary,
+              onPressed: acknowledging ? null : onAcknowledge,
+            ),
+          ]),
+        ),
+        const SizedBox(height: 16),
+      ],
+
+      // Travel-plan prompt —the next step once the assignee has acknowledged:
+      // file the day-by-day itinerary for this trip before heading out.
+      if (canSubmitTravelPlan) ...[
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: AppColors.teal.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(AppColors.rLg),
+            border: Border.all(color: AppColors.teal.withValues(alpha: 0.3)),
+          ),
+          child: Row(children: [
+            Icon(Symbols.map, size: 18, color: AppColors.teal),
+            const SizedBox(width: 10),
+            Expanded(child: Text(
+                'Next: submit a travel plan for this trip — sites, dates, and per-diem/transport costs.',
+                style: AppTheme.bodySm.copyWith(color: context.pal.text))),
+            const SizedBox(width: 12),
+            AppButton(
+              label: 'Submit Travel Plan',
+              icon: Symbols.send,
+              variant: BtnVariant.primary,
+              onPressed: onSubmitTravelPlan,
+            ),
+          ]),
+        ),
+        const SizedBox(height: 16),
+      ],
+
+      // Info grid —hospital, ward, reported
       Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
@@ -689,7 +810,7 @@ class _TicketDetailPanel extends StatelessWidget {
       ),
       const SizedBox(height: 16),
 
-      // Resolution notes — shown when resolved
+      // Resolution notes —shown when resolved
       if (isResolved) ...[
         _SectionCard(
           icon: Symbols.check_circle,
@@ -727,7 +848,7 @@ class _TicketDetailPanel extends StatelessWidget {
                 GestureDetector(
                   onTap: onAddChecklistItem,
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    const Icon(Symbols.add, size: 14, color: AppColors.teal),
+                    Icon(Symbols.add, size: 14, color: AppColors.teal),
                     const SizedBox(width: 3),
                     Text('Add', style: AppTheme.bodySub.copyWith(color: AppColors.teal, fontSize: 12)),
                   ]),
@@ -788,7 +909,7 @@ class _TicketDetailPanel extends StatelessWidget {
         trailing: GestureDetector(
           onTap: onAddPart,
           child: Row(mainAxisSize: MainAxisSize.min, children: [
-            const Icon(Symbols.add, size: 14, color: AppColors.teal),
+            Icon(Symbols.add, size: 14, color: AppColors.teal),
             const SizedBox(width: 4),
             Text('Add Part', style: AppTheme.bodySub.copyWith(color: AppColors.teal, fontSize: 12)),
           ]),
@@ -850,7 +971,7 @@ class _TicketDetailPanel extends StatelessWidget {
             : GestureDetector(
                 onTap: onUploadAttachment,
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  const Icon(Symbols.upload_file, size: 14, color: AppColors.teal),
+                  Icon(Symbols.upload_file, size: 14, color: AppColors.teal),
                   const SizedBox(width: 4),
                   Text('Attach', style: AppTheme.bodySub.copyWith(color: AppColors.teal, fontSize: 12)),
                 ]),
@@ -967,7 +1088,7 @@ class _TicketDetailPanel extends StatelessWidget {
             border: Border.all(color: AppColors.teal.withValues(alpha: 0.3)),
           ),
           child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            const Icon(Symbols.check_circle, size: 16, color: AppColors.teal),
+            Icon(Symbols.check_circle, size: 16, color: AppColors.teal),
             const SizedBox(width: 8),
             Text('Resolved', style: AppTheme.bodyStrong.copyWith(
                 color: AppColors.teal, fontSize: 13)),
@@ -978,8 +1099,7 @@ class _TicketDetailPanel extends StatelessWidget {
   }
 }
 
-// ── New Ticket modal ────────────────────────────────────────────────────────────
-
+// ── New Ticket modal ────────────────────────────────────────────────────────
 class _NewTicketModal extends StatefulWidget {
   const _NewTicketModal({required this.onClose, this.onSaved});
   final VoidCallback  onClose;
@@ -1078,8 +1198,8 @@ class _NewTicketModalState extends State<_NewTicketModal> {
         if (_selectedTech != null) 'assigned_to': _selectedTech!.id,
       });
       widget.onSaved?.call();
-    } catch (_) {
-      if (mounted) setState(() => _saving = false);
+    } catch (e) {
+      if (mounted) setState(() { _saving = false; _error = friendlyError(e); });
     }
   }
 
@@ -1097,9 +1217,9 @@ class _NewTicketModalState extends State<_NewTicketModal> {
     required List<DropdownMenuItem<T>> items,
     required ValueChanged<T?> onChanged,
   }) => Container(
-    height: 38,
     decoration: BoxDecoration(color: context.pal.surface2,
         borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
+    height: 38,
     padding: const EdgeInsets.symmetric(horizontal: 12),
     child: DropdownButtonHideUnderline(child: DropdownButton<T>(
       value: value,
@@ -1135,7 +1255,7 @@ class _NewTicketModalState extends State<_NewTicketModal> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
               child: Row(children: [
-                const Icon(Symbols.confirmation_number, size: 18, color: AppColors.teal),
+                Icon(Symbols.confirmation_number, size: 18, color: AppColors.teal),
                 const SizedBox(width: 10),
                 Text('Create Service Ticket', style: AppTheme.bodyStrong),
                 const Spacer(),
@@ -1167,7 +1287,7 @@ class _NewTicketModalState extends State<_NewTicketModal> {
                       ),
                 ),
                 const SizedBox(height: 14),
-                // 2. Machine — filtered by selected hospital
+                // 2. Machine —filtered by selected hospital
                 _ModalField(
                   label: 'Machine',
                   child: _loadingMachines
@@ -1176,10 +1296,10 @@ class _NewTicketModalState extends State<_NewTicketModal> {
                         value: _filteredMachines.any((m) => m.id == _selectedMachine?.id)
                             ? _selectedMachine?.id : null,
                         hint: _selectedHospital == null
-                            ? 'Select hospital first…'
+                            ? 'Select hospital first—'
                             : _filteredMachines.isEmpty
                                 ? 'No machines at this hospital'
-                                : 'Select machine…',
+                                : 'Select machine—',
                         items: _filteredMachines.map((m) => DropdownMenuItem<int?>(
                           value: m.id,
                           child: Text('${m.model} · ${m.serialNo}',
@@ -1190,7 +1310,7 @@ class _NewTicketModalState extends State<_NewTicketModal> {
                               : _allMachines.firstWhere((m) => m.id == id)),
                       ),
                 ),
-                // Ward chip — shown once a machine is picked
+                // Ward chip —shown once a machine is picked
                 if (_selectedMachine != null) ...[
                   const SizedBox(height: 8),
                   Container(
@@ -1233,25 +1353,38 @@ class _NewTicketModalState extends State<_NewTicketModal> {
                   )),
                 ]),
                 const SizedBox(height: 14),
-                // 4. Technician
+                // 4. Technician —only the CTO/Director can set this at
+                // creation time (mirrors ServiceTicketController::store()'s
+                // hasCtoApprovalAuthority() gate); everyone else sees it as
+                // informational text, not an editable field.
                 _ModalField(
                   label: 'Assign Technician',
-                  child: _loadingStaff
-                    ? _spinner()
-                    : _dropdown<int?>(
-                        value: _selectedTech?.id,
-                        hint: 'Unassigned',
-                        items: [
-                          DropdownMenuItem<int?>(value: null,
-                            child: Text('Unassigned',
-                                style: AppTheme.bodySm.copyWith(color: context.pal.textDim))),
-                          ..._staff.map((s) =>
-                              DropdownMenuItem<int?>(value: s.id, child: Text(s.name))),
-                        ],
-                        onChanged: (id) => setState(() =>
-                          _selectedTech = id == null ? null
-                              : _staff.firstWhere((s) => s.id == id)),
-                      ),
+                  child: !hasCtoApprovalAuthority(userRoleNotifier.value)
+                    ? Container(
+                        height: 38,
+                        alignment: Alignment.centerLeft,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        decoration: BoxDecoration(color: context.pal.surface2,
+                            borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
+                        child: Text('Unassigned —only CTO/Director can assign at creation',
+                            style: AppTheme.bodySm.copyWith(color: context.pal.textDim, fontSize: 11.5)),
+                      )
+                    : _loadingStaff
+                      ? _spinner()
+                      : _dropdown<int?>(
+                          value: _selectedTech?.id,
+                          hint: 'Unassigned',
+                          items: [
+                            DropdownMenuItem<int?>(value: null,
+                              child: Text('Unassigned',
+                                  style: AppTheme.bodySm.copyWith(color: context.pal.textDim))),
+                            ..._staff.map((s) =>
+                                DropdownMenuItem<int?>(value: s.id, child: Text(s.name))),
+                          ],
+                          onChanged: (id) => setState(() =>
+                            _selectedTech = id == null ? null
+                                : _staff.firstWhere((s) => s.id == id)),
+                        ),
                 ),
                 const SizedBox(height: 14),
                 // 5. Description
@@ -1264,14 +1397,14 @@ class _NewTicketModalState extends State<_NewTicketModal> {
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(color: context.pal.border),
                     ),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                     child: TextField(
                       controller: _descCtrl,
                       maxLines: null,
                       expands: true,
                       style: AppTheme.bodySm,
                       decoration: InputDecoration(
-                        hintText: 'Describe the issue in detail…',
+                        hintText: 'Describe the issue in detail—',
                         hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
                         border: InputBorder.none,
                         isDense: true,
@@ -1283,7 +1416,7 @@ class _NewTicketModalState extends State<_NewTicketModal> {
                 if (_error != null) ...[
                   const SizedBox(height: 8),
                   Row(children: [
-                    const Icon(Icons.error_outline, size: 14, color: AppColors.coral),
+                    Icon(Icons.error_outline, size: 14, color: AppColors.coral),
                     const SizedBox(width: 6),
                     Expanded(child: Text(_error!,
                       style: AppTheme.bodySub.copyWith(color: AppColors.coral, fontSize: 12))),
@@ -1330,8 +1463,7 @@ class _NewTicketModalState extends State<_NewTicketModal> {
   );
 }
 
-// ── Small helpers ──────────────────────────────────────────────────────────────
-
+// ── Small helpers ───────────────────────────────────────────────────────────
 class _Badge extends StatelessWidget {
   const _Badge(this.text, this.bg, this.fg);
   final String text;
@@ -1440,12 +1572,12 @@ class _DropdownField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-    height: 38,
     decoration: BoxDecoration(
       color: context.pal.surface2,
       borderRadius: BorderRadius.circular(8),
       border: Border.all(color: context.pal.border),
     ),
+    height: 38,
     padding: const EdgeInsets.symmetric(horizontal: 12),
     child: DropdownButtonHideUnderline(
       child: DropdownButton<String>(
@@ -1461,8 +1593,7 @@ class _DropdownField extends StatelessWidget {
   );
 }
 
-// ── Status picker dialog ────────────────────────────────────────────────────────
-
+// ── Status picker dialog ────────────────────────────────────────────────────
 class _StatusPickerDialog extends StatefulWidget {
   const _StatusPickerDialog({required this.current});
   final TicketStatus current;
@@ -1526,8 +1657,7 @@ class _StatusPickerDialogState extends State<_StatusPickerDialog> {
   );
 }
 
-// ── Resolve Dialog ──────────────────────────────────────────────────────────────
-
+// ── Resolve Dialog ──────────────────────────────────────────────────────────
 class _ResolveDialog extends StatefulWidget {
   const _ResolveDialog({required this.ticket, required this.onConfirm});
   final ServiceTicket ticket;
@@ -1559,7 +1689,7 @@ class _ResolveDialogState extends State<_ResolveDialog> {
       contentPadding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
       actionsPadding: const EdgeInsets.fromLTRB(20, 8, 20, 14),
       title: Row(children: [
-        const Icon(Symbols.check_circle, size: 18, color: AppColors.teal),
+        Icon(Symbols.check_circle, size: 18, color: AppColors.teal),
         const SizedBox(width: 10),
         Expanded(child: Text('Mark Resolved — ${widget.ticket.id}',
             style: AppTheme.bodyStrong, overflow: TextOverflow.ellipsis)),
@@ -1586,7 +1716,7 @@ class _ResolveDialogState extends State<_ResolveDialog> {
               autofocus: true,
               style: AppTheme.bodySm.copyWith(height: 1.6),
               decoration: InputDecoration(
-                hintText: 'e.g. Replaced flow sensor, recalibrated unit, tested 3 cycles — all passed.',
+                hintText: 'e.g. Replaced flow sensor, recalibrated unit, tested 3 cycles —all passed.',
                 hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim, fontSize: 12),
                 border: InputBorder.none,
                 isDense: true,
@@ -1622,8 +1752,7 @@ class _ResolveDialogState extends State<_ResolveDialog> {
     );
 }
 
-// ── Add Part Dialog ─────────────────────────────────────────────────────────────
-
+// ── Add Part Dialog ─────────────────────────────────────────────────────────
 class _AddPartDialog extends StatefulWidget {
   const _AddPartDialog({required this.onSave});
   final Future<void> Function(int inventoryItemId, int qty, int cost, int? sourceSerialNumberId) onSave;
@@ -1642,8 +1771,17 @@ class _AddPartDialogState extends State<_AddPartDialog> {
   int?            _selectedId;
   bool            _loadingParts = true;
 
-  // Cannibalization source
+  // Quick-add a part that isn't catalogued yet
+  bool                      _showQuickAdd  = false;
+  final _quickAddCtrl       = TextEditingController();
+  bool                      _quickAdding   = false;
+
+  // Cannibalization source: which machine the part was pulled from, then
+  // which serial-numbered unit of that machine.
   bool                  _cannibalized     = false;
+  List<InventoryItem>   _machines         = [];
+  int?                  _selectedMachineId;
+  bool                  _loadingMachines  = false;
   List<SerialNumber>    _availableSerials = [];
   int?                  _selectedSerialId;
   bool                  _loadingSerials   = false;
@@ -1661,29 +1799,73 @@ class _AddPartDialogState extends State<_AddPartDialog> {
 
   @override
   void dispose() {
-    _qtyCtrl.dispose(); _costCtrl.dispose(); _serialCtrl.dispose();
+    _qtyCtrl.dispose(); _costCtrl.dispose(); _serialCtrl.dispose(); _quickAddCtrl.dispose();
     super.dispose();
   }
 
   void _onPartSelected(int? id) {
     setState(() {
       _selectedId = id;
-      _selectedSerialId = null;
-      _availableSerials = [];
       if (id != null) {
         final p = _parts.firstWhere((p) => p.id == id);
         _costCtrl.text = p.unitCost.toInt().toString();
-        if (_cannibalized) _loadSerials(id);
       }
     });
+  }
+
+  Future<void> _quickAddPart() async {
+    final name = _quickAddCtrl.text.trim();
+    if (name.isEmpty) return;
+    setState(() => _quickAdding = true);
+    try {
+      final item = await InventoryService.instance.quickCreate(name);
+      final part = SparePart(
+        id: item.id, sku: item.sku, name: item.name, category: item.category,
+        unitOfMeasure: item.unitOfMeasure, unitCost: item.unitCost, currency: item.currency,
+        stockQty: item.stockQty, reorderLevel: item.reorderLevel, isLowStock: item.isLowStock,
+        supplier: item.supplier, isActive: item.isActive, compatibleModels: item.compatibleModels,
+      );
+      if (!mounted) return;
+      setState(() {
+        _parts = [..._parts, part];
+        _quickAdding = false;
+        _showQuickAdd = false;
+        _quickAddCtrl.clear();
+      });
+      _onPartSelected(part.id);
+    } catch (e) {
+      if (mounted) { setState(() => _quickAdding = false); showErrorToast(context, e); }
+    }
   }
 
   void _toggleCannibalized(bool value) {
     setState(() {
       _cannibalized = value;
+      _selectedMachineId = null;
       _selectedSerialId = null;
+      _availableSerials = [];
       _serialCtrl.clear();
-      if (value && _selectedId != null) _loadSerials(_selectedId!);
+      if (value && _machines.isEmpty && !_loadingMachines) _loadMachines();
+    });
+  }
+
+  Future<void> _loadMachines() async {
+    setState(() => _loadingMachines = true);
+    try {
+      final list = await InventoryService.instance.list(createsMachineRecord: true);
+      if (mounted) setState(() { _machines = list; _loadingMachines = false; });
+    } catch (_) {
+      if (mounted) setState(() => _loadingMachines = false);
+    }
+  }
+
+  void _onMachineSelected(int? id) {
+    setState(() {
+      _selectedMachineId = id;
+      _selectedSerialId = null;
+      _availableSerials = [];
+      _serialCtrl.clear();
+      if (id != null) _loadSerials(id);
     });
   }
 
@@ -1737,7 +1919,7 @@ class _AddPartDialogState extends State<_AddPartDialog> {
       contentPadding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
       actionsPadding: const EdgeInsets.fromLTRB(20, 8, 20, 14),
       title: Row(children: [
-        const Icon(Symbols.inventory_2, size: 18, color: AppColors.teal),
+        Icon(Symbols.inventory_2, size: 18, color: AppColors.teal),
         const SizedBox(width: 10),
         Text('Add Part Used', style: AppTheme.bodyStrong),
       ]),
@@ -1757,9 +1939,9 @@ class _AddPartDialogState extends State<_AddPartDialog> {
                       child: CircularProgressIndicator(strokeWidth: 2))),
                 )
               : Container(
-                  height: 38,
                   decoration: BoxDecoration(color: context.pal.surface2,
                       borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
+                  height: 38,
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   child: DropdownButtonHideUnderline(child: DropdownButton<int?>(
                     value: _selectedId,
@@ -1792,6 +1974,29 @@ class _AddPartDialogState extends State<_AddPartDialog> {
                     onChanged: _onPartSelected,
                   )),
                 ),
+            const SizedBox(height: 6),
+            if (!_showQuickAdd)
+              GestureDetector(
+                onTap: () => setState(() => _showQuickAdd = true),
+                child: Text('+ Add a new part not in this list',
+                    style: AppTheme.bodySub.copyWith(color: AppColors.teal, fontSize: 12)),
+              )
+            else
+              Row(children: [
+                Expanded(child: _ticketField('New part name', _quickAddCtrl, 'e.g. Power Supply Module', context)),
+                const SizedBox(width: 8),
+                _quickAdding
+                  ? const Padding(padding: EdgeInsets.only(top: 20),
+                      child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)))
+                  : Padding(padding: const EdgeInsets.only(top: 20), child: GestureDetector(
+                      onTap: _quickAddPart,
+                      child: Icon(Symbols.check_circle, size: 22, color: AppColors.teal),
+                    )),
+                Padding(padding: const EdgeInsets.only(top: 20, left: 4), child: GestureDetector(
+                  onTap: () => setState(() { _showQuickAdd = false; _quickAddCtrl.clear(); }),
+                  child: Icon(Symbols.close, size: 20, color: context.pal.textDim),
+                )),
+              ]),
           ]),
 
           // Show selected part info
@@ -1849,35 +2054,71 @@ class _AddPartDialogState extends State<_AddPartDialog> {
               Text('Select a part above first.', style: AppTheme.bodySub.copyWith(color: AppColors.amber, fontSize: 12))
             else ...[
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('SOURCE UNIT SERIAL', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+                Text('SOURCE MACHINE', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
                 const SizedBox(height: 6),
-                ScanOrTypeField(controller: _serialCtrl, hint: 'Scan or type serial number…', onScanned: _onScannedSerial),
+                _loadingMachines
+                  ? Container(
+                      height: 38,
+                      decoration: BoxDecoration(color: context.pal.surface2,
+                          borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
+                      child: const Center(child: SizedBox(width: 14, height: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2))),
+                    )
+                  : Container(
+                      decoration: BoxDecoration(color: context.pal.surface2,
+                          borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
+                      height: 38,
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: DropdownButtonHideUnderline(child: DropdownButton<int?>(
+                        value: _selectedMachineId,
+                        hint: Text('Which machine model was it taken from—',
+                            style: AppTheme.bodySm.copyWith(color: context.pal.textDim)),
+                        isExpanded: true,
+                        dropdownColor: context.pal.surface2,
+                        style: AppTheme.bodySm,
+                        icon: Icon(Symbols.expand_more, size: 16, color: context.pal.textDim),
+                        items: _machines.map((m) => DropdownMenuItem<int?>(
+                          value: m.id,
+                          child: Text(m.name, overflow: TextOverflow.ellipsis),
+                        )).toList(),
+                        onChanged: _onMachineSelected,
+                      )),
+                    ),
               ]),
-              const SizedBox(height: 8),
-              _loadingSerials
-                ? const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Center(child: SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))))
-                : _availableSerials.isEmpty
-                  ? Text('No available tracked units for this item — cannibalization needs a real serial-tracked unit in stock.',
-                      style: AppTheme.bodySub.copyWith(color: AppColors.coral, fontSize: 11.5))
-                  : Wrap(spacing: 8, runSpacing: 8, children: _availableSerials.map((s) => GestureDetector(
-                      onTap: () => setState(() { _selectedSerialId = s.id; _serialCtrl.text = s.serialNumber; }),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: _selectedSerialId == s.id ? AppColors.amberSoft : context.pal.surface2,
-                          borderRadius: BorderRadius.circular(7),
-                          border: Border.all(color: _selectedSerialId == s.id ? AppColors.amber : context.pal.border),
+
+              if (_selectedMachineId != null) ...[
+                const SizedBox(height: 10),
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('SOURCE UNIT SERIAL', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+                  const SizedBox(height: 6),
+                  ScanOrTypeField(controller: _serialCtrl, hint: 'Scan or type serial number…', onScanned: _onScannedSerial),
+                ]),
+                const SizedBox(height: 8),
+                _loadingSerials
+                  ? const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Center(child: SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))))
+                  : _availableSerials.isEmpty
+                    ? Text('No available tracked units for this machine —cannibalization needs a real serial-tracked unit in stock.',
+                        style: AppTheme.bodySub.copyWith(color: AppColors.coral, fontSize: 11.5))
+                    : Wrap(spacing: 8, runSpacing: 8, children: _availableSerials.map((s) => GestureDetector(
+                        onTap: () => setState(() { _selectedSerialId = s.id; _serialCtrl.text = s.serialNumber; }),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: _selectedSerialId == s.id ? AppColors.amberSoft : context.pal.surface2,
+                            borderRadius: BorderRadius.circular(7),
+                            border: Border.all(color: _selectedSerialId == s.id ? AppColors.amber : context.pal.border),
+                          ),
+                          child: Text(s.serialNumber, style: AppTheme.monoXs.copyWith(
+                              color: _selectedSerialId == s.id ? AppColors.amber : context.pal.textMute)),
                         ),
-                        child: Text(s.serialNumber, style: AppTheme.monoXs.copyWith(
-                            color: _selectedSerialId == s.id ? AppColors.amber : context.pal.textMute)),
-                      ),
-                    )).toList()),
+                      )).toList()),
+              ],
             ],
           ],
 
           if (_error != null) ...[
             const SizedBox(height: 10),
-            Text(_error!, style: const TextStyle(color: AppColors.coral, fontSize: 12.5)),
+            Text(_error!, style: TextStyle(color: AppColors.coral, fontSize: 12.5)),
           ],
         ])),
       ),
@@ -1901,8 +2142,7 @@ class _AddPartDialogState extends State<_AddPartDialog> {
   }
 }
 
-// ── Add Checklist Item Dialog ───────────────────────────────────────────────────
-
+// ── Add Checklist Item Dialog ───────────────────────────────────────────────
 class _AddChecklistItemDialog extends StatefulWidget {
   const _AddChecklistItemDialog({required this.onSave});
   final Future<void> Function(String label) onSave;
@@ -1933,7 +2173,7 @@ class _AddChecklistItemDialogState extends State<_AddChecklistItemDialog> {
     contentPadding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
     actionsPadding: const EdgeInsets.fromLTRB(20, 8, 20, 14),
     title: Row(children: [
-      const Icon(Symbols.checklist, size: 18, color: AppColors.teal),
+      Icon(Symbols.checklist, size: 18, color: AppColors.teal),
       const SizedBox(width: 10),
       Text('Add Checklist Item', style: AppTheme.bodyStrong),
     ]),
@@ -1960,8 +2200,7 @@ class _AddChecklistItemDialogState extends State<_AddChecklistItemDialog> {
   );
 }
 
-// ── Edit Ticket Dialog ──────────────────────────────────────────────────────────
-
+// ── Edit Ticket Dialog ──────────────────────────────────────────────────────
 class _EditTicketDialog extends StatefulWidget {
   const _EditTicketDialog({required this.ticket, required this.onSaved});
   final ServiceTicket ticket;
@@ -2004,7 +2243,7 @@ class _EditTicketDialogState extends State<_EditTicketDialog> {
   }
 
   // Match ticket's assignee into the loaded _staff list.
-  // Never clears _selectedTech — only upgrades it to the list's richer object.
+  // Never clears _selectedTech —only upgrades it to the list's richer object.
   void _resolveSelected() {
     final currentId = widget.ticket.assignee?.id ?? widget.ticket.assignedToId;
     if (currentId == null) return;
@@ -2013,7 +2252,7 @@ class _EditTicketDialogState extends State<_EditTicketDialog> {
     if (match != null) {
       _selectedTech = match;
     } else if (widget.ticket.assignee != null) {
-      // Known assignee not in the loaded list — inject them so dropdown value is valid
+      // Known assignee not in the loaded list —inject them so dropdown value is valid
       _staff = [widget.ticket.assignee!, ..._staff.where((s) => s.id != currentId)];
       _selectedTech = widget.ticket.assignee;
     }
@@ -2034,12 +2273,7 @@ class _EditTicketDialogState extends State<_EditTicketDialog> {
       });
       widget.onSaved();
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _saving = false;
-          _error  = e.toString().contains('422') ? 'Validation failed.' : 'Failed to save.';
-        });
-      }
+      if (mounted) setState(() { _saving = false; _error = friendlyError(e); });
     }
   }
 
@@ -2051,7 +2285,7 @@ class _EditTicketDialogState extends State<_EditTicketDialog> {
     contentPadding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
     actionsPadding: const EdgeInsets.fromLTRB(20, 8, 20, 14),
     title: Row(children: [
-      const Icon(Symbols.edit, size: 18, color: AppColors.teal),
+      Icon(Symbols.edit, size: 18, color: AppColors.teal),
       const SizedBox(width: 10),
       Expanded(child: Text('Edit Ticket — ${widget.ticket.id}',
           style: AppTheme.bodyStrong, overflow: TextOverflow.ellipsis)),
@@ -2059,11 +2293,24 @@ class _EditTicketDialogState extends State<_EditTicketDialog> {
     content: SizedBox(
       width: 460,
       child: SingleChildScrollView(child: Column(children: [
-        // Technician dropdown
+        // Technician dropdown —reassignment is CTO/Director-only, mirroring
+        // ServiceTicketController::update()'s hasCtoApprovalAuthority() gate.
         Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text('ASSIGN TECHNICIAN', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
           const SizedBox(height: 6),
-          _loadingStaff
+          !hasCtoApprovalAuthority(userRoleNotifier.value)
+            ? Container(
+                height: 38,
+                alignment: Alignment.centerLeft,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                decoration: BoxDecoration(color: context.pal.surface2,
+                    borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
+                child: Text(
+                  _selectedTech?.name ?? 'Unassigned',
+                  style: AppTheme.bodySm.copyWith(color: context.pal.textDim),
+                ),
+              )
+            : _loadingStaff
             ? Container(
                 height: 38,
                 decoration: BoxDecoration(color: context.pal.surface2,
@@ -2077,9 +2324,9 @@ class _EditTicketDialogState extends State<_EditTicketDialog> {
                 final techId = items.any((s) => s.id == _selectedTech?.id)
                     ? _selectedTech?.id : null;
                 return Container(
-                  height: 38,
                   decoration: BoxDecoration(color: context.pal.surface2,
                       borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
+                  height: 38,
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   child: DropdownButtonHideUnderline(child: DropdownButton<int?>(
                     value: techId,
@@ -2111,9 +2358,9 @@ class _EditTicketDialogState extends State<_EditTicketDialog> {
           Text('STATUS', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
           const SizedBox(height: 6),
           Container(
-            height: 38,
             decoration: BoxDecoration(color: context.pal.surface2,
                 borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
+            height: 38,
             padding: const EdgeInsets.symmetric(horizontal: 12),
             child: DropdownButtonHideUnderline(child: DropdownButton<String>(
               value: _status, isExpanded: true,
@@ -2137,12 +2384,12 @@ class _EditTicketDialogState extends State<_EditTicketDialog> {
             height: 90,
             decoration: BoxDecoration(color: context.pal.surface2,
                 borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             child: TextField(
               controller: _descCtrl, maxLines: null, expands: true,
               style: AppTheme.bodySm,
               decoration: InputDecoration(
-                hintText: 'Describe the issue or work required…',
+                hintText: 'Describe the issue or work required—',
                 hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
                 border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero,
               ),
@@ -2151,7 +2398,7 @@ class _EditTicketDialogState extends State<_EditTicketDialog> {
         ]),
         if (_error != null) ...[
           const SizedBox(height: 8),
-          Text(_error!, style: const TextStyle(color: AppColors.coral, fontSize: 12.5)),
+          Text(_error!, style: TextStyle(color: AppColors.coral, fontSize: 12.5)),
         ],
       ]),    // Column
     )),      // SingleChildScrollView + SizedBox
@@ -2174,26 +2421,24 @@ class _EditTicketDialogState extends State<_EditTicketDialog> {
   );
 }
 
-// ── Shared field helper ─────────────────────────────────────────────────────────
-
+// ── Shared field helper ─────────────────────────────────────────────────────
 Widget _ticketField(String label, TextEditingController ctrl, String hint,
     BuildContext context, {bool numeric = false}) =>
   Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
     Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10)),
     const SizedBox(height: 6),
     Container(
-      height: 38,
       decoration: BoxDecoration(color: context.pal.surface2,
           borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: Center(child: TextField(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      child: TextField(
         controller: ctrl,
         keyboardType: numeric ? const TextInputType.numberWithOptions(decimal: false) : TextInputType.text,
         style: AppTheme.bodySm,
         decoration: InputDecoration(hintText: hint,
             hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
             border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero),
-      )),
+      ),
     ),
   ]);
 

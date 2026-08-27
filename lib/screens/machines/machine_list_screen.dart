@@ -8,6 +8,7 @@ import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/api_error.dart';
 import '../../utils/responsive.dart';
+import '../../utils/zones.dart';
 import '../../widgets/common/app_button.dart';
 import '../../widgets/common/error_view.dart';
 import '../../widgets/common/shimmer_box.dart';
@@ -29,6 +30,8 @@ class _MachineListScreenState extends State<MachineListScreen> {
   String? _hospitalFilter;
   int? _hospitalId;
   String? _typeFilter;
+  String? _modelFilter;
+  String? _zoneFilter; // stores the display label; resolved to a key via _zoneKey
   final _search = TextEditingController();
   bool _showAdd = false;
   bool _mapView = false;
@@ -36,10 +39,13 @@ class _MachineListScreenState extends State<MachineListScreen> {
   List<Machine> _machines = [];
   List<Hospital> _allHospitals = [];
   List<String> _allTypes = [];
+  List<String> _allModels = [];
   bool _loading = true;
   String? _loadError;
   int _showCount = 25;
   static const _pageSize = 25;
+
+  String? get _zoneKey => zoneKeyForLabel(_zoneFilter);
 
   @override
   void initState() {
@@ -66,6 +72,8 @@ class _MachineListScreenState extends State<MachineListScreen> {
       final statusStr = _statusFilter == null
           ? null
           : switch (_statusFilter!) {
+              MachineStatus.pendingInstallation => 'pending_installation',
+              MachineStatus.pendingSignoff => 'pending_signoff',
               MachineStatus.operational => 'operational',
               MachineStatus.needsService => 'needs_service',
               MachineStatus.down => 'down',
@@ -76,13 +84,17 @@ class _MachineListScreenState extends State<MachineListScreen> {
         status: statusStr,
         hospitalId: _hospitalId,
         type: _typeFilter,
+        model: _modelFilter,
+        zone: _zoneKey,
       );
       if (mounted) {
         setState(() {
           _machines = data;
-          // Cache all equipment types from the first unfiltered fetch
-          if (_statusFilter == null && _hospitalId == null && _typeFilter == null) {
+          // Cache all equipment types + models from the first unfiltered fetch
+          if (_statusFilter == null && _hospitalId == null &&
+              _typeFilter == null && _modelFilter == null && _zoneFilter == null) {
             _allTypes = data.map((m) => m.type).toSet().toList()..sort();
+            _allModels = data.map((m) => m.model).toSet().toList()..sort();
           }
           _loading = false;
         });
@@ -103,6 +115,8 @@ class _MachineListScreenState extends State<MachineListScreen> {
       _hospitalFilter = null;
       _hospitalId = null;
       _typeFilter = null;
+      _modelFilter = null;
+      _zoneFilter = null;
       _showCount = _pageSize;
     });
     _load();
@@ -126,6 +140,22 @@ class _MachineListScreenState extends State<MachineListScreen> {
     _load();
   }
 
+  void _setModelFilter(String? model) {
+    setState(() {
+      _modelFilter = model;
+      _showCount = _pageSize;
+    });
+    _load();
+  }
+
+  void _setZoneFilter(String? label) {
+    setState(() {
+      _zoneFilter = label;
+      _showCount = _pageSize;
+    });
+    _load();
+  }
+
   int _count(MachineStatus? s) => s == null
       ? _machines.length
       : _machines.where((m) => m.status == s).length;
@@ -137,6 +167,10 @@ class _MachineListScreenState extends State<MachineListScreen> {
   List<String> get _types => _allTypes.isNotEmpty
       ? _allTypes
       : _machines.map((m) => m.type).toSet().toList()..sort();
+
+  List<String> get _models => _allModels.isNotEmpty
+      ? _allModels
+      : _machines.map((m) => m.model).toSet().toList()..sort();
 
   Future<void> _pickFilter(
     BuildContext context,
@@ -164,6 +198,9 @@ class _MachineListScreenState extends State<MachineListScreen> {
     if (_typeFilter != null) {
       list = list.where((m) => m.type == _typeFilter).toList();
     }
+    if (_modelFilter != null) {
+      list = list.where((m) => m.model == _modelFilter).toList();
+    }
     final q = _search.text.trim().toLowerCase();
     if (q.isNotEmpty) {
       list = list
@@ -184,7 +221,16 @@ class _MachineListScreenState extends State<MachineListScreen> {
     if (_mapView) {
       return Stack(
         children: [
-          const MachineMapScreen(),
+          MachineMapScreen(
+            onApplyZones: (zones) {
+              setState(() {
+                _mapView = false;
+                _zoneFilter = zones.length == 1 ? zoneLabelFor(zones.first) : null;
+                _showCount = _pageSize;
+              });
+              _load();
+            },
+          ),
           // Persistent "List view" toggle in top-left
           Positioned(
             top: 8,
@@ -465,6 +511,32 @@ class _MachineListScreenState extends State<MachineListScreen> {
                                       _types,
                                       _typeFilter,
                                       _setTypeFilter,
+                                    ),
+                                  ),
+                                  _FilterChip(
+                                    icon: Symbols.medical_services,
+                                    label: 'Machine',
+                                    value: _modelFilter ?? 'All',
+                                    active: _modelFilter != null,
+                                    onTap: () => _pickFilter(
+                                      context,
+                                      'Machine',
+                                      _models,
+                                      _modelFilter,
+                                      _setModelFilter,
+                                    ),
+                                  ),
+                                  _FilterChip(
+                                    icon: Symbols.public,
+                                    label: 'Zone',
+                                    value: _zoneFilter ?? 'All',
+                                    active: _zoneFilter != null,
+                                    onTap: () => _pickFilter(
+                                      context,
+                                      'Zone',
+                                      zoneLabels.values.toList(),
+                                      _zoneFilter,
+                                      _setZoneFilter,
                                     ),
                                   ),
                                   AppButton(
@@ -962,6 +1034,7 @@ class _MachineRow extends StatelessWidget {
   IconData _icon(String type) {
     if (type.contains('Hematology')) return Symbols.biotech;
     if (type.contains('Ultrasound')) return Symbols.monitor_heart;
+    if (type.contains('X-Ray')) return Symbols.radiology;
     if (type.contains('Ventilator')) return Symbols.air;
     if (type.contains('ECG')) return Symbols.monitoring;
     if (type.contains('Autoclave')) return Symbols.thermostat;
@@ -1338,7 +1411,7 @@ class _AddMachineDialogState extends State<_AddMachineDialog> {
                       ),
                       child: Row(
                         children: [
-                          const Icon(
+                          Icon(
                             Symbols.precision_manufacturing,
                             size: 18,
                             color: AppColors.teal,
@@ -1393,6 +1466,7 @@ class _AddMachineDialogState extends State<_AddMachineDialog> {
                                     items: const [
                                       'Hematology Analyzer',
                                       'Ultrasound Unit',
+                                      'X-Ray Machine',
                                       'Ventilator',
                                       'ECG Machine',
                                       'Autoclave',
@@ -1450,7 +1524,7 @@ class _AddMachineDialogState extends State<_AddMachineDialog> {
                               const SizedBox(height: 10),
                               Row(
                                 children: [
-                                  const Icon(
+                                  Icon(
                                     Icons.error_outline,
                                     size: 14,
                                     color: AppColors.coral,
@@ -1688,7 +1762,7 @@ class _PickerDialog extends StatelessWidget {
           ListTile(
             title: Text('All', style: AppTheme.bodySm),
             trailing: current == null
-                ? const Icon(Symbols.check, size: 16, color: AppColors.teal)
+                ? Icon(Symbols.check, size: 16, color: AppColors.teal)
                 : null,
             onTap: () => Navigator.pop(context, ''),
             dense: true,
@@ -1702,7 +1776,7 @@ class _PickerDialog extends StatelessWidget {
                 maxLines: 1,
               ),
               trailing: current == opt
-                  ? const Icon(Symbols.check, size: 16, color: AppColors.teal)
+                  ? Icon(Symbols.check, size: 16, color: AppColors.teal)
                   : null,
               onTap: () => Navigator.pop(context, opt),
               dense: true,

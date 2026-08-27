@@ -43,7 +43,7 @@ class _EmailScreenState extends State<EmailScreen> {
   Email? get _selected =>
       _selectedIdx >= 0 && _selectedIdx < _emails.length ? _emails[_selectedIdx] : null;
 
-  // ── Init ────────────────────────────────────────────────────────────────────
+  // ── Init ───────────────────────────────────────────────────────────────────
 
   @override
   void initState() {
@@ -78,13 +78,21 @@ class _EmailScreenState extends State<EmailScreen> {
   }
 
   Future<void> _loadFolders() async {
-    final f = await EmailService.instance.folders();
-    if (mounted && f.isNotEmpty) setState(() => _serverFolders = f);
+    try {
+      final f = await EmailService.instance.folders();
+      if (mounted && f.isNotEmpty) setState(() => _serverFolders = f);
+    } catch (_) {
+      // Non-fatal — keeps the default folder list.
+    }
   }
 
   Future<void> _loadUnread() async {
-    final n = await EmailService.instance.unreadCount();
-    if (mounted) setState(() => _unread = n);
+    try {
+      final n = await EmailService.instance.unreadCount();
+      if (mounted) setState(() => _unread = n);
+    } catch (_) {
+      // Non-fatal — keeps the last known unread count.
+    }
   }
 
   Future<void> _loadEmails() async {
@@ -160,7 +168,7 @@ class _EmailScreenState extends State<EmailScreen> {
     } catch (_) {}
   }
 
-  // ── Build ────────────────────────────────────────────────────────────────────
+  // ── Build ──────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -195,7 +203,7 @@ class _EmailScreenState extends State<EmailScreen> {
                 const SizedBox(width: 10, height: 10,
                     child: CircularProgressIndicator(strokeWidth: 1.5)),
                 const SizedBox(width: 6),
-                Text('Syncing…', style: AppTheme.bodySub.copyWith(fontSize: 11)),
+                Text('Syncing', style: AppTheme.bodySub.copyWith(fontSize: 11)),
               ]),
             ),
           ),
@@ -208,7 +216,7 @@ class _EmailScreenState extends State<EmailScreen> {
     });
   }
 
-  // ── 3-pane wide layout ────────────────────────────────────────────────────
+  // ── 3-pane wide layout ─────────────────────────────────────────────────────
 
   Widget _wideLayout(BuildContext context) => Row(
     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -235,7 +243,7 @@ class _EmailScreenState extends State<EmailScreen> {
     ],
   );
 
-  // ── Narrow layout ─────────────────────────────────────────────────────────
+  // ── Narrow layout ──────────────────────────────────────────────────────────
 
   Widget _narrowLayout(BuildContext context) {
     if (_narrowPane == 0) {
@@ -296,7 +304,7 @@ class _EmailScreenState extends State<EmailScreen> {
     ]);
   }
 
-  // ── Sidebar ───────────────────────────────────────────────────────────────
+  // ── Sidebar ────────────────────────────────────────────────────────────────
 
   Widget _sidebar(BuildContext context) {
     final staticFolders = [
@@ -363,7 +371,7 @@ class _EmailScreenState extends State<EmailScreen> {
     ]);
   }
 
-  // ── Email list ────────────────────────────────────────────────────────────
+  // ── Email list ─────────────────────────────────────────────────────────────
 
   Widget _emailList(BuildContext context) {
     if (_loading) return const Center(child: CircularProgressIndicator(strokeWidth: 2));
@@ -389,7 +397,7 @@ class _EmailScreenState extends State<EmailScreen> {
     );
   }
 
-  // ── Reading pane ──────────────────────────────────────────────────────────
+  // ── Reading pane ───────────────────────────────────────────────────────────
 
   Widget _readingPane(BuildContext context) {
     final email = _selected;
@@ -407,7 +415,7 @@ class _EmailScreenState extends State<EmailScreen> {
     );
   }
 
-  // ── Account settings ──────────────────────────────────────────────────────
+  // ── Account settings ───────────────────────────────────────────────────────
 
   void _showAccountSettings(BuildContext context) {
     showDialog<void>(
@@ -427,7 +435,7 @@ class _EmailScreenState extends State<EmailScreen> {
     );
   }
 
-  // ── Helpers ───────────────────────────────────────────────────────────────
+  // ── Helpers ────────────────────────────────────────────────────────────────
 
   String _folderLabel(String f) => switch (f.toLowerCase()) {
     'inbox'   => 'Inbox',
@@ -441,7 +449,7 @@ class _EmailScreenState extends State<EmailScreen> {
   };
 }
 
-// ── Account setup prompt ──────────────────────────────────────────────────────
+// ── Account setup prompt ─────────────────────────────────────────────────────
 
 class _AccountSetupPrompt extends StatelessWidget {
   const _AccountSetupPrompt({required this.onAccountAdded});
@@ -478,7 +486,7 @@ class _AccountSetupPrompt extends StatelessWidget {
   );
 }
 
-// ── Account dialog ────────────────────────────────────────────────────────────
+// ── Account dialog ───────────────────────────────────────────────────────────
 
 class _AccountDialog extends StatefulWidget {
   const _AccountDialog({this.existing, required this.onSaved});
@@ -604,7 +612,7 @@ class _AccountDialogState extends State<_AccountDialog> {
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
                     child: Row(children: [
-                      const Icon(Symbols.mail, size: 18, color: AppColors.teal),
+                      Icon(Symbols.mail, size: 18, color: AppColors.teal),
                       const SizedBox(width: 10),
                       Text(widget.existing != null ? 'Email Account' : 'Connect Email Account',
                           style: AppTheme.bodyStrong),
@@ -653,7 +661,7 @@ class _AccountDialogState extends State<_AccountDialog> {
                         Expanded(child: _aField('Username',   _userCtrl,  'info@medequip.tz')),
                       ]),
                       const SizedBox(height: 10),
-                      _aField('Password / App Password', _passCtrl, '••••••••',
+                      _aField('Password / App Password', _passCtrl, '••••••••••••••••',
                           obscure: true),
                       const SizedBox(height: 10),
                       Row(children: [
@@ -685,7 +693,7 @@ class _AccountDialogState extends State<_AccountDialog> {
                       ],
                       if (_error != null) ...[
                         const SizedBox(height: 8),
-                        Text(_error!, style: const TextStyle(color: AppColors.coral, fontSize: 12.5)),
+                        Text(_error!, style: TextStyle(color: AppColors.coral, fontSize: 12.5)),
                       ],
                       const SizedBox(height: 20),
                     ]),
@@ -751,11 +759,10 @@ class _AccountDialogState extends State<_AccountDialog> {
       Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10)),
       const SizedBox(height: 5),
       Container(
-        height: 36,
         decoration: BoxDecoration(color: context.pal.surface2,
             borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        child: Center(child: TextField(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        child: TextField(
           controller: ctrl,
           obscureText: obscure,
           style: AppTheme.bodySm,
@@ -764,12 +771,12 @@ class _AccountDialogState extends State<_AccountDialog> {
             hintText: hint,
             hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
             border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero),
-        )),
+        ),
       ),
     ]);
 }
 
-// ── Shared widgets ─────────────────────────────────────────────────────────────
+// ── Shared widgets ───────────────────────────────────────────────────────────
 
 class _ListHeader extends StatelessWidget {
   const _ListHeader({required this.label, this.unread, this.onRefresh});
@@ -855,7 +862,7 @@ class _FolderItem extends StatelessWidget {
   );
 }
 
-// ── Email list row ─────────────────────────────────────────────────────────────
+// ── Email list row ───────────────────────────────────────────────────────────
 
 class _EmailListRow extends StatelessWidget {
   const _EmailListRow({required this.email, required this.selected, required this.onTap});
@@ -878,10 +885,10 @@ class _EmailListRow extends StatelessWidget {
               style: AppTheme.bodyStrong.copyWith(fontSize: 13))),
           if (!email.isRead)
             Container(width: 6, height: 6,
-                decoration: const BoxDecoration(color: AppColors.teal, shape: BoxShape.circle)),
+                decoration: BoxDecoration(color: AppColors.teal, shape: BoxShape.circle)),
           if (email.isFlagged) ...[
             const SizedBox(width: 4),
-            const Icon(Symbols.flag, size: 13, color: AppColors.amber),
+            Icon(Symbols.flag, size: 13, color: AppColors.amber),
           ],
           const SizedBox(width: 6),
           Text(email.timeLabel, style: AppTheme.bodySub.copyWith(fontSize: 11)),
@@ -908,7 +915,7 @@ class _EmailListRow extends StatelessWidget {
   );
 }
 
-// ── Reading pane ───────────────────────────────────────────────────────────────
+// ── Reading pane ─────────────────────────────────────────────────────────────
 
 class _ReadingPane extends StatefulWidget {
   const _ReadingPane({required this.email, this.onDelete, this.onFlag});
@@ -1068,7 +1075,7 @@ class _ReadingPaneState extends State<_ReadingPane> {
   }
 }
 
-// ── Forward dialog ─────────────────────────────────────────────────────────────
+// ── Forward dialog ───────────────────────────────────────────────────────────
 
 class _ForwardDialog extends StatefulWidget {
   const _ForwardDialog({required this.emailId, required this.originalSubject});
@@ -1110,7 +1117,7 @@ class _ForwardDialogState extends State<_ForwardDialog> {
     contentPadding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
     actionsPadding: const EdgeInsets.fromLTRB(20, 8, 20, 14),
     title: Row(children: [
-      const Icon(Symbols.forward_to_inbox, size: 18, color: AppColors.teal),
+      Icon(Symbols.forward_to_inbox, size: 18, color: AppColors.teal),
       const SizedBox(width: 10),
       Expanded(child: Text('Forward: ${widget.originalSubject}',
           style: AppTheme.bodyStrong, overflow: TextOverflow.ellipsis)),
@@ -1127,7 +1134,7 @@ class _ForwardDialogState extends State<_ForwardDialog> {
             height: 80,
             decoration: BoxDecoration(color: context.pal.surface2,
                 borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             child: TextField(controller: _bodyCtrl, maxLines: null, expands: true,
               style: AppTheme.bodySm,
               decoration: InputDecoration(hintText: 'Add a note (optional)…',
@@ -1137,7 +1144,7 @@ class _ForwardDialogState extends State<_ForwardDialog> {
         ]),
         if (_error != null) ...[
           const SizedBox(height: 8),
-          Text(_error!, style: const TextStyle(color: AppColors.coral, fontSize: 12.5)),
+          Text(_error!, style: TextStyle(color: AppColors.coral, fontSize: 12.5)),
         ],
       ]),
     ),
@@ -1163,16 +1170,16 @@ class _ForwardDialogState extends State<_ForwardDialog> {
     Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10)),
       const SizedBox(height: 6),
-      Container(height: 36,
+      Container(
         decoration: BoxDecoration(color: ctx.pal.surface2,
             borderRadius: BorderRadius.circular(8), border: Border.all(color: ctx.pal.border)),
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        child: Center(child: TextField(controller: ctrl, style: AppTheme.bodySm,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: TextField(controller: ctrl, style: AppTheme.bodySm,
           decoration: InputDecoration(hintText: hint,
               hintStyle: AppTheme.bodySm.copyWith(color: ctx.pal.textDim),
-              border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero)))),
+              border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero))),
     ]);
 }
 
-// ── Compose modal ──────────────────────────────────────────────────────────────
+// ── Compose modal ────────────────────────────────────────────────────────────
 

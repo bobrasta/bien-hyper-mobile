@@ -173,7 +173,7 @@ class _RequisitionsScreenState extends State<RequisitionsScreen> {
   }
 }
 
-// ── PR row ─────────────────────────────────────────────────────────────────────
+// ── PR row ───────────────────────────────────────────────────────────────────
 
 class _PRRow extends StatelessWidget {
   const _PRRow({required this.pr, required this.selected,
@@ -215,7 +215,7 @@ class _PRRow extends StatelessWidget {
   );
 }
 
-// ── PR detail panel ────────────────────────────────────────────────────────────
+// ── PR detail panel ──────────────────────────────────────────────────────────
 
 class _PRDetailPanel extends StatelessWidget {
   const _PRDetailPanel({
@@ -345,7 +345,7 @@ class _ActionBtn extends StatelessWidget {
   );
 }
 
-// ── Create PR modal ────────────────────────────────────────────────────────────
+// ── Create PR modal ──────────────────────────────────────────────────────────
 
 class _CreatePRModal extends StatefulWidget {
   const _CreatePRModal({required this.onClose, this.onSaved});
@@ -438,7 +438,7 @@ class _CreatePRModalState extends State<_CreatePRModal> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
               child: Row(children: [
-                const Icon(Symbols.assignment_add, size: 18, color: AppColors.teal),
+                Icon(Symbols.assignment_add, size: 18, color: AppColors.teal),
                 const SizedBox(width: 10),
                 Text('New Purchase Requisition', style: AppTheme.bodyStrong),
                 const Spacer(),
@@ -465,7 +465,7 @@ class _CreatePRModalState extends State<_CreatePRModal> {
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Row(mainAxisSize: MainAxisSize.min, children: [
-                        const Icon(Symbols.add, size: 14, color: AppColors.teal),
+                        Icon(Symbols.add, size: 14, color: AppColors.teal),
                         const SizedBox(width: 4),
                         Text('Add Item', style: AppTheme.bodySm.copyWith(color: AppColors.teal, fontSize: 12)),
                       ]),
@@ -494,7 +494,7 @@ class _CreatePRModalState extends State<_CreatePRModal> {
                   )),
                 if (_error != null) ...[
                   const SizedBox(height: 10),
-                  Text(_error!, style: const TextStyle(color: AppColors.coral, fontSize: 12.5)),
+                  Text(_error!, style: TextStyle(color: AppColors.coral, fontSize: 12.5)),
                 ],
               ]),
             )),
@@ -554,7 +554,7 @@ class _LineItemRow extends StatelessWidget {
         icon: Icon(Symbols.expand_more, size: 14, color: context.pal.textDim),
         items: availableItems.map((i) => DropdownMenuItem(
           value: i.id,
-          child: Text('${i.sku} — ${i.name}', overflow: TextOverflow.ellipsis),
+          child: Text('${i.sku} · ${i.name}', overflow: TextOverflow.ellipsis),
         )).toList(),
         onChanged: (v) {
           if (v == null) return;
@@ -579,7 +579,7 @@ class _LineItemRow extends StatelessWidget {
       )),
       const SizedBox(width: 8),
       GestureDetector(onTap: onRemove,
-          child: const Icon(Symbols.close, size: 16, color: AppColors.coral)),
+          child: Icon(Symbols.close, size: 16, color: AppColors.coral)),
     ]),
   );
 }
@@ -593,16 +593,16 @@ class _Fld extends StatelessWidget {
   Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
     Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10)),
     const SizedBox(height: 6),
-    Container(height: 38,
+    Container(
       decoration: BoxDecoration(color: context.pal.surface2,
           borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: Center(child: TextField(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      child: TextField(
         controller: ctrl, style: AppTheme.bodySm,
         decoration: InputDecoration(hintText: hint,
             hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
             border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero),
-      )),
+      ),
     ),
   ]);
 }

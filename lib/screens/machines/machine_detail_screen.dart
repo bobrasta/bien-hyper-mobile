@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import '../../models/invoice.dart';
 import '../../models/machine.dart';
@@ -253,8 +253,7 @@ class _MachineDetailScreenState extends State<MachineDetailScreen> {
   }
 }
 
-// ── Overview ─────────────────────────────────────────────────────────────────
-
+// ── Overview ────────────────────────────────────────────────────────────────
 class _InfoItem extends StatelessWidget {
   const _InfoItem({required this.label, required this.value});
   final String label, value;
@@ -430,8 +429,7 @@ class _SpecRow extends StatelessWidget {
   );
 }
 
-// ── Service History ───────────────────────────────────────────────────────────
-
+// ── Service History ─────────────────────────────────────────────────────────
 class _ServiceHistoryContent extends StatefulWidget {
   const _ServiceHistoryContent({required this.machineId, this.onLogService});
   final int machineId;
@@ -487,10 +485,10 @@ class _ServiceHistoryContentState extends State<_ServiceHistoryContent> {
       else if (_error != null)
         ErrorView(message: _error!, onRetry: _load)
       else if (_history.isEmpty)
-        const Center(child: Padding(
-          padding: EdgeInsets.symmetric(vertical: 32),
+        Center(child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 32),
           child: Text('No service history for this machine.',
-              style: TextStyle(color: AppColors.textMute)),
+              style: TextStyle(color: context.pal.textMute)),
         ))
       else
         Container(
@@ -592,8 +590,7 @@ class _SHTh extends StatelessWidget {
   }
 }
 
-// ── Revenue Tab ───────────────────────────────────────────────────────────────
-
+// ── Revenue Tab ─────────────────────────────────────────────────────────────
 class _RevenueTabContent extends StatefulWidget {
   const _RevenueTabContent({required this.machine});
   final Machine machine;
@@ -669,7 +666,10 @@ class _RevenueTabContentState extends State<_RevenueTabContent> {
             Text('Recent Invoice Amounts', style: AppTheme.cardTitle),
             const SizedBox(height: 20),
             SizedBox(
-              height: 160,
+              // A few px taller than the 120 max bar height + its two text
+              // labels need at default scale — headroom for the Text Size
+              // setting (Settings → Preferences) going up to Large.
+              height: 176,
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -716,10 +716,10 @@ class _RevenueTabContentState extends State<_RevenueTabContent> {
             ]),
           ),
           if (_invoices.isEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 24),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 24),
               child: Center(child: Text('No invoices for this machine.',
-                  style: TextStyle(color: AppColors.textMute))),
+                  style: TextStyle(color: context.pal.textMute))),
             )
           else
             Table(
@@ -803,8 +803,7 @@ class _TC extends StatelessWidget {
     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), child: child);
 }
 
-// ── Documents ─────────────────────────────────────────────────────────────────
-
+// ── Documents ───────────────────────────────────────────────────────────────
 class _DocumentsContent extends StatelessWidget {
   const _DocumentsContent();
 
@@ -835,8 +834,7 @@ class _DocumentsContent extends StatelessWidget {
   }
 }
 
-// ── Notes ─────────────────────────────────────────────────────────────────────
-
+// ── Notes ───────────────────────────────────────────────────────────────────
 class _NotesContent extends StatefulWidget {
   const _NotesContent({required this.machine});
   final Machine machine;
@@ -888,7 +886,7 @@ class _NotesContentState extends State<_NotesContent> {
           minLines: 12,
           style: AppTheme.bodySm.copyWith(height: 1.7),
           decoration: InputDecoration(
-            hintText: 'Add notes about this machine…',
+            hintText: 'Add notes about this machine—',
             hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
             border: InputBorder.none,
           ),
@@ -898,8 +896,7 @@ class _NotesContentState extends State<_NotesContent> {
   }
 }
 
-// ── Shared modal helpers ──────────────────────────────────────────────────────
-
+// ── Shared modal helpers ────────────────────────────────────────────────────
 class _MField extends StatelessWidget {
   const _MField(this.label, this.ctrl, this.hint);
   final String label, hint;
@@ -910,14 +907,13 @@ class _MField extends StatelessWidget {
     Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10)),
     const SizedBox(height: 6),
     Container(
-      height: 38,
       decoration: BoxDecoration(color: context.pal.surface2,
           borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: Center(child: TextField(controller: ctrl, style: AppTheme.bodySm,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      child: TextField(controller: ctrl, style: AppTheme.bodySm,
         decoration: InputDecoration(hintText: hint,
             hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
-            border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero))),
+            border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero)),
     ),
   ]);
 }
@@ -950,9 +946,9 @@ class _MDrop extends StatelessWidget {
     Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10)),
     const SizedBox(height: 6),
     Container(
-      height: 38,
       decoration: BoxDecoration(color: context.pal.surface2,
           borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
+      height: 38,
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: DropdownButtonHideUnderline(child: DropdownButton<String>(
         value: value, isExpanded: true,
@@ -1033,8 +1029,7 @@ Widget _modalShell(
   ),
 );
 
-// ── Edit Machine Dialog ────────────────────────────────────────────────────────
-
+// ── Edit Machine Dialog ─────────────────────────────────────────────────────
 class _EditMachineDialog extends StatefulWidget {
   const _EditMachineDialog({required this.machine, required this.onClose});
   final Machine machine;
@@ -1112,9 +1107,9 @@ class _EditMachineDialogState extends State<_EditMachineDialog> {
 
   String _apiError(Object e) {
     final msg = e.toString();
-    if (msg.contains('422')) return 'Validation failed — check all fields.';
+    if (msg.contains('422')) return 'Validation failed —check all fields.';
     if (msg.contains('401') || msg.contains('403')) return 'Not authorised.';
-    if (msg.contains('500')) return 'Server error — try again.';
+    if (msg.contains('500')) return 'Server error —try again.';
     if (msg.contains('SocketException') || msg.contains('connection')) return 'No connection to server.';
     return 'Failed to save. Please try again.';
   }
@@ -1166,7 +1161,7 @@ class _EditMachineDialogState extends State<_EditMachineDialog> {
         if (_error != null) ...[
           const SizedBox(height: 10),
           Row(children: [
-            const Icon(Icons.error_outline, size: 14, color: AppColors.coral),
+            Icon(Icons.error_outline, size: 14, color: AppColors.coral),
             const SizedBox(width: 6),
             Expanded(child: Text(_error!,
               style: AppTheme.bodySub.copyWith(color: AppColors.coral, fontSize: 12))),
@@ -1177,8 +1172,7 @@ class _EditMachineDialogState extends State<_EditMachineDialog> {
   }
 }
 
-// ── Log Service Dialog ─────────────────────────────────────────────────────────
-
+// ── Log Service Dialog ──────────────────────────────────────────────────────
 class _LogServiceDialog extends StatefulWidget {
   const _LogServiceDialog({required this.machine, required this.onClose});
   final Machine machine;
@@ -1258,8 +1252,8 @@ class _LogServiceDialogState extends State<_LogServiceDialog> {
 
   String _friendlyError(Object e) {
     final s = e.toString();
-    if (s.contains('422')) return 'Validation failed — check all fields.';
-    if (s.contains('500')) return 'Server error — try again.';
+    if (s.contains('422')) return 'Validation failed —check all fields.';
+    if (s.contains('500')) return 'Server error —try again.';
     if (s.contains('SocketException') || s.contains('connection')) return 'No connection to server.';
     return 'Failed to save. Please try again.';
   }
@@ -1300,10 +1294,10 @@ class _LogServiceDialogState extends State<_LogServiceDialog> {
           height: 72,
           decoration: BoxDecoration(color: context.pal.surface2,
               borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
           child: TextField(controller: _issueCtrl, maxLines: null, expands: true,
             style: AppTheme.bodySm,
-            decoration: InputDecoration(hintText: 'Describe the work performed…',
+            decoration: InputDecoration(hintText: 'Describe the work performed—',
                 hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
                 border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero)),
         ),
@@ -1313,7 +1307,7 @@ class _LogServiceDialogState extends State<_LogServiceDialog> {
       if (_error != null) ...[
         const SizedBox(height: 10),
         Row(children: [
-          const Icon(Icons.error_outline, size: 14, color: AppColors.coral),
+          Icon(Icons.error_outline, size: 14, color: AppColors.coral),
           const SizedBox(width: 6),
           Expanded(child: Text(_error!,
             style: AppTheme.bodySub.copyWith(color: AppColors.coral, fontSize: 12))),
@@ -1323,8 +1317,7 @@ class _LogServiceDialogState extends State<_LogServiceDialog> {
   );
 }
 
-// ── Raise Ticket Dialog ────────────────────────────────────────────────────────
-
+// ── Raise Ticket Dialog ─────────────────────────────────────────────────────
 class _RaiseTicketDialog extends StatefulWidget {
   const _RaiseTicketDialog({required this.machine, required this.onClose});
   final Machine machine;
@@ -1402,8 +1395,8 @@ class _RaiseTicketDialogState extends State<_RaiseTicketDialog> {
 
   String _friendlyError(Object e) {
     final s = e.toString();
-    if (s.contains('422')) return 'Validation failed — check all fields.';
-    if (s.contains('500')) return 'Server error — try again.';
+    if (s.contains('422')) return 'Validation failed —check all fields.';
+    if (s.contains('500')) return 'Server error —try again.';
     if (s.contains('SocketException') || s.contains('connection')) return 'No connection to server.';
     return 'Failed to save. Please try again.';
   }
@@ -1451,10 +1444,10 @@ class _RaiseTicketDialogState extends State<_RaiseTicketDialog> {
           height: 80,
           decoration: BoxDecoration(color: context.pal.surface2,
               borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
           child: TextField(controller: _descCtrl, maxLines: null, expands: true,
             style: AppTheme.bodySm,
-            decoration: InputDecoration(hintText: 'Describe the fault or required work…',
+            decoration: InputDecoration(hintText: 'Describe the fault or required work—',
                 hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
                 border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero)),
         ),
@@ -1462,7 +1455,7 @@ class _RaiseTicketDialogState extends State<_RaiseTicketDialog> {
       if (_error != null) ...[
         const SizedBox(height: 10),
         Row(children: [
-          const Icon(Icons.error_outline, size: 14, color: AppColors.coral),
+          Icon(Icons.error_outline, size: 14, color: AppColors.coral),
           const SizedBox(width: 6),
           Expanded(child: Text(_error!,
             style: AppTheme.bodySub.copyWith(color: AppColors.coral, fontSize: 12))),
@@ -1472,8 +1465,7 @@ class _RaiseTicketDialogState extends State<_RaiseTicketDialog> {
   );
 }
 
-// ── Edit Specifications Dialog ─────────────────────────────────────────────────
-
+// ── Edit Specifications Dialog ──────────────────────────────────────────────
 class _EditSpecsDialog extends StatefulWidget {
   const _EditSpecsDialog({required this.machine, required this.onClose, this.onSaved});
   final Machine      machine;
@@ -1570,7 +1562,7 @@ class _EditSpecsDialogState extends State<_EditSpecsDialog> {
       if (_error != null) ...[
         const SizedBox(height: 10),
         Row(children: [
-          const Icon(Icons.error_outline, size: 14, color: AppColors.coral),
+          Icon(Icons.error_outline, size: 14, color: AppColors.coral),
           const SizedBox(width: 6),
           Expanded(child: Text(_error!,
             style: AppTheme.bodySub.copyWith(color: AppColors.coral, fontSize: 12))),
@@ -1581,14 +1573,13 @@ class _EditSpecsDialogState extends State<_EditSpecsDialog> {
 
   Widget _specField(TextEditingController ctrl, String hint, BuildContext context) =>
     Container(
-      height: 36,
       decoration: BoxDecoration(
         color: context.pal.surface2,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: context.pal.border),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      child: Center(child: TextField(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      child: TextField(
         controller: ctrl,
         style: AppTheme.bodySm,
         decoration: InputDecoration(
@@ -1596,7 +1587,7 @@ class _EditSpecsDialogState extends State<_EditSpecsDialog> {
           hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
           border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero,
         ),
-      )),
+      ),
     );
 }
 

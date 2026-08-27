@@ -39,6 +39,7 @@ class PurchaseRequisition {
   final String prNumber;
   final String title;
   final String status;         // draft | submitted | approved | rejected | ordered
+  final String origin;         // manual | reorder | new_product
   final String? notes;
   final String? requestedByName;
   final String? approvedByName;
@@ -52,6 +53,7 @@ class PurchaseRequisition {
     required this.prNumber,
     required this.title,
     required this.status,
+    this.origin = 'manual',
     this.notes,
     this.requestedByName,
     this.approvedByName,
@@ -66,6 +68,7 @@ class PurchaseRequisition {
     prNumber:         j['pr_number']        as String? ?? '—',
     title:            j['title']            as String? ?? '—',
     status:           j['status']           as String? ?? 'draft',
+    origin:           j['origin']           as String? ?? 'manual',
     notes:            j['notes']            as String?,
     requestedByName:  (j['requested_by']   as Map?)? ['name'] as String?,
     approvedByName:   (j['approved_by']    as Map?)? ['name'] as String?,

@@ -1,18 +1,24 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
-import '../../main.dart' show themeNotifier, authTokenNotifier, userNameNotifier, nameInitials, notificationCountNotifier;
+import '../../main.dart' show authTokenNotifier, userNameNotifier, nameInitials, notificationCountNotifier;
 import '../../models/notification.dart';
+import '../../models/search_result.dart';
 import '../../services/auth_service.dart';
 import '../../services/notification_service.dart';
+import '../../services/search_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_palette.dart';
 import '../../theme/app_theme.dart';
 import 'avatar_widget.dart';
 
 class TopBar extends StatefulWidget {
-  const TopBar({super.key, this.onMenuPressed, this.onViewAllNotifications});
+  const TopBar({super.key, this.onMenuPressed, this.onOpenNotification, this.onOpenSearchResult});
   final VoidCallback? onMenuPressed;
-  final VoidCallback? onViewAllNotifications;
+  /// Called with the tapped notification, or null for "View all".
+  final ValueChanged<AppNotification?>? onOpenNotification;
+  /// Called with the tapped global-search result.
+  final ValueChanged<SearchResult>? onOpenSearchResult;
 
   @override
   State<TopBar> createState() => _TopBarState();
@@ -25,6 +31,52 @@ class _TopBarState extends State<TopBar> {
 
   List<AppNotification> _notifications        = [];
   bool                  _loadingNotifications = false;
+
+  // ── Global search ────────────────────────────────────────────────────────
+  final _searchOverlayController = OverlayPortalController();
+  final _searchLayerLink          = LayerLink();
+  final _searchCtrl               = TextEditingController();
+  final _searchFocus               = FocusNode();
+  List<SearchResult> _searchResults = [];
+  bool                _searching    = false;
+  String?             _searchError;
+  Timer?              _searchDebounce;
+
+  void _onSearchChanged(String q) {
+    _searchDebounce?.cancel();
+    final query = q.trim();
+    if (query.length < 2) {
+      setState(() { _searchResults = []; _searching = false; _searchError = null; });
+      return;
+    }
+    setState(() => _searching = true);
+    _searchDebounce = Timer(const Duration(milliseconds: 300), () async {
+      try {
+        final results = await SearchService.instance.search(query);
+        if (mounted && _searchCtrl.text.trim() == query) {
+          setState(() { _searchResults = results; _searching = false; _searchError = null; });
+        }
+      } catch (_) {
+        if (mounted) setState(() { _searching = false; _searchError = 'Search failed.'; });
+      }
+    });
+  }
+
+  void _openSearchResult(SearchResult r) {
+    _searchOverlayController.hide();
+    _searchCtrl.clear();
+    setState(() => _searchResults = []);
+    _searchFocus.unfocus();
+    widget.onOpenSearchResult?.call(r);
+  }
+
+  @override
+  void dispose() {
+    _searchDebounce?.cancel();
+    _searchCtrl.dispose();
+    _searchFocus.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -124,29 +176,96 @@ class _TopBarState extends State<TopBar> {
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: Container(
-                constraints: const BoxConstraints(maxWidth: 420),
-                height: 34,
-                decoration: BoxDecoration(
-                  color: context.pal.surface1,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: context.pal.border),
-                ),
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: Row(children: [
-                  const SizedBox(width: 8),
-                  Expanded(child: Text('Search machines, hospitals, tickets…',
-                      style: AppTheme.bodySm.copyWith(color: context.pal.textDim))),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              child: CompositedTransformTarget(
+                link: _searchLayerLink,
+                child: OverlayPortal(
+                  controller: _searchOverlayController,
+                  overlayChildBuilder: (ctx) => GestureDetector(
+                    behavior: HitTestBehavior.translucent,
+                    onTap: _searchOverlayController.hide,
+                    child: Stack(children: [
+                      Positioned.fill(child: const ColoredBox(color: Colors.transparent)),
+                      CompositedTransformFollower(
+                        link: _searchLayerLink,
+                        showWhenUnlinked: false,
+                        targetAnchor: Alignment.bottomLeft,
+                        followerAnchor: Alignment.topLeft,
+                        child: GestureDetector(
+                          onTap: () {},
+                          child: Material(
+                            color: Colors.transparent,
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 420),
+                              child: _SearchResultsPanel(
+                                query: _searchCtrl.text.trim(),
+                                loading: _searching,
+                                error: _searchError,
+                                results: _searchResults,
+                                onSelect: _openSearchResult,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ]),
+                  ),
+                  child: Container(
+                    constraints: const BoxConstraints(maxWidth: 420),
+                    height: 34,
                     decoration: BoxDecoration(
-                      color: context.pal.surface3,
-                      borderRadius: BorderRadius.circular(4),
+                      color: context.pal.surface1,
+                      borderRadius: BorderRadius.circular(8),
                       border: Border.all(color: context.pal.border),
                     ),
-                    child: Text('⌘K', style: AppTheme.monoXs),
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Row(children: [
+                      Icon(Symbols.search, size: 16, color: context.pal.textDim),
+                      const SizedBox(width: 8),
+                      Expanded(child: TextField(
+                        controller: _searchCtrl,
+                        focusNode: _searchFocus,
+                        style: AppTheme.bodySm,
+                        onChanged: (v) {
+                          _onSearchChanged(v);
+                          if (v.trim().isNotEmpty && !_searchOverlayController.isShowing) {
+                            _searchOverlayController.show();
+                          } else if (v.trim().isEmpty) {
+                            _searchOverlayController.hide();
+                          }
+                        },
+                        onTap: () {
+                          if (_searchCtrl.text.trim().isNotEmpty && !_searchOverlayController.isShowing) {
+                            _searchOverlayController.show();
+                          }
+                        },
+                        decoration: InputDecoration(
+                          hintText: 'Search machines, hospitals, tickets…',
+                          hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
+                          border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero,
+                        ),
+                      )),
+                      if (_searchCtrl.text.isEmpty)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: context.pal.surface3,
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(color: context.pal.border),
+                          ),
+                          child: Text('⌘K', style: AppTheme.monoXs),
+                        )
+                      else
+                        GestureDetector(
+                          onTap: () {
+                            _searchCtrl.clear();
+                            _onSearchChanged('');
+                            _searchOverlayController.hide();
+                          },
+                          child: Icon(Symbols.close, size: 15, color: context.pal.textDim),
+                        ),
+                    ]),
                   ),
-                ]),
+                ),
               ),
             ),
             const Spacer(),
@@ -156,15 +275,19 @@ class _TopBarState extends State<TopBar> {
               valueListenable: themeNotifier,
               builder: (_, mode, _) => GestureDetector(
                 onTap: () => themeNotifier.value = switch (mode) {
+                  AppThemeMode.aurora  => AppThemeMode.dark,
                   AppThemeMode.dark    => AppThemeMode.light,
                   AppThemeMode.light   => AppThemeMode.neutral,
-                  AppThemeMode.neutral => AppThemeMode.dark,
+                  AppThemeMode.neutral => AppThemeMode.fundify,
+                  AppThemeMode.fundify => AppThemeMode.aurora,
                 },
                 child: _IconBtn(
                   icon: switch (mode) {
+                    AppThemeMode.aurora  => Symbols.wb_twilight,
                     AppThemeMode.dark    => Symbols.light_mode,
                     AppThemeMode.light   => Symbols.tonality,
-                    AppThemeMode.neutral => Symbols.dark_mode,
+                    AppThemeMode.neutral => Symbols.eco,
+                    AppThemeMode.fundify => Symbols.dark_mode,
                   },
                 ),
               ),
@@ -207,14 +330,18 @@ class _TopBarState extends State<TopBar> {
                               _markAllRead();
                               setState(() {});
                             },
-                            onMarkRead: (id) {
-                              _markRead(id);
-                              setState(() {});
+                            onOpenNotification: (n) {
+                              if (!n.isRead) {
+                                _markRead(n.id);
+                                setState(() {});
+                              }
+                              _overlayController.hide();
+                              widget.onOpenNotification?.call(n);
                             },
                             onClose: _overlayController.hide,
-                            onViewAll: widget.onViewAllNotifications == null ? null : () {
+                            onViewAll: widget.onOpenNotification == null ? null : () {
                               _overlayController.hide();
-                              widget.onViewAllNotifications!();
+                              widget.onOpenNotification!(null);
                             },
                           ),
                         ),
@@ -284,52 +411,16 @@ class _NotificationPanel extends StatelessWidget {
     required this.notifications,
     required this.unreadCount,
     required this.onMarkAllRead,
-    required this.onMarkRead,
+    required this.onOpenNotification,
     required this.onClose,
     this.onViewAll,
   });
   final List<AppNotification> notifications;
   final int unreadCount;
   final VoidCallback onMarkAllRead;
-  final ValueChanged<int> onMarkRead;
+  final ValueChanged<AppNotification> onOpenNotification;
   final VoidCallback onClose;
   final VoidCallback? onViewAll;
-
-  IconData _icon(NotificationType t) => switch (t) {
-    NotificationType.serviceDue        => Symbols.build,
-    NotificationType.ticketAssigned    => Symbols.confirmation_number,
-    NotificationType.ticketUpdated     => Symbols.update,
-    NotificationType.paymentOverdue    => Symbols.warning,
-    NotificationType.warrantyExpiring  => Symbols.workspace_premium,
-    NotificationType.dealUpdated       => Symbols.trending_up,
-    NotificationType.leadFollowUp      => Symbols.hourglass_top,
-    NotificationType.taskAssigned      => Symbols.assignment_ind,
-    NotificationType.taskCompleted     => Symbols.task_alt,
-    NotificationType.stockPullRequired => Symbols.inventory_2,
-    NotificationType.leaveRequested    => Symbols.event_busy,
-    NotificationType.leaveApproved     => Symbols.event_available,
-    NotificationType.leaveRejected     => Symbols.event_busy,
-    NotificationType.lateArrival       => Symbols.schedule,
-    NotificationType.system            => Symbols.info,
-  };
-
-  Color _color(NotificationType t) => switch (t) {
-    NotificationType.serviceDue        => AppColors.amber,
-    NotificationType.ticketAssigned    => AppColors.teal,
-    NotificationType.ticketUpdated     => AppColors.blue,
-    NotificationType.paymentOverdue    => AppColors.coral,
-    NotificationType.warrantyExpiring  => AppColors.amber,
-    NotificationType.dealUpdated       => AppColors.violet,
-    NotificationType.leadFollowUp      => AppColors.amber,
-    NotificationType.taskAssigned      => AppColors.blue,
-    NotificationType.taskCompleted     => AppColors.teal,
-    NotificationType.stockPullRequired => AppColors.violet,
-    NotificationType.leaveRequested    => AppColors.amber,
-    NotificationType.leaveApproved     => AppColors.teal,
-    NotificationType.leaveRejected     => AppColors.coral,
-    NotificationType.lateArrival       => AppColors.amber,
-    NotificationType.system            => AppColors.textMute,
-  };
 
   @override
   Widget build(BuildContext context) {
@@ -390,9 +481,10 @@ class _NotificationPanel extends StatelessWidget {
                   itemCount: notifications.length,
                   itemBuilder: (context, i) {
                     final n = notifications[i];
-                    final color = _color(n.type);
+                    final color = n.type.color;
+                    final action = n.type.actionLabel;
                     return GestureDetector(
-                      onTap: () => onMarkRead(n.id),
+                      onTap: () => onOpenNotification(n),
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                         decoration: BoxDecoration(
@@ -408,7 +500,7 @@ class _NotificationPanel extends StatelessWidget {
                               color: color.withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            child: Icon(_icon(n.type), size: 16, color: color),
+                            child: Icon(n.type.icon, size: 16, color: color),
                           ),
                           const SizedBox(width: 12),
                           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -420,7 +512,7 @@ class _NotificationPanel extends StatelessWidget {
                               if (!n.isRead)
                                 Container(
                                   width: 7, height: 7,
-                                  decoration: const BoxDecoration(
+                                  decoration: BoxDecoration(
                                     color: AppColors.teal, shape: BoxShape.circle),
                                 ),
                             ]),
@@ -429,8 +521,25 @@ class _NotificationPanel extends StatelessWidget {
                               style: AppTheme.bodySub.copyWith(fontSize: 11.5, height: 1.4),
                               maxLines: 2, overflow: TextOverflow.ellipsis),
                             const SizedBox(height: 4),
-                            Text(n.createdAt, style: AppTheme.monoXs.copyWith(
-                              color: context.pal.textDim, fontSize: 10.5)),
+                            Row(children: [
+                              Text(n.createdAt, style: AppTheme.monoXs.copyWith(
+                                color: context.pal.textDim, fontSize: 10.5)),
+                              if (action != null) ...[
+                                const Spacer(),
+                                GestureDetector(
+                                  onTap: () => onOpenNotification(n),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                    decoration: BoxDecoration(
+                                      color: color.withValues(alpha: 0.12),
+                                      borderRadius: BorderRadius.circular(999),
+                                    ),
+                                    child: Text(action, style: AppTheme.bodySub.copyWith(
+                                        color: color, fontSize: 10.5, fontWeight: FontWeight.w600)),
+                                  ),
+                                ),
+                              ],
+                            ]),
                           ])),
                         ]),
                       ),
@@ -463,10 +572,113 @@ class _NotificationPanel extends StatelessWidget {
 class _BrandMark extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Image.asset(
-    'assets/images/hypermed_logo.png',
+    'assets/images/hypermed_icon.png',
     height: 28, fit: BoxFit.contain,
     filterQuality: FilterQuality.high,
   );
+}
+
+// ── Global search results panel ──────────────────────────────────────────────
+
+class _SearchResultsPanel extends StatelessWidget {
+  const _SearchResultsPanel({
+    required this.query,
+    required this.loading,
+    required this.error,
+    required this.results,
+    required this.onSelect,
+  });
+  final String query;
+  final bool loading;
+  final String? error;
+  final List<SearchResult> results;
+  final ValueChanged<SearchResult> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(maxHeight: 420),
+      margin: const EdgeInsets.only(top: 6),
+      decoration: BoxDecoration(
+        color: context.pal.surface1,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: context.pal.borderStrong),
+        boxShadow: const [
+          BoxShadow(color: Color(0x60000000), blurRadius: 40, offset: Offset(0, 12)),
+        ],
+      ),
+      child: Builder(builder: (context) {
+        if (query.length < 2) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 20),
+            child: Center(child: Text('Keep typing to search…',
+                style: AppTheme.bodySub.copyWith(fontSize: 12))),
+          );
+        }
+        if (loading && results.isEmpty) {
+          return const Padding(
+            padding: EdgeInsets.symmetric(vertical: 24),
+            child: Center(child: SizedBox(width: 18, height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2))),
+          );
+        }
+        if (error != null) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 20),
+            child: Center(child: Text(error!,
+                style: AppTheme.bodySub.copyWith(color: AppColors.coral, fontSize: 12))),
+          );
+        }
+        if (results.isEmpty) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 24),
+            child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Icon(Symbols.search_off, size: 24, color: context.pal.textDim),
+              const SizedBox(height: 6),
+              Text('No results for "$query"', style: AppTheme.bodySub.copyWith(fontSize: 12)),
+            ])),
+          );
+        }
+        return ListView.builder(
+          shrinkWrap: true,
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          itemCount: results.length,
+          itemBuilder: (context, i) {
+            final r = results[i];
+            return GestureDetector(
+              onTap: () => onSelect(r),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                child: Row(children: [
+                  Container(
+                    width: 30, height: 30,
+                    decoration: BoxDecoration(
+                      color: AppColors.teal.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(7),
+                    ),
+                    child: Icon(r.type.searchIcon, size: 15, color: AppColors.teal),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(r.title, style: AppTheme.bodyStrong.copyWith(fontSize: 12.5),
+                        maxLines: 1, overflow: TextOverflow.ellipsis),
+                    if (r.subtitle != null && r.subtitle!.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(r.subtitle!, style: AppTheme.bodySub.copyWith(fontSize: 11),
+                          maxLines: 1, overflow: TextOverflow.ellipsis),
+                    ],
+                  ])),
+                  const SizedBox(width: 8),
+                  Text(r.type.searchCategoryLabel,
+                      style: AppTheme.monoXs.copyWith(fontSize: 9.5, color: context.pal.textDim)),
+                ]),
+              ),
+            );
+          },
+        );
+      }),
+    );
+  }
 }
 
 class _IconBtn extends StatelessWidget {

@@ -84,9 +84,13 @@ class _SalesOrdersScreenState extends State<SalesOrdersScreen> {
   }
 
   Future<void> _showDetailModal(SalesOrder so) async {
-    final full = so.items.isEmpty
-        ? await SalesOrderService.instance.get(so.id)
-        : so;
+    SalesOrder full;
+    try {
+      full = so.items.isEmpty ? await SalesOrderService.instance.get(so.id) : so;
+    } catch (e) {
+      if (mounted) showErrorToast(context, e);
+      return;
+    }
     if (!mounted) return;
     final reload = await showDialog<bool>(
       context: context,
@@ -393,7 +397,7 @@ class _SalesOrderDetailDialogState extends State<_SalesOrderDetailDialog> {
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
             child: Row(children: [
-              const Icon(Symbols.shopping_cart, size: 18, color: AppColors.teal),
+              Icon(Symbols.shopping_cart, size: 18, color: AppColors.teal),
               const SizedBox(width: 10),
               Expanded(
                 child: Column(
@@ -462,6 +466,8 @@ class _SalesOrderDetailDialogState extends State<_SalesOrderDetailDialog> {
                     _infoTile('Created By', so.createdByName!),
                   if (so.confirmedByName != null)
                     _infoTile('Confirmed By', so.confirmedByName!),
+                  if (so.deliveredByName != null)
+                    _infoTile('Delivered By', so.deliveredByName!),
                   if (so.commissionAmount != null)
                     _infoTile('Commission',
                         '${_fmtAmount(so.commissionAmount!)} (${so.commissionPercent?.toStringAsFixed(1)}% — ${so.commissionAgentName ?? '—'})'),
@@ -771,7 +777,7 @@ class _DeliverModalState extends State<_DeliverModal> {
       padding: const EdgeInsets.all(24),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
         Row(children: [
-          const Icon(Symbols.local_shipping, size: 18, color: AppColors.teal),
+          Icon(Symbols.local_shipping, size: 18, color: AppColors.teal),
           const SizedBox(width: 10),
           Expanded(child: Text('Record Delivery — ${widget.order.orderNumber}',
               style: AppTheme.bodyStrong)),

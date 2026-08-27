@@ -41,10 +41,15 @@ class AuthService {
 
   static const _userKey = 'hypermed_user_name';
   static const _roleKey = 'hypermed_user_role';
+  static const _idKey   = 'hypermed_user_id';
 
   Future<String?> getStoredToken()    => _storage.read(key: _tokenKey);
   Future<String?> getStoredUserName() => _storage.read(key: _userKey);
   Future<String?> getStoredRole()     => _storage.read(key: _roleKey);
+  Future<int?> getStoredUserId() async {
+    final raw = await _storage.read(key: _idKey);
+    return raw != null ? int.tryParse(raw) : null;
+  }
 
   Future<Map<String, dynamic>> login(String email, String password) async {
     try {
@@ -58,9 +63,11 @@ class AuthService {
       final user     = payload['user'] as Map?;
       final userName = user?['name'] as String? ?? 'User';
       final userRole = user?['role'] as String? ?? 'staff';
+      final userId   = user?['id'];
       await _storage.write(key: _tokenKey, value: token);
       await _storage.write(key: _userKey,  value: userName);
       await _storage.write(key: _roleKey,  value: userRole);
+      if (userId != null) await _storage.write(key: _idKey, value: userId.toString());
       return Map<String, dynamic>.from(payload);
     } on DioException catch (e) {
       dev.log('LOGIN ${e.response?.statusCode} | ${e.type} | ${e.response?.data}', name: 'AUTH');
@@ -84,11 +91,13 @@ class AuthService {
       final res  = await ApiClient.instance.dio.get('/auth/me');
       final data = ApiClient.unwrap(res);
       if (data is! Map<String, dynamic>) return null;
-      // Keep storage in sync so role/name survive app restarts.
+      // Keep storage in sync so role/name/id survive app restarts.
       final name = data['name'] as String?;
       final role = data['role'] as String?;
+      final id   = data['id'];
       if (name != null) await _storage.write(key: _userKey, value: name);
       if (role != null) await _storage.write(key: _roleKey, value: role);
+      if (id != null) await _storage.write(key: _idKey, value: id.toString());
       return data;
     } catch (_) { return null; }
   }
@@ -99,6 +108,7 @@ class AuthService {
   Future<void> clearToken() async {
     await _storage.delete(key: _tokenKey);
     await _storage.delete(key: _roleKey);
+    await _storage.delete(key: _idKey);
   }
 
   Future<void> logout(String token) async {

@@ -1,8 +1,10 @@
-enum MachineStatus { operational, needsService, down, warranty, idle }
+enum MachineStatus { pendingInstallation, pendingSignoff, operational, needsService, down, warranty, idle }
 
 extension MachineStatusX on MachineStatus {
   String get label {
     switch (this) {
+      case MachineStatus.pendingInstallation: return 'Pending Installation';
+      case MachineStatus.pendingSignoff:      return 'Pending Sign-off';
       case MachineStatus.operational:  return 'Operational';
       case MachineStatus.needsService: return 'Service';
       case MachineStatus.down:         return 'Down';
@@ -12,6 +14,8 @@ extension MachineStatusX on MachineStatus {
   }
   String get cssClass {
     switch (this) {
+      case MachineStatus.pendingInstallation: return 'pending_install';
+      case MachineStatus.pendingSignoff:      return 'pending_signoff';
       case MachineStatus.operational:  return 'op';
       case MachineStatus.needsService: return 'svc';
       case MachineStatus.down:         return 'down';
@@ -22,6 +26,8 @@ extension MachineStatusX on MachineStatus {
 }
 
 MachineStatus _parseStatus(String s) => switch (s) {
+  'pending_installation' => MachineStatus.pendingInstallation,
+  'pending_signoff'      => MachineStatus.pendingSignoff,
   'operational'   => MachineStatus.operational,
   'needs_service' => MachineStatus.needsService,
   'down'          => MachineStatus.down,

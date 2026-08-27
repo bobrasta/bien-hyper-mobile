@@ -18,7 +18,7 @@ String _fmtAmount(int tzs) {
 }
 
 const _stageOrder = ['lead', 'qualified', 'demo_scheduled', 'proposal_sent', 'negotiation'];
-const _stageColors = {
+Map<String, Color> get _stageColors => {
   'lead':           AppColors.textDim,
   'qualified':      AppColors.blue,
   'demo_scheduled': AppColors.violet,
@@ -295,7 +295,7 @@ class _TopRepsList extends StatelessWidget {
               child: LinearProgressIndicator(
                 value: pct, minHeight: 4,
                 backgroundColor: context.pal.surface3,
-                valueColor: const AlwaysStoppedAnimation(AppColors.teal),
+                valueColor: AlwaysStoppedAnimation(AppColors.teal),
               ),
             ),
           ])),

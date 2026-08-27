@@ -59,6 +59,11 @@ class TicketService {
           'resolution_notes': resolutionNotes,
       });
 
+  Future<ServiceTicket> acknowledge(int id) async {
+    final res = await _dio.post('/tickets/$id/acknowledge');
+    return ServiceTicket.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+  }
+
   Future<void> delete(int id) => _dio.delete('/tickets/$id');
 
   Future<TicketAttachment> uploadAttachment(int ticketId, String filePath, String fileName) async {

@@ -69,6 +69,7 @@ class ServiceTicket {
   final String createdAt;
   final String? description;
   final String? resolutionNotes;
+  final String? acknowledgedAt;
   final List<ChecklistItem>?    checklist;
   final List<PartUsed>?         partsUsed;
   final List<TicketAttachment>? attachments;
@@ -88,6 +89,7 @@ class ServiceTicket {
     required this.createdAt,
     this.description,
     this.resolutionNotes,
+    this.acknowledgedAt,
     this.checklist,
     this.partsUsed,
     this.attachments,
@@ -132,6 +134,7 @@ class ServiceTicket {
       createdAt:   _str(j['created_at']) ?? '—',
       description: _str(j['description']),
       resolutionNotes: _str(j['resolution_notes']),
+      acknowledgedAt: _str(j['acknowledged_at']),
       checklist:   (j['checklist'] as List? ?? j['checklist_items'] as List?)
           ?.map((c) => ChecklistItem(
                 label:   c['label']   as String? ?? '',

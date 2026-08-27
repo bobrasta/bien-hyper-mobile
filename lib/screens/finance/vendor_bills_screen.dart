@@ -185,9 +185,9 @@ class _BillsTable extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (bills.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 32),
-        child: Center(child: Text('No vendor bills yet', style: TextStyle(color: AppColors.textMute))),
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 32),
+        child: Center(child: Text('No vendor bills yet', style: TextStyle(color: context.pal.textMute))),
       );
     }
     return Table(
@@ -265,7 +265,7 @@ class _TCell extends StatelessWidget {
   );
 }
 
-// ── New Bill Dialog ──────────────────────────────────────────────────────────────
+// ── New Bill Dialog ──────────────────────────────────────────────────────────
 
 class _BillLineEntry {
   final descCtrl  = TextEditingController();
@@ -357,7 +357,7 @@ class _NewBillDialogState extends State<_NewBillDialog> {
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
               child: Row(children: [
-                const Icon(Symbols.receipt_long, size: 18, color: AppColors.coral),
+                Icon(Symbols.receipt_long, size: 18, color: AppColors.coral),
                 const SizedBox(width: 10),
                 Text('New Vendor Bill', style: AppTheme.bodyStrong),
                 const Spacer(),
@@ -373,7 +373,7 @@ class _NewBillDialogState extends State<_NewBillDialog> {
                     padding: const EdgeInsets.all(10),
                     margin: const EdgeInsets.only(bottom: 12),
                     decoration: BoxDecoration(color: AppColors.coralSoft, borderRadius: BorderRadius.circular(8)),
-                    child: Text(_error!, style: const TextStyle(color: AppColors.coral, fontSize: 12)),
+                    child: Text(_error!, style: TextStyle(color: AppColors.coral, fontSize: 12)),
                   ),
                 ],
                 Row(children: [
@@ -411,7 +411,7 @@ class _NewBillDialogState extends State<_NewBillDialog> {
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                       decoration: BoxDecoration(border: Border.all(color: AppColors.teal), borderRadius: BorderRadius.circular(6)),
                       child: Row(mainAxisSize: MainAxisSize.min, children: [
-                        const Icon(Symbols.add, size: 14, color: AppColors.teal),
+                        Icon(Symbols.add, size: 14, color: AppColors.teal),
                         const SizedBox(width: 4),
                         Text('Add Item', style: TextStyle(fontSize: 12, color: AppColors.teal, fontWeight: FontWeight.w500)),
                       ]),
@@ -469,16 +469,15 @@ class _InlineField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-    height: 36,
     decoration: BoxDecoration(color: context.pal.surface2, borderRadius: BorderRadius.circular(7), border: Border.all(color: context.pal.border)),
-    padding: const EdgeInsets.symmetric(horizontal: 10),
-    child: Center(child: TextField(
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+    child: TextField(
       controller: controller,
       keyboardType: number ? TextInputType.number : TextInputType.text,
       style: AppTheme.bodySm.copyWith(fontSize: 12.5),
       decoration: InputDecoration(border: InputBorder.none, isDense: true, hintText: hint,
           hintStyle: AppTheme.bodySub.copyWith(fontSize: 12, color: context.pal.textDim)),
-    )),
+    ),
   );
 }
 
@@ -494,8 +493,8 @@ class _Dropdown<T> extends StatelessWidget {
     Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10)),
     const SizedBox(height: 6),
     Container(
-      height: 38,
       decoration: BoxDecoration(color: context.pal.surface2, borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
+      height: 38,
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: DropdownButtonHideUnderline(child: DropdownButton<T>(
         value: value, isExpanded: true, dropdownColor: context.pal.surface2, style: AppTheme.bodySm,
@@ -506,7 +505,7 @@ class _Dropdown<T> extends StatelessWidget {
   ]);
 }
 
-// ── Bill detail / payment sheet ───────────────────────────────────────────────────
+// ── Bill detail / payment sheet ──────────────────────────────────────────────
 
 class _BillDetailSheet extends StatefulWidget {
   const _BillDetailSheet({required this.bill, required this.onClose, required this.onChanged});
@@ -584,7 +583,7 @@ class _BillDetailSheetState extends State<_BillDetailSheet> {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
                 child: Row(children: [
-                  const Icon(Symbols.receipt, size: 18, color: AppColors.coral),
+                  Icon(Symbols.receipt, size: 18, color: AppColors.coral),
                   const SizedBox(width: 10),
                   Expanded(child: Text(bill.billNumber, style: AppTheme.bodyStrong)),
                   GestureDetector(onTap: widget.onClose, child: Icon(Symbols.close, size: 18, color: context.pal.textDim)),
@@ -608,8 +607,8 @@ class _BillDetailSheetState extends State<_BillDetailSheet> {
                       Expanded(child: _InlineField(controller: _amountCtrl, hint: 'Amount', number: true)),
                       const SizedBox(width: 8),
                       Expanded(child: Container(
-                        height: 36,
                         decoration: BoxDecoration(color: context.pal.surface2, borderRadius: BorderRadius.circular(7), border: Border.all(color: context.pal.border)),
+                        height: 38,
                         padding: const EdgeInsets.symmetric(horizontal: 8),
                         child: DropdownButtonHideUnderline(child: DropdownButton<String>(
                           value: _method, isExpanded: true, dropdownColor: context.pal.surface2,

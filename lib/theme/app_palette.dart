@@ -26,6 +26,7 @@ class AppPalette extends ThemeExtension<AppPalette> {
     required this.statusWarning,
     required this.statusCritical,
     required this.isDark,
+    this.bgGradient,
   });
 
   final Color bg;
@@ -58,6 +59,13 @@ class AppPalette extends ThemeExtension<AppPalette> {
 
   final bool isDark;
 
+  // Optional diagonal wash painted behind the app shell instead of a flat
+  // [bg] — null for every existing theme (unchanged flat-color behavior);
+  // only a theme that explicitly wants the soft gradient-canvas look (see
+  // [aurora]) sets this. [bg] still gates Scaffold.backgroundColor as a
+  // solid fallback either way.
+  final List<Color>? bgGradient;
+
   // ── Dark ─────────────────────────────────────────────────────────────────────
 
   static const dark = AppPalette(
@@ -89,7 +97,7 @@ class AppPalette extends ThemeExtension<AppPalette> {
 
   static const light = AppPalette(
     isDark:         false,
-    bg:             Color(0xFFEEF1F4),
+    bg:             Color(0xFFEDF1F4),
     surface1:       Color(0xFFFFFFFF), // panel-solid
     surface2:       Color(0xFFF6F7F9),
     surface3:       Color(0xFFEFF1F3),
@@ -169,6 +177,70 @@ class AppPalette extends ThemeExtension<AppPalette> {
     statusCritical: Color(0xFFF04438),
   );
 
+  // ── Fundify (sky-blue canvas, mint sidebar, lime accent) ──────────────────────
+  // Ported from a Fundify dashboard mockup's raw ThemeData/ColorScheme.fromSeed
+  // — remapped into this app's own token set rather than reusing that code
+  // directly, since almost nothing here reads Theme.of(context).colorScheme;
+  // every screen reads context.pal.* instead.
+
+  static const fundify = AppPalette(
+    isDark:         false,
+    bg:             Color(0xFFAEE3EE), // pageBg — sky blue canvas
+    surface1:       Color(0xFFFFFFFF), // cardWhite
+    surface2:       Color(0xFFECF3E3), // sidebarBg — pale mint
+    surface3:       Color(0xFFECF3E3),
+    sidebarBg:      Color(0xFFECF3E3),
+    topbarBg:       Color(0xFFFFFFFF),
+    border:         Color(0x1A152241), // navy @ ~10%
+    borderStrong:   Color(0x2E152241), // navy @ ~18%
+    divider:        Color(0x1A152241),
+    text:           Color(0xFF1A1D29), // textPrimary
+    textMute:       Color(0xFF8B8E9B), // textSecondary
+    textDim:        Color(0xFFA9ACB6), // lighter tier, derived
+    blue:           Color(0xFFA3E85A), // accentLime — primary CTA colour
+    blue700:        Color(0xFF1F4D3D), // chartDarkGreen — pressed/hover shade
+    blue50:         Color(0xFFBCEBA0), // chartLightGreen — selected-row/info tint
+    green:          Color(0xFFA3E85A), // accentLime
+    green50:        Color(0xFFBCEBA0), // chartLightGreen
+    statusNormal:   Color(0xFFA3E85A), // accentLime
+    statusInfo:     Color(0xFF38BDF8), // no equivalent given — kept from the existing info blue, pairs with the sky-blue bg
+    statusWarning:  Color(0xFFF5A623), // amberPending
+    statusCritical: Color(0xFFF0605E), // redDanger
+  );
+
+  // ── Aurora (warm cream/gold canvas — the new default identity) ───────────────
+  // Ported from a set of Crextio/Toota HR-dashboard mockups the user shared
+  // for inspiration (2026-08-27): soft gray→gold diagonal wash, warm-white
+  // cards, near-black text, golden primary accent. Set as the app default
+  // (see themeNotifier below) rather than an opt-in extra — the user framed
+  // this as a new system's identity, not a side option, unlike Fundify.
+
+  static const aurora = AppPalette(
+    isDark:         false,
+    bg:             Color(0xFFF1EEE7), // flat fallback (Scaffold.backgroundColor)
+    bgGradient:     [Color(0xFFEDEDED), Color(0xFFFCEFC7)], // topLeft → bottomRight wash
+    surface1:       Color(0xFFFFFFFF), // cards, panel-solid
+    surface2:       Color(0xFFF8F6EF), // inset panels, schedule bubbles
+    surface3:       Color(0xFFF1EEE2), // inputs, nested surfaces
+    sidebarBg:      Color(0xFFFFFFFF),
+    topbarBg:       Color(0xFFFFFFFF),
+    border:         Color(0x1A1C1712), // warm near-black @ ~10%
+    borderStrong:   Color(0x2E1C1712), // warm near-black @ ~18%
+    divider:        Color(0x1A1C1712),
+    text:           Color(0xFF1C1712),
+    textMute:       Color(0xFF6E6659),
+    textDim:        Color(0xFF9D9686),
+    blue:           Color(0xFFF2C230), // golden primary accent
+    blue700:        Color(0xFFD9A916), // hover / pressed
+    blue50:         Color(0xFFFBF0CC), // selected-row / info tint
+    green:          Color(0xFF3FAE58),
+    green50:        Color(0xFFDFF1DF),
+    statusNormal:   Color(0xFF3FAE58),
+    statusInfo:     Color(0xFF38BDF8),
+    statusWarning:  Color(0xFFE8A63A),
+    statusCritical: Color(0xFFE2574C),
+  );
+
   // ── Accessor ──────────────────────────────────────────────────────────────────
 
   static AppPalette of(BuildContext ctx) =>
@@ -186,8 +258,10 @@ class AppPalette extends ThemeExtension<AppPalette> {
     Color? green, Color? green50,
     Color? statusNormal, Color? statusInfo, Color? statusWarning, Color? statusCritical,
     bool? isDark,
+    List<Color>? bgGradient,
   }) => AppPalette(
     bg:             bg             ?? this.bg,
+    bgGradient:     bgGradient     ?? this.bgGradient,
     surface1:       surface1       ?? this.surface1,
     surface2:       surface2       ?? this.surface2,
     surface3:       surface3       ?? this.surface3,
@@ -214,6 +288,7 @@ class AppPalette extends ThemeExtension<AppPalette> {
   @override
   AppPalette lerp(AppPalette other, double t) => AppPalette(
     isDark:         t < 0.5 ? isDark : other.isDark,
+    bgGradient:     t < 0.5 ? bgGradient : other.bgGradient,
     bg:             Color.lerp(bg,             other.bg,             t)!,
     surface1:       Color.lerp(surface1,       other.surface1,       t)!,
     surface2:       Color.lerp(surface2,       other.surface2,       t)!,

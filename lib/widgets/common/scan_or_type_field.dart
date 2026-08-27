@@ -56,7 +56,8 @@ class ScanOrTypeField extends StatelessWidget {
     child: Row(children: [
       Expanded(child: TextField(
         controller: controller, style: AppTheme.bodySm,
-        decoration: InputDecoration(border: InputBorder.none, isDense: true, hintText: hint,
+        decoration: InputDecoration(border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero,
+            hintText: hint,
             hintStyle: AppTheme.bodySub.copyWith(color: context.pal.textDim, fontSize: 13)),
       )),
       if (_cameraScanSupported)
