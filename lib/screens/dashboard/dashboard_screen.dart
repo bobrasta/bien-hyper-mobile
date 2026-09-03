@@ -18,6 +18,7 @@ import '../../widgets/common/kpi_card.dart';
 import '../../widgets/common/status_badge.dart';
 import '../../theme/app_palette.dart';
 import '../../utils/api_error.dart';
+import '../../main.dart' show userRoleNotifier, hasServiceTicketCreateAuthority;
 import '../../widgets/common/error_view.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -315,15 +316,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     LayoutBuilder(builder: (ctx, cst) {
                       final narrow = cst.maxWidth < 520;
+                      final canCreateTicket = hasServiceTicketCreateAuthority(userRoleNotifier.value);
                       final actions = Row(mainAxisSize: MainAxisSize.min, children: [
-                        AppButton(
-                          label: 'New Ticket',
-                          icon: Symbols.add,
-                          variant: BtnVariant.primary,
-                          small: true,
-                          onPressed: () => setState(() => _showNewTicket = true),
-                        ),
-                        const SizedBox(width: 8),
+                        if (canCreateTicket) ...[
+                          AppButton(
+                            label: 'New Ticket',
+                            icon: Symbols.add,
+                            variant: BtnVariant.primary,
+                            small: true,
+                            onPressed: () => setState(() => _showNewTicket = true),
+                          ),
+                          const SizedBox(width: 8),
+                        ],
                         AppButton(
                           label: d != null ? 'View all ${d.openTickets}' : 'View all',
                           icon: Symbols.arrow_forward,

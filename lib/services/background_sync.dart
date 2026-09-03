@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:local_notifier/local_notifier.dart';
-import '../main.dart' show notificationCountNotifier;
+import '../main.dart' show notificationCountNotifier, refreshPermissions;
 import 'auth_service.dart';
 import 'email_service.dart';
 import 'notification_service.dart';
@@ -40,8 +40,22 @@ class BackgroundSync {
   }
 
   Future<void> _poll() async {
-    await Future.wait([_pollNotifications(), _pollEmail(), _pollTickets(), StaffService.instance.poll()]);
+    await Future.wait([
+      _pollNotifications(), _pollEmail(), _pollTickets(),
+      StaffService.instance.poll(), _pollPermissions(),
+    ]);
     _initialized = true;
+  }
+
+  // A role's permissions (or an individual override) can change while this
+  // user is mid-session — e.g. a director editing the Role Builder, or an
+  // admin promoting this account. userPermissionsNotifier previously only
+  // refreshed on login/app-startup, so a change made server-side never
+  // reached an already-open session until the next login.
+  Future<void> _pollPermissions() async {
+    try {
+      await refreshPermissions();
+    } catch (_) {}
   }
 
   Future<void> _pollNotifications() async {

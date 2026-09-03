@@ -145,6 +145,15 @@ bool hasProcurementSalesStageAuthority(String role) =>
 bool hasAccountantAuthority(String role) =>
     const {'super_admin', 'admin', 'accountant'}.contains(role);
 
+/// Mirrors User::hasServiceTicketCreateAuthority() on the backend (screens.service)
+/// — the actual enforcement lives there; this only toggles the "New Ticket"
+/// shortcut that's reachable from the Dashboard, not just the Service screen
+/// itself (which is already hidden from these roles by allowedScreenKeys).
+bool hasServiceTicketCreateAuthority(String role) {
+  final allowed = allowedScreenKeys(role);
+  return allowed == null || allowed.contains('service');
+}
+
 /// Mirrors the staff.manage grant (create/edit/deactivate staff, change
 /// roles) — hr + admin tier.
 bool hasStaffManageAuthority(String role) =>

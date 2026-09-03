@@ -23,8 +23,14 @@ String friendlyError(Object e) {
       DioExceptionType.badResponse => () {
         final status = e.response?.statusCode;
         if (status == 401) return 'Session expired. Please log in again.';
+        if (status == 403) {
+          // Backend abort_if() reasons already read naturally ("Only the CTO
+          // or Director can..."); prefix rather than duplicate "Access
+          // Denied" into the sentence itself.
+          final reason = serverMessage ?? 'You don\'t have permission to do this.';
+          return 'Access Denied: $reason';
+        }
         if (serverMessage != null) return serverMessage;
-        if (status == 403) return 'You don\'t have permission to access this.';
         if (status == 404) return 'Resource not found on the server.';
         if (status != null && status >= 500) return 'Server error ($status). Contact support.';
         return 'Unexpected server response ($status).';
