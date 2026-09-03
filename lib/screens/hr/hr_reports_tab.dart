@@ -1,10 +1,22 @@
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../../services/attendance_service.dart';
 import '../../services/hr_report_service.dart';
+import '../../services/payroll_service.dart';
+import '../../services/recruitment_service.dart';
+import '../../services/staff_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_palette.dart';
+import '../../utils/api_error.dart';
+import '../../widgets/common/error_view.dart';
 
+/// HR Reports — ported from HR Redesign spec 1i: charts instead of stacked
+/// number chips. A 6-KPI strip plus a 2×3 grid of chart cards, all built
+/// from real HR data (headcount/leave/contracts/attendance/recruitment/
+/// discipline), no fabricated figures.
 class HrReportsTab extends StatefulWidget {
   const HrReportsTab({super.key});
 
@@ -14,17 +26,21 @@ class HrReportsTab extends StatefulWidget {
 
 class _HrReportsTabState extends State<HrReportsTab> {
   bool _loading = true;
+  bool _exportingPdf = false;
   String? _error;
 
   HeadcountBreakdown? _headcount;
   HrTurnoverReport? _turnover;
-  List<OrgChartEntry> _orgChart = [];
   List<HrLeaveBalanceRow> _leaveBalances = [];
-  List<LeaveCalendarEntry> _leaveCalendar = [];
   RecruitmentSummary? _recruitment;
+  List<Vacancy> _vacancies = [];
   List<ContractExpiringEntry> _contractsExpiring = [];
+  ContractsSummary? _contractsSummary;
   DisciplinarySummary? _discipline;
   List<CareerProgressionEntry> _careerLog = [];
+  List<PayrollRun> _payrollRuns = [];
+  List<AttendanceRecord> _attendance = [];
+  List<StaffMember> _staff = [];
 
   @override
   void initState() { super.initState(); _load(); }
@@ -32,28 +48,36 @@ class _HrReportsTabState extends State<HrReportsTab> {
   Future<void> _load() async {
     setState(() { _loading = true; _error = null; });
     try {
+      final now = DateTime.now();
+      final attStart = DateTime(now.year, now.month - 5, 1);
       final results = await Future.wait([
         HrReportService.instance.headcount(),
         HrReportService.instance.turnover(),
-        HrReportService.instance.orgChart(),
         HrReportService.instance.leaveBalances(),
-        HrReportService.instance.leaveCalendar(),
         HrReportService.instance.recruitmentSummary(),
+        RecruitmentService.instance.vacancies(),
         HrReportService.instance.contractsExpiring(),
+        HrReportService.instance.contractsSummary(),
         HrReportService.instance.disciplinarySummary(),
         HrReportService.instance.careerProgressions(),
+        PayrollService.instance.runs(),
+        AttendanceService.instance.list(start: _fmt(attStart), end: _fmt(now)),
+        StaffService.instance.list(),
       ]);
       if (!mounted) return;
       setState(() {
-        _headcount = results[0] as HeadcountBreakdown;
-        _turnover = results[1] as HrTurnoverReport;
-        _orgChart = results[2] as List<OrgChartEntry>;
-        _leaveBalances = results[3] as List<HrLeaveBalanceRow>;
-        _leaveCalendar = results[4] as List<LeaveCalendarEntry>;
-        _recruitment = results[5] as RecruitmentSummary;
-        _contractsExpiring = results[6] as List<ContractExpiringEntry>;
-        _discipline = results[7] as DisciplinarySummary;
-        _careerLog = results[8] as List<CareerProgressionEntry>;
+        _headcount          = results[0] as HeadcountBreakdown;
+        _turnover           = results[1] as HrTurnoverReport;
+        _leaveBalances      = results[2] as List<HrLeaveBalanceRow>;
+        _recruitment        = results[3] as RecruitmentSummary;
+        _vacancies          = results[4] as List<Vacancy>;
+        _contractsExpiring  = results[5] as List<ContractExpiringEntry>;
+        _contractsSummary   = results[6] as ContractsSummary;
+        _discipline         = results[7] as DisciplinarySummary;
+        _careerLog          = results[8] as List<CareerProgressionEntry>;
+        _payrollRuns        = results[9] as List<PayrollRun>;
+        _attendance         = results[10] as List<AttendanceRecord>;
+        _staff              = results[11] as List<StaffMember>;
         _loading = false;
       });
     } catch (e) {
@@ -61,141 +85,150 @@ class _HrReportsTabState extends State<HrReportsTab> {
     }
   }
 
+  static String _fmt(DateTime d) => '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+  static String _mon(DateTime d) => const ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.month - 1];
+
+  String _compactMoney(num v) {
+    if (v >= 1000000000) return '${(v / 1000000000).toStringAsFixed(1)}B';
+    if (v >= 1000000) return '${(v / 1000000).toStringAsFixed(1)}M';
+    if (v >= 1000) return '${(v / 1000).toStringAsFixed(0)}K';
+    return v.toStringAsFixed(0);
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) return const Center(child: CircularProgressIndicator(strokeWidth: 2));
-    if (_error != null) {
-      return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Text(_error!, style: AppTheme.bodySub),
-        const SizedBox(height: 10),
-        FilledButton(onPressed: _load, child: const Text('Retry')),
-      ]));
-    }
+    if (_error != null) return ErrorView(message: _error!, onRetry: _load);
 
-    return RefreshIndicator(
-      onRefresh: _load,
-      child: SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(20),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          _ReportSection(title: 'Staff / Headcount', icon: Symbols.groups, children: [
-            _KpiRow(items: [
-              ('Total Staff', '${_headcount?.total ?? 0}'),
-              ('Turnover Rate (${_turnover?.year})', '${_turnover?.turnoverRate.toStringAsFixed(1) ?? '0.0'}%'),
-            ]),
-            const SizedBox(height: 10),
-            _BreakdownGrid(breakdown: _headcount),
-          ]),
-          _ReportSection(title: 'Leave', icon: Symbols.event, children: [
-            Text('Balance & Utilization', style: AppTheme.bodyStrong.copyWith(fontSize: 12.5)),
-            const SizedBox(height: 6),
-            _LeaveBalanceTable(rows: _leaveBalances),
+    return LayoutBuilder(builder: (ctx, cst) {
+      final pad = cst.maxWidth < 560 ? 16.0 : 26.0;
+      final wide = cst.maxWidth >= 1100;
+      return RefreshIndicator(
+        onRefresh: _load,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: EdgeInsets.all(pad),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            _header(context),
+            const SizedBox(height: 18),
+            _kpiRow(context),
             const SizedBox(height: 14),
-            Text('Out This Month', style: AppTheme.bodyStrong.copyWith(fontSize: 12.5)),
-            const SizedBox(height: 6),
-            _leaveCalendar.isEmpty
-                ? Text('No one is on approved leave this period.', style: AppTheme.bodySub.copyWith(fontSize: 12))
-                : Column(children: _leaveCalendar.map((e) => Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 3),
-                    child: Text('${e.userName} — ${e.leaveTypeLabel} (${e.startDate} to ${e.endDate})', style: AppTheme.bodySm.copyWith(fontSize: 12)),
-                  )).toList()),
-          ]),
-          _ReportSection(title: 'Recruitment', icon: Symbols.person_search, children: [
-            _KpiRow(items: [
-              ('Open Vacancies', '${_recruitment?.openVacancies ?? 0}'),
-              ('Talent Pool', '${_recruitment?.talentPoolCount ?? 0}'),
-            ]),
-            const SizedBox(height: 10),
-            Text('Vacancy Pipeline', style: AppTheme.bodyStrong.copyWith(fontSize: 12.5)),
-            const SizedBox(height: 6),
-            (_recruitment?.pipeline.isEmpty ?? true)
-                ? Text('No open vacancies.', style: AppTheme.bodySub.copyWith(fontSize: 12))
-                : Column(children: _recruitment!.pipeline.map((p) => Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 3),
-                    child: Text('${p.positionTitle ?? '—'} — ${p.totalApplications} applicant(s), ${p.daysOpen}d open, stages: ${p.byStage.entries.map((e) => '${e.key}:${e.value}').join(', ')}',
-                        style: AppTheme.bodySm.copyWith(fontSize: 12)),
-                  )).toList()),
-            const SizedBox(height: 10),
-            Text('Hires by Source', style: AppTheme.bodyStrong.copyWith(fontSize: 12.5)),
-            const SizedBox(height: 6),
-            (_recruitment?.hiresBySource.isEmpty ?? true)
-                ? Text('No hires recorded yet.', style: AppTheme.bodySub.copyWith(fontSize: 12))
-                : Wrap(spacing: 8, runSpacing: 6, children: _recruitment!.hiresBySource.entries
-                    .map((e) => _Chip('${e.key}: ${e.value}')).toList()),
-          ]),
-          _ReportSection(title: 'Contracts & Attendance', icon: Symbols.description, children: [
-            Text('Contracts Expiring (next 90 days)', style: AppTheme.bodyStrong.copyWith(fontSize: 12.5)),
-            const SizedBox(height: 6),
-            _contractsExpiring.isEmpty
-                ? Text('No contracts expiring soon.', style: AppTheme.bodySub.copyWith(fontSize: 12))
-                : Column(children: _contractsExpiring.map((c) => Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 3),
-                    child: Row(children: [
-                      Expanded(child: Text('${c.userName} — ${c.contractType}', style: AppTheme.bodySm.copyWith(fontSize: 12))),
-                      Text('${c.endDate} (${c.daysRemaining}d)', style: AppTheme.bodySub.copyWith(
-                          fontSize: 11.5, color: c.daysRemaining <= 30 ? AppColors.coral : context.pal.textMute)),
-                    ]),
-                  )).toList()),
+            wide
+                ? Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Expanded(flex: 27, child: SizedBox(height: 280, child: _headcountTrendCard(context))),
+                    const SizedBox(width: 14),
+                    Expanded(flex: 20, child: SizedBox(height: 280, child: _leaveByTypeCard(context))),
+                    const SizedBox(width: 14),
+                    Expanded(flex: 20, child: SizedBox(height: 280, child: _contractsCard(context))),
+                  ])
+                : Column(children: [
+                    SizedBox(height: 260, child: _headcountTrendCard(context)),
+                    const SizedBox(height: 14),
+                    SizedBox(height: 260, child: _leaveByTypeCard(context)),
+                    const SizedBox(height: 14),
+                    SizedBox(height: 260, child: _contractsCard(context)),
+                  ]),
             const SizedBox(height: 14),
-            const _NotAvailableNote(label: 'Attendance summary (lateness/absenteeism)', reason: 'Attendance module not built yet — pending a sample HIK biometric export.'),
-            const SizedBox(height: 8),
-            const _NotAvailableNote(label: 'Overtime hours report', reason: 'Feeds from Attendance, not built yet.'),
+            wide
+                ? Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Expanded(flex: 27, child: SizedBox(height: 300, child: _attendanceCard(context))),
+                    const SizedBox(width: 14),
+                    Expanded(flex: 20, child: SizedBox(height: 300, child: _funnelCard(context))),
+                    const SizedBox(width: 14),
+                    Expanded(flex: 20, child: SizedBox(height: 300, child: _disciplineCard(context))),
+                  ])
+                : Column(children: [
+                    SizedBox(height: 280, child: _attendanceCard(context)),
+                    const SizedBox(height: 14),
+                    SizedBox(height: 280, child: _funnelCard(context)),
+                    const SizedBox(height: 14),
+                    SizedBox(height: 280, child: _disciplineCard(context)),
+                  ]),
           ]),
-          _ReportSection(title: 'Discipline', icon: Symbols.gavel, children: [
-            _KpiRow(items: [('Active Cases', '${_discipline?.activeCount ?? 0}')]),
-            const SizedBox(height: 10),
-            Text('By Stage', style: AppTheme.bodyStrong.copyWith(fontSize: 12.5)),
-            const SizedBox(height: 6),
-            (_discipline?.byStage.isEmpty ?? true)
-                ? Text('No active cases.', style: AppTheme.bodySub.copyWith(fontSize: 12))
-                : Wrap(spacing: 8, runSpacing: 6, children: _discipline!.byStage.entries.map((e) => _Chip('${e.key}: ${e.value}')).toList()),
-            const SizedBox(height: 10),
-            Text('Repeat Offenders', style: AppTheme.bodyStrong.copyWith(fontSize: 12.5)),
-            const SizedBox(height: 6),
-            (_discipline?.repeatOffenders.isEmpty ?? true)
-                ? Text('None.', style: AppTheme.bodySub.copyWith(fontSize: 12))
-                : Column(children: _discipline!.repeatOffenders.map((r) => Text('${r.userName} — ${r.caseCount} cases', style: AppTheme.bodySm.copyWith(fontSize: 12))).toList()),
-          ]),
-          _ReportSection(title: 'Payroll', icon: Symbols.payments, children: const [
-            _NotAvailableNote(label: 'Payroll summary per run', reason: 'Payroll module not built yet — pending current TRA/NSSF/HESLB rate tables.'),
-            SizedBox(height: 8),
-            _NotAvailableNote(label: 'Statutory remittance report', reason: 'Same as above.'),
-            SizedBox(height: 8),
-            _NotAvailableNote(label: 'Allowance/overtime cost trend', reason: 'Same as above.'),
-          ]),
-          _ReportSection(title: 'Career Progression', icon: Symbols.trending_up, children: [
-            Text('Promotion / Demotion Log', style: AppTheme.bodyStrong.copyWith(fontSize: 12.5)),
-            const SizedBox(height: 6),
-            _careerLog.isEmpty
-                ? Text('No changes recorded yet.', style: AppTheme.bodySub.copyWith(fontSize: 12))
-                : Column(children: _careerLog.map((c) => Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 3),
-                    child: Text('${c.userName}: ${c.fromPosition ?? '—'} → ${c.toPosition ?? '—'} (${c.changeType}, ${c.effectiveDate})',
-                        style: AppTheme.bodySm.copyWith(fontSize: 12)),
-                  )).toList()),
-            const SizedBox(height: 10),
-            Row(children: [
-              Text('Org Chart Snapshot', style: AppTheme.bodyStrong.copyWith(fontSize: 12.5)),
-              const Spacer(),
-              TextButton(onPressed: () => showDialog(context: context, builder: (_) => _OrgChartDialog(entries: _orgChart)), child: const Text('View')),
-            ]),
-          ]),
-        ]),
-      ),
-    );
+        ),
+      );
+    });
   }
-}
 
-class _ReportSection extends StatelessWidget {
-  const _ReportSection({required this.title, required this.icon, required this.children});
-  final String title;
-  final IconData icon;
-  final List<Widget> children;
+  Widget _header(BuildContext context) => Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+    Container(width: 2, height: 32, decoration: BoxDecoration(color: AppColors.info, borderRadius: BorderRadius.circular(2))),
+    const SizedBox(width: 12),
+    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text('HR Reports', style: AppTheme.pageTitle.copyWith(fontSize: 21)),
+      const SizedBox(height: 3),
+      Text('Staff, leave, recruitment, contracts, discipline and career analytics · ${DateTime.now().year}', style: AppTheme.bodySub.copyWith(fontSize: 12)),
+    ])),
+    OutlinedButton.icon(
+      onPressed: _exportingPdf ? null : _exportPdf,
+      icon: _exportingPdf
+          ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+          : const Icon(Symbols.picture_as_pdf, size: 15),
+      label: const Text('Export PDF'),
+    ),
+  ]);
 
-  @override
-  Widget build(BuildContext context) => Container(
-    margin: const EdgeInsets.only(bottom: 16),
-    padding: const EdgeInsets.all(18),
+  Future<void> _exportPdf() async {
+    setState(() => _exportingPdf = true);
+    try {
+      final url = await HrReportService.instance.exportPdfLink();
+      await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+    } catch (e) {
+      if (mounted) showErrorToast(context, e);
+    } finally {
+      if (mounted) setState(() => _exportingPdf = false);
+    }
+  }
+
+  // ── KPI strip ────────────────────────────────────────────────────────────
+
+  Widget _kpiRow(BuildContext context) {
+    final currentYear = DateTime.now().year;
+    final ytdRuns = _payrollRuns.where((r) => r.periodYear == currentYear).toList();
+    final payrollYtd = ytdRuns.fold<int>(0, (a, r) => a + r.netTotal);
+    final leaveUsed = _leaveBalances.fold<double>(0, (a, r) => a + r.usedDays);
+    final leaveAllocated = _leaveBalances.fold<double>(0, (a, r) => a + r.allocatedDays);
+    final leavePct = leaveAllocated == 0 ? 0.0 : leaveUsed / leaveAllocated * 100;
+    final nearestExpiry = _contractsExpiring.isEmpty ? null : _contractsExpiring.first;
+
+    final tiles = [
+      _Kpi('Headcount', '${_headcount?.total ?? 0}', 'across ${_headcount?.byDepartment.length ?? 0} groups', context.pal.textMute, AppColors.cyan),
+      _Kpi('Turnover', '${_turnover?.turnoverRate.toStringAsFixed(1) ?? '0.0'}%', '${_turnover?.year ?? currentYear}', (_turnover?.turnoverRate ?? 0) > 10 ? AppColors.coral : context.pal.textMute, AppColors.cyan),
+      _Kpi('Leave used', '${leaveUsed.toStringAsFixed(0)} d', '${leavePct.toStringAsFixed(1)}% of pool', context.pal.textMute, AppColors.amber),
+      _Kpi('Expiring', '${_contractsExpiring.length}', nearestExpiry == null ? 'none soon' : 'in ${nearestExpiry.daysRemaining}d', _contractsExpiring.isEmpty ? context.pal.textMute : AppColors.coral, AppColors.coral),
+      _Kpi('Payroll YTD', _compactMoney(payrollYtd), '${ytdRuns.length} run${ytdRuns.length == 1 ? '' : 's'}', context.pal.textMute, AppColors.green),
+      _Kpi('Open cases', '${_discipline?.activeCount ?? 0}', (_discipline?.activeCount ?? 0) == 0 ? 'clean' : 'active', (_discipline?.activeCount ?? 0) == 0 ? AppColors.green : AppColors.coral, AppColors.info),
+    ];
+
+    return LayoutBuilder(builder: (ctx, cst) {
+      final perRow = cst.maxWidth >= 900 ? 6 : (cst.maxWidth >= 560 ? 3 : 2);
+      final w = (cst.maxWidth - (perRow - 1) * 10) / perRow;
+      return Wrap(spacing: 10, runSpacing: 10, children: tiles.map((k) => SizedBox(width: w, child: _kpiTile(context, k))).toList());
+    });
+  }
+
+  Widget _kpiTile(BuildContext context, _Kpi k) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+    decoration: BoxDecoration(
+      color: context.pal.surface1,
+      borderRadius: BorderRadius.circular(14),
+      border: Border.all(color: context.pal.border),
+    ),
+    child: Stack(children: [
+      Positioned(left: -14, top: -12, bottom: -12, child: Container(width: 2, color: k.accent)),
+      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(k.label, style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+        const SizedBox(height: 5),
+        Row(crossAxisAlignment: CrossAxisAlignment.baseline, textBaseline: TextBaseline.alphabetic, children: [
+          Text(k.value, style: AppTheme.monoXs.copyWith(fontSize: 20, color: context.pal.text)),
+          const SizedBox(width: 6),
+          Flexible(child: Text(k.delta, style: AppTheme.bodySub.copyWith(fontSize: 10.5, color: k.deltaColor), overflow: TextOverflow.ellipsis)),
+        ]),
+      ]),
+    ]),
+  );
+
+  Widget _cardShell(BuildContext context, {required IconData icon, required Color accent, required String title, String? trailing, required Widget child}) => Container(
+    padding: const EdgeInsets.all(16),
     decoration: BoxDecoration(
       color: context.pal.surface1,
       borderRadius: BorderRadius.circular(AppColors.rLg),
@@ -203,172 +236,328 @@ class _ReportSection extends StatelessWidget {
     ),
     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
-        Icon(icon, size: 17, color: AppColors.teal),
+        Icon(icon, size: 14, color: accent),
         const SizedBox(width: 8),
-        Text(title, style: AppTheme.bodyStrong.copyWith(fontSize: 14)),
+        Expanded(child: Text(title.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10.5))),
+        if (trailing != null) Text(trailing, style: AppTheme.monoXs.copyWith(color: context.pal.textDim, fontSize: 10)),
       ]),
-      const SizedBox(height: 14),
-      ...children,
+      const SizedBox(height: 10),
+      Expanded(child: child),
     ]),
   );
-}
 
-class _KpiRow extends StatelessWidget {
-  const _KpiRow({required this.items});
-  final List<(String, String)> items;
+  // ── Headcount trend ──────────────────────────────────────────────────────
 
-  @override
-  Widget build(BuildContext context) => Wrap(spacing: 20, runSpacing: 10, children: items.map((i) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Text(i.$2, style: AppTheme.kpiValue.copyWith(fontSize: 20)),
-      Text(i.$1.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 9.5)),
-    ],
-  )).toList());
-}
+  Widget _headcountTrendCard(BuildContext context) {
+    final now = DateTime.now();
+    final months = List.generate(8, (i) => DateTime(now.year, now.month - 7 + i, 1));
+    final points = months.map((m) {
+      final end = DateTime(m.year, m.month + 1, 0);
+      return _staff.where((s) => s.hireDate == null || !s.hireDate!.isAfter(end)).length;
+    }).toList();
+    final maxY = (points.isEmpty ? 1 : points.reduce((a, b) => a > b ? a : b)).toDouble();
 
-class _BreakdownGrid extends StatelessWidget {
-  const _BreakdownGrid({required this.breakdown});
-  final HeadcountBreakdown? breakdown;
-
-  @override
-  Widget build(BuildContext context) {
-    if (breakdown == null) return const SizedBox.shrink();
-    return Wrap(spacing: 24, runSpacing: 14, children: [
-      _BreakdownColumn('By Department', breakdown!.byDepartment),
-      _BreakdownColumn('By Position', breakdown!.byPosition),
-      _BreakdownColumn('By Gender', breakdown!.byGender),
-      _BreakdownColumn('By Location', breakdown!.byLocation),
-    ]);
-  }
-}
-
-class _BreakdownColumn extends StatelessWidget {
-  const _BreakdownColumn(this.title, this.data);
-  final String title;
-  final Map<String, int> data;
-
-  @override
-  Widget build(BuildContext context) => SizedBox(
-    width: 180,
-    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(title.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 9.5, color: context.pal.textDim)),
-      const SizedBox(height: 4),
-      ...data.entries.map((e) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 1.5),
-        child: Row(children: [
-          Expanded(child: Text(e.key, style: AppTheme.bodySm.copyWith(fontSize: 12), overflow: TextOverflow.ellipsis)),
-          Text('${e.value}', style: AppTheme.bodySm.copyWith(fontSize: 12, fontWeight: FontWeight.w600)),
-        ]),
-      )),
-    ]),
-  );
-}
-
-class _LeaveBalanceTable extends StatelessWidget {
-  const _LeaveBalanceTable({required this.rows});
-  final List<HrLeaveBalanceRow> rows;
-
-  @override
-  Widget build(BuildContext context) {
-    if (rows.isEmpty) return Text('No leave balance data.', style: AppTheme.bodySub.copyWith(fontSize: 12));
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: DataTable(
-        columnSpacing: 20,
-        headingRowHeight: 32,
-        dataRowMinHeight: 28,
-        dataRowMaxHeight: 32,
-        columns: const [
-          DataColumn(label: Text('Staff')), DataColumn(label: Text('Type')),
-          DataColumn(label: Text('Allocated')), DataColumn(label: Text('Used')),
-          DataColumn(label: Text('Remaining')), DataColumn(label: Text('Util. %')),
+    return _cardShell(context, icon: Symbols.groups, accent: AppColors.cyan, title: 'Headcount trend',
+      trailing: '${_mon(months.first)} → ${_mon(months.last)} ${now.year}',
+      child: LineChart(LineChartData(
+        minX: 0, maxX: (points.length - 1).toDouble(),
+        minY: 0, maxY: maxY + 1,
+        gridData: FlGridData(show: true, drawVerticalLine: false, horizontalInterval: (maxY + 1) / 3,
+            getDrawingHorizontalLine: (_) => FlLine(color: context.pal.divider, strokeWidth: 1)),
+        borderData: FlBorderData(show: false),
+        titlesData: FlTitlesData(
+          leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, interval: 1, getTitlesWidget: (v, _) {
+            final i = v.toInt();
+            if (i < 0 || i >= months.length) return const SizedBox.shrink();
+            return Padding(padding: const EdgeInsets.only(top: 4), child: Text(_mon(months[i]), style: AppTheme.monoXs.copyWith(fontSize: 9.5, color: context.pal.textDim)));
+          })),
+        ),
+        lineBarsData: [
+          LineChartBarData(
+            spots: List.generate(points.length, (i) => FlSpot(i.toDouble(), points[i].toDouble())),
+            color: AppColors.cyan, barWidth: 2, isCurved: true, curveSmoothness: 0.2,
+            dotData: FlDotData(show: true, getDotPainter: (spot, pct, bar, idx) => FlDotCirclePainter(
+              radius: idx == points.length - 1 ? 3.5 : 2, color: AppColors.cyan, strokeColor: context.pal.surface1, strokeWidth: 1.5)),
+            belowBarData: BarAreaData(show: true, gradient: LinearGradient(
+              begin: Alignment.topCenter, end: Alignment.bottomCenter,
+              colors: [AppColors.cyan.withValues(alpha: 0.16), AppColors.cyan.withValues(alpha: 0)])),
+          ),
         ],
-        rows: rows.map((r) => DataRow(cells: [
-          DataCell(Text(r.userName, style: AppTheme.bodySm.copyWith(fontSize: 12))),
-          DataCell(Text(r.leaveTypeLabel, style: AppTheme.bodySm.copyWith(fontSize: 12))),
-          DataCell(Text(r.allocatedDays.toStringAsFixed(0), style: AppTheme.bodySm.copyWith(fontSize: 12))),
-          DataCell(Text(r.usedDays.toStringAsFixed(0), style: AppTheme.bodySm.copyWith(fontSize: 12))),
-          DataCell(Text(r.remainingDays.toStringAsFixed(0), style: AppTheme.bodySm.copyWith(fontSize: 12))),
-          DataCell(Text('${r.utilizationPct.toStringAsFixed(0)}%', style: AppTheme.bodySm.copyWith(fontSize: 12))),
-        ])).toList(),
-      ),
+        lineTouchData: LineTouchData(touchTooltipData: LineTouchTooltipData(
+          getTooltipColor: (_) => context.pal.surface2,
+          getTooltipItems: (spots) => spots.map((s) => LineTooltipItem('${s.y.toInt()}', AppTheme.monoXs.copyWith(color: context.pal.text))).toList(),
+        )),
+      )),
     );
   }
-}
 
-class _Chip extends StatelessWidget {
-  const _Chip(this.label);
-  final String label;
+  // ── Leave taken by type ──────────────────────────────────────────────────
 
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-    decoration: BoxDecoration(color: context.pal.surface2, borderRadius: BorderRadius.circular(999), border: Border.all(color: context.pal.border)),
-    child: Text(label, style: AppTheme.bodySm.copyWith(fontSize: 11.5)),
-  );
-}
+  static Color _leaveColor(String label) => switch (label.toLowerCase()) {
+    'sick' => const Color(0xFFD97706),
+    'annual' => AppColors.amber,
+    'maternity' => AppColors.violet,
+    'compassionate' => AppColors.cyan,
+    _ when label.toLowerCase().contains('holiday') => AppColors.info,
+    _ => AppColors.teal,
+  };
 
-class _NotAvailableNote extends StatelessWidget {
-  const _NotAvailableNote({required this.label, required this.reason});
-  final String label, reason;
+  Widget _leaveByTypeCard(BuildContext context) {
+    final byType = <String, double>{};
+    for (final r in _leaveBalances) { byType[r.leaveTypeLabel] = (byType[r.leaveTypeLabel] ?? 0) + r.usedDays; }
+    final entries = byType.entries.toList();
+    final maxV = entries.isEmpty ? 1.0 : entries.map((e) => e.value).fold(0.0, (a, b) => a > b ? a : b);
 
-  @override
-  Widget build(BuildContext context) => Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Icon(Symbols.info, size: 14, color: context.pal.textDim),
-    const SizedBox(width: 8),
-    Expanded(child: RichText(text: TextSpan(children: [
-      TextSpan(text: '$label — ', style: AppTheme.bodySm.copyWith(fontSize: 12, color: context.pal.textMute)),
-      TextSpan(text: reason, style: AppTheme.bodySub.copyWith(fontSize: 12)),
-    ]))),
-  ]);
-}
+    return _cardShell(context, icon: Symbols.event, accent: AppColors.amber, title: 'Leave taken by type',
+      child: entries.isEmpty
+          ? Center(child: Text('No leave taken yet.', style: AppTheme.bodySub.copyWith(fontSize: 12)))
+          : Row(crossAxisAlignment: CrossAxisAlignment.end, children: entries.map((e) => Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: Column(mainAxisAlignment: MainAxisAlignment.end, children: [
+                  Text(e.value.toStringAsFixed(0), style: AppTheme.monoXs.copyWith(fontSize: 11, color: context.pal.text)),
+                  const SizedBox(height: 6),
+                  FractionallySizedBox(
+                    heightFactor: (maxV == 0 ? 0.0 : e.value / maxV).clamp(0.04, 1.0),
+                    child: Container(decoration: BoxDecoration(color: _leaveColor(e.key), borderRadius: const BorderRadius.vertical(top: Radius.circular(5)))),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(e.key, style: AppTheme.bodySub.copyWith(fontSize: 9.5), textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis),
+                ]),
+              ),
+            )).toList()),
+    );
+  }
 
-class _OrgChartDialog extends StatelessWidget {
-  const _OrgChartDialog({required this.entries});
-  final List<OrgChartEntry> entries;
+  // ── Contracts ────────────────────────────────────────────────────────────
 
-  @override
-  Widget build(BuildContext context) {
-    final byManager = <int?, List<OrgChartEntry>>{};
-    for (final e in entries) { byManager.putIfAbsent(e.managerId, () => []).add(e); }
+  Widget _contractsCard(BuildContext context) {
+    final byType = _contractsSummary?.byType ?? const {};
+    final total = _contractsSummary?.activeCount ?? 0;
+    final permanent = byType['permanent'] ?? 0;
+    final fixedTerm = byType['fixed_term'] ?? 0;
+    final nearest = _contractsExpiring.isEmpty ? null : _contractsExpiring.first;
 
-    List<Widget> renderLevel(int? managerId, int depth) {
-      final children = byManager[managerId] ?? [];
-      final widgets = <Widget>[];
-      for (final e in children) {
-        widgets.add(Padding(
-          padding: EdgeInsets.only(left: depth * 20.0, top: 6, bottom: 6),
-          child: Row(children: [
-            Icon(Symbols.person, size: 14, color: context.pal.textDim),
-            const SizedBox(width: 8),
-            Text(e.name, style: AppTheme.bodySm.copyWith(fontWeight: FontWeight.w600, fontSize: 12.5)),
-            const SizedBox(width: 8),
-            Text(e.positionTitle ?? e.role, style: AppTheme.bodySub.copyWith(fontSize: 11.5)),
-          ]),
-        ));
-        if (managerId != e.id) widgets.addAll(renderLevel(e.id, depth + 1));
-      }
-      return widgets;
-    }
+    final sections = <PieChartSectionData>[
+      if (permanent > 0) PieChartSectionData(value: permanent.toDouble(), color: AppColors.green, radius: 13, showTitle: false),
+      if (fixedTerm > 0) PieChartSectionData(value: fixedTerm.toDouble(), color: AppColors.coral, radius: 13, showTitle: false),
+      if (total > 0 && permanent + fixedTerm < total) PieChartSectionData(value: (total - permanent - fixedTerm).toDouble(), color: context.pal.surface3, radius: 13, showTitle: false),
+    ];
 
-    return Dialog(
-      backgroundColor: context.pal.surface1,
-      child: Container(
-        width: 460,
-        constraints: const BoxConstraints(maxHeight: 520),
-        padding: const EdgeInsets.all(20),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Row(children: [
-            Icon(Symbols.groups, size: 18, color: AppColors.teal),
-            const SizedBox(width: 10),
-            Expanded(child: Text('Org Chart Snapshot', style: AppTheme.bodyStrong)),
-            GestureDetector(onTap: () => Navigator.of(context).pop(), child: Icon(Symbols.close, size: 18, color: context.pal.textDim)),
-          ]),
-          const Divider(height: 24),
-          Flexible(child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: renderLevel(null, 0)))),
+    return _cardShell(context, icon: Symbols.description, accent: AppColors.coral, title: 'Contracts',
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          SizedBox(width: 72, height: 72, child: Stack(alignment: Alignment.center, children: [
+            if (sections.isNotEmpty) PieChart(PieChartData(sections: sections, centerSpaceRadius: 24, sectionsSpace: 2, startDegreeOffset: -90, pieTouchData: PieTouchData(enabled: false))),
+            Column(mainAxisSize: MainAxisSize.min, children: [
+              Text('$total', style: AppTheme.monoXs.copyWith(fontSize: 16, color: context.pal.text)),
+              Text('active', style: AppTheme.bodySub.copyWith(fontSize: 8.5)),
+            ]),
+          ])),
+          const SizedBox(width: 14),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            _legendRow(context, 'Permanent', permanent, AppColors.green),
+            const SizedBox(height: 6),
+            _legendRow(context, 'Fixed term', fixedTerm, AppColors.coral),
+          ])),
         ]),
-      ),
+        const SizedBox(height: 12),
+        Container(height: 1, color: context.pal.divider),
+        const SizedBox(height: 10),
+        Text('EXPIRING NEXT 90 DAYS', style: AppTheme.labelCaps.copyWith(fontSize: 9)),
+        const SizedBox(height: 8),
+        Expanded(child: nearest == null
+            ? Center(child: Text('Nothing expiring soon.', style: AppTheme.bodySub.copyWith(fontSize: 11.5)))
+            : Row(children: [
+                Container(width: 3, height: 22, decoration: BoxDecoration(color: AppColors.coral, borderRadius: BorderRadius.circular(2))),
+                const SizedBox(width: 9),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('${nearest.userName} — ${nearest.contractType}', style: AppTheme.bodySm.copyWith(fontSize: 11.5), overflow: TextOverflow.ellipsis),
+                  Text(nearest.endDate, style: AppTheme.monoXs.copyWith(fontSize: 9.5, color: context.pal.textDim)),
+                ])),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(color: AppColors.coral.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(5)),
+                  child: Text('${nearest.daysRemaining}d', style: AppTheme.monoXs.copyWith(color: AppColors.coral, fontSize: 10)),
+                ),
+              ])),
+      ]),
     );
   }
+
+  Widget _legendRow(BuildContext context, String label, int n, Color color) => Row(children: [
+    Container(width: 7, height: 7, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2))),
+    const SizedBox(width: 8),
+    Expanded(child: Text(label, style: AppTheme.bodySub.copyWith(fontSize: 11))),
+    Text('$n', style: AppTheme.monoXs.copyWith(fontSize: 11.5, color: context.pal.text)),
+  ]);
+
+  // ── Attendance by month ──────────────────────────────────────────────────
+
+  Widget _attendanceCard(BuildContext context) {
+    final now = DateTime.now();
+    final months = List.generate(6, (i) => DateTime(now.year, now.month - 5 + i, 1));
+    final buckets = { for (final m in months) '${m.year}-${m.month}': _AttBucket() };
+    for (final r in _attendance) {
+      final d = DateTime.tryParse(r.date);
+      if (d == null) continue;
+      final key = '${d.year}-${d.month}';
+      final b = buckets[key];
+      if (b == null) continue;
+      switch (r.status) {
+        case 'absent': b.absent++; break;
+        case 'late': b.late++; break;
+        default: b.present++;
+      }
+    }
+    final maxTotal = buckets.values.map((b) => b.total).fold(1, (a, b) => a > b ? a : b);
+
+    return _cardShell(context, icon: Symbols.fingerprint, accent: AppColors.cyan, title: 'Attendance by month',
+      child: buckets.values.every((b) => b.total == 0)
+          ? Center(child: Text('No attendance marked in this window.', style: AppTheme.bodySub.copyWith(fontSize: 12)))
+          : Row(crossAxisAlignment: CrossAxisAlignment.end, children: months.map((m) {
+              final b = buckets['${m.year}-${m.month}']!;
+              return Expanded(child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 5),
+                child: Column(mainAxisAlignment: MainAxisAlignment.end, children: [
+                  Expanded(child: Column(mainAxisAlignment: MainAxisAlignment.end, children: [
+                    if (b.absent > 0) Expanded(flex: b.absent, child: Container(width: double.infinity, decoration: const BoxDecoration(color: Color(0xFFF04438), borderRadius: BorderRadius.vertical(top: Radius.circular(3))))),
+                    if (b.late > 0) Container(height: (b.late / maxTotal * 130).clamp(3, 130).toDouble(), width: double.infinity, color: AppColors.amber),
+                    if (b.present > 0) Expanded(flex: b.present, child: Container(width: double.infinity, decoration: BoxDecoration(color: AppColors.green.withValues(alpha: 0.85), borderRadius: b.absent == 0 && b.late == 0 ? BorderRadius.circular(3) : const BorderRadius.vertical(bottom: Radius.circular(3))))),
+                    if (b.total == 0) Container(height: 3, width: double.infinity, color: context.pal.surface3),
+                  ])),
+                  const SizedBox(height: 6),
+                  Text(_mon(m), style: AppTheme.monoXs.copyWith(fontSize: 9.5, color: context.pal.textDim)),
+                ]),
+              ));
+            }).toList()),
+    );
+  }
+
+  // ── Hiring funnel ────────────────────────────────────────────────────────
+
+  Widget _funnelCard(BuildContext context) {
+    final agg = <String, int>{};
+    for (final p in _recruitment?.pipeline ?? const <VacancyPipelineEntry>[]) {
+      p.byStage.forEach((k, v) => agg[k] = (agg[k] ?? 0) + v);
+    }
+    const stageOrder = ['applied', 'shortlisted', 'interviewed', 'offered', 'hired'];
+    final maxV = agg.values.isEmpty ? 1 : agg.values.reduce((a, b) => a > b ? a : b);
+
+    final closedWithDates = _vacancies.where((v) => v.status == 'closed' && v.closedAt != null).toList();
+    int? avgDays;
+    if (closedWithDates.isNotEmpty) {
+      final total = closedWithDates.fold<int>(0, (a, v) {
+        final open = DateTime.tryParse(v.openedAt);
+        final closed = DateTime.tryParse(v.closedAt!);
+        if (open == null || closed == null) return a;
+        return a + closed.difference(open).inDays;
+      });
+      avgDays = (total / closedWithDates.length).round();
+    }
+    final hires = (_recruitment?.hiresBySource ?? const {}).values.fold<int>(0, (a, b) => a + b);
+    String topSource = '—';
+    var topN = 0;
+    (_recruitment?.hiresBySource ?? const {}).forEach((k, v) { if (v > topN) { topN = v; topSource = k; } });
+
+    return _cardShell(context, icon: Symbols.person_search, accent: AppColors.violet, title: 'Hiring funnel',
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Expanded(child: agg.isEmpty
+            ? Center(child: Text('No open pipeline right now.', style: AppTheme.bodySub.copyWith(fontSize: 12)))
+            : Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                for (final s in stageOrder) if (agg.containsKey(s)) Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(children: [
+                    SizedBox(width: 74, child: Text(s[0].toUpperCase() + s.substring(1), style: AppTheme.bodySub.copyWith(fontSize: 10.5))),
+                    Expanded(child: ClipRRect(borderRadius: BorderRadius.circular(5), child: LinearProgressIndicator(
+                      value: (agg[s]! / maxV).clamp(0.03, 1.0), minHeight: 14, backgroundColor: context.pal.surface2,
+                      valueColor: AlwaysStoppedAnimation(AppColors.violet.withValues(alpha: 0.5 + 0.5 * (agg[s]! / maxV))),
+                    ))),
+                    const SizedBox(width: 8),
+                    SizedBox(width: 16, child: Text('${agg[s]}', style: AppTheme.monoXs.copyWith(fontSize: 11), textAlign: TextAlign.right)),
+                  ]),
+                ),
+              ])),
+        Container(height: 1, color: context.pal.divider),
+        const SizedBox(height: 10),
+        Row(children: [
+          _statBlock(context, 'Hires', '$hires'),
+          const SizedBox(width: 18),
+          _statBlock(context, 'Avg time to fill', avgDays == null ? '—' : '${avgDays}d'),
+          const SizedBox(width: 18),
+          Expanded(child: _statBlock(context, 'Top source', topSource)),
+        ]),
+      ]),
+    );
+  }
+
+  Widget _statBlock(BuildContext context, String label, String value) => Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+    Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 8.5)),
+    const SizedBox(height: 3),
+    Text(value, style: AppTheme.bodySm.copyWith(fontSize: 12.5, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis),
+  ]);
+
+  // ── Discipline & progression ─────────────────────────────────────────────
+
+  Widget _disciplineCard(BuildContext context) {
+    final byStage = _discipline?.byStage ?? const {};
+    const stageOrder = ['verbal_warning', 'written_warning', 'final_warning', 'action_taken'];
+    const stageLabels = {'verbal_warning': 'Verbal warning', 'written_warning': 'Written warning', 'final_warning': 'Final warning', 'action_taken': 'Action taken'};
+    final maxV = byStage.values.isEmpty ? 1 : byStage.values.reduce((a, b) => a > b ? a : b);
+
+    final recentChanges = [..._careerLog]..sort((a, b) => b.effectiveDate.compareTo(a.effectiveDate));
+    final recent = recentChanges.isEmpty ? null : recentChanges.first;
+
+    return _cardShell(context, icon: Symbols.gavel, accent: AppColors.info, title: 'Discipline & progression',
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        for (final s in stageOrder) Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Row(children: [
+            SizedBox(width: 92, child: Text(stageLabels[s]!, style: AppTheme.bodySub.copyWith(fontSize: 10.5))),
+            Expanded(child: ClipRRect(borderRadius: BorderRadius.circular(4), child: LinearProgressIndicator(
+              value: (((byStage[s] ?? 0) / maxV)).clamp(0.02, 1.0), minHeight: 6, backgroundColor: context.pal.surface2,
+              valueColor: const AlwaysStoppedAnimation(AppColors.info),
+            ))),
+            const SizedBox(width: 8),
+            SizedBox(width: 14, child: Text('${byStage[s] ?? 0}', style: AppTheme.monoXs.copyWith(fontSize: 10.5), textAlign: TextAlign.right)),
+          ]),
+        ),
+        const Spacer(),
+        Container(height: 1, color: context.pal.divider),
+        const SizedBox(height: 10),
+        Text('PROMOTIONS / DEMOTIONS', style: AppTheme.labelCaps.copyWith(fontSize: 9)),
+        const SizedBox(height: 8),
+        if (recent == null) Text('None recorded yet.', style: AppTheme.bodySub.copyWith(fontSize: 11.5))
+        else Row(children: [
+          Icon(recent.changeType == 'promotion' ? Symbols.arrow_upward : recent.changeType == 'demotion' ? Symbols.arrow_downward : Symbols.arrow_forward,
+              size: 14, color: recent.changeType == 'promotion' ? AppColors.green : recent.changeType == 'demotion' ? AppColors.coral : AppColors.info),
+          const SizedBox(width: 9),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(recent.userName ?? '—', style: AppTheme.bodySm.copyWith(fontSize: 11.5)),
+            Text('${recent.fromPosition ?? '—'} → ${recent.toPosition ?? '—'}', style: AppTheme.bodySub.copyWith(fontSize: 10, color: context.pal.textDim)),
+          ])),
+          Text(recent.effectiveDate, style: AppTheme.monoXs.copyWith(fontSize: 9.5, color: context.pal.textDim)),
+        ]),
+      ]),
+    );
+  }
+}
+
+class _Kpi {
+  const _Kpi(this.label, this.value, this.delta, this.deltaColor, this.accent);
+  final String label;
+  final String value;
+  final String delta;
+  final Color deltaColor;
+  final Color accent;
+}
+
+class _AttBucket {
+  int present = 0;
+  int late = 0;
+  int absent = 0;
+  int get total => present + late + absent;
 }

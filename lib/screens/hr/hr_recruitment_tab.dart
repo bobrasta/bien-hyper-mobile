@@ -1,15 +1,22 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../../services/hr_report_service.dart';
 import '../../services/position_service.dart';
 import '../../services/recruitment_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_palette.dart';
+import '../../theme/hr_category_colors.dart';
 import '../../utils/api_error.dart';
 import '../../widgets/common/error_view.dart';
+import '../../widgets/common/hr_empty_state.dart';
 import '../../widgets/common/labeled_field.dart';
 
+/// Recruitment — ported from HR Redesign spec 1d: vacancy summary strip,
+/// the pipeline as a Kanban board, then interviews/talent-pool/sources on
+/// one row below. Everything on one page, no tabs.
 class HrRecruitmentTab extends StatefulWidget {
   const HrRecruitmentTab({super.key});
 
@@ -17,33 +24,15 @@ class HrRecruitmentTab extends StatefulWidget {
   State<HrRecruitmentTab> createState() => _HrRecruitmentTabState();
 }
 
-class _HrRecruitmentTabState extends State<HrRecruitmentTab> with SingleTickerProviderStateMixin {
-  late final _tab = TabController(length: 2, vsync: this);
-
-  @override
-  Widget build(BuildContext context) => Column(children: [
-    TabBar(
-      controller: _tab, isScrollable: true, tabAlignment: TabAlignment.start,
-      labelColor: AppColors.teal, unselectedLabelColor: context.pal.textMute,
-      indicatorColor: AppColors.teal,
-      tabs: const [Tab(text: 'Vacancies'), Tab(text: 'Applicants / Talent Pool')],
-    ),
-    Expanded(child: TabBarView(controller: _tab, children: const [_VacanciesTab(), _ApplicantsTab()])),
-  ]);
-}
-
-// ── Vacancies ────────────────────────────────────────────────────────────────
-
-class _VacanciesTab extends StatefulWidget {
-  const _VacanciesTab();
-  @override
-  State<_VacanciesTab> createState() => _VacanciesTabState();
-}
-
-class _VacanciesTabState extends State<_VacanciesTab> {
-  List<Vacancy> _vacancies = [];
+class _HrRecruitmentTabState extends State<HrRecruitmentTab> {
+  final _talentPoolKey = GlobalKey();
   bool _loading = true;
   String? _error;
+  List<Vacancy> _vacancies = [];
+  Vacancy? _active;
+  List<Application> _pipeline = [];
+  List<Applicant> _pool = [];
+  Map<String, int> _hiresBySource = {};
 
   @override
   void initState() { super.initState(); _load(); }
@@ -51,12 +40,412 @@ class _VacanciesTabState extends State<_VacanciesTab> {
   Future<void> _load() async {
     setState(() { _loading = true; _error = null; });
     try {
-      final list = await RecruitmentService.instance.vacancies();
-      if (mounted) setState(() { _vacancies = list; _loading = false; });
+      final results = await Future.wait([
+        RecruitmentService.instance.vacancies(),
+        RecruitmentService.instance.applicants(talentPool: true),
+        HrReportService.instance.recruitmentSummary(),
+      ]);
+      final vacancies = results[0] as List<Vacancy>;
+      final active = vacancies.where((v) => v.status == 'open').isNotEmpty
+          ? vacancies.where((v) => v.status == 'open').first
+          : (vacancies.isNotEmpty ? vacancies.first : null);
+      final pipeline = active != null ? await RecruitmentService.instance.pipeline(active.id) : <Application>[];
+      if (!mounted) return;
+      setState(() {
+        _vacancies = vacancies;
+        _active = active;
+        _pipeline = pipeline;
+        _pool = results[1] as List<Applicant>;
+        _hiresBySource = (results[2] as RecruitmentSummary).hiresBySource;
+        _loading = false;
+      });
     } catch (e) {
       if (mounted) setState(() { _error = e.toString(); _loading = false; });
     }
   }
+
+  Future<void> _selectVacancy(Vacancy v) async {
+    setState(() => _active = v);
+    try {
+      final pipeline = await RecruitmentService.instance.pipeline(v.id);
+      if (mounted && _active?.id == v.id) setState(() => _pipeline = pipeline);
+    } catch (e) { if (mounted) showErrorToast(context, e); }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) return const Center(child: CircularProgressIndicator(strokeWidth: 2));
+    if (_error != null) return ErrorView(message: _error!, onRetry: _load);
+
+    final openCount = _vacancies.where((v) => v.status == 'open').length;
+
+    return LayoutBuilder(builder: (ctx, cst) {
+      final pad = cst.maxWidth < 900 ? 16.0 : 26.0;
+      return SingleChildScrollView(
+        padding: EdgeInsets.all(pad),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          _header(openCount),
+          const SizedBox(height: 4),
+          Container(height: 1, color: context.pal.divider),
+          const SizedBox(height: 18),
+          _vacancyRow(),
+          const SizedBox(height: 18),
+          if (_active != null) ...[
+            _kanbanBoard(),
+            const SizedBox(height: 20),
+          ],
+          _bottomRow(cst.maxWidth >= 1100),
+        ]),
+      );
+    });
+  }
+
+  Widget _header(int openCount) => Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+    Container(width: 2, height: 32, decoration: BoxDecoration(color: HrCategory.recruitment.color, borderRadius: BorderRadius.circular(2))),
+    const SizedBox(width: 12),
+    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text('Recruitment', style: AppTheme.pageTitle.copyWith(fontSize: 21)),
+      const SizedBox(height: 3),
+      Text('$openCount open vacanc${openCount == 1 ? 'y' : 'ies'} · ${_pipeline.length} in pipeline · ${_pool.length} in talent pool', style: AppTheme.bodySub.copyWith(fontSize: 12)),
+    ])),
+    OutlinedButton.icon(onPressed: _scrollToTalentPool, icon: const Icon(Symbols.groups, size: 15), label: const Text('Talent pool')),
+    const SizedBox(width: 8),
+    FilledButton.icon(onPressed: _newVacancy, icon: const Icon(Symbols.add, size: 16), label: const Text('New vacancy')),
+  ]);
+
+  Widget _vacancyRow() {
+    if (_vacancies.isEmpty) {
+      return HrEmptyState(icon: HrCategory.recruitment.icon, title: 'No vacancies yet', message: 'Post a role to start building your applicant pipeline.', actionLabel: 'Post a vacancy', onAction: _newVacancy);
+    }
+    final others = _vacancies.where((v) => v.id != _active?.id).take(2).toList();
+    return IntrinsicHeight(
+      child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        if (_active != null) Expanded(child: _activeVacancyCard(_active!)),
+        for (final v in others) ...[
+          const SizedBox(width: 12),
+          SizedBox(width: 300, child: _otherVacancyCard(v)),
+        ],
+      ]),
+    );
+  }
+
+  Widget _activeVacancyCard(Vacancy v) {
+    final color = HrCategory.recruitment.color;
+    final daysOpen = DateTime.tryParse(v.openedAt) != null ? DateTime.now().difference(DateTime.parse(v.openedAt)).inDays : 0;
+    final interviews = _pipeline.fold<int>(0, (a, p) => a + p.interviews.length);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(color: context.pal.surface1, borderRadius: BorderRadius.circular(14), border: Border.all(color: color.withValues(alpha: 0.35))),
+      clipBehavior: Clip.antiAlias,
+      child: Stack(children: [
+        Positioned(left: -16, top: -14, bottom: -14, width: 2, child: Container(color: color)),
+        Row(children: [
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Text(v.positionTitle ?? 'Vacancy #${v.id}', style: AppTheme.cardTitle.copyWith(fontSize: 16)),
+              const SizedBox(width: 9),
+              _statusChip(v.status, color),
+            ]),
+            const SizedBox(height: 5),
+            Text('${v.department ?? '—'} · opened ${v.openedAt} · $daysOpen days open', style: AppTheme.bodySub.copyWith(fontSize: 11.5)),
+          ])),
+          _statCol('Applicants', '${v.applicationsCount}'),
+          const SizedBox(width: 20),
+          _statCol('Interviews', '$interviews'),
+          const SizedBox(width: 20),
+          _statCol('Time to fill', '${daysOpen}d', color: daysOpen > 20 ? AppColors.amber : null),
+          const SizedBox(width: 16),
+          OutlinedButton(onPressed: () => _setStatus(v, 'on_hold'), child: const Text('Hold')),
+          const SizedBox(width: 7),
+          OutlinedButton(
+            onPressed: () => _setStatus(v, 'closed'),
+            style: OutlinedButton.styleFrom(foregroundColor: AppColors.coral, side: BorderSide(color: AppColors.coral.withValues(alpha: 0.5))),
+            child: const Text('Close'),
+          ),
+        ]),
+      ]),
+    );
+  }
+
+  Widget _otherVacancyCard(Vacancy v) => InkWell(
+    borderRadius: BorderRadius.circular(14),
+    onTap: () => _selectVacancy(v),
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(color: context.pal.surface1, borderRadius: BorderRadius.circular(14), border: Border.all(color: context.pal.border)),
+      child: Row(children: [
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Text(v.positionTitle ?? 'Vacancy #${v.id}', style: AppTheme.bodySub.copyWith(fontSize: 13.5)),
+            const SizedBox(width: 8),
+            _statusChip(v.status, context.pal.textDim),
+          ]),
+          const SizedBox(height: 4),
+          Text('${v.applicationsCount} applicant(s) · ${v.closedAt ?? v.openedAt}', style: AppTheme.monoXs.copyWith(fontSize: 10.5)),
+        ])),
+        Icon(Symbols.arrow_forward, size: 15, color: context.pal.textDim),
+      ]),
+    ),
+  );
+
+  Widget _statCol(String label, String value, {Color? color}) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 9.5)),
+    const SizedBox(height: 2),
+    Text(value, style: AppTheme.monoXs.copyWith(fontSize: 17, color: color ?? context.pal.text)),
+  ]);
+
+  Widget _statusChip(String status, Color color) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+    decoration: BoxDecoration(color: color.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(5)),
+    child: Text(status.replaceAll('_', ' '), style: AppTheme.monoXs.copyWith(fontSize: 10, color: color)),
+  );
+
+  Future<void> _setStatus(Vacancy v, String status) async {
+    try {
+      await RecruitmentService.instance.updateVacancy(v.id, {'status': status});
+      _load();
+    } catch (e) { if (mounted) showErrorToast(context, e); }
+  }
+
+  static const _stages = ['applied', 'shortlisted', 'interviewed', 'offered', 'hired'];
+  static const _stageLabels = {'applied': 'Applied', 'shortlisted': 'Shortlisted', 'interviewed': 'Interviewed', 'offered': 'Offered', 'hired': 'Hired'};
+  static List<Color> get _stageColors => [AppColors.violet, const Color(0xFF8B76E0), const Color(0xFF7A63D6), const Color(0xFF6A54C4), AppColors.green];
+
+  Widget _kanbanBoard() {
+    return SizedBox(
+      height: 280,
+      child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        for (var i = 0; i < _stages.length; i++) ...[
+          if (i > 0) const SizedBox(width: 12),
+          Expanded(child: _kanbanColumn(_stages[i], _stageColors[i])),
+        ],
+      ]),
+    );
+  }
+
+  Widget _kanbanColumn(String stage, Color color) {
+    final apps = _pipeline.where((a) => a.status == stage).toList();
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Container(width: 7, height: 7, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2))),
+        const SizedBox(width: 8),
+        Text(_stageLabels[stage]!.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+        const SizedBox(width: 6),
+        Text('${apps.length}', style: AppTheme.monoXs.copyWith(fontSize: 11)),
+      ]),
+      const SizedBox(height: 9),
+      Expanded(child: Container(
+        padding: const EdgeInsets.all(9),
+        decoration: BoxDecoration(color: context.pal.surface2, borderRadius: BorderRadius.circular(14), border: Border.all(color: context.pal.border)),
+        child: apps.isEmpty
+            ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Symbols.inbox, size: 17, color: context.pal.textDim),
+                const SizedBox(height: 6),
+                Text('Nothing here', style: AppTheme.monoXs.copyWith(fontSize: 11)),
+              ]))
+            : ListView.separated(
+                itemCount: apps.length,
+                separatorBuilder: (_, _) => const SizedBox(height: 9),
+                itemBuilder: (_, i) => _pipelineCard(apps[i]),
+              ),
+      )),
+    ]);
+  }
+
+  Widget _pipelineCard(Application a) {
+    final nextInterview = a.interviews.isNotEmpty ? a.interviews.last : null;
+    return GestureDetector(
+      onTap: () => _advanceStage(a),
+      onLongPress: () => _scheduleInterview(a),
+      child: Container(
+        padding: const EdgeInsets.all(11),
+        decoration: BoxDecoration(color: context.pal.surface1, borderRadius: BorderRadius.circular(11), border: Border.all(color: context.pal.border)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+          Row(children: [
+            _avatar(a.applicantName ?? '?', a.id),
+            const SizedBox(width: 9),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+              Text(a.applicantName ?? '—', style: AppTheme.bodySm.copyWith(fontSize: 12.5), maxLines: 1, overflow: TextOverflow.ellipsis),
+              Text(a.appliedAt, style: AppTheme.monoXs.copyWith(fontSize: 10)),
+            ])),
+          ]),
+          if (a.applicantSource != null || a.applicantCv != null) ...[
+            const SizedBox(height: 8),
+            Row(children: [
+              if (a.applicantSource != null) Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(color: context.pal.surface2, borderRadius: BorderRadius.circular(5)),
+                child: Text(a.applicantSource!, style: AppTheme.monoXs.copyWith(fontSize: 9.5, color: context.pal.textMute)),
+              ),
+              if (a.applicantCv != null) ...[
+                const SizedBox(width: 6),
+                GestureDetector(
+                  onTap: () => _openCv(a.applicantCv!.url),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(color: AppColors.coral.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(5)),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(Symbols.picture_as_pdf, size: 10.5, color: AppColors.coral),
+                      const SizedBox(width: 3),
+                      Text('CV', style: AppTheme.monoXs.copyWith(fontSize: 9.5, color: AppColors.coral)),
+                    ]),
+                  ),
+                ),
+              ],
+            ]),
+          ],
+          if (nextInterview != null) ...[
+            const SizedBox(height: 8),
+            Container(height: 1, color: context.pal.divider),
+            const SizedBox(height: 7),
+            Row(children: [
+              Icon(Symbols.calendar_month, size: 12, color: AppColors.amber),
+              const SizedBox(width: 6),
+              Expanded(child: Text(nextInterview.scheduledAt, style: AppTheme.monoXs.copyWith(fontSize: 10.5), maxLines: 1, overflow: TextOverflow.ellipsis)),
+            ]),
+          ],
+        ]),
+      ),
+    );
+  }
+
+  Widget _avatar(String name, int seed) {
+    final palette = [AppColors.violet, AppColors.cyan, AppColors.amber, AppColors.info];
+    final color = palette[seed % palette.length];
+    final initials = name.trim().split(RegExp(r'\s+')).take(2).map((p) => p.isNotEmpty ? p[0] : '').join().toUpperCase();
+    return Container(
+      width: 26, height: 26, alignment: Alignment.center,
+      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+      child: Text(initials, style: AppTheme.monoXs.copyWith(fontSize: 9.5, fontWeight: FontWeight.w700, color: const Color(0xFF08090B))),
+    );
+  }
+
+  Widget _bottomRow(bool wide) {
+    final children = [
+      Expanded(flex: 11, child: _interviewsCard()),
+      const SizedBox(width: 16),
+      Expanded(flex: 10, child: _talentPoolCard()),
+      const SizedBox(width: 16),
+      Expanded(flex: 8, child: _sourcesCard()),
+    ];
+    return wide
+        ? IntrinsicHeight(child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: children))
+        : Column(children: [_interviewsCard(), const SizedBox(height: 14), _talentPoolCard(), const SizedBox(height: 14), _sourcesCard()]);
+  }
+
+  Widget _railHeader(IconData icon, Color color, String title, {String? count}) => Row(children: [
+    Icon(icon, size: 13, color: color),
+    const SizedBox(width: 8),
+    Text(title.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10.5)),
+    if (count != null) ...[const SizedBox(width: 6), Text(count, style: AppTheme.monoXs.copyWith(fontSize: 11))],
+    const SizedBox(width: 8),
+    Expanded(child: Container(height: 1, color: context.pal.divider)),
+  ]);
+
+  Widget _interviewsCard() {
+    final upcoming = _pipeline.expand((a) => a.interviews.map((iv) => (a, iv))).toList()
+      ..sort((x, y) => x.$2.scheduledAt.compareTo(y.$2.scheduledAt));
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      _railHeader(Symbols.calendar_month, AppColors.amber, 'Scheduled interviews'),
+      const SizedBox(height: 9),
+      Container(
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(color: context.pal.surface1, borderRadius: BorderRadius.circular(14), border: Border.all(color: context.pal.border)),
+        child: upcoming.isEmpty
+            ? Padding(padding: const EdgeInsets.symmetric(vertical: 24), child: Center(child: Text('No interviews scheduled.', style: AppTheme.bodySub.copyWith(fontSize: 12))))
+            : Column(children: upcoming.map((pair) => Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                child: Row(children: [
+                  Expanded(child: Text(pair.$1.applicantName ?? '—', style: AppTheme.bodySm.copyWith(fontSize: 12.5))),
+                  Text(pair.$2.stage ?? '—', style: AppTheme.monoXs.copyWith(fontSize: 10.5)),
+                  const SizedBox(width: 10),
+                  Text(pair.$2.scheduledAt, style: AppTheme.monoXs.copyWith(fontSize: 11)),
+                ]),
+              )).toList()),
+      ),
+    ]);
+  }
+
+  void _scrollToTalentPool() {
+    final ctx = _talentPoolKey.currentContext;
+    if (ctx != null) Scrollable.ensureVisible(ctx, duration: const Duration(milliseconds: 300), curve: Curves.easeInOut, alignment: 0.1);
+  }
+
+  Widget _talentPoolCard() => Column(key: _talentPoolKey, crossAxisAlignment: CrossAxisAlignment.start, children: [
+    _railHeader(Symbols.groups, HrCategory.recruitment.color, 'Talent pool', count: '${_pool.length}'),
+    const SizedBox(height: 9),
+    Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(color: context.pal.surface1, borderRadius: BorderRadius.circular(14), border: Border.all(color: context.pal.border)),
+      child: _pool.isEmpty
+          ? Padding(padding: const EdgeInsets.symmetric(vertical: 24), child: Center(child: Text('Nobody in the pool yet.', style: AppTheme.bodySub.copyWith(fontSize: 12))))
+          : Column(children: _pool.map((p) => Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              child: Row(children: [
+                _avatar(p.name, p.id),
+                const SizedBox(width: 10),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                  Text(p.name, style: AppTheme.bodySm.copyWith(fontSize: 12.5), maxLines: 1, overflow: TextOverflow.ellipsis),
+                  Text(p.skillsTags ?? p.sourceChannel ?? '—', style: AppTheme.bodySub.copyWith(fontSize: 10.5), maxLines: 1, overflow: TextOverflow.ellipsis),
+                ])),
+                if (p.latestCv != null) ...[
+                  GestureDetector(
+                    onTap: () => _openCv(p.latestCv!.url),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(color: AppColors.coral.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(5)),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        Icon(Symbols.picture_as_pdf, size: 11, color: AppColors.coral),
+                        const SizedBox(width: 3),
+                        Text('CV v${p.latestCv!.version}', style: AppTheme.monoXs.copyWith(fontSize: 9.5, color: AppColors.coral)),
+                      ]),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  IconButton(
+                    onPressed: () => _uploadCv(p),
+                    icon: Icon(Symbols.upload_file, size: 15, color: context.pal.textDim),
+                    tooltip: 'Replace CV', padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                  ),
+                ] else
+                  TextButton(onPressed: () => _uploadCv(p), child: const Text('Upload CV')),
+              ]),
+            )).toList()),
+    ),
+  ]);
+
+  Widget _sourcesCard() {
+    final maxN = _hiresBySource.values.fold(0, (a, b) => a > b ? a : b);
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      _railHeader(Symbols.podcasts, HrCategory.recruitment.color, 'Hires by source'),
+      const SizedBox(height: 9),
+      Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(color: context.pal.surface1, borderRadius: BorderRadius.circular(14), border: Border.all(color: context.pal.border)),
+        child: _hiresBySource.isEmpty
+            ? Text('No hires recorded yet.', style: AppTheme.bodySub.copyWith(fontSize: 12))
+            : Column(children: _hiresBySource.entries.map((e) {
+                final pct = maxN > 0 ? (e.value / maxN).clamp(0.05, 1.0) : 0.05;
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 9),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Row(children: [
+                      Expanded(child: Text(e.key, style: AppTheme.monoXs.copyWith(fontSize: 11))),
+                      Text('${e.value}', style: AppTheme.monoXs.copyWith(fontSize: 11.5, color: context.pal.text)),
+                    ]),
+                    const SizedBox(height: 4),
+                    ClipRRect(borderRadius: BorderRadius.circular(3), child: FractionallySizedBox(
+                      widthFactor: pct, alignment: Alignment.centerLeft,
+                      child: Container(height: 6, color: HrCategory.recruitment.color),
+                    )),
+                  ]),
+                );
+              }).toList()),
+      ),
+    ]);
+  }
+
+  // ── Actions ──────────────────────────────────────────────────────────────
 
   Future<void> _newVacancy() async {
     List<Position> positions = [];
@@ -70,8 +459,7 @@ class _VacanciesTabState extends State<_VacanciesTab> {
         title: Text('New Vacancy', style: AppTheme.cardTitle),
         content: SizedBox(width: 340, child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
           LabeledDropdown<int?>(
-            label: 'Position',
-            value: positionId,
+            label: 'Position', value: positionId,
             items: positions.map((p) => p.id).toList(),
             displayBuilder: (id) => positions.firstWhere((p) => p.id == id).title,
             onChanged: (v) => setDialogState(() => positionId = v),
@@ -87,132 +475,7 @@ class _VacanciesTabState extends State<_VacanciesTab> {
     ));
     if (go != true || positionId == null) return;
     try {
-      await RecruitmentService.instance.createVacancy({
-        'position_id': positionId,
-        'requirements': reqCtrl.text.trim().isNotEmpty ? reqCtrl.text.trim() : null,
-      });
-      _load();
-    } catch (e) { if (mounted) showErrorToast(context, e); }
-  }
-
-  Future<void> _openPipeline(Vacancy v) async {
-    final changed = await showDialog<bool>(context: context, builder: (_) => _PipelineDialog(vacancy: v));
-    if (changed == true) _load();
-  }
-
-  Future<void> _setStatus(Vacancy v, String status) async {
-    try {
-      await RecruitmentService.instance.updateVacancy(v.id, {'status': status});
-      _load();
-    } catch (e) { if (mounted) showErrorToast(context, e); }
-  }
-
-  Color _statusColor(String s) => switch (s) {
-    'open' => AppColors.teal, 'on_hold' => AppColors.amber, 'closed' => AppColors.textMute,
-    _ => AppColors.textMute,
-  };
-
-  @override
-  Widget build(BuildContext context) {
-    if (_loading) return const Center(child: CircularProgressIndicator(strokeWidth: 2));
-    if (_error != null) return ErrorView(message: _error!, onRetry: _load);
-
-    return Padding(
-      padding: const EdgeInsets.all(20),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Align(alignment: Alignment.centerRight, child: FilledButton.icon(
-          onPressed: _newVacancy, icon: const Icon(Symbols.add, size: 16), label: const Text('New Vacancy'),
-        )),
-        const SizedBox(height: 12),
-        Expanded(
-          child: _vacancies.isEmpty
-              ? Center(child: Text('No vacancies yet.', style: AppTheme.bodySub))
-              : ListView.separated(
-                  itemCount: _vacancies.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 10),
-                  itemBuilder: (_, i) {
-                    final v = _vacancies[i];
-                    return Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: context.pal.surface1, borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: context.pal.border),
-                      ),
-                      child: Row(children: [
-                        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Row(children: [
-                            Text(v.positionTitle ?? '—', style: AppTheme.bodyStrong.copyWith(fontSize: 13.5)),
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                              decoration: BoxDecoration(color: _statusColor(v.status).withValues(alpha: 0.12), borderRadius: BorderRadius.circular(4)),
-                              child: Text(v.status, style: AppTheme.monoXs.copyWith(color: _statusColor(v.status), fontSize: 10)),
-                            ),
-                          ]),
-                          const SizedBox(height: 4),
-                          Text('${v.applicationsCount} applicant(s) · opened ${v.openedAt}', style: AppTheme.bodySub.copyWith(fontSize: 11.5)),
-                        ])),
-                        TextButton(onPressed: () => _openPipeline(v), child: const Text('View Pipeline')),
-                        if (v.status == 'open') ...[
-                          TextButton(onPressed: () => _setStatus(v, 'on_hold'), child: const Text('Hold')),
-                          TextButton(onPressed: () => _setStatus(v, 'closed'), child: Text('Close', style: TextStyle(color: AppColors.coral))),
-                        ] else if (v.status == 'on_hold')
-                          TextButton(onPressed: () => _setStatus(v, 'open'), child: const Text('Reopen')),
-                      ]),
-                    );
-                  },
-                ),
-        ),
-      ]),
-    );
-  }
-}
-
-class _PipelineDialog extends StatefulWidget {
-  const _PipelineDialog({required this.vacancy});
-  final Vacancy vacancy;
-
-  @override
-  State<_PipelineDialog> createState() => _PipelineDialogState();
-}
-
-class _PipelineDialogState extends State<_PipelineDialog> {
-  List<Application> _applications = [];
-  bool _loading = true;
-  bool _changed = false;
-
-  @override
-  void initState() { super.initState(); _load(); }
-
-  Future<void> _load() async {
-    setState(() => _loading = true);
-    try {
-      final list = await RecruitmentService.instance.pipeline(widget.vacancy.id);
-      if (mounted) setState(() { _applications = list; _loading = false; });
-    } catch (e) {
-      if (mounted) { setState(() => _loading = false); showErrorToast(context, e); }
-    }
-  }
-
-  Future<void> _addApplicant() async {
-    List<Applicant> applicants = [];
-    try { applicants = await RecruitmentService.instance.applicants(); } catch (_) {}
-    if (!mounted || applicants.isEmpty) {
-      if (mounted) showErrorToast(context, 'No applicants exist yet — add one from the Applicants tab first.');
-      return;
-    }
-    final id = await showDialog<int>(context: context, builder: (dialogCtx) => SimpleDialog(
-      backgroundColor: context.pal.surface1,
-      title: const Text('Add Applicant to Pipeline'),
-      children: applicants.map((a) => SimpleDialogOption(
-        onPressed: () => Navigator.of(dialogCtx).pop(a.id),
-        child: Text(a.name),
-      )).toList(),
-    ));
-    if (id == null) return;
-    try {
-      await RecruitmentService.instance.applyToVacancy(widget.vacancy.id, id);
-      _changed = true;
+      await RecruitmentService.instance.createVacancy({'position_id': positionId, 'requirements': reqCtrl.text.trim().isNotEmpty ? reqCtrl.text.trim() : null});
       _load();
     } catch (e) { if (mounted) showErrorToast(context, e); }
   }
@@ -221,16 +484,12 @@ class _PipelineDialogState extends State<_PipelineDialog> {
     final next = await showDialog<String>(context: context, builder: (dialogCtx) => SimpleDialog(
       backgroundColor: context.pal.surface1,
       title: const Text('Move to Stage'),
-      children: Application.stageLabels.entries.map((e) => SimpleDialogOption(
-        onPressed: () => Navigator.of(dialogCtx).pop(e.key),
-        child: Text(e.value),
-      )).toList(),
+      children: Application.stageLabels.entries.map((e) => SimpleDialogOption(onPressed: () => Navigator.of(dialogCtx).pop(e.key), child: Text(e.value))).toList(),
     ));
     if (next == null) return;
     try {
       await RecruitmentService.instance.updateStage(a.id, next);
-      _changed = true;
-      _load();
+      if (_active != null) _selectVacancy(_active!);
     } catch (e) { if (mounted) showErrorToast(context, e); }
   }
 
@@ -240,16 +499,12 @@ class _PipelineDialogState extends State<_PipelineDialog> {
     final go = await showDialog<bool>(context: context, builder: (dialogCtx) => StatefulBuilder(
       builder: (dialogCtx, setDialogState) => AlertDialog(
         backgroundColor: context.pal.surface1,
-        title: Text('Schedule Interview', style: AppTheme.cardTitle),
+        title: Text('Schedule Interview — ${a.applicantName ?? ''}', style: AppTheme.cardTitle),
         content: SizedBox(width: 320, child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          LabeledDateField(
-            label: 'Date',
-            date: date,
-            onTap: () async {
-              final picked = await showDatePicker(context: dialogCtx, initialDate: date, firstDate: DateTime(2000), lastDate: DateTime(2100));
-              if (picked != null) setDialogState(() => date = picked);
-            },
-          ),
+          LabeledDateField(label: 'Date', date: date, onTap: () async {
+            final picked = await showDatePicker(context: dialogCtx, initialDate: date, firstDate: DateTime(2000), lastDate: DateTime(2100));
+            if (picked != null) setDialogState(() => date = picked);
+          }),
           const SizedBox(height: 12),
           LabeledTextField(label: 'Stage', controller: stageCtrl, hint: 'e.g. Technical'),
         ])),
@@ -261,217 +516,27 @@ class _PipelineDialogState extends State<_PipelineDialog> {
     ));
     if (go != true) return;
     try {
-      await RecruitmentService.instance.scheduleInterview(a.id, {
-        'scheduled_at': date.toIso8601String(),
-        'stage': stageCtrl.text.trim().isNotEmpty ? stageCtrl.text.trim() : null,
-      });
-      _changed = true;
-      _load();
+      await RecruitmentService.instance.scheduleInterview(a.id, {'scheduled_at': date.toIso8601String(), 'stage': stageCtrl.text.trim().isNotEmpty ? stageCtrl.text.trim() : null});
+      if (_active != null) _selectVacancy(_active!);
     } catch (e) { if (mounted) showErrorToast(context, e); }
   }
 
-  @override
-  Widget build(BuildContext context) => Dialog(
-    backgroundColor: context.pal.surface1,
-    child: Container(
-      width: 520,
-      constraints: const BoxConstraints(maxHeight: 560),
-      padding: const EdgeInsets.all(20),
-      child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Row(children: [
-          Icon(Symbols.groups, size: 18, color: AppColors.teal),
-          const SizedBox(width: 10),
-          Expanded(child: Text('Pipeline — ${widget.vacancy.positionTitle ?? ''}', style: AppTheme.bodyStrong)),
-          TextButton.icon(onPressed: _addApplicant, icon: const Icon(Symbols.add, size: 16), label: const Text('Add')),
-          GestureDetector(onTap: () => Navigator.of(context).pop(_changed), child: Icon(Symbols.close, size: 18, color: context.pal.textDim)),
-        ]),
-        const Divider(height: 24),
-        Flexible(child: _loading
-            ? const Padding(padding: EdgeInsets.symmetric(vertical: 32), child: Center(child: CircularProgressIndicator(strokeWidth: 2)))
-            : _applications.isEmpty
-                ? Padding(padding: const EdgeInsets.symmetric(vertical: 32), child: Center(child: Text('No applicants in this pipeline yet.', style: AppTheme.bodySub)))
-                : SingleChildScrollView(child: Column(children: _applications.map((a) => Container(
-                    margin: const EdgeInsets.only(bottom: 10),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(color: context.pal.surface2, borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Row(children: [
-                        Expanded(child: Text(a.applicantName ?? '—', style: AppTheme.bodyStrong.copyWith(fontSize: 13))),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                          decoration: BoxDecoration(color: AppColors.tealSoft, borderRadius: BorderRadius.circular(4)),
-                          child: Text(a.stageLabel, style: AppTheme.monoXs.copyWith(color: AppColors.teal, fontSize: 10)),
-                        ),
-                      ]),
-                      if (a.interviews.isNotEmpty)
-                        ...a.interviews.map((iv) => Padding(padding: const EdgeInsets.only(top: 4),
-                            child: Text('Interview: ${iv.scheduledAt} · ${iv.stage ?? 'N/A'}${iv.rating != null ? ' · ${iv.rating}/5' : ''}',
-                                style: AppTheme.bodySub.copyWith(fontSize: 11)))),
-                      const SizedBox(height: 8),
-                      Wrap(spacing: 6, children: [
-                        TextButton(onPressed: () => _advanceStage(a), child: const Text('Move Stage')),
-                        TextButton(onPressed: () => _scheduleInterview(a), child: const Text('Schedule Interview')),
-                      ]),
-                    ]),
-                  )).toList())),
-        ),
-      ]),
-    ),
-  );
-}
-
-// ── Applicants / Talent Pool ────────────────────────────────────────────────
-
-class _ApplicantsTab extends StatefulWidget {
-  const _ApplicantsTab();
-  @override
-  State<_ApplicantsTab> createState() => _ApplicantsTabState();
-}
-
-class _ApplicantsTabState extends State<_ApplicantsTab> {
-  List<Applicant> _applicants = [];
-  bool _loading = true;
-  String? _error;
-  bool _talentPoolOnly = false;
-  String _search = '';
-
-  @override
-  void initState() { super.initState(); _load(); }
-
-  Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
+  Future<void> _openCv(String url) async {
     try {
-      final list = await RecruitmentService.instance.applicants(
-        talentPool: _talentPoolOnly ? true : null,
-        search: _search.isNotEmpty ? _search : null,
-      );
-      if (mounted) setState(() { _applicants = list; _loading = false; });
+      await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
     } catch (e) {
-      if (mounted) setState(() { _error = e.toString(); _loading = false; });
+      if (mounted) showErrorToast(context, e);
     }
-  }
-
-  Future<void> _newApplicant() async {
-    final nameCtrl = TextEditingController();
-    final emailCtrl = TextEditingController();
-    final phoneCtrl = TextEditingController();
-    final sourceCtrl = TextEditingController();
-    final skillsCtrl = TextEditingController();
-    bool talentPool = false;
-    final go = await showDialog<bool>(context: context, builder: (dialogCtx) => StatefulBuilder(
-      builder: (dialogCtx, setDialogState) => AlertDialog(
-        backgroundColor: context.pal.surface1,
-        title: Text('New Applicant', style: AppTheme.cardTitle),
-        content: SizedBox(width: 380, child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          LabeledTextField(label: 'Name', controller: nameCtrl),
-          const SizedBox(height: 12),
-          Row(children: [
-            Expanded(child: LabeledTextField(label: 'Email', controller: emailCtrl, keyboardType: TextInputType.emailAddress)),
-            const SizedBox(width: 10),
-            Expanded(child: LabeledTextField(label: 'Phone', controller: phoneCtrl, keyboardType: TextInputType.phone)),
-          ]),
-          const SizedBox(height: 12),
-          Row(children: [
-            Expanded(child: LabeledTextField(label: 'Source', controller: sourceCtrl, hint: 'e.g. LinkedIn')),
-            const SizedBox(width: 10),
-            Expanded(child: LabeledTextField(label: 'Skills tags', controller: skillsCtrl)),
-          ]),
-          const SizedBox(height: 8),
-          Row(children: [
-            Checkbox(value: talentPool, onChanged: (v) => setDialogState(() => talentPool = v ?? false)),
-            const Text('Add to talent pool'),
-          ]),
-        ])),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(dialogCtx).pop(false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.of(dialogCtx).pop(true), child: const Text('Create')),
-        ],
-      ),
-    ));
-    if (go != true || nameCtrl.text.trim().isEmpty) return;
-    try {
-      await RecruitmentService.instance.createApplicant({
-        'name': nameCtrl.text.trim(),
-        'email': emailCtrl.text.trim().isNotEmpty ? emailCtrl.text.trim() : null,
-        'phone': phoneCtrl.text.trim().isNotEmpty ? phoneCtrl.text.trim() : null,
-        'source_channel': sourceCtrl.text.trim().isNotEmpty ? sourceCtrl.text.trim() : null,
-        'skills_tags': skillsCtrl.text.trim().isNotEmpty ? skillsCtrl.text.trim() : null,
-        'talent_pool': talentPool,
-      });
-      _load();
-    } catch (e) { if (mounted) showErrorToast(context, e); }
   }
 
   Future<void> _uploadCv(Applicant a) async {
     final result = await FilePicker.pickFiles(allowMultiple: false, withData: false);
     if (result == null || result.files.single.path == null) return;
-    final path = result.files.single.path!;
-    final name = result.files.single.name;
     try {
-      await RecruitmentService.instance.uploadCv(a.id, path, name);
+      await RecruitmentService.instance.uploadCv(a.id, result.files.single.path!, result.files.single.name);
       if (mounted) showSuccessToast(context, 'CV uploaded.');
       _load();
     } catch (e) { if (mounted) showErrorToast(context, e); }
   }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_loading) return const Center(child: CircularProgressIndicator(strokeWidth: 2));
-    if (_error != null) return ErrorView(message: _error!, onRetry: _load);
-
-    return Padding(
-      padding: const EdgeInsets.all(20),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Expanded(child: TextField(
-            onChanged: (v) { _search = v; _load(); },
-            decoration: InputDecoration(hintText: 'Search by name or email…', prefixIcon: const Icon(Symbols.search, size: 18), isDense: true,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
-          )),
-          const SizedBox(width: 10),
-          FilterChip(
-            label: const Text('Talent Pool'),
-            selected: _talentPoolOnly,
-            onSelected: (v) { setState(() => _talentPoolOnly = v); _load(); },
-          ),
-          const SizedBox(width: 10),
-          FilledButton.icon(onPressed: _newApplicant, icon: const Icon(Symbols.add, size: 16), label: const Text('New Applicant')),
-        ]),
-        const SizedBox(height: 12),
-        Expanded(
-          child: _applicants.isEmpty
-              ? Center(child: Text('No applicants found.', style: AppTheme.bodySub))
-              : ListView.separated(
-                  itemCount: _applicants.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 10),
-                  itemBuilder: (_, i) {
-                    final a = _applicants[i];
-                    return Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(color: context.pal.surface1, borderRadius: BorderRadius.circular(10), border: Border.all(color: context.pal.border)),
-                      child: Row(children: [
-                        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Row(children: [
-                            Text(a.name, style: AppTheme.bodyStrong.copyWith(fontSize: 13.5)),
-                            if (a.talentPool) ...[
-                              const SizedBox(width: 8),
-                              Container(padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                                  decoration: BoxDecoration(color: AppColors.violetSoft, borderRadius: BorderRadius.circular(4)),
-                                  child: Text('Talent Pool', style: AppTheme.monoXs.copyWith(color: AppColors.violet, fontSize: 9.5))),
-                            ],
-                          ]),
-                          Text([a.email, a.phone, a.sourceChannel].where((s) => s != null && s.isNotEmpty).join(' · '),
-                              style: AppTheme.bodySub.copyWith(fontSize: 11.5)),
-                          if (a.skillsTags != null) Text(a.skillsTags!, style: AppTheme.bodySub.copyWith(fontSize: 11)),
-                          if (a.latestCv != null) Text('CV v${a.latestCv!.version}: ${a.latestCv!.originalName}', style: AppTheme.bodySub.copyWith(fontSize: 11)),
-                        ])),
-                        TextButton(onPressed: () => _uploadCv(a), child: const Text('Upload CV')),
-                      ]),
-                    );
-                  },
-                ),
-        ),
-      ]),
-    );
-  }
 }
+

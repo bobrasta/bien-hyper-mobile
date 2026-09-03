@@ -116,6 +116,8 @@ class Application {
   final int id;
   final int applicantId;
   final String? applicantName;
+  final String? applicantSource;
+  final ApplicantCvVersion? applicantCv;
   final int vacancyId;
   final String? vacancyTitle;
   final String status;
@@ -125,6 +127,7 @@ class Application {
 
   const Application({
     required this.id, required this.applicantId, this.applicantName,
+    this.applicantSource, this.applicantCv,
     required this.vacancyId, this.vacancyTitle, required this.status,
     required this.appliedAt, this.notes, this.interviews = const [],
   });
@@ -133,6 +136,9 @@ class Application {
     id: (j['id'] as num).toInt(),
     applicantId: (j['applicant_id'] as num).toInt(),
     applicantName: j['applicant_name'] as String?,
+    applicantSource: j['applicant_source'] as String?,
+    applicantCv: (j['applicant_cv'] is Map && (j['applicant_cv'] as Map).isNotEmpty)
+        ? ApplicantCvVersion.fromJson(j['applicant_cv'] as Map<String, dynamic>) : null,
     vacancyId: (j['vacancy_id'] as num).toInt(),
     vacancyTitle: j['vacancy_title'] as String?,
     status: j['status'] as String? ?? 'applied',

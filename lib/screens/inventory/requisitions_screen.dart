@@ -147,7 +147,7 @@ class _RequisitionsScreenState extends State<RequisitionsScreen> {
           // Detail
           if (_selected != null) ...[
             Container(width: 1, color: context.pal.border),
-            SizedBox(width: 340, child: _PRDetailPanel(
+            Expanded(flex: 2, child: _PRDetailPanel(
               pr: _selected!,
               statusColor: _statusColor(_selected!.status),
               onClose: () => setState(() => _selected = null),

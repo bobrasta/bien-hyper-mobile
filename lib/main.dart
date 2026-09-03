@@ -57,7 +57,7 @@ const _screenKeys = [
   'inventory', 'finance', 'staff', 'my_leave', 'reports', 'settings',
   'sales', 'customers', 'revenue', 'email', 'hr_approvals', 'hr_settings',
   'hr_dashboard', 'hr_directory', 'hr_recruitment', 'hr_leave_calendar',
-  'hr_attendance', 'hr_payroll', 'hr_reports', 'notifications',
+  'hr_attendance', 'hr_payroll', 'hr_reports', 'notifications', 'delegations',
 ];
 
 /// Returns the set of screen keys accessible for the current user. Primarily
@@ -211,13 +211,7 @@ class HypermedApp extends StatelessWidget {
         // theme/darkTheme are set to the same ThemeData for every mode
         // except plain light/dark, so themeMode only actually matters for
         // that pair — the other modes are single fixed palettes.
-        final resolvedTheme = switch (mode) {
-          AppThemeMode.light   => AppTheme.light(),
-          AppThemeMode.dark    => AppTheme.dark(),
-          AppThemeMode.neutral => AppTheme.neutral(),
-          AppThemeMode.fundify => AppTheme.fundify(),
-          AppThemeMode.aurora  => AppTheme.aurora(),
-        };
+        final resolvedTheme = AppTheme.of(mode);
         return MaterialApp(
         title: 'Hypermed',
         debugShowCheckedModeBanner: false,

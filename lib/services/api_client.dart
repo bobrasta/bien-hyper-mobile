@@ -50,10 +50,16 @@ class ApiClient {
 
   Dio _build() {
     final d = Dio(BaseOptions(
+      // 10s was too tight against Railway's hobby-tier deployment — a cold
+      // start or a brief proxy blip alone could burn the whole budget, and
+      // since screens fire several requests concurrently (e.g. Settings
+      // loading roles/staff/expense-categories/permissions together), one
+      // blip took the whole batch down at once. 20s plus the retry below
+      // absorbs that instead of surfacing it as a wall of errors.
       baseUrl:        baseUrl,
-      connectTimeout: const Duration(seconds: 10),
-      receiveTimeout: const Duration(seconds: 15),
-      sendTimeout:    const Duration(seconds: 15),
+      connectTimeout: const Duration(seconds: 20),
+      receiveTimeout: const Duration(seconds: 20),
+      sendTimeout:    const Duration(seconds: 20),
       headers: {
         'Accept':          'application/json',
         'Accept-Encoding': 'gzip',
@@ -86,7 +92,7 @@ class ApiClient {
         }
         handler.next(options);
       },
-      onError: (error, handler) {
+      onError: (error, handler) async {
         final status  = error.response?.statusCode;
         final path    = error.requestOptions.path;
         final body    = error.response?.data;
@@ -104,6 +110,30 @@ class ApiClient {
             authTokenNotifier.value = null;
           }
         }
+
+        // Retry once on a transient network failure (timeout / connection
+        // error) — the failure mode actually seen in practice is a whole
+        // burst of concurrent requests timing out together against Railway,
+        // which reads as "the app froze" even though every individual
+        // screen's error handling is fine — it's just a wall of near-
+        // simultaneous failures. GET-only (retrying a POST/PUT/DELETE could
+        // double-submit if the first attempt actually landed server-side
+        // before the client-side timeout fired) and only once, via a flag
+        // stashed on the request so this can't loop.
+        final isRetryable = error.type == DioExceptionType.connectionTimeout
+            || error.type == DioExceptionType.receiveTimeout
+            || error.type == DioExceptionType.connectionError;
+        final alreadyRetried = error.requestOptions.extra['retried'] == true;
+        if (isRetryable && !alreadyRetried && error.requestOptions.method == 'GET') {
+          try {
+            error.requestOptions.extra['retried'] = true;
+            final response = await d.fetch(error.requestOptions);
+            return handler.resolve(response);
+          } catch (_) {
+            // Fall through — surface the original error below.
+          }
+        }
+
         handler.next(error);
       },
     ));

@@ -12,6 +12,9 @@ import '../../utils/api_error.dart';
 import '../../widgets/common/error_view.dart';
 import '../../widgets/common/labeled_field.dart';
 
+/// HR Settings — ported from HR Redesign spec 1j: two columns instead of
+/// one long scroll (Leave allocations + General defaults on the left,
+/// Holiday calendar + Positions on the right).
 class HrSettingsScreen extends StatefulWidget {
   const HrSettingsScreen({super.key});
 
@@ -198,133 +201,159 @@ class _HrSettingsScreenState extends State<HrSettingsScreen> {
     }
   }
 
+  static Color _leaveTypeColor(String key) => switch (key) {
+    'annual' => AppColors.amber,
+    'sick' => const Color(0xFFD97706),
+    'maternity' => AppColors.violet,
+    'compassionate' => AppColors.cyan,
+    'public_holiday' => AppColors.info,
+    _ => AppColors.teal,
+  };
+
+  static List<Color> get _deptPalette => [AppColors.teal, AppColors.violet, AppColors.amber, AppColors.info, AppColors.coral, AppColors.cyan];
+  Color _deptColor(String? dept) => dept == null ? AppColors.teal : _deptPalette[dept.hashCode.abs() % _deptPalette.length];
+
   @override
   Widget build(BuildContext context) {
     if (_loading) return const Center(child: CircularProgressIndicator(strokeWidth: 2));
     if (_error != null) return ErrorView(message: _error!, onRetry: _load);
 
     return LayoutBuilder(builder: (ctx, cst) {
-      final pad = cst.maxWidth < 560 ? 16.0 : 28.0;
+      final pad = cst.maxWidth < 560 ? 16.0 : 26.0;
+      final wide = cst.maxWidth >= 900;
       return RefreshIndicator(
         onRefresh: _load,
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: EdgeInsets.all(pad),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('HR Settings', style: AppTheme.pageTitle),
-            const SizedBox(height: 4),
-            Text('Leave allocations, holiday calendar, and general HR defaults', style: AppTheme.bodySub),
-            const SizedBox(height: 24),
-            _SectionCard(
-              title: 'Leave Day Allocations',
-              icon: Symbols.event,
-              child: Column(children: _leaveTypes.map((t) => _LeaveTypeRow(
-                type: t,
-                onSave: (days) => _saveLeaveTypeDays(t, days),
-              )).toList()),
-            ),
-            const SizedBox(height: 20),
-            _SectionCard(
-              title: 'Public Holiday Calendar',
-              icon: Symbols.calendar_month,
-              trailing: TextButton.icon(
-                onPressed: _addHoliday,
-                icon: const Icon(Symbols.add, size: 16),
-                label: const Text('Add'),
-              ),
-              child: _holidays.isEmpty
-                  ? Padding(padding: const EdgeInsets.symmetric(vertical: 12),
-                      child: Text('No holidays added yet.', style: AppTheme.bodySub))
-                  : Column(children: _holidays.map((h) => Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 6),
-                      child: Row(children: [
-                        Icon(Symbols.event_available, size: 15, color: context.pal.textDim),
-                        const SizedBox(width: 8),
-                        Expanded(child: Text(h.name, style: AppTheme.bodySm)),
-                        Text(h.date, style: AppTheme.bodySub.copyWith(fontSize: 12)),
-                        if (h.recurring) Padding(
-                          padding: const EdgeInsets.only(left: 8),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(color: AppColors.tealSoft, borderRadius: BorderRadius.circular(4)),
-                            child: Text('Yearly', style: AppTheme.monoXs.copyWith(color: AppColors.teal, fontSize: 9.5)),
-                          ),
-                        ),
-                        IconButton(
-                          onPressed: () => _deleteHoliday(h),
-                          icon: Icon(Symbols.delete_outline, size: 16, color: context.pal.textDim),
-                          tooltip: 'Remove',
-                        ),
-                      ]),
-                    )).toList()),
-            ),
-            const SizedBox(height: 20),
-            _SectionCard(
-              title: 'Positions',
-              icon: Symbols.badge,
-              trailing: TextButton.icon(
-                onPressed: () => _addOrEditPosition(),
-                icon: const Icon(Symbols.add, size: 16),
-                label: const Text('Add'),
-              ),
-              child: _positions.isEmpty
-                  ? Padding(padding: const EdgeInsets.symmetric(vertical: 12),
-                      child: Text('No positions yet — add one so Staff and Recruitment can assign it.', style: AppTheme.bodySub))
-                  : Column(children: _positions.map((p) => Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 6),
-                      child: Row(children: [
-                        Icon(Symbols.badge, size: 15, color: context.pal.textDim),
-                        const SizedBox(width: 8),
-                        Expanded(child: Text(p.title, style: AppTheme.bodySm)),
-                        if (p.department != null) Text(p.department!, style: AppTheme.bodySub.copyWith(fontSize: 12)),
-                        IconButton(
-                          onPressed: () => _addOrEditPosition(existing: p),
-                          icon: Icon(Symbols.edit, size: 16, color: context.pal.textDim),
-                          tooltip: 'Edit',
-                        ),
-                        IconButton(
-                          onPressed: () => _deletePosition(p),
-                          icon: Icon(Symbols.delete_outline, size: 16, color: context.pal.textDim),
-                          tooltip: 'Remove',
-                        ),
-                      ]),
-                    )).toList()),
-            ),
-            const SizedBox(height: 20),
-            _SectionCard(
-              title: 'General',
-              icon: Symbols.tune,
-              trailing: FilledButton(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+              Container(width: 2, height: 32, decoration: BoxDecoration(color: context.pal.textMute, borderRadius: BorderRadius.circular(2))),
+              const SizedBox(width: 12),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('HR Settings', style: AppTheme.pageTitle.copyWith(fontSize: 21)),
+                const SizedBox(height: 3),
+                Text('Leave allocations, holiday calendar, positions and defaults', style: AppTheme.bodySub.copyWith(fontSize: 12)),
+              ])),
+              FilledButton.icon(
                 onPressed: _savingSettings ? null : _saveSettings,
-                child: _savingSettings
+                icon: _savingSettings
                     ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
-                    : const Text('Save'),
+                    : const Icon(Symbols.save, size: 16),
+                label: const Text('Save all'),
               ),
-              child: Column(children: [
-                _SettingField(label: 'Default probation period (days)', ctrl: _settingCtrls['default_probation_days']),
-                const SizedBox(height: 12),
-                Row(children: [
-                  Expanded(child: _SettingField(label: 'Expected start time', ctrl: _settingCtrls['expected_start_time'])),
-                  const SizedBox(width: 12),
-                  Expanded(child: _SettingField(label: 'Expected end time', ctrl: _settingCtrls['expected_end_time'])),
-                ]),
-                const SizedBox(height: 12),
-                _SettingField(label: 'Alert lead time (days before expiry)', ctrl: _settingCtrls['reminder_lead_days']),
-              ]),
-            ),
+            ]),
+            const SizedBox(height: 20),
+            wide
+                ? Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Expanded(child: _leftColumn(context)),
+                    const SizedBox(width: 20),
+                    Expanded(child: _rightColumn(context)),
+                  ])
+                : Column(children: [_leftColumn(context), const SizedBox(height: 20), _rightColumn(context)]),
           ]),
         ),
       );
     });
   }
+
+  Widget _leftColumn(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    _SectionCard(
+      title: 'Leave day allocations', icon: Symbols.event, accent: AppColors.amber,
+      child: Column(children: _leaveTypes.map((t) => _LeaveTypeRow(
+        type: t, color: _leaveTypeColor(t.key),
+        onSave: (days) => _saveLeaveTypeDays(t, days),
+      )).toList()),
+    ),
+    const SizedBox(height: 20),
+    _SectionCard(
+      title: 'General defaults', icon: Symbols.tune, accent: AppColors.cyan,
+      trailing: FilledButton(
+        onPressed: _savingSettings ? null : _saveSettings,
+        child: _savingSettings
+            ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+            : const Text('Save'),
+      ),
+      child: LayoutBuilder(builder: (ctx, cst) {
+        final twoUp = cst.maxWidth >= 320;
+        final fields = [
+          _SettingField(label: 'Default probation period', unit: 'days', ctrl: _settingCtrls['default_probation_days']),
+          _SettingField(label: 'Alert lead time before expiry', unit: 'days', ctrl: _settingCtrls['reminder_lead_days']),
+          _SettingField(label: 'Expected start time', unit: '', ctrl: _settingCtrls['expected_start_time']),
+          _SettingField(label: 'Expected end time', unit: '', ctrl: _settingCtrls['expected_end_time']),
+        ];
+        if (!twoUp) return Column(children: [for (final f in fields) ...[f, const SizedBox(height: 12)]]..removeLast());
+        return Wrap(spacing: 14, runSpacing: 14, children: fields.map((f) => SizedBox(width: (cst.maxWidth - 14) / 2, child: f)).toList());
+      }),
+    ),
+  ]);
+
+  Widget _rightColumn(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    _SectionCard(
+      title: 'Public holiday calendar', icon: Symbols.calendar_month, accent: AppColors.info,
+      count: _holidays.length,
+      trailing: TextButton.icon(onPressed: _addHoliday, icon: const Icon(Symbols.add, size: 15), label: const Text('Add')),
+      child: _holidays.isEmpty
+          ? Padding(padding: const EdgeInsets.symmetric(vertical: 12), child: Text('No holidays added yet.', style: AppTheme.bodySub.copyWith(fontSize: 12)))
+          : Column(children: _holidays.asMap().entries.map((e) {
+              final h = e.value;
+              return Container(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                decoration: BoxDecoration(border: e.key == _holidays.length - 1 ? null : Border(bottom: BorderSide(color: context.pal.divider))),
+                child: Row(children: [
+                  Text(h.date, style: AppTheme.monoXs.copyWith(color: context.pal.textDim)),
+                  const SizedBox(width: 12),
+                  Expanded(child: Text(h.name, style: AppTheme.bodySm.copyWith(fontSize: 12.5))),
+                  if (h.recurring) Container(
+                    margin: const EdgeInsets.only(right: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(color: AppColors.info.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(5)),
+                    child: Text('yearly', style: AppTheme.monoXs.copyWith(color: AppColors.info, fontSize: 9.5)),
+                  ),
+                  GestureDetector(onTap: () => _deleteHoliday(h), child: Icon(Symbols.delete_outline, size: 15, color: context.pal.textDim)),
+                ]),
+              );
+            }).toList()),
+    ),
+    const SizedBox(height: 20),
+    _SectionCard(
+      title: 'Positions', icon: Symbols.badge, accent: AppColors.cyan,
+      count: _positions.length,
+      trailing: TextButton.icon(onPressed: () => _addOrEditPosition(), icon: const Icon(Symbols.add, size: 15), label: const Text('Add')),
+      child: _positions.isEmpty
+          ? Padding(padding: const EdgeInsets.symmetric(vertical: 12), child: Text('No positions yet — add one so Staff and Recruitment can assign it.', style: AppTheme.bodySub.copyWith(fontSize: 12)))
+          : Column(children: _positions.asMap().entries.map((e) {
+              final p = e.value;
+              final color = _deptColor(p.department);
+              return Container(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                decoration: BoxDecoration(border: e.key == _positions.length - 1 ? null : Border(bottom: BorderSide(color: context.pal.divider))),
+                child: Row(children: [
+                  Expanded(child: Text(p.title, style: AppTheme.bodySm.copyWith(fontSize: 12.5))),
+                  if (p.department != null) Container(
+                    margin: const EdgeInsets.only(right: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                    decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(5)),
+                    child: Text(p.department!, style: AppTheme.monoXs.copyWith(color: color, fontSize: 9.5)),
+                  ),
+                  GestureDetector(onTap: () => _addOrEditPosition(existing: p), child: Icon(Symbols.edit, size: 15, color: context.pal.textDim)),
+                  const SizedBox(width: 8),
+                  GestureDetector(onTap: () => _deletePosition(p), child: Icon(Symbols.delete_outline, size: 15, color: context.pal.textDim)),
+                ]),
+              );
+            }).toList()),
+    ),
+  ]);
 }
 
 class _SectionCard extends StatelessWidget {
-  const _SectionCard({required this.title, required this.icon, required this.child, this.trailing});
+  const _SectionCard({required this.title, required this.icon, required this.child, this.trailing, required this.accent, this.count});
   final String title;
   final IconData icon;
   final Widget child;
   final Widget? trailing;
+  final Color accent;
+  final int? count;
 
   @override
   Widget build(BuildContext context) => Container(
@@ -336,9 +365,13 @@ class _SectionCard extends StatelessWidget {
     ),
     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
-        Icon(icon, size: 17, color: AppColors.teal),
+        Icon(icon, size: 15, color: accent),
         const SizedBox(width: 8),
-        Text(title, style: AppTheme.bodyStrong.copyWith(fontSize: 14)),
+        Text(title.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 11)),
+        if (count != null) ...[
+          const SizedBox(width: 6),
+          Text('$count', style: AppTheme.monoXs.copyWith(color: context.pal.textDim)),
+        ],
         const Spacer(),
         ?trailing,
       ]),
@@ -349,8 +382,9 @@ class _SectionCard extends StatelessWidget {
 }
 
 class _LeaveTypeRow extends StatefulWidget {
-  const _LeaveTypeRow({required this.type, required this.onSave});
+  const _LeaveTypeRow({required this.type, required this.onSave, required this.color});
   final LeaveTypeCatalogEntry type;
+  final Color color;
   final ValueChanged<int> onSave;
 
   @override
@@ -364,14 +398,17 @@ class _LeaveTypeRowState extends State<_LeaveTypeRow> {
   void dispose() { _ctrl.dispose(); super.dispose(); }
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 6),
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(vertical: 10),
+    decoration: BoxDecoration(border: Border(bottom: BorderSide(color: context.pal.divider))),
     child: Row(children: [
-      Expanded(flex: 2, child: Text(widget.type.label, style: AppTheme.bodySm)),
+      Container(width: 8, height: 8, decoration: BoxDecoration(color: widget.color, borderRadius: BorderRadius.circular(2))),
+      const SizedBox(width: 10),
+      Expanded(child: Text(widget.type.label, style: AppTheme.bodySm.copyWith(fontSize: 12.5))),
       if (widget.type.autoFromCalendar)
-        Expanded(flex: 1, child: Text('From calendar', style: AppTheme.bodySub.copyWith(fontSize: 11.5)))
+        Text('From calendar', style: AppTheme.bodySub.copyWith(fontSize: 11.5))
       else if (widget.type.requiresManualDays)
-        Expanded(flex: 1, child: Text('Set at approval', style: AppTheme.bodySub.copyWith(fontSize: 11.5)))
+        Text('Set at approval', style: AppTheme.bodySub.copyWith(fontSize: 11.5))
       else ...[
         SizedBox(
           width: 70,
@@ -381,13 +418,12 @@ class _LeaveTypeRowState extends State<_LeaveTypeRow> {
           ),
         ),
         const SizedBox(width: 10),
-        IconButton(
-          onPressed: () {
+        GestureDetector(
+          onTap: () {
             final v = int.tryParse(_ctrl.text.trim());
             if (v != null) widget.onSave(v);
           },
-          icon: Icon(Symbols.check, size: 16, color: AppColors.teal),
-          tooltip: 'Save',
+          child: Icon(Symbols.check, size: 17, color: AppColors.teal),
         ),
       ],
     ]),
@@ -395,10 +431,12 @@ class _LeaveTypeRowState extends State<_LeaveTypeRow> {
 }
 
 class _SettingField extends StatelessWidget {
-  const _SettingField({required this.label, required this.ctrl});
+  const _SettingField({required this.label, required this.ctrl, this.unit = ''});
   final String label;
   final TextEditingController? ctrl;
+  final String unit;
 
   @override
-  Widget build(BuildContext context) => LabeledTextField(label: label, controller: ctrl!);
+  Widget build(BuildContext context) =>
+      LabeledTextField(label: unit.isEmpty ? label : '$label ($unit)', controller: ctrl!);
 }

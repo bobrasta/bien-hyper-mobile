@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import '../models/contract.dart';
 import 'api_client.dart';
 
@@ -34,6 +35,14 @@ class ContractService {
       'resignation_date': resignationDate,
       'resignation_reason': ?reason,
     });
+    return Contract.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+  }
+
+  Future<Contract> uploadDocument(int contractId, String filePath, String fileName) async {
+    final formData = FormData.fromMap({
+      'file': await MultipartFile.fromFile(filePath, filename: fileName),
+    });
+    final res = await _dio.post('/contracts/$contractId/document', data: formData);
     return Contract.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
   }
 

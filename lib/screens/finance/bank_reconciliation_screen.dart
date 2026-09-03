@@ -10,7 +10,6 @@ import '../../theme/app_palette.dart';
 import '../../utils/api_error.dart';
 import '../../utils/format.dart';
 import '../../utils/responsive.dart';
-import '../../widgets/common/app_button.dart';
 import '../../widgets/common/error_view.dart';
 
 class BankReconciliationScreen extends StatefulWidget {
@@ -65,28 +64,24 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
 
     return Stack(children: [
       LayoutBuilder(builder: (ctx, cst) {
-        final pad = cst.maxWidth < 560 ? 16.0 : 28.0;
+        final pad = cst.maxWidth < 560 ? 16.0 : 26.0;
         return RefreshIndicator(
           onRefresh: _load,
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             padding: EdgeInsets.all(pad),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              LayoutBuilder(builder: (ctx, cst) {
-                final narrow = cst.maxWidth < 560;
-                final titleBlock = Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('Bank Reconciliation', style: AppTheme.pageTitle),
-                  const SizedBox(height: 4),
-                  Text('Match bank statements to system records', style: AppTheme.bodySub),
-                ]);
-                final action = AppButton(label: 'New Reconciliation', icon: Symbols.add, variant: BtnVariant.primary,
-                    onPressed: () => setState(() => _showCreate = true));
-                if (narrow) {
-                  return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [titleBlock, const SizedBox(height: 12), action]);
-                }
-                return Row(crossAxisAlignment: CrossAxisAlignment.end, children: [titleBlock, const Spacer(), action]);
-              }),
-              const SizedBox(height: 24),
+              Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                Container(width: 2, height: 36, decoration: BoxDecoration(color: AppColors.green, borderRadius: BorderRadius.circular(2))),
+                const SizedBox(width: 13),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Bank Reconciliation', style: AppTheme.pageTitle.copyWith(fontSize: 23)),
+                  const SizedBox(height: 3),
+                  Text('Match bank statements to system records', style: AppTheme.bodySub.copyWith(fontSize: 12)),
+                ])),
+                FilledButton.icon(onPressed: () => setState(() => _showCreate = true), icon: const Icon(Symbols.add, size: 16), label: const Text('New reconciliation')),
+              ]),
+              const SizedBox(height: 20),
               if (_loading)
                 const Center(child: Padding(padding: EdgeInsets.symmetric(vertical: 48), child: CircularProgressIndicator(strokeWidth: 2)))
               else if (_error != null)
@@ -410,43 +405,72 @@ class _ReconciliationDetailState extends State<_ReconciliationDetail> {
     final recon = widget.recon;
     final t = recon.totals;
     final ok = t.difference == 0;
+    final matched = recon.lines.where((l) => l.isMatched).length;
+    final unmatched = recon.lines.length - matched;
+    final matchedPct = recon.lines.isEmpty ? 0.0 : matched / recon.lines.length;
 
     return LayoutBuilder(builder: (ctx, cst) {
-      final pad = cst.maxWidth < 560 ? 16.0 : 28.0;
+      final pad = cst.maxWidth < 560 ? 16.0 : 26.0;
       return SingleChildScrollView(
         padding: EdgeInsets.all(pad),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            GestureDetector(onTap: widget.onBack, child: Icon(Symbols.arrow_back, size: 20, color: context.pal.textMute)),
-            const SizedBox(width: 12),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+            GestureDetector(
+              onTap: widget.onBack,
+              child: Container(
+                width: 28, height: 28, alignment: Alignment.center,
+                decoration: BoxDecoration(borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
+                child: Icon(Symbols.arrow_back, size: 15, color: context.pal.textMute),
+              ),
+            ),
+            const SizedBox(width: 13),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('${recon.periodFrom} → ${recon.periodTo}', style: AppTheme.pageTitle.copyWith(fontSize: 18)),
-              Text(recon.isComplete ? 'Complete' : 'Draft', style: AppTheme.bodySub),
+              Row(children: [
+                Text('${recon.periodFrom} → ${recon.periodTo}', style: AppTheme.pageTitle.copyWith(fontSize: 20)),
+                const SizedBox(width: 9),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(color: (recon.isComplete ? AppColors.green : AppColors.amber).withValues(alpha: 0.14), borderRadius: BorderRadius.circular(5)),
+                  child: Text(recon.isComplete ? 'COMPLETE' : 'DRAFT', style: AppTheme.monoXs.copyWith(fontSize: 9, color: recon.isComplete ? AppColors.green : AppColors.amber)),
+                ),
+              ]),
+              const SizedBox(height: 3),
+              Text('${recon.lines.length} line${recon.lines.length == 1 ? '' : 's'} · $matched matched by rule', style: AppTheme.bodySub.copyWith(fontSize: 12)),
             ])),
             if (!recon.isComplete) ...[
-              AppButton(label: 'Import CSV', icon: Symbols.upload_file, variant: BtnVariant.normal, onPressed: _busy ? null : _importCsv),
+              OutlinedButton.icon(onPressed: _busy ? null : _importCsv, icon: const Icon(Symbols.upload_file, size: 15), label: const Text('Re-import CSV')),
               const SizedBox(width: 8),
-              AppButton(label: 'Auto-Match', icon: Symbols.auto_awesome, variant: BtnVariant.normal, onPressed: _busy ? null : _autoMatch),
+              OutlinedButton.icon(
+                onPressed: _busy ? null : _autoMatch,
+                style: OutlinedButton.styleFrom(foregroundColor: AppColors.violet, side: BorderSide(color: AppColors.violet.withValues(alpha: 0.5))),
+                icon: const Icon(Symbols.auto_awesome, size: 15), label: const Text('Auto-match'),
+              ),
               const SizedBox(width: 8),
-              AppButton(label: 'Complete', icon: Symbols.check, variant: BtnVariant.primary, onPressed: (_busy || !ok) ? null : _complete),
+              FilledButton.icon(onPressed: (_busy || !ok) ? null : _complete, icon: const Icon(Symbols.lock, size: 15), label: const Text('Complete')),
             ] else
-              AppButton(label: 'Reopen', icon: Symbols.lock_open, variant: BtnVariant.ghost, onPressed: _busy ? null : _reopen),
+              OutlinedButton.icon(onPressed: _busy ? null : _reopen, icon: const Icon(Symbols.lock_open, size: 15), label: const Text('Reopen')),
           ]),
-          const SizedBox(height: 20),
-          AdaptiveColumns(wideCols: 4, mediumCols: 2, narrowCols: 2, children: [
-            _MiniStat(label: 'System Balance', value: tshFromDouble(t.cashBookBalance)),
-            _MiniStat(label: 'Reconciled Balance', value: tshFromDouble(t.reconciledBalance)),
-            _MiniStat(label: 'Statement Balance', value: tshFromDouble(t.statementClosingBalance)),
-            _MiniStat(label: 'Difference', value: tshFromDouble(t.difference)),
-          ]),
-          const SizedBox(height: 8),
-          Row(children: [
-            Icon(ok ? Symbols.check_circle : Symbols.error, size: 15, color: ok ? AppColors.teal : AppColors.coral),
-            const SizedBox(width: 6),
-            Text(ok ? 'Matches statement — ready to complete' : 'Off by ${tshFromDouble(t.difference.abs())} — match remaining lines',
-                style: AppTheme.bodySub.copyWith(color: ok ? AppColors.teal : AppColors.coral)),
-          ]),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 15),
+            decoration: BoxDecoration(color: context.pal.surface1, borderRadius: BorderRadius.circular(14), border: Border.all(color: context.pal.border)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Expanded(child: _reconStat('Statement balance', tshFromDouble(t.statementClosingBalance), context.pal.text, 21)),
+                Expanded(child: _reconStat('Ledger balance', tshFromDouble(t.cashBookBalance), context.pal.text, 21)),
+                Expanded(child: _reconStat('Matched', tshFromDouble(t.reconciledBalance), AppColors.green, 21)),
+                Expanded(child: _reconStat('Difference', tshSigned(t.difference), ok ? AppColors.green : AppColors.coral, 24)),
+              ]),
+              const SizedBox(height: 15),
+              ClipRRect(borderRadius: BorderRadius.circular(4), child: Row(children: [
+                Expanded(flex: matched == 0 ? 1 : matched, child: Container(height: 8, color: matched == 0 ? context.pal.surface3 : AppColors.green)),
+                if (unmatched > 0) Expanded(flex: unmatched, child: Container(height: 8, color: AppColors.coral)),
+              ])),
+              const SizedBox(height: 9),
+              Text('$matched matched · $unmatched unmatched · ${(matchedPct * 100).toStringAsFixed(0)}% complete', style: AppTheme.bodySub.copyWith(fontSize: 11)),
+            ]),
+          ),
+          const SizedBox(height: 16),
           Container(
             decoration: BoxDecoration(
               color: context.pal.surface1,
@@ -458,10 +482,31 @@ class _ReconciliationDetailState extends State<_ReconciliationDetail> {
               onUnmatch: _unmatch,
             )),
           ),
+          if (!ok) ...[
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(color: AppColors.coral.withValues(alpha: 0.06), borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.coral.withValues(alpha: 0.24))),
+              child: Row(children: [
+                Icon(Symbols.warning, size: 15, color: AppColors.coral),
+                const SizedBox(width: 10),
+                Expanded(child: Text(
+                  'Off by ${tshFromDouble(t.difference.abs())} — $unmatched statement line${unmatched == 1 ? '' : 's'} still need${unmatched == 1 ? 's' : ''} a ledger match before this can be completed.',
+                  style: AppTheme.bodySm.copyWith(fontSize: 12),
+                )),
+              ]),
+            ),
+          ],
         ]),
       );
     });
   }
+
+  Widget _reconStat(String label, String value, Color color, double size) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 9.5)),
+    const SizedBox(height: 6),
+    Text(value, style: AppTheme.kpiValue.copyWith(fontSize: size, color: color)),
+  ]);
 }
 
 class _LinesTable extends StatelessWidget {
@@ -490,16 +535,24 @@ class _LinesTable extends StatelessWidget {
         ...lines.asMap().entries.map((e) {
           final l = e.value;
           return TableRow(
-            decoration: BoxDecoration(border: e.key == lines.length - 1 ? null : Border(bottom: BorderSide(color: context.pal.divider))),
+            decoration: BoxDecoration(
+              color: l.isMatched ? null : AppColors.coral.withValues(alpha: 0.05),
+              border: e.key == lines.length - 1 ? null : Border(bottom: BorderSide(color: context.pal.divider)),
+            ),
             children: [
-              Padding(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10), child: Text(l.txnDate, style: AppTheme.monoXs)),
+              Padding(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10), child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Container(width: 3, height: 22, decoration: BoxDecoration(color: l.isMatched ? AppColors.green : AppColors.coral, borderRadius: BorderRadius.circular(2))),
+                const SizedBox(width: 9),
+                Text(l.txnDate, style: AppTheme.monoXs),
+              ])),
               Padding(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10), child: Text(l.description, style: AppTheme.bodySm.copyWith(fontSize: 12), overflow: TextOverflow.ellipsis)),
               Padding(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10), child: Text(l.debit > 0 ? tshFromDouble(l.debit) : '—', style: AppTheme.monoSm.copyWith(fontSize: 12))),
               Padding(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10), child: Text(l.credit > 0 ? tshFromDouble(l.credit) : '—', style: AppTheme.monoSm.copyWith(fontSize: 12))),
-              Padding(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10), child: Icon(
-                l.isMatched ? Symbols.check_circle : Symbols.radio_button_unchecked, size: 16,
-                color: l.isMatched ? AppColors.teal : context.pal.textDim,
-              )),
+              Padding(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10), child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(l.isMatched ? Symbols.check_circle : Symbols.radio_button_unchecked, size: 15, color: l.isMatched ? AppColors.green : AppColors.coral),
+                const SizedBox(width: 6),
+                Text(l.isMatched ? 'matched' : 'unmatched', style: AppTheme.bodySub.copyWith(fontSize: 11, color: l.isMatched ? AppColors.green : AppColors.coral)),
+              ])),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                 child: l.isMatched

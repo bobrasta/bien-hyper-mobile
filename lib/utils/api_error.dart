@@ -5,6 +5,12 @@ import '../theme/app_colors.dart';
 /// Converts a caught exception into a short, user-readable string.
 String friendlyError(Object e) {
   if (e is DioException) {
+    // Laravel sends {"message": "..."} for both abort_if(..., 'reason')
+    // calls and validation failures — prefer that real, specific reason
+    // over a generic status-code message wherever the backend supplied
+    // one (a 403 in this codebase is almost always a deliberate, worded
+    // abort_if, not a bare access-denied).
+    final serverMessage = _serverMessage(e);
     return switch (e.type) {
       DioExceptionType.connectionTimeout =>
         'Cannot connect to the server. Check your network.',
@@ -17,6 +23,7 @@ String friendlyError(Object e) {
       DioExceptionType.badResponse => () {
         final status = e.response?.statusCode;
         if (status == 401) return 'Session expired. Please log in again.';
+        if (serverMessage != null) return serverMessage;
         if (status == 403) return 'You don\'t have permission to access this.';
         if (status == 404) return 'Resource not found on the server.';
         if (status != null && status >= 500) return 'Server error ($status). Contact support.';
@@ -27,6 +34,12 @@ String friendlyError(Object e) {
     };
   }
   return e.toString().replaceAll('Exception: ', '');
+}
+
+String? _serverMessage(DioException e) {
+  final data = e.response?.data;
+  if (data is Map && data['message'] is String) return data['message'] as String;
+  return null;
 }
 
 /// Show a SnackBar error toast. Use instead of inline error text.

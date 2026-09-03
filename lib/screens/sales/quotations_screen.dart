@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../../main.dart' show userRoleNotifier, hasSalesApprovalAuthority;
 import '../../models/inventory_item.dart';
 import '../../models/location.dart';
@@ -12,6 +11,8 @@ import '../../theme/app_colors.dart';
 import '../../theme/app_palette.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/api_error.dart';
+import '../../utils/format.dart';
+import '../../utils/pdf_download.dart';
 import '../../utils/whatsapp_share.dart';
 import '../../widgets/common/app_button.dart';
 import '../../widgets/common/error_view.dart';
@@ -110,71 +111,65 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
   @override
   Widget build(BuildContext context) {
     return Stack(children: [
-      Column(children: [
-        // ── Header ──
-        Container(
-          padding: const EdgeInsets.fromLTRB(28, 24, 28, 16),
-          decoration: BoxDecoration(border: Border(bottom: BorderSide(color: context.pal.border))),
-          child: LayoutBuilder(builder: (_, cst) {
-            final narrow = cst.maxWidth < 580;
-            final titleBlock = Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Quotations', style: AppTheme.pageTitle),
-              const SizedBox(height: 4),
-              Text('${_filtered.length} quotation${_filtered.length == 1 ? '' : 's'}',
-                  style: AppTheme.bodySub),
-            ]);
-            final actions = Row(mainAxisSize: MainAxisSize.min, children: [
+      LayoutBuilder(builder: (ctx, cst) {
+        final pad = cst.maxWidth < 560 ? 16.0 : 26.0;
+        final converted = _all.where((q) => q.status == 'converted').length;
+        final totalQuoted = _all.fold<int>(0, (s, q) => s + q.totalAmount);
+        final openValue = _all.where((q) => q.status == 'sent' || q.status == 'accepted').fold<int>(0, (s, q) => s + q.totalAmount);
+        return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Padding(
+            padding: EdgeInsets.fromLTRB(pad, pad, pad, 0),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+              Container(width: 2, height: 36, decoration: BoxDecoration(color: AppColors.amber, borderRadius: BorderRadius.circular(2))),
+              const SizedBox(width: 13),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Quotations', style: AppTheme.pageTitle.copyWith(fontSize: 23)),
+                const SizedBox(height: 3),
+                Text('${_all.length} quotations · ${tshFromDouble(totalQuoted)} quoted · $converted converted to orders', style: AppTheme.bodySub.copyWith(fontSize: 12)),
+              ])),
               SizedBox(
-                width: 220,
-                height: 36,
+                width: 220, height: 32,
                 child: TextField(
                   controller: _searchCtrl,
-                  style: AppTheme.bodySm,
+                  style: AppTheme.bodySm.copyWith(fontSize: 12.5),
                   decoration: InputDecoration(
-                    hintText: 'Search client / QT number…',
-                    hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
-                    prefixIcon: Icon(Symbols.search, size: 16, color: context.pal.textDim),
-                    filled: true, fillColor: context.pal.surface2,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide(color: context.pal.border),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide(color: context.pal.border),
-                    ),
+                    hintText: 'Client or QT number…',
+                    hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim, fontSize: 12),
+                    prefixIcon: Icon(Symbols.search, size: 15, color: context.pal.textDim),
+                    filled: true, fillColor: context.pal.surface1,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 6, horizontal: 10),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(9), borderSide: BorderSide(color: context.pal.border)),
+                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(9), borderSide: BorderSide(color: context.pal.border)),
                   ),
                 ),
               ),
               const SizedBox(width: 8),
-              AppButton(
-                label: 'New Quotation', icon: Symbols.add, variant: BtnVariant.primary,
-                onPressed: () => setState(() => _showForm = true),
-              ),
-            ]);
-            if (narrow) {
-              return Column(crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [titleBlock, const SizedBox(height: 12), actions]);
-            }
-            return Row(children: [titleBlock, const Spacer(), actions]);
-          }),
-        ),
-
-        // ── Status filter chips ──
-        _StatusChips(
-          current: _statusFilter,
-          onChanged: (s) { setState(() { _statusFilter = s; _applyFilter(); }); },
-        ),
-
-        // ── Body: list + detail ──
-        if (_loading)
-          const Expanded(child: Center(child: CircularProgressIndicator(strokeWidth: 2)))
-        else if (_error != null)
-          Expanded(child: ErrorView(message: _error!, onRetry: _load))
-        else
-          Expanded(child: _QuotationTable(items: _filtered, onSelect: _showDetailModal)),
-      ]),
+              FilledButton.icon(onPressed: () => setState(() => _showForm = true), icon: const Icon(Symbols.add, size: 16), label: const Text('New quotation')),
+            ]),
+          ),
+          const SizedBox(height: 14),
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: pad),
+            child: _StatusChips(
+              current: _statusFilter,
+              counts: {for (final s in ['draft', 'sent', 'accepted', 'rejected', 'converted']) s: _all.where((q) => q.status == s).length},
+              total: _all.length,
+              onChanged: (s) { setState(() { _statusFilter = s; _applyFilter(); }); },
+            ),
+          ),
+          const SizedBox(height: 14),
+          Expanded(
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(pad, 0, pad, pad),
+              child: _loading
+                  ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
+                  : _error != null
+                      ? ErrorView(message: _error!, onRetry: _load)
+                      : _QuotationTable(items: _filtered, onSelect: _showDetailModal, openValue: openValue, convertedCount: converted, totalCount: _all.length),
+            ),
+          ),
+        ]);
+      }),
 
       if (_showForm)
         _QuotationFormModal(
@@ -188,8 +183,10 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
 // ── Status filter chips ────────────────────────────────────────────────────────
 
 class _StatusChips extends StatelessWidget {
-  const _StatusChips({required this.current, required this.onChanged});
+  const _StatusChips({required this.current, required this.counts, required this.total, required this.onChanged});
   final String? current;
+  final Map<String, int> counts;
+  final int total;
   final ValueChanged<String?> onChanged;
 
   static const _statuses = [
@@ -199,43 +196,35 @@ class _StatusChips extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => SizedBox(
-    height: 44,
+    height: 32,
     child: ListView(
       scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 6),
       children: [
-        _chip(context, null, 'All'),
-        ...(_statuses.map((s) => _chip(context, s.$1, s.$2))),
+        _chip(context, null, 'All', total),
+        const SizedBox(width: 8),
+        ...(_statuses.expand((s) => [_chip(context, s.$1, s.$2, counts[s.$1] ?? 0), const SizedBox(width: 8)])),
       ],
     ),
   );
 
-  Widget _chip(BuildContext ctx, String? value, String label) {
+  Widget _chip(BuildContext ctx, String? value, String label, int count) {
     final active = current == value;
     return GestureDetector(
       onTap: () => onChanged(active ? null : value),
       child: Container(
-        margin: const EdgeInsets.only(right: 6),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        height: 30,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: active
-              ? (value == null ? ctx.pal.surface3 : _statusColor(value).withValues(alpha: 0.15))
-              : ctx.pal.surface2,
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(
-            color: active
-                ? (value == null ? ctx.pal.borderStrong : _statusColor(value))
-                : ctx.pal.border,
-          ),
+          color: active ? AppColors.green.withValues(alpha: 0.10) : Colors.transparent,
+          borderRadius: BorderRadius.circular(9),
+          border: Border.all(color: active ? AppColors.green.withValues(alpha: 0.5) : ctx.pal.border),
         ),
-        child: Text(label,
-          style: AppTheme.bodySm.copyWith(
-            fontSize: 12,
-            color: active
-                ? (value == null ? ctx.pal.text : _statusColor(value))
-                : ctx.pal.textMute,
-            fontWeight: active ? FontWeight.w600 : FontWeight.w400,
-          )),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Text(label, style: AppTheme.bodySm.copyWith(fontSize: 12, color: active ? AppColors.green : ctx.pal.textMute)),
+          const SizedBox(width: 6),
+          Text('$count', style: AppTheme.monoXs.copyWith(fontSize: 10.5, color: active ? AppColors.green : ctx.pal.textDim)),
+        ]),
       ),
     );
   }
@@ -244,65 +233,100 @@ class _StatusChips extends StatelessWidget {
 // ── Quotation table ────────────────────────────────────────────────────────────
 
 class _QuotationTable extends StatelessWidget {
-  const _QuotationTable({required this.items, required this.onSelect});
+  const _QuotationTable({required this.items, required this.onSelect, required this.openValue, required this.convertedCount, required this.totalCount});
   final List<Quotation> items;
   final ValueChanged<Quotation> onSelect;
+  final int openValue;
+  final int convertedCount;
+  final int totalCount;
+
+  String _validNote(Quotation qt) {
+    if (qt.status == 'converted') return 'order raised';
+    if (qt.validUntil == null) return '';
+    final d = DateTime.tryParse(qt.validUntil!);
+    if (d == null) return '';
+    final days = d.difference(DateTime.now()).inDays;
+    if (days < 0) return 'expired';
+    return 'in $days days';
+  }
 
   @override
   Widget build(BuildContext context) {
-    if (items.isEmpty) {
-      return Center(child: Text('No quotations found', style: AppTheme.bodySub));
-    }
-    return ListView.separated(
-      padding: const EdgeInsets.all(0),
-      itemCount: items.length + 1,
-      separatorBuilder: (_, _) => Divider(height: 1, color: context.pal.border),
-      itemBuilder: (_, i) {
-        if (i == 0) return _tableHeader(context);
-        final qt = items[i - 1];
-        return GestureDetector(
-          onTap: () => onSelect(qt),
-          child: Container(
-            color: Colors.transparent,
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-            child: Row(children: [
-              SizedBox(width: 140, child: Text(qt.quotationNumber,
-                  style: AppTheme.monoXs.copyWith(fontSize: 12, color: context.pal.textDim))),
-              Expanded(child: Row(children: [
-                if (qt.needsApproval) ...[
-                  Icon(Symbols.hourglass_top, size: 13, color: AppColors.amber),
-                  const SizedBox(width: 4),
-                ],
-                Flexible(child: Text(qt.clientName,
-                    style: AppTheme.bodySm.copyWith(fontWeight: FontWeight.w500),
-                    overflow: TextOverflow.ellipsis)),
-              ])),
-              SizedBox(width: 110, child: Text(_fmtAmount(qt.totalAmount),
-                  style: AppTheme.bodySm.copyWith(color: AppColors.amber))),
-              SizedBox(width: 120, child: _StatusBadge(qt.status, qt.statusLabel)),
-              SizedBox(width: 100, child: Text(qt.createdAt.substring(0, 10),
-                  style: AppTheme.bodySub.copyWith(fontSize: 11))),
-            ]),
-          ),
-        );
-      },
+    final total = items.fold<int>(0, (s, q) => s + q.totalAmount);
+    return Container(
+      decoration: BoxDecoration(color: context.pal.surface1, borderRadius: BorderRadius.circular(14), border: Border.all(color: context.pal.border)),
+      clipBehavior: Clip.antiAlias,
+      child: Column(children: [
+        Container(
+          height: 38, padding: const EdgeInsets.symmetric(horizontal: 16),
+          color: context.pal.surface2,
+          child: Row(children: [
+            SizedBox(width: 130, child: Text('QT NUMBER', style: AppTheme.labelCaps.copyWith(fontSize: 9.5))),
+            Expanded(flex: 3, child: Text('CLIENT', style: AppTheme.labelCaps.copyWith(fontSize: 9.5))),
+            Expanded(child: Text('AMOUNT', textAlign: TextAlign.right, style: AppTheme.labelCaps.copyWith(fontSize: 9.5))),
+            Expanded(child: Text('STATUS', textAlign: TextAlign.right, style: AppTheme.labelCaps.copyWith(fontSize: 9.5))),
+            Expanded(child: Text('CREATED', style: AppTheme.labelCaps.copyWith(fontSize: 9.5))),
+            Expanded(child: Text('VALID UNTIL', style: AppTheme.labelCaps.copyWith(fontSize: 9.5))),
+            const SizedBox(width: 56),
+          ]),
+        ),
+        Expanded(child: items.isEmpty
+            ? Center(child: Text('No quotations found', style: AppTheme.bodySub))
+            : ListView.separated(
+                itemCount: items.length,
+                separatorBuilder: (_, _) => Container(height: 1, color: context.pal.divider),
+                itemBuilder: (_, i) {
+                  final qt = items[i];
+                  final color = _statusColor(qt.status);
+                  final note = _validNote(qt);
+                  return GestureDetector(
+                    onTap: () => onSelect(qt),
+                    child: Container(
+                      height: 56, padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Row(children: [
+                        SizedBox(width: 130, child: Row(children: [
+                          Container(width: 3, height: 26, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2))),
+                          const SizedBox(width: 9),
+                          Expanded(child: Text(qt.quotationNumber, style: AppTheme.monoXs.copyWith(fontSize: 11.5, color: context.pal.textMute))),
+                        ])),
+                        Expanded(flex: 3, child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                          Row(children: [
+                            if (qt.needsApproval) ...[Icon(Symbols.hourglass_top, size: 12, color: AppColors.amber), const SizedBox(width: 4)],
+                            Flexible(child: Text(qt.clientName, style: AppTheme.bodySm.copyWith(fontSize: 12.5), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                          ]),
+                          if (qt.clientContact != null) Text(qt.clientContact!, style: AppTheme.bodySub.copyWith(fontSize: 11), maxLines: 1, overflow: TextOverflow.ellipsis),
+                        ])),
+                        Expanded(child: Text(tshFromDouble(qt.totalAmount), textAlign: TextAlign.right, style: AppTheme.monoSm.copyWith(fontSize: 13))),
+                        Expanded(child: Align(alignment: Alignment.centerRight, child: _StatusBadge(qt.status, qt.statusLabel))),
+                        Expanded(child: Text(qt.createdAt.length >= 10 ? qt.createdAt.substring(0, 10) : qt.createdAt, style: AppTheme.monoXs.copyWith(fontSize: 11, color: context.pal.textDim))),
+                        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Text(qt.validUntil ?? '—', style: AppTheme.monoXs.copyWith(fontSize: 11)),
+                          if (note.isNotEmpty) Text(note, style: AppTheme.bodySub.copyWith(fontSize: 10, color: note == 'expired' ? AppColors.coral : context.pal.textDim)),
+                        ])),
+                        SizedBox(width: 56, child: Align(alignment: Alignment.centerRight, child: OutlinedButton(
+                          onPressed: () => onSelect(qt),
+                          style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 10), minimumSize: const Size(0, 26)),
+                          child: Text(qt.status == 'sent' ? 'Chase' : 'View', style: const TextStyle(fontSize: 11)),
+                        ))),
+                      ]),
+                    ),
+                  );
+                },
+              )),
+        Container(
+          height: 46, padding: const EdgeInsets.symmetric(horizontal: 16),
+          decoration: BoxDecoration(color: context.pal.surface2, border: Border(top: BorderSide(color: context.pal.divider))),
+          child: Row(children: [
+            SizedBox(width: 130, child: Text('TOTAL QUOTED', style: AppTheme.labelCaps.copyWith(fontSize: 10))),
+            Expanded(flex: 3, child: Text('$convertedCount of $totalCount converted · ${tshFromDouble(openValue)} of pipeline still open', style: AppTheme.bodySub.copyWith(fontSize: 11))),
+            Expanded(child: Text(tshFromDouble(total), textAlign: TextAlign.right, style: AppTheme.bodyStrong.copyWith(fontSize: 13.5))),
+            const Expanded(child: SizedBox()), const Expanded(child: SizedBox()), const Expanded(child: SizedBox()), const SizedBox(width: 56),
+          ]),
+        ),
+      ]),
     );
   }
-
-  Widget _tableHeader(BuildContext context) => Container(
-    color: context.pal.surface2,
-    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-    child: Row(children: [
-      SizedBox(width: 140, child: Text('QT NUMBER', style: AppTheme.labelCaps)),
-      const Expanded(child: Text('CLIENT',    style: _hStyle)),
-      SizedBox(width: 110,  child: Text('AMOUNT',   style: AppTheme.labelCaps)),
-      SizedBox(width: 120,  child: Text('STATUS',   style: AppTheme.labelCaps)),
-      SizedBox(width: 100,  child: Text('CREATED',  style: AppTheme.labelCaps)),
-    ]),
-  );
 }
-
-const _hStyle = TextStyle(fontSize: 10, fontWeight: FontWeight.w600, letterSpacing: 0.08);
 
 // ── Status badge ───────────────────────────────────────────────────────────────
 
@@ -404,16 +428,8 @@ class _QuotationDetailDialogState extends State<_QuotationDetailDialog> {
   Future<void> _viewPdf() async {
     if (_sharing) return;
     setState(() => _sharing = true);
-    try {
-      final url = await QuotationService.instance.shareLink(widget.qt.id);
-      await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));
-      }
-    } finally {
-      if (mounted) setState(() => _sharing = false);
-    }
+    await downloadPdf(context, () => QuotationService.instance.pdfBytes(widget.qt.id), '${widget.qt.quotationNumber}.pdf');
+    if (mounted) setState(() => _sharing = false);
   }
 
   Future<void> _shareWhatsApp() async {
@@ -562,10 +578,10 @@ class _QuotationDetailDialogState extends State<_QuotationDetailDialog> {
                 )
               else ...[
                 Tooltip(
-                  message: 'View / download PDF',
+                  message: 'Download PDF',
                   child: GestureDetector(
                     onTap: _viewPdf,
-                    child: Icon(Symbols.picture_as_pdf, size: 18, color: context.pal.textDim),
+                    child: Icon(Symbols.download, size: 18, color: context.pal.textDim),
                   ),
                 ),
                 const SizedBox(width: 14),

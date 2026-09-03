@@ -44,6 +44,18 @@ class PerDiemService {
     return PerDiemRequest.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
   }
 
+  /// Finance's step — prepares the payment but doesn't move money on their
+  /// own authority. Director's markPaid() below is the actual release.
+  Future<PerDiemRequest> initiatePayment(int id, {String? method, String? reference}) async {
+    final res = await _dio.post('/per-diem-requests/$id/initiate-payment', data: {
+      'payment_method':    ?method,
+      'payment_reference': ?reference,
+    });
+    return PerDiemRequest.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+  }
+
+  /// Director's final authorization — only reachable once finance has
+  /// initiated payment.
   Future<PerDiemRequest> markPaid(int id) async {
     final res = await _dio.post('/per-diem-requests/$id/mark-paid');
     return PerDiemRequest.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);

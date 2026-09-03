@@ -19,6 +19,7 @@ import '../../utils/api_error.dart';
 import '../../utils/csv_export.dart';
 import '../../utils/format.dart';
 import '../../utils/responsive.dart';
+import '../../widgets/common/app_dropdown.dart';
 import '../../widgets/common/avatar_widget.dart';
 import '../../theme/app_palette.dart';
 
@@ -248,13 +249,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  Future<void> _loadMembers() async {
+  Future<void> _loadMembers({bool force = false}) async {
     setState(() { _loadingMembers = true; _memberError = null; });
     try {
-      final list = await StaffService.instance.list();
+      final list = await StaffService.instance.list(force: force);
       if (mounted) setState(() { _staffList = list; _loadingMembers = false; });
     } catch (e) {
-      if (mounted) setState(() { _loadingMembers = false; _memberError = 'Failed to load members.'; });
+      if (mounted) setState(() { _loadingMembers = false; _memberError = friendlyError(e); });
     }
   }
 
@@ -689,19 +690,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final roleNames = _roles.map((r) => r.name).toList()..sort();
     final items = ['All', ...roleNames];
     final value = items.contains(_memberRoleFilter) ? _memberRoleFilter : 'All';
-    return Container(
-      height: 32, padding: const EdgeInsets.symmetric(horizontal: 10),
-      decoration: BoxDecoration(color: context.pal.surface1,
-          borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-      child: DropdownButtonHideUnderline(child: DropdownButton<String>(
+    return SizedBox(
+      width: 180,
+      child: AppSelectField<String>(
         value: value,
-        dropdownColor: context.pal.surface2,
-        style: AppTheme.bodySub.copyWith(fontSize: 12, color: context.pal.text),
-        icon: Icon(Symbols.expand_more, size: 15, color: context.pal.textDim),
-        items: items.map((r) => DropdownMenuItem(
-            value: r, child: Text(r == 'All' ? 'Role: All' : 'Role: ${_roleLabel(r)}'))).toList(),
-        onChanged: (v) { if (v != null) setState(() => _memberRoleFilter = v); },
-      )),
+        items: items.map((r) => AppSelectItem(value: r, label: r == 'All' ? 'All' : _roleLabel(r))).toList(),
+        onChanged: (v) => setState(() => _memberRoleFilter = v),
+      ),
     );
   }
 
@@ -710,6 +705,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
       final n2 = cst2.maxWidth < 520;
       final searchBox = _memberSearchField(context);
       final roleFilter = _memberRoleFilterDropdown(context);
+      final refreshBtn = Tooltip(
+        message: 'Refresh from server — this list is cached per device/session, so a member added elsewhere won\'t show up until refreshed.',
+        child: GestureDetector(
+          onTap: _loadingMembers ? null : () => _loadMembers(force: true),
+          child: Container(
+            height: 32, width: 32, alignment: Alignment.center,
+            decoration: BoxDecoration(color: context.pal.surface1, borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
+            child: _loadingMembers
+                ? SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: context.pal.textMute))
+                : Icon(Symbols.refresh, size: 16, color: context.pal.textMute),
+          ),
+        ),
+      );
       final inviteBtn = GestureDetector(
         onTap: () => setState(() => _showInvite = true),
         child: Container(
@@ -726,12 +734,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (n2) {
         return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           searchBox, const SizedBox(height: 8),
-          Row(children: [roleFilter, const Spacer(), inviteBtn]),
+          Row(children: [roleFilter, const Spacer(), refreshBtn, const SizedBox(width: 8), inviteBtn]),
         ]);
       }
       return Row(children: [
         SizedBox(width: 260, child: searchBox), const SizedBox(width: 10),
-        roleFilter, const Spacer(), inviteBtn,
+        roleFilter, const Spacer(), refreshBtn, const SizedBox(width: 8), inviteBtn,
       ]);
     }),
     const SizedBox(height: 12),
@@ -1759,37 +1767,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ],
               )),
               const SizedBox(width: 16),
-              SegmentedButton<AppThemeMode>(
-                segments: const [
-                  ButtonSegment(
-                    value: AppThemeMode.aurora,
-                    label: Text('Aurora'),
-                    icon: Icon(Symbols.wb_twilight, size: 14),
-                  ),
-                  ButtonSegment(
-                    value: AppThemeMode.light,
-                    label: Text('Light'),
-                    icon: Icon(Symbols.light_mode, size: 14),
-                  ),
-                  ButtonSegment(
-                    value: AppThemeMode.neutral,
-                    label: Text('Neutral'),
-                    icon: Icon(Symbols.tonality, size: 14),
-                  ),
-                  ButtonSegment(
-                    value: AppThemeMode.dark,
-                    label: Text('Dark'),
-                    icon: Icon(Symbols.dark_mode, size: 14),
-                  ),
-                  ButtonSegment(
-                    value: AppThemeMode.fundify,
-                    label: Text('Fundify'),
-                    icon: Icon(Symbols.eco, size: 14),
-                  ),
-                ],
-                selected: {mode},
-                onSelectionChanged: (s) => themeNotifier.value = s.first,
-                showSelectedIcon: false,
+              SizedBox(
+                width: 220,
+                child: Container(
+                  decoration: BoxDecoration(color: context.pal.surface2,
+                      borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
+                  height: 38,
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: DropdownButtonHideUnderline(child: DropdownButton<AppThemeMode>(
+                    value: mode,
+                    isExpanded: true, dropdownColor: context.pal.surface2, style: AppTheme.bodySm,
+                    icon: Icon(Symbols.expand_more, size: 16, color: context.pal.textDim),
+                    items: AppTheme.pickerOrder.map((e) => DropdownMenuItem(value: e.$1, child: Text(e.$2))).toList(),
+                    onChanged: (v) { if (v != null) themeNotifier.value = v; },
+                  )),
+                ),
               ),
             ],
           ),
@@ -2608,7 +2600,7 @@ class _InviteDialogState extends State<_InviteDialog> {
       StaffService.instance.invalidateCache();
       widget.onSaved?.call();
     } catch (e) {
-      if (mounted) setState(() { _saving = false; _error = 'Failed to add member.'; });
+      if (mounted) setState(() { _saving = false; _error = friendlyError(e); });
     }
   }
 

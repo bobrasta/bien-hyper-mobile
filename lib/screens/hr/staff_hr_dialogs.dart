@@ -3,13 +3,16 @@ import 'package:material_symbols_icons/symbols.dart';
 import '../../main.dart' show userRoleNotifier, hasDirectorAuthority;
 import '../../services/contract_service.dart';
 import '../../services/disciplinary_case_service.dart';
+import '../../services/payroll_service.dart';
 import '../../services/position_change_service.dart';
 import '../../services/position_service.dart';
 import '../../services/staff_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_palette.dart';
+import '../../theme/hr_category_colors.dart';
 import '../../utils/api_error.dart';
+import '../../widgets/common/hr_empty_state.dart';
 import '../../widgets/common/labeled_field.dart';
 
 // ── Shared shell ─────────────────────────────────────────────────────────────
@@ -45,9 +48,9 @@ class _DialogShell extends StatelessWidget {
   );
 }
 
-Widget _emptyState(BuildContext context, String label) => Padding(
-  padding: const EdgeInsets.symmetric(vertical: 32),
-  child: Center(child: Text(label, style: AppTheme.bodySub)),
+Widget _emptyState(BuildContext context, String title, {IconData icon = Symbols.inbox, String message = ''}) => Padding(
+  padding: const EdgeInsets.symmetric(vertical: 12),
+  child: HrEmptyState(icon: icon, title: title, message: message),
 );
 
 // ── Edit HR (personal) Details ──────────────────────────────────────────────
@@ -406,7 +409,7 @@ class _ContractsDialogState extends State<_ContractsDialog> {
     child: _loading
         ? const Padding(padding: EdgeInsets.symmetric(vertical: 32), child: Center(child: CircularProgressIndicator(strokeWidth: 2)))
         : _contracts.isEmpty
-            ? _emptyState(context, 'No contracts yet.')
+            ? _emptyState(context, 'No contracts yet', icon: HrCategory.contracts.icon, message: 'Add one to start tracking employment terms.')
             : SingleChildScrollView(
                 child: Column(children: _contracts.map((c) => Container(
                   margin: const EdgeInsets.only(bottom: 10),
@@ -639,7 +642,7 @@ class _DisciplinaryCasesDialogState extends State<_DisciplinaryCasesDialog> {
     child: _loading
         ? const Padding(padding: EdgeInsets.symmetric(vertical: 32), child: Center(child: CircularProgressIndicator(strokeWidth: 2)))
         : _cases.isEmpty
-            ? _emptyState(context, 'No disciplinary cases.')
+            ? _emptyState(context, 'No disciplinary cases', icon: HrCategory.discipline.icon, message: 'Nothing on record — that\'s a good thing.')
             : SingleChildScrollView(
                 child: Column(children: _cases.map((c) => Container(
                   margin: const EdgeInsets.only(bottom: 10),
@@ -725,7 +728,7 @@ class _CareerProgressionDialogState extends State<_CareerProgressionDialog> {
     child: _loading
         ? const Padding(padding: EdgeInsets.symmetric(vertical: 32), child: Center(child: CircularProgressIndicator(strokeWidth: 2)))
         : _changes.isEmpty
-            ? _emptyState(context, 'No position changes recorded.')
+            ? _emptyState(context, 'No position changes recorded', icon: Symbols.trending_up, message: 'Promotions, demotions, and lateral moves will show up here.')
             : SingleChildScrollView(
                 child: Column(children: _changes.map((c) => Padding(
                   padding: const EdgeInsets.symmetric(vertical: 6),
@@ -833,6 +836,175 @@ class _NewPositionChangeDialogState extends State<_NewPositionChangeDialog> {
       TextButton(onPressed: _saving ? null : () => Navigator.of(context).pop(false), child: const Text('Cancel')),
       FilledButton(onPressed: _saving ? null : _save,
           child: _saving ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Save')),
+    ],
+  );
+}
+
+// ── Salary Adjustments ───────────────────────────────────────────────────────
+//
+// Accountant proposes a raise/reduction (status: pending) — it does NOT
+// touch the contract's base_salary until a Director approves it. Mirrors
+// the finance-approval segregation-of-duty pattern (initiate ≠ approve),
+// see SalaryAdjustmentController on the backend.
+
+void showSalaryAdjustmentsDialog(BuildContext context, StaffMember member) {
+  showDialog(context: context, builder: (_) => _SalaryAdjustmentsDialog(member: member));
+}
+
+class _SalaryAdjustmentsDialog extends StatefulWidget {
+  const _SalaryAdjustmentsDialog({required this.member});
+  final StaffMember member;
+
+  @override
+  State<_SalaryAdjustmentsDialog> createState() => _SalaryAdjustmentsDialogState();
+}
+
+class _SalaryAdjustmentsDialogState extends State<_SalaryAdjustmentsDialog> {
+  List<SalaryAdjustment> _adjustments = [];
+  bool _loading = true;
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    try {
+      final list = await PayrollService.instance.salaryAdjustments(widget.member.id);
+      if (mounted) setState(() { _adjustments = list; _loading = false; });
+    } catch (e) {
+      if (mounted) { setState(() => _loading = false); showErrorToast(context, e); }
+    }
+  }
+
+  Future<void> _propose() async {
+    final ok = await showDialog<bool>(context: context, builder: (_) => _NewSalaryAdjustmentDialog(userId: widget.member.id));
+    if (ok == true) _load();
+  }
+
+  Future<void> _approve(SalaryAdjustment a) async {
+    try {
+      await PayrollService.instance.approveSalaryAdjustment(widget.member.id, a.id);
+      _load();
+    } catch (e) { if (mounted) showErrorToast(context, e); }
+  }
+
+  Color _statusColor(String s) => switch (s) {
+    'approved' => AppColors.teal,
+    'pending'  => AppColors.amber,
+    _          => AppColors.textMute,
+  };
+
+  String _money(int n) => 'TZS ${n.toString().replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (m) => ',')}';
+
+  @override
+  Widget build(BuildContext context) => _DialogShell(
+    title: 'Salary — ${widget.member.name}',
+    icon: Symbols.payments,
+    onAdd: _propose,
+    child: _loading
+        ? const Padding(padding: EdgeInsets.symmetric(vertical: 32), child: Center(child: CircularProgressIndicator(strokeWidth: 2)))
+        : _adjustments.isEmpty
+            ? _emptyState(context, 'No salary adjustments yet', icon: Symbols.payments, message: 'Propose a raise to start tracking pay changes.')
+            : SingleChildScrollView(
+                child: Column(children: _adjustments.map((a) => Container(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(color: context.pal.surface2, borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Row(children: [
+                      Text(_money(a.newSalary), style: AppTheme.bodyStrong.copyWith(fontSize: 13)),
+                      if (a.previousSalary != null) ...[
+                        const SizedBox(width: 6),
+                        Text('(from ${_money(a.previousSalary!)})', style: AppTheme.bodySub.copyWith(fontSize: 11)),
+                      ],
+                      const Spacer(),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                        decoration: BoxDecoration(color: _statusColor(a.status).withValues(alpha: 0.12), borderRadius: BorderRadius.circular(4)),
+                        child: Text(a.status, style: AppTheme.monoXs.copyWith(color: _statusColor(a.status), fontSize: 10)),
+                      ),
+                    ]),
+                    const SizedBox(height: 4),
+                    Text('Effective ${a.effectiveDate}', style: AppTheme.bodySub.copyWith(fontSize: 11.5)),
+                    if (a.reason != null && a.reason!.isNotEmpty)
+                      Text(a.reason!, style: AppTheme.bodySub.copyWith(fontSize: 11.5)),
+                    if (a.createdByName != null)
+                      Text('Proposed by ${a.createdByName}', style: AppTheme.monoXs.copyWith(fontSize: 10.5, color: context.pal.textDim)),
+                    if (a.status == 'approved' && a.approvedByName != null)
+                      Text('Approved by ${a.approvedByName}', style: AppTheme.monoXs.copyWith(fontSize: 10.5, color: context.pal.textDim)),
+                    if (a.status == 'pending') ...[
+                      const SizedBox(height: 8),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton(onPressed: () => _approve(a), child: const Text('Approve')),
+                      ),
+                    ],
+                  ]),
+                )).toList()),
+              ),
+  );
+}
+
+class _NewSalaryAdjustmentDialog extends StatefulWidget {
+  const _NewSalaryAdjustmentDialog({required this.userId});
+  final int userId;
+
+  @override
+  State<_NewSalaryAdjustmentDialog> createState() => _NewSalaryAdjustmentDialogState();
+}
+
+class _NewSalaryAdjustmentDialogState extends State<_NewSalaryAdjustmentDialog> {
+  DateTime _effectiveDate = DateTime.now();
+  final _salaryCtrl = TextEditingController();
+  final _reasonCtrl = TextEditingController();
+  bool _saving = false;
+  String? _error;
+
+  Future<void> _save() async {
+    final salary = int.tryParse(_salaryCtrl.text.trim());
+    if (salary == null) { setState(() => _error = 'Enter a valid new salary.'); return; }
+    setState(() { _saving = true; _error = null; });
+    try {
+      await PayrollService.instance.addSalaryAdjustment(widget.userId, {
+        'new_salary': salary,
+        'reason': _reasonCtrl.text.trim().isNotEmpty ? _reasonCtrl.text.trim() : null,
+        'effective_date': _effectiveDate.toIso8601String().split('T').first,
+      });
+      if (mounted) Navigator.of(context).pop(true);
+    } catch (e) {
+      if (mounted) setState(() { _saving = false; _error = friendlyError(e); });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    backgroundColor: context.pal.surface1,
+    title: Text('Propose Salary Adjustment', style: AppTheme.cardTitle),
+    content: SizedBox(width: 340, child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+      if (_error != null) Padding(padding: const EdgeInsets.only(bottom: 10),
+          child: Text(_error!, style: TextStyle(color: AppColors.coral, fontSize: 12))),
+      LabeledTextField(label: 'New salary (TZS)', controller: _salaryCtrl, keyboardType: TextInputType.number),
+      const SizedBox(height: 12),
+      LabeledDateField(
+        label: 'Effective date',
+        date: _effectiveDate,
+        onTap: () async {
+          final picked = await showDatePicker(context: context, initialDate: _effectiveDate, firstDate: DateTime(2000), lastDate: DateTime(2100));
+          if (picked != null) setState(() => _effectiveDate = picked);
+        },
+      ),
+      const SizedBox(height: 12),
+      LabeledTextField(label: 'Reason (optional)', controller: _reasonCtrl),
+      const SizedBox(height: 8),
+      Text(
+        'This needs Director approval before it changes the active contract\'s base salary.',
+        style: AppTheme.bodySub.copyWith(fontSize: 11),
+      ),
+    ])),
+    actions: [
+      TextButton(onPressed: _saving ? null : () => Navigator.of(context).pop(false), child: const Text('Cancel')),
+      FilledButton(onPressed: _saving ? null : _save,
+          child: _saving ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Propose')),
     ],
   );
 }

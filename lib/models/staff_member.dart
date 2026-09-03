@@ -131,6 +131,19 @@ class StaffMember {
 
   bool get isAvailable =>
       availStatus == AvailStatus.available || availStatus == AvailStatus.atDesk;
+
+  // Change-detection only, not a general equality operator — used to skip
+  // a staffNotifier update (and the rebuild it triggers everywhere) when a
+  // background poll's fetch is identical to what's already cached.
+  // Deliberately excludes lastActiveAt: that field ticks on every request
+  // for an active user, so including it would mean "nothing changed" never
+  // actually holds and every poll would notify regardless.
+  String get syncSignature => [
+    id, name, role, group, zone, availStatus, workload, currentTask,
+    email, phone, twoFa, managerId, positionId, positionTitle, gender,
+    hireDate, nextOfKinName, nextOfKinPhone, nextOfKinRelationship,
+    nssfNumber, tinNumber, nidaNumber, biometricId,
+  ].join('');
 }
 
 String _groupFromRole(String role) {

@@ -1,18 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import '../../services/hr_report_service.dart';
+import '../../services/public_holiday_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_palette.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common/error_view.dart';
 
-/// Company-wide leave calendar — distinct from "My Leave" (personal
-/// self-service, stays in Operations). Renders `/hr-reports/leave-calendar`
-/// as a month grid with each approved leave drawn as a bar spanning its
-/// date range directly on the cells, per the reference dashboards' calendar
-/// treatment, instead of a flat list of rows.
+/// Company-wide leave calendar — ported from HR Redesign spec 1e. Distinct
+/// from "My Leave" (personal self-service, stays in Operations).
 class HrLeaveCalendarScreen extends StatefulWidget {
-  const HrLeaveCalendarScreen({super.key});
+  const HrLeaveCalendarScreen({super.key, this.onNavigateTo});
+  final void Function(String key)? onNavigateTo;
 
   @override
   State<HrLeaveCalendarScreen> createState() => _HrLeaveCalendarScreenState();
@@ -21,13 +20,13 @@ class HrLeaveCalendarScreen extends StatefulWidget {
 class _HrLeaveCalendarScreenState extends State<HrLeaveCalendarScreen> {
   DateTime _month = DateTime(DateTime.now().year, DateTime.now().month, 1);
   List<LeaveCalendarEntry> _entries = [];
+  List<PublicHoliday> _holidays = [];
+  List<HrLeaveBalanceRow> _balances = [];
   bool _loading = true;
   String? _error;
   LeaveCalendarEntry? _selected;
 
-  // Not const: AppColors.* are reactive getters (theme-dependent), not
-  // compile-time constants — see feedback_theme_porting_approach memory.
-  static List<Color> get _lanePalette => [AppColors.teal, AppColors.violet, AppColors.amber, AppColors.info, AppColors.coral];
+  static List<Color> get _lanePalette => [AppColors.amber, AppColors.violet, AppColors.cyan, AppColors.info, AppColors.coral];
 
   @override
   void initState() { super.initState(); _load(); }
@@ -37,10 +36,20 @@ class _HrLeaveCalendarScreenState extends State<HrLeaveCalendarScreen> {
     try {
       final start = DateTime(_month.year, _month.month, 1);
       final end = DateTime(_month.year, _month.month + 1, 0);
-      final list = await HrReportService.instance.leaveCalendar(
-        start: _fmt(start), end: _fmt(end),
-      );
-      if (mounted) setState(() { _entries = list; _loading = false; });
+      final results = await Future.wait([
+        HrReportService.instance.leaveCalendar(start: _fmt(start), end: _fmt(end)),
+        PublicHolidayService.instance.list(year: _month.year),
+        HrReportService.instance.leaveBalances(year: _month.year),
+      ]);
+      if (mounted) setState(() {
+        _entries = results[0] as List<LeaveCalendarEntry>;
+        _holidays = (results[1] as List<PublicHoliday>).where((h) {
+          final d = DateTime.tryParse(h.date);
+          return d != null && !d.isBefore(DateTime.now());
+        }).toList()..sort((a, b) => a.date.compareTo(b.date));
+        _balances = results[2] as List<HrLeaveBalanceRow>;
+        _loading = false;
+      });
     } catch (e) {
       if (mounted) setState(() { _error = e.toString(); _loading = false; });
     }
@@ -53,8 +62,6 @@ class _HrLeaveCalendarScreenState extends State<HrLeaveCalendarScreen> {
     _load();
   }
 
-  /// Greedy interval-lane assignment so an entry keeps the same vertical
-  /// row across every week it spans, instead of re-shuffling week to week.
   Map<LeaveCalendarEntry, int> _assignLanes(List<_ParsedEntry> parsed) {
     final sorted = [...parsed]..sort((a, b) => a.start.compareTo(b.start));
     final laneEnds = <DateTime>[];
@@ -70,39 +77,60 @@ class _HrLeaveCalendarScreenState extends State<HrLeaveCalendarScreen> {
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(builder: (ctx, cst) {
-      final pad = cst.maxWidth < 560 ? 16.0 : 28.0;
+      final pad = cst.maxWidth < 560 ? 16.0 : 26.0;
+      final wide = cst.maxWidth >= 900;
       return Padding(
         padding: EdgeInsets.all(pad),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Leave Calendar', style: AppTheme.pageTitle),
-              const SizedBox(height: 4),
-              Text('Approved leave across the whole team', style: AppTheme.bodySub),
-            ])),
-            _MonthSwitcher(month: _month, onPrev: () => _changeMonth(-1), onNext: () => _changeMonth(1)),
-          ]),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          _header(context),
+          const SizedBox(height: 4),
+          Container(height: 1, color: context.pal.divider),
           const SizedBox(height: 16),
           Expanded(
             child: _loading
                 ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
                 : _error != null
                     ? ErrorView(message: _error!, onRetry: _load)
-                    : SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                        _calendarGrid(context),
-                        if (_selected != null) ...[const SizedBox(height: 16), _detailCard(_selected!)],
-                      ])),
+                    : SingleChildScrollView(child: wide
+                        ? Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Expanded(flex: 7, child: _calendarGrid(context)),
+                            const SizedBox(width: 18),
+                            Expanded(flex: 5, child: _rail(context)),
+                          ])
+                        : Column(children: [_calendarGrid(context), const SizedBox(height: 16), _rail(context)])),
           ),
         ]),
       );
     });
   }
 
+  Widget _header(BuildContext context) {
+    final outThisMonth = _entries.length;
+    return Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+      Container(width: 2, height: 32, decoration: BoxDecoration(color: AppColors.amber, borderRadius: BorderRadius.circular(2))),
+      const SizedBox(width: 12),
+      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('Leave Calendar', style: AppTheme.pageTitle.copyWith(fontSize: 21)),
+        const SizedBox(height: 3),
+        Text('Approved leave across the team · $outThisMonth ${outThisMonth == 1 ? 'person' : 'people'} out this month', style: AppTheme.bodySub.copyWith(fontSize: 12)),
+      ])),
+      _MonthSwitcher(month: _month, onPrev: () => _changeMonth(-1), onNext: () => _changeMonth(1)),
+      const SizedBox(width: 8),
+      OutlinedButton.icon(
+        onPressed: () => widget.onNavigateTo != null
+            ? widget.onNavigateTo!('my_leave')
+            : ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Use My Leave (Operations) to submit a request.'))),
+        icon: const Icon(Symbols.add, size: 15), label: const Text('Request leave'),
+      ),
+    ]);
+  }
+
   Widget _calendarGrid(BuildContext context) {
     final firstOfMonth = DateTime(_month.year, _month.month, 1);
-    final leadingOffset = (firstOfMonth.weekday - DateTime.monday) % 7; // Monday-first grid
+    final leadingOffset = (firstOfMonth.weekday - DateTime.monday) % 7;
     final gridStart = firstOfMonth.subtract(Duration(days: leadingOffset));
     final days = List.generate(42, (i) => gridStart.add(Duration(days: i)));
+    final holidayDates = _holidays.map((h) => h.date).toSet();
 
     final parsed = _entries.map((e) {
       final s = DateTime.tryParse(e.startDate) ?? firstOfMonth;
@@ -116,18 +144,18 @@ class _HrLeaveCalendarScreenState extends State<HrLeaveCalendarScreen> {
       padding: const EdgeInsets.all(16),
       child: Column(children: [
         Row(children: const ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-            .map((d) => Expanded(child: Center(child: Text(d, style: AppTheme.labelCaps))))
+            .map((d) => Expanded(child: Padding(padding: EdgeInsets.only(left: 3), child: Text(d, style: AppTheme.labelCaps))))
             .toList()),
         const SizedBox(height: 8),
         for (var w = 0; w < 6; w++) ...[
-          _weekRow(context, days.sublist(w * 7, w * 7 + 7), parsed, lanes),
-          const SizedBox(height: 4),
+          _weekRow(context, days.sublist(w * 7, w * 7 + 7), parsed, lanes, holidayDates),
+          const SizedBox(height: 6),
         ],
       ]),
     );
   }
 
-  Widget _weekRow(BuildContext context, List<DateTime> weekDays, List<_ParsedEntry> parsed, Map<LeaveCalendarEntry, int> lanes) {
+  Widget _weekRow(BuildContext context, List<DateTime> weekDays, List<_ParsedEntry> parsed, Map<LeaveCalendarEntry, int> lanes, Set<String> holidayDates) {
     final weekStart = weekDays.first;
     final weekEnd = weekDays.last;
     final overlapping = parsed.where((p) => !p.end.isBefore(weekStart) && !p.start.isAfter(weekEnd)).toList();
@@ -137,16 +165,31 @@ class _HrLeaveCalendarScreenState extends State<HrLeaveCalendarScreen> {
     return LayoutBuilder(builder: (ctx, cst) {
       final colW = cst.maxWidth / 7;
       return SizedBox(
-        height: 26 + barsHeight + 6,
+        height: 30 + barsHeight + 6,
         child: Stack(children: [
           Row(children: weekDays.map((d) {
             final inMonth = d.month == _month.month;
             final isWeekend = d.weekday == DateTime.saturday || d.weekday == DateTime.sunday;
-            return Expanded(child: Padding(
-              padding: const EdgeInsets.only(top: 2),
-              child: Text('${d.day}', textAlign: TextAlign.center, style: AppTheme.bodySm.copyWith(
-                color: !inMonth ? context.pal.textDim.withValues(alpha: 0.4) : isWeekend ? AppColors.coral : context.pal.text,
-              )),
+            final isToday = _sameDay(d, DateTime.now());
+            final isHoliday = holidayDates.contains(_fmt(d));
+            return Expanded(child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 1),
+              padding: const EdgeInsets.only(top: 4, left: 6),
+              decoration: BoxDecoration(
+                color: inMonth ? (isWeekend ? context.pal.surface3.withValues(alpha: 0.4) : context.pal.surface2) : Colors.transparent,
+                borderRadius: BorderRadius.circular(9),
+                border: isToday ? Border.all(color: AppColors.cyan.withValues(alpha: 0.6)) : null,
+              ),
+              child: Row(children: [
+                Text('${d.day}', style: AppTheme.monoXs.copyWith(
+                  fontSize: 11.5,
+                  color: !inMonth ? context.pal.textDim.withValues(alpha: 0.4) : isToday ? AppColors.cyan : isWeekend ? context.pal.textDim : context.pal.text,
+                )),
+                if (isHoliday) ...[
+                  const SizedBox(width: 4),
+                  Container(width: 5, height: 5, decoration: const BoxDecoration(color: AppColors.info, shape: BoxShape.circle)),
+                ],
+              ]),
             ));
           }).toList()),
           for (final p in overlapping)
@@ -167,7 +210,7 @@ class _HrLeaveCalendarScreenState extends State<HrLeaveCalendarScreen> {
                   alignment: Alignment.centerLeft,
                   child: Text('${p.entry.userName} · ${p.entry.leaveTypeLabel}',
                       overflow: TextOverflow.ellipsis, maxLines: 1,
-                      style: AppTheme.monoXs.copyWith(color: Colors.white, fontSize: 9.5)),
+                      style: AppTheme.monoXs.copyWith(color: const Color(0xFF08090B), fontSize: 9.5, fontWeight: FontWeight.w600)),
                 ),
               ),
             ),
@@ -178,19 +221,95 @@ class _HrLeaveCalendarScreenState extends State<HrLeaveCalendarScreen> {
 
   static bool _sameDay(DateTime a, DateTime b) => a.year == b.year && a.month == b.month && a.day == b.day;
 
+  Widget _rail(BuildContext context) {
+    final byType = <String, double>{};
+    for (final b in _balances) { byType[b.leaveTypeLabel] = (byType[b.leaveTypeLabel] ?? 0) + b.usedDays; }
+    final typeColors = <String, Color>{'Annual': AppColors.amber, 'Sick': AppColors.coral, 'Maternity': AppColors.violet, 'Compassionate': AppColors.cyan};
+
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      if (_selected != null) ...[_detailCard(_selected!), const SizedBox(height: 16)],
+      _railHeader('Out this month', count: '${_entries.length}', color: AppColors.amber),
+      const SizedBox(height: 9),
+      Container(
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(color: context.pal.surface1, borderRadius: BorderRadius.circular(14), border: Border.all(color: context.pal.border)),
+        child: _entries.isEmpty
+            ? Padding(padding: const EdgeInsets.symmetric(vertical: 20), child: Center(child: Text('Nobody out.', style: AppTheme.bodySub.copyWith(fontSize: 12))))
+            : Column(children: _entries.map((e) => Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+                child: Row(children: [
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                    Text(e.userName, style: AppTheme.bodySm.copyWith(fontSize: 12.5)),
+                    Text('${e.startDate} → ${e.endDate}', style: AppTheme.monoXs.copyWith(fontSize: 10.5)),
+                  ])),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(color: AppColors.amber.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(5)),
+                    child: Text(e.leaveTypeLabel, style: AppTheme.monoXs.copyWith(fontSize: 9.5, color: AppColors.amber)),
+                  ),
+                ]),
+              )).toList()),
+      ),
+      const SizedBox(height: 18),
+      _railHeader('Leave types', color: AppColors.violet),
+      const SizedBox(height: 9),
+      Container(
+        padding: const EdgeInsets.all(13),
+        decoration: BoxDecoration(color: context.pal.surface1, borderRadius: BorderRadius.circular(14), border: Border.all(color: context.pal.border)),
+        child: byType.isEmpty
+            ? Text('No leave taken yet.', style: AppTheme.bodySub.copyWith(fontSize: 12))
+            : Column(children: byType.entries.map((e) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(children: [
+                  Container(width: 9, height: 9, decoration: BoxDecoration(color: typeColors[e.key] ?? context.pal.textDim, borderRadius: BorderRadius.circular(3))),
+                  const SizedBox(width: 9),
+                  Expanded(child: Text(e.key, style: AppTheme.bodySub.copyWith(fontSize: 11.5))),
+                  Text('${e.value.toStringAsFixed(0)} d', style: AppTheme.monoXs.copyWith(fontSize: 11, color: context.pal.text)),
+                ]),
+              )).toList()),
+      ),
+      const SizedBox(height: 18),
+      _railHeader('Public holidays', color: AppColors.info),
+      const SizedBox(height: 9),
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 13),
+        decoration: BoxDecoration(color: context.pal.surface1, borderRadius: BorderRadius.circular(14), border: Border.all(color: context.pal.border)),
+        child: _holidays.isEmpty
+            ? Padding(padding: const EdgeInsets.symmetric(vertical: 20), child: Center(child: Text('None remaining this year.', style: AppTheme.bodySub.copyWith(fontSize: 12))))
+            : Column(children: _holidays.take(6).map((h) => Container(
+                height: 34,
+                decoration: BoxDecoration(border: Border(bottom: BorderSide(color: context.pal.divider))),
+                child: Row(children: [
+                  Icon(Symbols.event, size: 13, color: AppColors.info),
+                  const SizedBox(width: 9),
+                  Expanded(child: Text(h.name, style: AppTheme.bodySm.copyWith(fontSize: 12))),
+                  Text(h.date, style: AppTheme.monoXs.copyWith(fontSize: 10.5)),
+                ]),
+              )).toList()),
+      ),
+    ]);
+  }
+
+  Widget _railHeader(String title, {String? count, required Color color}) => Row(children: [
+    Text(title.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10.5)),
+    if (count != null) ...[const SizedBox(width: 6), Text(count, style: AppTheme.monoXs.copyWith(fontSize: 11, color: color))],
+    const SizedBox(width: 8),
+    Expanded(child: Builder(builder: (context) => Container(height: 1, color: context.pal.divider))),
+  ]);
+
   Widget _detailCard(LeaveCalendarEntry e) => Container(
     width: double.infinity,
-    padding: const EdgeInsets.all(16),
-    decoration: BoxDecoration(color: context.pal.surface2, borderRadius: BorderRadius.circular(14), border: Border.all(color: context.pal.border)),
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(color: Theme.of(context).extension<AppPalette>()!.surface2, borderRadius: BorderRadius.circular(14), border: Border.all(color: Theme.of(context).extension<AppPalette>()!.border)),
     child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Icon(Symbols.event_note, size: 20, color: AppColors.teal),
-      const SizedBox(width: 12),
+      Icon(Symbols.event_note, size: 18, color: AppColors.amber),
+      const SizedBox(width: 10),
       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(e.userName, style: AppTheme.cardTitle),
-        const SizedBox(height: 4),
-        Text('${e.leaveTypeLabel} · ${e.startDate} – ${e.endDate}', style: AppTheme.bodySub),
+        Text(e.userName, style: AppTheme.cardTitle.copyWith(fontSize: 13)),
+        const SizedBox(height: 3),
+        Text('${e.leaveTypeLabel} · ${e.startDate} – ${e.endDate}', style: AppTheme.bodySub.copyWith(fontSize: 11.5)),
       ])),
-      GestureDetector(onTap: () => setState(() => _selected = null), child: Icon(Symbols.close, size: 18, color: context.pal.textDim)),
+      GestureDetector(onTap: () => setState(() => _selected = null), child: Icon(Symbols.close, size: 16, color: Theme.of(context).extension<AppPalette>()!.textDim)),
     ]),
   );
 }

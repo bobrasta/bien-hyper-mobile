@@ -1,21 +1,32 @@
-enum PerDiemStatus { pendingTeamLead, pendingCto, approved, rejected, cancelled }
+// Five real stages: requester -> team lead -> CTO -> finance (initiates
+// payment, doesn't move money on their own authority) -> Director
+// (authorizes/actually marks paid). 'approved' is kept only so any old
+// cached/offline data still parses to something sane; the backend no
+// longer writes it.
+enum PerDiemStatus { pendingTeamLead, pendingCto, pendingPayment, pendingDirector, approved, paid, rejected, cancelled }
 
 extension PerDiemStatusX on PerDiemStatus {
   String get label => switch (this) {
     PerDiemStatus.pendingTeamLead => 'Awaiting Team Lead',
     PerDiemStatus.pendingCto      => 'Awaiting CTO',
+    PerDiemStatus.pendingPayment  => 'Awaiting Payment Initiation',
+    PerDiemStatus.pendingDirector => 'Awaiting Director Authorization',
     PerDiemStatus.approved        => 'Approved',
+    PerDiemStatus.paid            => 'Paid',
     PerDiemStatus.rejected        => 'Rejected',
     PerDiemStatus.cancelled       => 'Cancelled',
   };
 }
 
 PerDiemStatus _parsePerDiemStatus(String s) => switch (s) {
-  'pending_cto' => PerDiemStatus.pendingCto,
-  'approved'    => PerDiemStatus.approved,
-  'rejected'    => PerDiemStatus.rejected,
-  'cancelled'   => PerDiemStatus.cancelled,
-  _             => PerDiemStatus.pendingTeamLead,
+  'pending_cto'      => PerDiemStatus.pendingCto,
+  'pending_payment'  => PerDiemStatus.pendingPayment,
+  'pending_director' => PerDiemStatus.pendingDirector,
+  'approved'         => PerDiemStatus.approved,
+  'paid'             => PerDiemStatus.paid,
+  'rejected'         => PerDiemStatus.rejected,
+  'cancelled'        => PerDiemStatus.cancelled,
+  _                  => PerDiemStatus.pendingTeamLead,
 };
 
 class PerDiemLine {
@@ -91,6 +102,11 @@ class PerDiemRequest {
   final String?         reviewerName;
   final String?         reviewedAt;
   final String?         rejectionReason;
+  final int?            paymentInitiatedBy;
+  final String?         paymentInitiatedByName;
+  final String?         paymentInitiatedAt;
+  final String?         paymentMethod;
+  final String?         paymentReference;
   final String?         paidByName;
   final String?         paidAt;
   final String?         createdAt;
@@ -117,6 +133,11 @@ class PerDiemRequest {
     this.reviewerName,
     this.reviewedAt,
     this.rejectionReason,
+    this.paymentInitiatedBy,
+    this.paymentInitiatedByName,
+    this.paymentInitiatedAt,
+    this.paymentMethod,
+    this.paymentReference,
     this.paidByName,
     this.paidAt,
     this.createdAt,
@@ -144,6 +165,11 @@ class PerDiemRequest {
     reviewerName:            j['reviewer_name'] as String?,
     reviewedAt:              j['reviewed_at'] as String?,
     rejectionReason:         j['rejection_reason'] as String?,
+    paymentInitiatedBy:      j['payment_initiated_by'] != null ? (j['payment_initiated_by'] as num).toInt() : null,
+    paymentInitiatedByName:  j['payment_initiated_by_name'] as String?,
+    paymentInitiatedAt:      j['payment_initiated_at'] as String?,
+    paymentMethod:           j['payment_method'] as String?,
+    paymentReference:        j['payment_reference'] as String?,
     paidByName:              j['paid_by_name'] as String?,
     paidAt:                  j['paid_at'] as String?,
     createdAt:               j['created_at'] as String?,
@@ -151,7 +177,9 @@ class PerDiemRequest {
         .map((l) => PerDiemLine.fromJson(l as Map<String, dynamic>)).toList(),
   );
 
-  bool get isPendingTeamLead => status == PerDiemStatus.pendingTeamLead;
-  bool get isPendingCto      => status == PerDiemStatus.pendingCto;
-  bool get isAwaitingPayment => status == PerDiemStatus.approved && paidAt == null;
+  bool get isPendingTeamLead     => status == PerDiemStatus.pendingTeamLead;
+  bool get isPendingCto          => status == PerDiemStatus.pendingCto;
+  bool get isPendingPayment      => status == PerDiemStatus.pendingPayment;
+  bool get isPendingDirector     => status == PerDiemStatus.pendingDirector;
+  bool get isPaid                => status == PerDiemStatus.paid;
 }

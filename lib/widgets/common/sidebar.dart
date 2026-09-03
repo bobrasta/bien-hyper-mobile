@@ -80,6 +80,8 @@ const _financeChildren = [
 const _system = [
   NavDestination(icon: Symbols.assessment,              label: 'Reports',       key: 'reports'),
   NavDestination(icon: Symbols.notifications,           label: 'Notifications', key: 'notifications'),
+  NavDestination(icon: Symbols.download,                label: 'Downloads',     key: 'downloads'),
+  NavDestination(icon: Symbols.badge,                   label: 'Delegations',   key: 'delegations'),
   NavDestination(icon: Symbols.settings,                label: 'Settings',      key: 'settings'),
 ];
 
@@ -114,6 +116,10 @@ class Sidebar extends StatelessWidget {
       builder: (_, role, _) {
         final allowed = allowedScreenKeys(role);
         bool canShow(String key) {
+          // Downloads is a purely local file list (whatever's already on
+          // this machine's disk) — not gated by server permissions, same
+          // as every role already seeing Notifications/Settings.
+          if (key == 'downloads') return true;
           if (allowed == null) return true;
           if (key.startsWith('inventory_')) return allowed.contains('inventory');
           if (key.startsWith('sales_'))     return allowed.contains('sales');

@@ -240,6 +240,16 @@ class CareerProgressionEntry {
   );
 }
 
+class ContractsSummary {
+  final int activeCount;
+  final Map<String, int> byType;
+  const ContractsSummary({required this.activeCount, required this.byType});
+  factory ContractsSummary.fromJson(Map<String, dynamic> j) => ContractsSummary(
+    activeCount: (j['active_count'] as num).toInt(),
+    byType: (j['by_type'] as Map<String, dynamic>? ?? {}).map((k, v) => MapEntry(k, (v as num).toInt())),
+  );
+}
+
 class HrReportService {
   HrReportService._();
   static final instance = HrReportService._();
@@ -290,6 +300,11 @@ class HrReportService {
     return data.map((j) => ContractExpiringEntry.fromJson(j as Map<String, dynamic>)).toList();
   }
 
+  Future<ContractsSummary> contractsSummary() async {
+    final res = await _dio.get('/hr-reports/contracts-summary');
+    return ContractsSummary.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+  }
+
   Future<DisciplinarySummary> disciplinarySummary() async {
     final res = await _dio.get('/hr-reports/disciplinary-summary');
     return DisciplinarySummary.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
@@ -299,5 +314,11 @@ class HrReportService {
     final res = await _dio.get('/hr-reports/career-progressions');
     final (data, _) = ApiClient.unwrapList(res);
     return data.map((j) => CareerProgressionEntry.fromJson(j as Map<String, dynamic>)).toList();
+  }
+
+  Future<String> exportPdfLink() async {
+    final res = await _dio.get('/hr-reports/export-pdf-link');
+    final data = ApiClient.unwrap(res) as Map<String, dynamic>;
+    return data['url'] as String;
   }
 }

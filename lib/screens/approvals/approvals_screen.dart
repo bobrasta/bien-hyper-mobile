@@ -45,7 +45,8 @@ class _ApprovalsScreenState extends State<ApprovalsScreen> with SingleTickerProv
   List<StockOutRequest> get _pendingStockOut =>
       _stockOut.where((r) => r.status == StockOutStatus.pending).toList();
   List<PerDiemRequest> get _pendingPerDiem =>
-      _perDiem.where((r) => r.isPendingTeamLead || r.isPendingCto || r.isAwaitingPayment).toList();
+      _perDiem.where((r) =>
+          r.isPendingTeamLead || r.isPendingCto || r.isPendingPayment || r.isPendingDirector).toList();
   List<Expense> get _pendingExpenses => _expenses.where(
       (e) => e.status == ExpenseStatus.pendingCto || e.status == ExpenseStatus.pendingDirector).toList();
   List<PurchaseOrder> get _pendingPurchaseOrders =>
@@ -142,10 +143,21 @@ class _ApprovalsScreenState extends State<ApprovalsScreen> with SingleTickerProv
     }
   }
 
-  Future<void> _markPerDiemPaid(PerDiemRequest r) async {
+  Future<void> _initiatePerDiemPayment(PerDiemRequest r) async {
+    final result = await showDialog<(String?, String?)>(context: context, builder: (_) => _InitiatePaymentDialog());
+    if (result == null) return;
+    try {
+      await PerDiemService.instance.initiatePayment(r.id, method: result.$1, reference: result.$2);
+      if (mounted) { showSuccessToast(context, 'Payment initiated — sent to Director for authorization.'); _load(); }
+    } catch (e) {
+      if (mounted) showErrorToast(context, e);
+    }
+  }
+
+  Future<void> _authorizePerDiemPayment(PerDiemRequest r) async {
     try {
       await PerDiemService.instance.markPaid(r.id);
-      if (mounted) { showSuccessToast(context, 'Marked paid.'); _load(); }
+      if (mounted) { showSuccessToast(context, 'Payment authorized — marked paid.'); _load(); }
     } catch (e) {
       if (mounted) showErrorToast(context, e);
     }
@@ -299,7 +311,8 @@ class _ApprovalsScreenState extends State<ApprovalsScreen> with SingleTickerProv
                           requests: _pendingPerDiem, pad: pad, viewerRole: role,
                           onForward: _forwardPerDiem, onRejectTeamLead: _rejectPerDiemTeamLead,
                           onApprove: _approvePerDiem, onReject: _rejectPerDiem,
-                          onMarkPaid: _markPerDiemPaid,
+                          onInitiatePayment: _initiatePerDiemPayment,
+                          onAuthorizePayment: _authorizePerDiemPayment,
                         ),
                         _ExpenseTab(
                           expenses: _pendingExpenses, pad: pad, viewerRole: role,
@@ -342,6 +355,59 @@ class _RejectReasonDialogState extends State<_RejectReasonDialog> {
     actions: [
       TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancel')),
       TextButton(onPressed: () => Navigator.of(context).pop(_ctrl.text.trim()), child: Text('Reject', style: TextStyle(color: AppColors.coral))),
+    ],
+  );
+}
+
+class _InitiatePaymentDialog extends StatefulWidget {
+  @override
+  State<_InitiatePaymentDialog> createState() => _InitiatePaymentDialogState();
+}
+
+class _InitiatePaymentDialogState extends State<_InitiatePaymentDialog> {
+  static const _methods = ['cash', 'bank_transfer', 'mobile_money', 'cheque'];
+  String _method = _methods.first;
+  final _refCtrl = TextEditingController();
+
+  @override
+  void dispose() { _refCtrl.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    backgroundColor: context.pal.surface1,
+    title: Text('Initiate Payment', style: AppTheme.bodyStrong),
+    content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text('Payment method', style: AppTheme.bodySub.copyWith(fontSize: 11.5)),
+      const SizedBox(height: 6),
+      DropdownButtonFormField<String>(
+        initialValue: _method,
+        isExpanded: true,
+        dropdownColor: context.pal.surface1,
+        style: AppTheme.bodySm.copyWith(color: context.pal.text),
+        decoration: const InputDecoration(isDense: true, border: OutlineInputBorder()),
+        items: _methods.map((m) => DropdownMenuItem(value: m, child: Text(
+            m.split('_').map((w) => w[0].toUpperCase() + w.substring(1)).join(' '),
+            style: AppTheme.bodySm))).toList(),
+        onChanged: (v) => setState(() => _method = v ?? _method),
+      ),
+      const SizedBox(height: 12),
+      Text('Reference (optional)', style: AppTheme.bodySub.copyWith(fontSize: 11.5)),
+      const SizedBox(height: 6),
+      TextField(
+        controller: _refCtrl, style: AppTheme.bodySm,
+        decoration: InputDecoration(
+          isDense: true, border: const OutlineInputBorder(),
+          hintText: 'Transaction ID, cheque no., etc.',
+          hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
+        ),
+      ),
+    ]),
+    actions: [
+      TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancel')),
+      TextButton(
+        onPressed: () => Navigator.of(context).pop((_method, _refCtrl.text.trim().isEmpty ? null : _refCtrl.text.trim())),
+        child: Text('Initiate', style: TextStyle(color: AppColors.teal)),
+      ),
     ],
   );
 }
@@ -411,7 +477,7 @@ class _PerDiemTab extends StatelessWidget {
     required this.requests, required this.pad, required this.viewerRole,
     required this.onForward, required this.onRejectTeamLead,
     required this.onApprove, required this.onReject,
-    required this.onMarkPaid,
+    required this.onInitiatePayment, required this.onAuthorizePayment,
   });
   final List<PerDiemRequest> requests;
   final double pad;
@@ -420,7 +486,8 @@ class _PerDiemTab extends StatelessWidget {
   final ValueChanged<PerDiemRequest> onRejectTeamLead;
   final ValueChanged<PerDiemRequest> onApprove;
   final ValueChanged<PerDiemRequest> onReject;
-  final ValueChanged<PerDiemRequest> onMarkPaid;
+  final ValueChanged<PerDiemRequest> onInitiatePayment;
+  final ValueChanged<PerDiemRequest> onAuthorizePayment;
 
   @override
   Widget build(BuildContext context) {
@@ -430,14 +497,29 @@ class _PerDiemTab extends StatelessWidget {
     final canTeamLead = hasTeamLeadAuthority(viewerRole);
     final canCto = hasCtoApprovalAuthority(viewerRole);
     final canAccountant = hasAccountantAuthority(viewerRole);
+    final canDirector = hasDirectorAuthority(viewerRole);
 
     return SingleChildScrollView(
       padding: EdgeInsets.all(pad),
       child: Column(children: requests.map((r) {
+        // Five real stages: requester -> team lead -> CTO -> finance
+        // (initiates payment) -> Director (authorizes/marks paid) — each
+        // shows the same full request to whoever's turn it is, so nobody
+        // approves or rejects on a summary alone.
         final atTeamLead = r.isPendingTeamLead;
-        final atPayment  = r.isAwaitingPayment;
-        final stageColor = atTeamLead ? AppColors.amber : atPayment ? AppColors.violet : AppColors.blue;
-        final canActOnThis = atTeamLead ? canTeamLead : atPayment ? canAccountant : canCto;
+        final atCto = r.isPendingCto;
+        final atPaymentInit = r.isPendingPayment;
+        final atDirectorAuth = r.isPendingDirector;
+        final stageColor = atTeamLead ? AppColors.amber
+            : atCto ? AppColors.blue
+            : atPaymentInit ? AppColors.violet
+            : atDirectorAuth ? AppColors.teal
+            : context.pal.textMute;
+        final canActOnThis = atTeamLead ? canTeamLead
+            : atCto ? canCto
+            : atPaymentInit ? canAccountant
+            : atDirectorAuth ? canDirector
+            : false;
 
         return Container(
           margin: const EdgeInsets.only(bottom: 12),
@@ -459,7 +541,7 @@ class _PerDiemTab extends StatelessWidget {
                   color: stageColor.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(999),
                 ),
-                child: Text(atPayment ? 'Awaiting Payment' : r.status.label, style: AppTheme.monoXs.copyWith(
+                child: Text(r.status.label, style: AppTheme.monoXs.copyWith(
                     color: stageColor, fontSize: 9.5)),
               ),
             ]),
@@ -483,15 +565,31 @@ class _PerDiemTab extends StatelessWidget {
                     final l = e.value;
                     final place = [l.siteName, l.district, l.region]
                         .where((s) => s != null && s.isNotEmpty).join(', ');
+                    // Full cost breakdown, not just the line total — the
+                    // approver signs off on the composition, not just the
+                    // number, so labor/per-diem/transport need to be visible
+                    // individually, not collapsed.
+                    final costParts = [
+                      if (l.laborCost > 0) 'Labor ${l.laborCost}',
+                      if (l.perDiemCost > 0) 'Per diem ${l.perDiemCost}',
+                      if (l.transportFare > 0) 'Transport ${l.transportFare}',
+                    ].join(' · ');
                     return Padding(
-                      padding: EdgeInsets.only(bottom: e.key < r.lines.length - 1 ? 6 : 0),
+                      padding: EdgeInsets.only(bottom: e.key < r.lines.length - 1 ? 8 : 0),
                       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         SizedBox(width: 70, child: Text(l.date,
                             style: AppTheme.monoXs.copyWith(fontSize: 10.5))),
-                        Expanded(child: Text(
-                            [l.activity, place.isEmpty ? null : place]
-                                .where((s) => s != null && s.isNotEmpty).join(' — '),
-                            style: AppTheme.bodySub.copyWith(fontSize: 11.5))),
+                        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Text(
+                              [l.activity, place.isEmpty ? null : place]
+                                  .where((s) => s != null && s.isNotEmpty).join(' — '),
+                              style: AppTheme.bodySub.copyWith(fontSize: 11.5)),
+                          if (costParts.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2),
+                              child: Text(costParts, style: AppTheme.monoXs.copyWith(fontSize: 10, color: context.pal.textDim)),
+                            ),
+                        ])),
                         Text('TSh ${l.total}', style: AppTheme.monoXs.copyWith(fontSize: 10.5)),
                       ]),
                     );
@@ -499,10 +597,37 @@ class _PerDiemTab extends StatelessWidget {
                 ),
               ),
             ],
+            if (r.paymentInitiatedByName != null) ...[
+              // Once finance has initiated payment, CTO/Finance/Director all
+              // see the same trail here — this replaces the WhatsApp-group
+              // PDF exchange the team uses today, so it must never be gated
+              // to only whoever's turn it currently is.
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppColors.violet.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppColors.violet.withValues(alpha: 0.25)),
+                ),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(
+                      'Payment initiated by ${r.paymentInitiatedByName}'
+                      '${r.paymentMethod != null ? ' · ${r.paymentMethod!.split('_').map((w) => w[0].toUpperCase() + w.substring(1)).join(' ')}' : ''}'
+                      '${r.paymentReference != null && r.paymentReference!.isNotEmpty ? ' · Ref: ${r.paymentReference}' : ''}',
+                      style: AppTheme.monoXs.copyWith(fontSize: 10.5, color: AppColors.violet)),
+                  if (r.isPaid && r.paidByName != null) ...[
+                    const SizedBox(height: 4),
+                    Text('Marked paid by ${r.paidByName}${r.paidAt != null ? ' · ${r.paidAt}' : ''}',
+                        style: AppTheme.monoXs.copyWith(fontSize: 10.5, color: AppColors.teal)),
+                  ],
+                ]),
+              ),
+            ],
             if (canActOnThis) ...[
               const SizedBox(height: 12),
               Row(children: [
-                if (!atPayment) ...[
+                if (atTeamLead || atCto) ...[
                   Expanded(child: GestureDetector(
                     onTap: () => atTeamLead ? onRejectTeamLead(r) : onReject(r),
                     child: Container(height: 36,
@@ -512,16 +637,28 @@ class _PerDiemTab extends StatelessWidget {
                   const SizedBox(width: 10),
                 ],
                 Expanded(child: GestureDetector(
-                  onTap: () => atTeamLead ? onForward(r) : atPayment ? onMarkPaid(r) : onApprove(r),
+                  onTap: () => atTeamLead ? onForward(r)
+                      : atPaymentInit ? onInitiatePayment(r)
+                      : atDirectorAuth ? onAuthorizePayment(r)
+                      : onApprove(r),
                   child: Container(height: 36,
                     decoration: BoxDecoration(color: AppColors.teal, borderRadius: BorderRadius.circular(8)),
-                    child: Center(child: Text(atTeamLead ? 'Forward to CTO' : atPayment ? 'Mark Paid' : 'Approve',
+                    child: Center(child: Text(
+                        atTeamLead ? 'Forward to CTO'
+                            : atPaymentInit ? 'Initiate Payment'
+                            : atDirectorAuth ? 'Authorize Payment'
+                            : 'Approve',
                         style: AppTheme.bodyStrong.copyWith(color: const Color(0xFF06120F), fontSize: 12.5)))),
                 )),
               ]),
             ] else ...[
               const SizedBox(height: 8),
-              Text(atTeamLead ? 'Waiting on the team lead.' : atPayment ? 'Waiting on the accountant.' : 'Waiting on CTO/Director.',
+              Text(
+                  atTeamLead ? 'Waiting on the team lead.'
+                      : atCto ? 'Waiting on the CTO.'
+                      : atPaymentInit ? 'Waiting on the accountant to initiate payment.'
+                      : atDirectorAuth ? 'Waiting on the Director to authorize payment.'
+                      : 'Waiting.',
                   style: AppTheme.bodySub.copyWith(fontSize: 11.5, fontStyle: FontStyle.italic)),
             ],
           ]),

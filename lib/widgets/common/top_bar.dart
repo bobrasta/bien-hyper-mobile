@@ -274,12 +274,17 @@ class _TopBarState extends State<TopBar> {
             ValueListenableBuilder<AppThemeMode>(
               valueListenable: themeNotifier,
               builder: (_, mode, _) => GestureDetector(
+                // Quick-toggle cycles only the original five modes, same as
+                // before — the nine palettes added 2026-09-02 are reached via
+                // Settings → Preferences instead of this button. A theme
+                // picked there falls back into the cycle at aurora on next tap.
                 onTap: () => themeNotifier.value = switch (mode) {
                   AppThemeMode.aurora  => AppThemeMode.dark,
                   AppThemeMode.dark    => AppThemeMode.light,
                   AppThemeMode.light   => AppThemeMode.neutral,
                   AppThemeMode.neutral => AppThemeMode.fundify,
                   AppThemeMode.fundify => AppThemeMode.aurora,
+                  _                    => AppThemeMode.aurora,
                 },
                 child: _IconBtn(
                   icon: switch (mode) {
@@ -288,6 +293,7 @@ class _TopBarState extends State<TopBar> {
                     AppThemeMode.light   => Symbols.tonality,
                     AppThemeMode.neutral => Symbols.eco,
                     AppThemeMode.fundify => Symbols.dark_mode,
+                    _                    => Symbols.palette,
                   },
                 ),
               ),

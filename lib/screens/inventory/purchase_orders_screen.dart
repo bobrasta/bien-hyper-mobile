@@ -151,7 +151,7 @@ class _PurchaseOrdersScreenState extends State<PurchaseOrdersScreen> {
           // Detail
           if (_selected != null) ...[
             Container(width: 1, color: context.pal.border),
-            SizedBox(width: 340, child: _PODetailPanel(
+            Expanded(flex: 2, child: _PODetailPanel(
               po: _selected!,
               statusColor: _statusColor(_selected!.status),
               onClose:  () => setState(() => _selected = null),

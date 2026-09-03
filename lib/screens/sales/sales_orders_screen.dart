@@ -8,6 +8,7 @@ import '../../theme/app_colors.dart';
 import '../../theme/app_palette.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/api_error.dart';
+import '../../utils/format.dart';
 import '../../widgets/common/app_button.dart';
 import '../../widgets/common/error_view.dart';
 
@@ -31,7 +32,8 @@ String _fmtAmount(int tzs) {
 // ── Screen ─────────────────────────────────────────────────────────────────────
 
 class SalesOrdersScreen extends StatefulWidget {
-  const SalesOrdersScreen({super.key});
+  const SalesOrdersScreen({super.key, this.onNavigateTo});
+  final void Function(String key)? onNavigateTo;
 
   @override
   State<SalesOrdersScreen> createState() => _SalesOrdersScreenState();
@@ -102,73 +104,80 @@ class _SalesOrdersScreenState extends State<SalesOrdersScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(children: [
-      // ── Header ──
-      Container(
-        padding: const EdgeInsets.fromLTRB(28, 24, 28, 16),
-        decoration: BoxDecoration(border: Border(bottom: BorderSide(color: context.pal.border))),
-        child: LayoutBuilder(builder: (_, cst) {
-          final narrow = cst.maxWidth < 580;
-          final titleBlock = Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Sales Orders', style: AppTheme.pageTitle),
-            const SizedBox(height: 4),
-            Text('${_filtered.length} order${_filtered.length == 1 ? '' : 's'}',
-                style: AppTheme.bodySub),
-          ]);
-          final actions = Row(mainAxisSize: MainAxisSize.min, children: [
+    return LayoutBuilder(builder: (ctx, cst) {
+      final pad = cst.maxWidth < 560 ? 16.0 : 26.0;
+      final cancelled = _all.where((o) => o.status == 'cancelled');
+      final booked = _all.where((o) => o.status != 'cancelled').fold<int>(0, (s, o) => s + o.totalAmount);
+      final cancelledTotal = cancelled.fold<int>(0, (s, o) => s + o.totalAmount);
+      return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Padding(
+          padding: EdgeInsets.fromLTRB(pad, pad, pad, 0),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+            Container(width: 2, height: 36, decoration: BoxDecoration(color: AppColors.cyan, borderRadius: BorderRadius.circular(2))),
+            const SizedBox(width: 13),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Sales Orders', style: AppTheme.pageTitle.copyWith(fontSize: 23)),
+              const SizedBox(height: 3),
+              Text('${_all.length} orders · ${tshFromDouble(booked)} booked · ${_all.where((o) => o.status == 'pending').length} pending confirmation'
+                  '${cancelled.isNotEmpty ? ' · ${cancelled.length} cancelled' : ''}', style: AppTheme.bodySub.copyWith(fontSize: 12)),
+            ])),
             SizedBox(
-              width: 220,
-              height: 36,
+              width: 200, height: 32,
               child: TextField(
                 controller: _searchCtrl,
-                style: AppTheme.bodySm,
+                style: AppTheme.bodySm.copyWith(fontSize: 12.5),
                 decoration: InputDecoration(
-                  hintText: 'Search client / SO number…',
-                  hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
-                  prefixIcon: Icon(Symbols.search, size: 16, color: context.pal.textDim),
-                  filled: true, fillColor: context.pal.surface2,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide(color: context.pal.border)),
-                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide(color: context.pal.border)),
+                  hintText: 'Client or SO number…',
+                  hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim, fontSize: 12),
+                  prefixIcon: Icon(Symbols.search, size: 15, color: context.pal.textDim),
+                  filled: true, fillColor: context.pal.surface1,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 6, horizontal: 10),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(9), borderSide: BorderSide(color: context.pal.border)),
+                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(9), borderSide: BorderSide(color: context.pal.border)),
                 ),
               ),
             ),
             const SizedBox(width: 8),
-            AppButton(label: 'Refresh', icon: Symbols.refresh, variant: BtnVariant.ghost,
-                onPressed: _load),
-          ]);
-          if (narrow) {
-            return Column(crossAxisAlignment: CrossAxisAlignment.start,
-                children: [titleBlock, const SizedBox(height: 12), actions]);
-          }
-          return Row(children: [titleBlock, const Spacer(), actions]);
-        }),
-      ),
-
-      // ── Status chips ──
-      _StatusChips(
-        current: _statusFilter,
-        onChanged: (s) { setState(() { _statusFilter = s; _applyFilter(); }); },
-      ),
-
-      // ── Body ──
-      if (_loading)
-        const Expanded(child: Center(child: CircularProgressIndicator(strokeWidth: 2)))
-      else if (_error != null)
-        Expanded(child: ErrorView(message: _error!, onRetry: _load))
-      else
-        Expanded(child: _OrderTable(items: _filtered, onSelect: _showDetailModal)),
-    ]);
+            FilledButton.icon(onPressed: () => widget.onNavigateTo?.call('sales_quotations'), icon: const Icon(Symbols.add, size: 16), label: const Text('New order')),
+          ]),
+        ),
+        const SizedBox(height: 14),
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: pad),
+          child: Row(children: [
+            _StatusChips(
+              current: _statusFilter,
+              counts: {for (final s in ['pending', 'confirmed', 'delivering', 'delivered', 'cancelled']) s: _all.where((o) => o.status == s).length},
+              total: _all.length,
+              onChanged: (s) { setState(() { _statusFilter = s; _applyFilter(); }); },
+            ),
+            const Spacer(),
+            Text('Showing ${_filtered.length} of ${_all.length}', style: AppTheme.bodySub.copyWith(fontSize: 11.5)),
+          ]),
+        ),
+        const SizedBox(height: 14),
+        Expanded(
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(pad, 0, pad, pad),
+            child: _loading
+                ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
+                : _error != null
+                    ? ErrorView(message: _error!, onRetry: _load)
+                    : _OrderTable(items: _filtered, onSelect: _showDetailModal, booked: booked, cancelledTotal: cancelledTotal, cancelledCount: cancelled.length),
+          ),
+        ),
+      ]);
+    });
   }
 }
 
 // ── Status chips ───────────────────────────────────────────────────────────────
 
 class _StatusChips extends StatelessWidget {
-  const _StatusChips({required this.current, required this.onChanged});
+  const _StatusChips({required this.current, required this.counts, required this.total, required this.onChanged});
   final String? current;
+  final Map<String, int> counts;
+  final int total;
   final ValueChanged<String?> onChanged;
 
   static const _statuses = [
@@ -177,44 +186,29 @@ class _StatusChips extends StatelessWidget {
   ];
 
   @override
-  Widget build(BuildContext context) => SizedBox(
-    height: 44,
-    child: ListView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 6),
-      children: [
-        _chip(context, null, 'All'),
-        ...(_statuses.map((s) => _chip(context, s.$1, s.$2))),
-      ],
-    ),
-  );
+  Widget build(BuildContext context) => Wrap(spacing: 8, runSpacing: 8, children: [
+    _chip(context, null, 'All', total),
+    ...(_statuses.map((s) => _chip(context, s.$1, s.$2, counts[s.$1] ?? 0))),
+  ]);
 
-  Widget _chip(BuildContext ctx, String? value, String label) {
+  Widget _chip(BuildContext ctx, String? value, String label, int count) {
     final active = current == value;
     return GestureDetector(
       onTap: () => onChanged(active ? null : value),
       child: Container(
-        margin: const EdgeInsets.only(right: 6),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        height: 30,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: active
-              ? (value == null ? ctx.pal.surface3 : _statusColor(value).withValues(alpha: 0.15))
-              : ctx.pal.surface2,
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(
-            color: active
-                ? (value == null ? ctx.pal.borderStrong : _statusColor(value))
-                : ctx.pal.border,
-          ),
+          color: active ? AppColors.green.withValues(alpha: 0.10) : Colors.transparent,
+          borderRadius: BorderRadius.circular(9),
+          border: Border.all(color: active ? AppColors.green.withValues(alpha: 0.5) : ctx.pal.border),
         ),
-        child: Text(label,
-          style: AppTheme.bodySm.copyWith(
-            fontSize: 12,
-            color: active
-                ? (value == null ? ctx.pal.text : _statusColor(value))
-                : ctx.pal.textMute,
-            fontWeight: active ? FontWeight.w600 : FontWeight.w400,
-          )),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Text(label, style: AppTheme.bodySm.copyWith(fontSize: 12, color: active ? AppColors.green : ctx.pal.textMute)),
+          const SizedBox(width: 6),
+          Text('$count', style: AppTheme.monoXs.copyWith(fontSize: 10.5, color: active ? AppColors.green : ctx.pal.textDim)),
+        ]),
       ),
     );
   }
@@ -222,71 +216,101 @@ class _StatusChips extends StatelessWidget {
 
 // ── Order table ────────────────────────────────────────────────────────────────
 
+const _fulfilmentLabels = ['Raised', 'Confirmed', 'Delivering', 'Delivered'];
+
+int _fulfilmentStep(SalesOrder so) => switch (so.status) {
+  'pending' => 1, 'confirmed' => 2, 'delivering' => 3, 'delivered' => 4, _ => 0,
+};
+
 class _OrderTable extends StatelessWidget {
-  const _OrderTable({required this.items, required this.onSelect});
+  const _OrderTable({required this.items, required this.onSelect, required this.booked, required this.cancelledTotal, required this.cancelledCount});
   final List<SalesOrder> items;
   final ValueChanged<SalesOrder> onSelect;
+  final int booked;
+  final int cancelledTotal;
+  final int cancelledCount;
 
   @override
   Widget build(BuildContext context) {
-    if (items.isEmpty) {
-      return Center(child: Text('No sales orders found', style: AppTheme.bodySub));
-    }
-    return ListView.separated(
-      padding: EdgeInsets.zero,
-      itemCount: items.length + 1,
-      separatorBuilder: (_, _) => Divider(height: 1, color: context.pal.border),
-      itemBuilder: (_, i) {
-        if (i == 0) return _header(context);
-        final so = items[i - 1];
-        return GestureDetector(
-          onTap: () => onSelect(so),
-          child: Container(
-            color: Colors.transparent,
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-            child: Row(children: [
-              SizedBox(width: 140, child: Text(so.orderNumber,
-                  style: AppTheme.monoXs.copyWith(fontSize: 12, color: context.pal.textDim))),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Row(children: [
-                  if (so.needsApproval) ...[
-                    Icon(Symbols.hourglass_top, size: 13, color: AppColors.amber),
-                    const SizedBox(width: 4),
-                  ],
-                  Flexible(child: Text(so.clientName,
-                      style: AppTheme.bodySm.copyWith(fontWeight: FontWeight.w500),
-                      overflow: TextOverflow.ellipsis)),
-                ]),
-                if (so.quotationNumber != null)
-                  Text('From ${so.quotationNumber}',
-                      style: AppTheme.bodySub.copyWith(fontSize: 10, color: context.pal.textDim)),
-              ])),
-              SizedBox(width: 110, child: Text(_fmtAmount(so.totalAmount),
-                  style: AppTheme.bodySm.copyWith(color: AppColors.amber))),
-              SizedBox(width: 110, child: _StatusBadge(so.status, so.statusLabel)),
-              SizedBox(width: 100, child: Text(so.createdAt.substring(0, 10),
-                  style: AppTheme.bodySub.copyWith(fontSize: 11))),
-            ]),
-          ),
-        );
-      },
+    return Container(
+      decoration: BoxDecoration(color: context.pal.surface1, borderRadius: BorderRadius.circular(14), border: Border.all(color: context.pal.border)),
+      clipBehavior: Clip.antiAlias,
+      child: Column(children: [
+        Container(
+          height: 38, padding: const EdgeInsets.symmetric(horizontal: 16),
+          color: context.pal.surface2,
+          child: Row(children: [
+            SizedBox(width: 122, child: Text('SO NUMBER', style: AppTheme.labelCaps.copyWith(fontSize: 9.5))),
+            Expanded(flex: 3, child: Text('CLIENT', style: AppTheme.labelCaps.copyWith(fontSize: 9.5))),
+            Expanded(flex: 2, child: Text('FULFILMENT', style: AppTheme.labelCaps.copyWith(fontSize: 9.5))),
+            Expanded(child: Text('AMOUNT', textAlign: TextAlign.right, style: AppTheme.labelCaps.copyWith(fontSize: 9.5))),
+            Expanded(child: Text('STATUS', textAlign: TextAlign.right, style: AppTheme.labelCaps.copyWith(fontSize: 9.5))),
+            Expanded(child: Text('CREATED', style: AppTheme.labelCaps.copyWith(fontSize: 9.5))),
+            Expanded(child: Text('INVOICE', style: AppTheme.labelCaps.copyWith(fontSize: 9.5))),
+          ]),
+        ),
+        Expanded(child: items.isEmpty
+            ? Center(child: Text('No sales orders found', style: AppTheme.bodySub))
+            : ListView.separated(
+                itemCount: items.length,
+                separatorBuilder: (_, _) => Container(height: 1, color: context.pal.divider),
+                itemBuilder: (_, i) {
+                  final so = items[i];
+                  final color = _statusColor(so.status);
+                  final step = _fulfilmentStep(so);
+                  final cancelled = so.status == 'cancelled';
+                  return GestureDetector(
+                    onTap: () => onSelect(so),
+                    child: Container(
+                      height: 52, padding: const EdgeInsets.symmetric(horizontal: 16),
+                      color: cancelled ? Colors.white.withValues(alpha: 0.01) : null,
+                      child: Row(children: [
+                        SizedBox(width: 122, child: Row(children: [
+                          Container(width: 3, height: 24, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2))),
+                          const SizedBox(width: 9),
+                          Expanded(child: Text(so.orderNumber, style: AppTheme.monoXs.copyWith(fontSize: 11.5, color: context.pal.textMute))),
+                        ])),
+                        Expanded(flex: 3, child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                          Row(children: [
+                            if (so.needsApproval) ...[Icon(Symbols.hourglass_top, size: 12, color: AppColors.amber), const SizedBox(width: 4)],
+                            Flexible(child: Text(so.clientName, style: AppTheme.bodySm.copyWith(fontSize: 12.5), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                          ]),
+                          Text(so.quotationNumber != null ? 'From ${so.quotationNumber}' : 'Direct order', style: AppTheme.monoXs.copyWith(fontSize: 10.5, color: context.pal.textDim)),
+                        ])),
+                        Expanded(flex: 2, child: cancelled
+                            ? Text('Cancelled by client', style: AppTheme.bodySub.copyWith(fontSize: 10.5))
+                            : Row(children: [
+                                ...List.generate(4, (n) => Expanded(child: Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 1.5),
+                                  child: Container(height: 4, decoration: BoxDecoration(color: n < step ? color : context.pal.surface3, borderRadius: BorderRadius.circular(2))),
+                                ))),
+                                const SizedBox(width: 8),
+                                SizedBox(width: 66, child: Text(_fulfilmentLabels[step - 1], style: AppTheme.bodySub.copyWith(fontSize: 10.5, color: color))),
+                              ])),
+                        Expanded(child: Text(tshFromDouble(so.totalAmount), textAlign: TextAlign.right, style: AppTheme.monoSm.copyWith(fontSize: 12.5, color: cancelled ? context.pal.textDim : null))),
+                        Expanded(child: Align(alignment: Alignment.centerRight, child: _StatusBadge(so.status, so.statusLabel))),
+                        Expanded(child: Text(so.createdAt.length >= 10 ? so.createdAt.substring(0, 10) : so.createdAt, style: AppTheme.monoXs.copyWith(fontSize: 11, color: context.pal.textDim))),
+                        Expanded(child: Text('—', style: AppTheme.monoXs.copyWith(fontSize: 11, color: context.pal.textDim))),
+                      ]),
+                    ),
+                  );
+                },
+              )),
+        Container(
+          height: 46, padding: const EdgeInsets.symmetric(horizontal: 16),
+          decoration: BoxDecoration(color: context.pal.surface2, border: Border(top: BorderSide(color: context.pal.divider))),
+          child: Row(children: [
+            SizedBox(width: 122, child: Text('BOOKED', style: AppTheme.labelCaps.copyWith(fontSize: 10))),
+            Expanded(flex: 3, child: Text(cancelledCount > 0 ? 'Excludes $cancelledCount cancelled order${cancelledCount == 1 ? '' : 's'} of ${tshFromDouble(cancelledTotal)}' : '', style: AppTheme.bodySub.copyWith(fontSize: 11))),
+            const Expanded(flex: 2, child: SizedBox()),
+            Expanded(child: Text(tshFromDouble(booked), textAlign: TextAlign.right, style: AppTheme.bodyStrong.copyWith(fontSize: 13.5))),
+            const Expanded(child: SizedBox()), const Expanded(child: SizedBox()), const Expanded(child: SizedBox()),
+          ]),
+        ),
+      ]),
     );
   }
-
-  Widget _header(BuildContext context) => Container(
-    color: context.pal.surface2,
-    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-    child: const Row(children: [
-      SizedBox(width: 140, child: Text('SO NUMBER', style: _hStyle)),
-      Expanded(child: Text('CLIENT',   style: _hStyle)),
-      SizedBox(width: 110,  child: Text('AMOUNT',   style: _hStyle)),
-      SizedBox(width: 110,  child: Text('STATUS',   style: _hStyle)),
-      SizedBox(width: 100,  child: Text('CREATED',  style: _hStyle)),
-    ]),
-  );
 }
-
-const _hStyle = TextStyle(fontSize: 10, fontWeight: FontWeight.w600, letterSpacing: 0.08);
 
 // ── Status badge ───────────────────────────────────────────────────────────────
 

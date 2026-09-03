@@ -149,7 +149,7 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
           // Detail panel
           if (_selected != null) ...[
             Container(width: 1, color: context.pal.border),
-            SizedBox(width: 320, child: _SupplierDetailPanel(
+            Expanded(flex: 2, child: _SupplierDetailPanel(
               supplier: _selected!,
               onClose: () => setState(() => _selected = null),
               onEdit:  () => setState(() => _showEdit = true),

@@ -87,11 +87,15 @@ class SalaryAdjustment {
   final int newSalary;
   final String? reason;
   final String effectiveDate;
+  final String status;
   final String? approvedByName;
+  final String? approvedAt;
+  final String? createdByName;
 
   const SalaryAdjustment({
     required this.id, required this.userId, this.previousSalary, required this.newSalary,
-    this.reason, required this.effectiveDate, this.approvedByName,
+    this.reason, required this.effectiveDate, this.status = 'pending',
+    this.approvedByName, this.approvedAt, this.createdByName,
   });
 
   factory SalaryAdjustment.fromJson(Map<String, dynamic> j) => SalaryAdjustment(
@@ -101,7 +105,51 @@ class SalaryAdjustment {
     newSalary: (j['new_salary'] as num).toInt(),
     reason: j['reason'] as String?,
     effectiveDate: j['effective_date'] as String,
+    status: j['status'] as String? ?? 'pending',
     approvedByName: j['approved_by_name'] as String?,
+    approvedAt: j['approved_at'] as String?,
+    createdByName: j['created_by_name'] as String?,
+  );
+}
+
+class PayrollHistoryItem {
+  final int id;
+  final int periodMonth;
+  final int periodYear;
+  final String status;
+  final int baseSalary;
+  final int allowancesTotal;
+  final int overtimeAmount;
+  final int payeAmount;
+  final int nssfAmount;
+  final int heslbAmount;
+  final int otherDeductions;
+  final int grossPay;
+  final int netPay;
+  final String? paidAt;
+
+  const PayrollHistoryItem({
+    required this.id, required this.periodMonth, required this.periodYear, required this.status,
+    required this.baseSalary, required this.allowancesTotal, required this.overtimeAmount,
+    required this.payeAmount, required this.nssfAmount, required this.heslbAmount,
+    required this.otherDeductions, required this.grossPay, required this.netPay, this.paidAt,
+  });
+
+  factory PayrollHistoryItem.fromJson(Map<String, dynamic> j) => PayrollHistoryItem(
+    id: (j['id'] as num).toInt(),
+    periodMonth: (j['period_month'] as num).toInt(),
+    periodYear: (j['period_year'] as num).toInt(),
+    status: j['status'] as String,
+    baseSalary: (j['base_salary'] as num).toInt(),
+    allowancesTotal: (j['allowances_total'] as num).toInt(),
+    overtimeAmount: (j['overtime_amount'] as num).toInt(),
+    payeAmount: (j['paye_amount'] as num).toInt(),
+    nssfAmount: (j['nssf_amount'] as num).toInt(),
+    heslbAmount: (j['heslb_amount'] as num).toInt(),
+    otherDeductions: (j['other_deductions'] as num).toInt(),
+    grossPay: (j['gross_pay'] as num).toInt(),
+    netPay: (j['net_pay'] as num).toInt(),
+    paidAt: j['paid_at'] as String?,
   );
 }
 
@@ -171,5 +219,16 @@ class PayrollService {
   Future<SalaryAdjustment> addSalaryAdjustment(int userId, Map<String, dynamic> data) async {
     final res = await _dio.post('/staff/$userId/salary-adjustments', data: data);
     return SalaryAdjustment.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+  }
+
+  Future<SalaryAdjustment> approveSalaryAdjustment(int userId, int adjustmentId) async {
+    final res = await _dio.post('/staff/$userId/salary-adjustments/$adjustmentId/approve');
+    return SalaryAdjustment.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+  }
+
+  Future<List<PayrollHistoryItem>> historyForUser(int userId) async {
+    final res = await _dio.get('/staff/$userId/payroll-history');
+    final (data, _) = ApiClient.unwrapList(res);
+    return data.map((j) => PayrollHistoryItem.fromJson(j as Map<String, dynamic>)).toList();
   }
 }

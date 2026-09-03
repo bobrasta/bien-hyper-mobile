@@ -204,6 +204,7 @@ class _LocationsScreenState extends State<LocationsScreen> {
         Expanded(
           child: Row(children: [
             Expanded(
+              flex: _selected != null ? 7 : 1,
               child: SingleChildScrollView(
                 child: Column(children: [
                   if (_loading) shimmerTable(count: 6, cols: 4)
@@ -232,7 +233,7 @@ class _LocationsScreenState extends State<LocationsScreen> {
             ),
             if (_selected != null) ...[
               Container(width: 1, color: context.pal.border),
-              SizedBox(width: 300, child: _DetailPanel(
+              Expanded(flex: 5, child: _DetailPanel(
                 loc: _selected!,
                 typeColor: _typeColor(_selected!.type),
                 onClose: () => setState(() => _selected = null),

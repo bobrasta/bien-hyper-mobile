@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import '../models/quotation.dart';
 import 'api_client.dart';
 
@@ -69,9 +70,15 @@ class QuotationService {
   }
 
   /// Returns a signed, no-login-required URL to the quotation PDF — valid 7 days.
+  /// Used for external sharing (WhatsApp etc.), not for in-app downloads.
   Future<String> shareLink(int id) async {
     final res = await _dio.post('/quotations/$id/share-link');
     final data = ApiClient.unwrap(res) as Map<String, dynamic>;
     return data['share_url'] as String;
+  }
+
+  Future<List<int>> pdfBytes(int id) async {
+    final res = await _dio.get<List<int>>('/quotations/$id/pdf', options: Options(responseType: ResponseType.bytes));
+    return res.data!;
   }
 }

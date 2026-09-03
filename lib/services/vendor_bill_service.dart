@@ -26,6 +26,11 @@ class VendorBillService {
     return VendorBill.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
   }
 
+  Future<VendorBill> approve(int id) async {
+    final res = await _dio.post('/vendor-bills/$id/approve');
+    return VendorBill.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+  }
+
   Future<VendorBill> cancel(int id) async {
     final res = await _dio.post('/vendor-bills/$id/cancel');
     return VendorBill.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);

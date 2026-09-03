@@ -347,7 +347,7 @@ class _StaffScreenState extends State<StaffScreen> {
         onClearFilter: () => setState(() { _filterStaffId = null; _filterStaffName = null; }),
         onExport: _exportCsv,
       )),
-      Expanded(child: _task == null
+      Expanded(flex: 7, child: _task == null
           ? _emptyDetail()
           : _TaskDetailPane(
               task: _task!,
@@ -355,7 +355,7 @@ class _StaffScreenState extends State<StaffScreen> {
               onStart:  () => _startTask(_task!),
               onDone:   () => _resolveTask(_task!),
             )),
-      SizedBox(width: 300, child: _TeamAvailabilityPane(
+      Expanded(flex: 5, child: _TeamAvailabilityPane(
         task: _task, team: _liveTeam, loadingTeam: _loadingTeam,
         onAssign: _assignTask,
         filterStaffId:   _filterStaffId,

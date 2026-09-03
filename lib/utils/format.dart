@@ -28,6 +28,12 @@ String tshFromDouble(num n) {
   return 'TSh ${n.toStringAsFixed(0)}';
 }
 
+/// Accounting-style signed money: negatives in parentheses, no minus sign —
+/// e.g. tshFromDouble(-9200000) => "TSh 9.2M" but tshSigned(-9200000) =>
+/// "(TSh 9.2M)". Use wherever a figure can legitimately go negative (net
+/// result, account balances) so it reads the way an accountant expects.
+String tshSigned(num n) => n < 0 ? '(${tshFromDouble(n.abs())})' : tshFromDouble(n);
+
 String timeAgo(DateTime dt) {
   final diff = DateTime.now().difference(dt);
   if (diff.inSeconds < 60) return 'just now';

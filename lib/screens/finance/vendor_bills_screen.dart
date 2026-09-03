@@ -11,8 +11,6 @@ import '../../theme/app_theme.dart';
 import '../../theme/app_palette.dart';
 import '../../utils/api_error.dart';
 import '../../utils/format.dart';
-import '../../utils/responsive.dart';
-import '../../widgets/common/app_button.dart';
 import '../../widgets/common/error_view.dart';
 
 class VendorBillsScreen extends StatefulWidget {
@@ -23,21 +21,39 @@ class VendorBillsScreen extends StatefulWidget {
 }
 
 class _VendorBillsScreenState extends State<VendorBillsScreen> {
+  final _payRunKey = GlobalKey();
   List<VendorBill>      _bills      = [];
   List<Supplier>        _suppliers  = [];
   List<ExpenseCategory> _categories = [];
   bool    _loading = true;
+  bool    _payingRun = false;
   String? _error;
   bool    _showCreate = false;
   VendorBill? _selected;
 
-  int get _totalPayable => _bills.where((b) => !b.isPaid && b.status != 'cancelled').fold(0, (s, b) => s + b.balanceDue);
+  List<VendorBill> get _open => _bills.where((b) => b.canPay).toList();
+  int get _totalPayable => _open.fold(0, (s, b) => s + b.balanceDue);
+
+  List<VendorBill> get _dueSoon {
+    final now = DateTime.now();
+    return _open.where((b) {
+      final d = DateTime.tryParse(b.dueDate);
+      if (d == null) return false;
+      final days = d.difference(now).inDays;
+      return days >= 0 && days <= 7;
+    }).toList()..sort((a, b) => a.dueDate.compareTo(b.dueDate));
+  }
+
+  List<VendorBill> get _overdue {
+    final now = DateTime.now();
+    return _open.where((b) {
+      final d = DateTime.tryParse(b.dueDate);
+      return d != null && d.isBefore(now);
+    }).toList();
+  }
 
   @override
-  void initState() {
-    super.initState();
-    _load();
-  }
+  void initState() { super.initState(); _load(); }
 
   Future<void> _load() async {
     setState(() { _loading = true; _error = null; });
@@ -59,67 +75,78 @@ class _VendorBillsScreenState extends State<VendorBillsScreen> {
     }
   }
 
+  void _scrollToPayRun() {
+    final ctx = _payRunKey.currentContext;
+    if (ctx != null) Scrollable.ensureVisible(ctx, duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
+  }
+
+  Future<void> _schedulePayRun() async {
+    final due = _dueSoon;
+    if (due.isEmpty) return;
+    final confirmed = await showDialog<bool>(context: context, builder: (dialogCtx) => AlertDialog(
+      backgroundColor: context.pal.surface1,
+      title: const Text('Schedule pay run'),
+      content: Text('This will record a full payment against ${due.length} bill(s) totalling ${tshFromDouble(due.fold<int>(0, (s, b) => s + b.balanceDue))}. Continue?'),
+      actions: [
+        TextButton(onPressed: () => Navigator.of(dialogCtx).pop(false), child: const Text('Cancel')),
+        FilledButton(onPressed: () => Navigator.of(dialogCtx).pop(true), child: const Text('Pay all')),
+      ],
+    ));
+    if (confirmed != true) return;
+    setState(() => _payingRun = true);
+    try {
+      for (final b in due) {
+        await VendorBillService.instance.recordPayment(b.id, {
+          'amount': b.balanceDue,
+          'payment_method': 'bank_transfer',
+          'paid_at': DateTime.now().toIso8601String().substring(0, 10),
+        });
+      }
+      if (mounted) showSuccessToast(context, 'Pay run complete — ${due.length} bill(s) paid.');
+      _load();
+    } catch (e) {
+      if (mounted) showErrorToast(context, e);
+    } finally {
+      if (mounted) setState(() => _payingRun = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Stack(children: [
       LayoutBuilder(builder: (ctx, cst) {
-        final pad = cst.maxWidth < 560 ? 16.0 : 28.0;
-        return RefreshIndicator(
-          onRefresh: _load,
-          child: SingleChildScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: EdgeInsets.all(pad),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              LayoutBuilder(builder: (ctx, cst) {
-                final narrow = cst.maxWidth < 560;
-                final titleBlock = Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('Accounts Payable', style: AppTheme.pageTitle),
-                  const SizedBox(height: 4),
-                  Text('Vendor bills & supplier payments', style: AppTheme.bodySub),
-                ]);
-                final action = AppButton(label: 'New Bill', icon: Symbols.add, variant: BtnVariant.primary,
-                    onPressed: () => setState(() => _showCreate = true));
-                if (narrow) {
-                  return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    titleBlock, const SizedBox(height: 12), action,
-                  ]);
-                }
-                return Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                  titleBlock, const Spacer(), action,
-                ]);
-              }),
-              const SizedBox(height: 24),
-              if (_loading)
-                const Center(child: Padding(
-                  padding: EdgeInsets.symmetric(vertical: 48),
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ))
-              else if (_error != null)
-                ErrorView(message: _error!, onRetry: _load)
-              else ...[
-                AdaptiveColumns(
-                  wideCols: 3, mediumCols: 2, narrowCols: 1,
-                  children: [
-                    _Kpi(label: 'Outstanding Payable', value: tshFromDouble(_totalPayable), icon: Symbols.account_balance_wallet, color: AppColors.coral),
-                    _Kpi(label: 'Total Bills', value: '${_bills.length}', icon: Symbols.receipt_long, color: AppColors.amber),
-                    _Kpi(label: 'Suppliers', value: '${_suppliers.length}', icon: Symbols.business, color: AppColors.blue),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Container(
-                  decoration: BoxDecoration(
-                    color: context.pal.surface1,
-                    borderRadius: BorderRadius.circular(AppColors.rLg),
-                    border: Border.all(color: context.pal.border),
-                  ),
-                  child: HScrollTable(minWidth: 800, child: _BillsTable(
-                    bills: _bills,
-                    onSelect: (b) => setState(() => _selected = b),
-                  )),
-                ),
-              ],
+        final pad  = cst.maxWidth < 560 ? 16.0 : 26.0;
+        final wide = cst.maxWidth >= 1000;
+        return Padding(
+          padding: EdgeInsets.all(pad),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+              Container(width: 2, height: 36, decoration: BoxDecoration(color: AppColors.amber, borderRadius: BorderRadius.circular(2))),
+              const SizedBox(width: 13),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Accounts Payable', style: AppTheme.pageTitle.copyWith(fontSize: 23)),
+                const SizedBox(height: 3),
+                Text('Vendor bills & supplier payments · ${_suppliers.length} suppliers on file', style: AppTheme.bodySub.copyWith(fontSize: 12)),
+              ])),
+              OutlinedButton.icon(onPressed: _scrollToPayRun, icon: const Icon(Symbols.send, size: 15), label: const Text('Pay run')),
+              const SizedBox(width: 8),
+              FilledButton.icon(onPressed: () => setState(() => _showCreate = true), icon: const Icon(Symbols.add, size: 16), label: const Text('New bill')),
             ]),
-          ),
+            const SizedBox(height: 16),
+            Expanded(
+              child: _loading
+                  ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
+                  : _error != null
+                      ? ErrorView(message: _error!, onRetry: _load)
+                      : SingleChildScrollView(child: wide
+                          ? IntrinsicHeight(child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                              Expanded(flex: 7, child: _mainColumn(context)),
+                              const SizedBox(width: 16),
+                              Expanded(flex: 5, child: _rail(context)),
+                            ]))
+                          : Column(children: [_mainColumn(context), const SizedBox(height: 16), _rail(context)])),
+            ),
+          ]),
         );
       }),
       if (_showCreate)
@@ -137,132 +164,192 @@ class _VendorBillsScreenState extends State<VendorBillsScreen> {
         ),
     ]);
   }
-}
 
-class _Kpi extends StatelessWidget {
-  const _Kpi({required this.label, required this.value, required this.icon, required this.color});
-  final String label, value;
-  final IconData icon;
-  final Color color;
+  Widget _mainColumn(BuildContext context) {
+    final overdueTotal = _overdue.fold<int>(0, (s, b) => s + b.balanceDue);
+    final dueSoonTotal = _dueSoon.fold<int>(0, (s, b) => s + b.balanceDue);
+    final paidToDate = _bills.fold<int>(0, (s, b) => s + b.amountPaid);
 
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(18),
-    decoration: BoxDecoration(
-      color: context.pal.surface1,
-      borderRadius: BorderRadius.circular(AppColors.rLg),
-      border: Border.all(color: context.pal.border),
-    ),
-    child: Row(children: [
-      Container(
-        width: 40, height: 40,
-        decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
-        child: Icon(icon, size: 19, color: color),
-      ),
-      const SizedBox(width: 14),
-      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(label, style: AppTheme.bodySub.copyWith(fontSize: 11.5)),
-        const SizedBox(height: 2),
-        Text(value, style: AppTheme.kpiValue.copyWith(fontSize: 20)),
-      ])),
-    ]),
-  );
-}
-
-class _BillsTable extends StatelessWidget {
-  const _BillsTable({required this.bills, required this.onSelect});
-  final List<VendorBill> bills;
-  final ValueChanged<VendorBill> onSelect;
-
-  Color _statusColor(String s) => switch (s) {
-    'paid'      => AppColors.teal,
-    'partial'   => AppColors.blue,
-    'overdue'   => AppColors.coral,
-    'cancelled' => AppColors.textMute,
-    _           => AppColors.amber,
-  };
-
-  @override
-  Widget build(BuildContext context) {
-    if (bills.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 32),
-        child: Center(child: Text('No vendor bills yet', style: TextStyle(color: context.pal.textMute))),
-      );
+    final now = DateTime.now();
+    final buckets = <String, int>{'Current': 0, '1–30 d': 0, '31–60 d': 0, '60 d +': 0};
+    for (final b in _open) {
+      final d = DateTime.tryParse(b.dueDate);
+      final daysLate = d == null ? 0 : now.difference(d).inDays;
+      if (daysLate <= 0) buckets['Current'] = buckets['Current']! + b.balanceDue;
+      else if (daysLate <= 30) buckets['1–30 d'] = buckets['1–30 d']! + b.balanceDue;
+      else if (daysLate <= 60) buckets['31–60 d'] = buckets['31–60 d']! + b.balanceDue;
+      else buckets['60 d +'] = buckets['60 d +']! + b.balanceDue;
     }
-    return Table(
-      columnWidths: const {
-        0: FixedColumnWidth(120),
-        1: FlexColumnWidth(2),
-        2: FlexColumnWidth(1.5),
-        3: FlexColumnWidth(1.3),
-        4: FlexColumnWidth(1),
-        5: FixedColumnWidth(80),
-      },
-      children: [
-        TableRow(
-          decoration: BoxDecoration(border: Border(bottom: BorderSide(color: context.pal.border))),
-          children: ['Bill No.', 'Supplier', 'Total', 'Due Date', 'Status', ''].map((h) =>
-            Padding(
+    final bucketColors = {'Current': AppColors.green, '1–30 d': AppColors.amber, '31–60 d': const Color(0xFFFF8A3D), '60 d +': AppColors.coral};
+    final agingTotal = buckets.values.fold(0, (a, b) => a + b);
+
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(color: context.pal.surface1, borderRadius: BorderRadius.circular(14), border: Border.all(color: context.pal.border)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('OUTSTANDING PAYABLE', style: AppTheme.labelCaps.copyWith(fontSize: 9.5)),
+              const SizedBox(height: 5),
+              Text(tshFromDouble(_totalPayable), style: AppTheme.kpiValue.copyWith(fontSize: 25)),
+            ]),
+            const Spacer(),
+            _apStat('Due in 7 days', tshFromDouble(dueSoonTotal), AppColors.amber),
+            const SizedBox(width: 22),
+            _apStat('Overdue', tshFromDouble(overdueTotal), AppColors.coral),
+            const SizedBox(width: 22),
+            _apStat('Open bills', '${_open.length}', context.pal.text),
+            const SizedBox(width: 22),
+            _apStat('Paid to date', tshFromDouble(paidToDate), AppColors.green),
+          ]),
+          const SizedBox(height: 16),
+          if (agingTotal > 0) ClipRRect(borderRadius: BorderRadius.circular(4), child: Row(children: buckets.entries.map((e) =>
+              Expanded(flex: (e.value == 0 ? 1 : e.value), child: Container(height: 8, color: e.value == 0 ? context.pal.surface3 : bucketColors[e.key])),
+          ).toList())),
+          const SizedBox(height: 11),
+          Wrap(spacing: 20, runSpacing: 6, children: buckets.entries.map((e) => Row(mainAxisSize: MainAxisSize.min, children: [
+            Container(width: 7, height: 7, decoration: BoxDecoration(color: bucketColors[e.key], borderRadius: BorderRadius.circular(2))),
+            const SizedBox(width: 7),
+            Text(e.key, style: AppTheme.bodySub.copyWith(fontSize: 11)),
+            const SizedBox(width: 6),
+            Text(tshFromDouble(e.value), style: AppTheme.monoXs.copyWith(fontSize: 11.5, color: context.pal.text)),
+          ])).toList()),
+        ]),
+      ),
+      const SizedBox(height: 14),
+      Container(
+        decoration: BoxDecoration(color: context.pal.surface1, borderRadius: BorderRadius.circular(14), border: Border.all(color: context.pal.border)),
+        clipBehavior: Clip.antiAlias,
+        child: Column(children: [
+          Container(
+            height: 38, padding: const EdgeInsets.symmetric(horizontal: 16),
+            color: context.pal.surface2,
+            child: Row(children: [
+              SizedBox(width: 100, child: Text('BILL NO.', style: AppTheme.labelCaps.copyWith(fontSize: 9.5))),
+              Expanded(flex: 3, child: Text('SUPPLIER', style: AppTheme.labelCaps.copyWith(fontSize: 9.5))),
+              Expanded(child: Text('TOTAL', textAlign: TextAlign.right, style: AppTheme.labelCaps.copyWith(fontSize: 9.5))),
+              Expanded(child: Text('DUE', textAlign: TextAlign.right, style: AppTheme.labelCaps.copyWith(fontSize: 9.5))),
+              Expanded(child: Text('DUE DATE', style: AppTheme.labelCaps.copyWith(fontSize: 9.5))),
+              Expanded(child: Text('STATUS', textAlign: TextAlign.right, style: AppTheme.labelCaps.copyWith(fontSize: 9.5))),
+              const SizedBox(width: 54),
+            ]),
+          ),
+          if (_bills.isEmpty)
+            Padding(padding: const EdgeInsets.symmetric(vertical: 32), child: Center(child: Text('No vendor bills yet.', style: AppTheme.bodySub))),
+          ..._bills.map((b) {
+            final now2 = DateTime.now();
+            final d = DateTime.tryParse(b.dueDate);
+            final daysDiff = d?.difference(now2).inDays;
+            final overdue = b.status == 'overdue' || (daysDiff != null && daysDiff < 0 && b.canPay);
+            final agingLabel = b.isPaid ? 'settled' : b.status == 'cancelled' ? 'voided' : daysDiff == null ? '—' : daysDiff >= 0 ? 'in $daysDiff days' : '${-daysDiff} days late';
+            final stColor = switch (b.status) { 'paid' => AppColors.green, 'approved' => AppColors.cyan, 'partial' => AppColors.amber, 'cancelled' => AppColors.textMute, _ => overdue ? AppColors.coral : context.pal.textMute };
+            return Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              child: Text(h.toUpperCase(), style: AppTheme.monoXs.copyWith(fontWeight: FontWeight.w500)),
-            )).toList(),
-        ),
-        ...bills.asMap().entries.map((e) {
-          final b = e.value;
-          final color = _statusColor(b.status);
-          return TableRow(
-            decoration: BoxDecoration(
-              border: e.key == bills.length - 1 ? null : Border(bottom: BorderSide(color: context.pal.divider)),
-            ),
-            children: [
-              _TCell(child: Text(b.billNumber, style: AppTheme.monoXs.copyWith(color: context.pal.textMute))),
-              _TCell(child: Text(b.supplierName ?? '—', style: AppTheme.bodySm.copyWith(fontSize: 12.5), overflow: TextOverflow.ellipsis)),
-              _TCell(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(tshFromDouble(b.total), style: AppTheme.monoSm.copyWith(color: AppColors.amber, fontSize: 12)),
-                if (b.balanceDue > 0)
-                  Text('Due: ${tshFromDouble(b.balanceDue)}', style: AppTheme.bodySub.copyWith(fontSize: 10.5, color: AppColors.coral)),
-              ])),
-              _TCell(child: Text(b.dueDate, style: AppTheme.monoXs)),
-              _TCell(child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(999)),
-                child: Text(b.statusLabel, style: AppTheme.bodySub.copyWith(color: color, fontSize: 11.5, fontWeight: FontWeight.w500)),
-              )),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                child: GestureDetector(
-                  onTap: () => onSelect(b),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: b.canPay ? AppColors.teal : context.pal.surface3,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(b.canPay ? 'Pay' : 'View', style: AppTheme.bodySub.copyWith(
-                      color: b.canPay ? const Color(0xFF06120F) : context.pal.textMute,
-                      fontSize: 11.5, fontWeight: FontWeight.w600,
-                    )),
-                  ),
-                ),
-              ),
-            ],
-          );
-        }),
-      ],
-    );
+              decoration: BoxDecoration(color: overdue ? AppColors.coral.withValues(alpha: 0.05) : null, border: Border(bottom: BorderSide(color: context.pal.divider))),
+              child: Row(children: [
+                SizedBox(width: 100, child: Text(b.billNumber, style: AppTheme.monoXs.copyWith(fontSize: 11, color: context.pal.textMute))),
+                Expanded(flex: 3, child: Text(b.supplierName ?? '—', style: AppTheme.bodySm.copyWith(fontSize: 12.5), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                Expanded(child: Text(tshFromDouble(b.total), textAlign: TextAlign.right, style: AppTheme.monoSm.copyWith(fontSize: 12.5))),
+                Expanded(child: Text(b.balanceDue > 0 ? tshFromDouble(b.balanceDue) : '—', textAlign: TextAlign.right, style: AppTheme.monoSm.copyWith(fontSize: 12.5, color: overdue ? AppColors.coral : context.pal.text))),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(b.dueDate, style: AppTheme.monoXs.copyWith(fontSize: 10.5)),
+                  Text(agingLabel, style: AppTheme.bodySub.copyWith(fontSize: 10, color: overdue ? AppColors.coral : context.pal.textDim)),
+                ])),
+                Expanded(child: Align(alignment: Alignment.centerRight, child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(color: stColor.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(5)),
+                  child: Text(b.statusLabel.toUpperCase(), style: AppTheme.monoXs.copyWith(fontSize: 9, color: stColor)),
+                ))),
+                SizedBox(width: 54, child: Align(alignment: Alignment.centerRight, child: OutlinedButton(
+                  onPressed: () => setState(() => _selected = b),
+                  style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 10), minimumSize: const Size(0, 26)),
+                  child: Text(b.canApprove ? 'Approve' : b.canPay ? 'Pay' : 'View', style: const TextStyle(fontSize: 11)),
+                ))),
+              ]),
+            );
+          }),
+        ]),
+      ),
+    ]);
   }
-}
 
-class _TCell extends StatelessWidget {
-  const _TCell({required this.child});
-  final Widget child;
+  Widget _apStat(String label, String value, Color color) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 9)),
+    const SizedBox(height: 5),
+    Text(value, style: AppTheme.monoXs.copyWith(fontSize: 15, color: color)),
+  ]);
 
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-    child: child,
-  );
+  Widget _sectionHeader(BuildContext context, IconData icon, Color color, String title) => Row(children: [
+    Icon(icon, size: 13, color: color),
+    const SizedBox(width: 8),
+    Text(title.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10.5)),
+    const SizedBox(width: 8),
+    Expanded(child: Container(height: 1, color: context.pal.divider)),
+  ]);
+
+  Widget _rail(BuildContext context) {
+    final due = _dueSoon;
+    final dueTotal = due.fold<int>(0, (s, b) => s + b.balanceDue);
+    final bySupplier = <String, int>{};
+    for (final b in _bills) { bySupplier[b.supplierName ?? '—'] = (bySupplier[b.supplierName ?? '—'] ?? 0) + b.total; }
+    final topSuppliers = bySupplier.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+    final maxSupplier = topSuppliers.isEmpty ? 1 : topSuppliers.first.value;
+
+    return Column(key: _payRunKey, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      _sectionHeader(context, Symbols.event_available, AppColors.green, 'Next pay run'),
+      const SizedBox(height: 9),
+      Container(
+        padding: const EdgeInsets.all(15),
+        decoration: BoxDecoration(color: context.pal.surface1, borderRadius: BorderRadius.circular(14), border: Border.all(color: context.pal.border)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(crossAxisAlignment: CrossAxisAlignment.baseline, textBaseline: TextBaseline.alphabetic, children: [
+            Text(tshFromDouble(dueTotal), style: AppTheme.kpiValue.copyWith(fontSize: 20)),
+            const SizedBox(width: 8),
+            Text('${due.length} bill${due.length == 1 ? '' : 's'} due within 7 days', style: AppTheme.bodySub.copyWith(fontSize: 11)),
+          ]),
+          const SizedBox(height: 10),
+          Container(height: 1, color: context.pal.divider),
+          const SizedBox(height: 10),
+          if (due.isEmpty) Text('Nothing due within a week.', style: AppTheme.bodySub.copyWith(fontSize: 12))
+          else ...due.map((b) => Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(children: [
+              Icon(Symbols.check_box_outline_blank, size: 14, color: context.pal.textDim),
+              const SizedBox(width: 9),
+              Expanded(child: Text(b.supplierName ?? '—', style: AppTheme.bodySub.copyWith(fontSize: 11.5), maxLines: 1, overflow: TextOverflow.ellipsis)),
+              Text(tshFromDouble(b.balanceDue), style: AppTheme.monoXs.copyWith(fontSize: 11.5, color: context.pal.text)),
+            ]),
+          )),
+          const SizedBox(height: 6),
+          SizedBox(width: double.infinity, child: FilledButton(
+            onPressed: due.isEmpty || _payingRun ? null : _schedulePayRun,
+            child: _payingRun ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Schedule pay run'),
+          )),
+        ]),
+      ),
+      const SizedBox(height: 16),
+      _sectionHeader(context, Symbols.apartment, AppColors.violet, 'Top suppliers'),
+      const SizedBox(height: 9),
+      Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(color: context.pal.surface1, borderRadius: BorderRadius.circular(14), border: Border.all(color: context.pal.border)),
+        child: topSuppliers.isEmpty
+            ? Text('No bills on file yet.', style: AppTheme.bodySub.copyWith(fontSize: 12))
+            : Column(children: topSuppliers.take(5).map((e) => Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(children: [
+                    Expanded(child: Text(e.key, style: AppTheme.bodySub.copyWith(fontSize: 11.5), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                    Text(tshFromDouble(e.value), style: AppTheme.monoXs.copyWith(fontSize: 11.5, color: context.pal.text)),
+                  ]),
+                  const SizedBox(height: 5),
+                  ClipRRect(borderRadius: BorderRadius.circular(3), child: LinearProgressIndicator(value: e.value / maxSupplier, minHeight: 6, backgroundColor: context.pal.surface3, valueColor: AlwaysStoppedAnimation(AppColors.violet))),
+                ]),
+              )).toList()),
+      ),
+    ]);
+  }
 }
 
 // ── New Bill Dialog ──────────────────────────────────────────────────────────
@@ -521,6 +608,7 @@ class _BillDetailSheetState extends State<_BillDetailSheet> {
   final _amountCtrl = TextEditingController();
   String _method = 'cash';
   bool   _paying = false;
+  bool   _approving = false;
   bool   _showPayForm = false;
 
   @override
@@ -558,6 +646,20 @@ class _BillDetailSheetState extends State<_BillDetailSheet> {
       widget.onChanged();
     } catch (e) {
       if (mounted) showErrorToast(context, e);
+    }
+  }
+
+  Future<void> _approve() async {
+    if (_approving) return;
+    setState(() => _approving = true);
+    try {
+      await VendorBillService.instance.approve(widget.bill.id);
+      widget.onChanged();
+    } catch (e) {
+      if (mounted) {
+        setState(() => _approving = false);
+        showErrorToast(context, e);
+      }
     }
   }
 
@@ -601,6 +703,10 @@ class _BillDetailSheetState extends State<_BillDetailSheet> {
                   _Row('Paid', tshFromDouble(bill.amountPaid), color: AppColors.teal),
                   if (bill.balanceDue > 0)
                     _Row('Balance Due', tshFromDouble(bill.balanceDue), color: AppColors.coral, bold: true),
+                  if (bill.approvedByName != null)
+                    _Row('Approved by', bill.approvedByName!, color: AppColors.teal)
+                  else if (bill.canApprove)
+                    _Row('Approval', 'Awaiting Director approval', color: AppColors.amber),
                   if (_showPayForm && bill.canPay) ...[
                     const SizedBox(height: 12),
                     Row(children: [
@@ -627,7 +733,7 @@ class _BillDetailSheetState extends State<_BillDetailSheet> {
                   ],
                 ]),
               ),
-              if (bill.canPay) ...[
+              if (bill.canCancel) ...[
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                   child: Row(children: [
@@ -638,15 +744,26 @@ class _BillDetailSheetState extends State<_BillDetailSheet> {
                         child: Center(child: Text('Cancel Bill', style: AppTheme.bodySm))),
                     )),
                     const SizedBox(width: 10),
-                    Expanded(flex: 2, child: GestureDetector(
-                      onTap: _showPayForm ? _pay : () => setState(() => _showPayForm = true),
-                      child: Container(height: 42,
-                        decoration: BoxDecoration(color: AppColors.teal, borderRadius: BorderRadius.circular(8)),
-                        child: Center(child: _paying
-                          ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                          : Text(_showPayForm ? 'Confirm Payment' : 'Record Payment',
-                              style: AppTheme.bodyStrong.copyWith(color: const Color(0xFF06120F), fontSize: 13)))),
-                    )),
+                    if (bill.canApprove)
+                      Expanded(flex: 2, child: GestureDetector(
+                        onTap: _approve,
+                        child: Container(height: 42,
+                          decoration: BoxDecoration(color: AppColors.teal, borderRadius: BorderRadius.circular(8)),
+                          child: Center(child: _approving
+                            ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                            : Text('Approve for Payment',
+                                style: AppTheme.bodyStrong.copyWith(color: const Color(0xFF06120F), fontSize: 13)))),
+                      ))
+                    else if (bill.canPay)
+                      Expanded(flex: 2, child: GestureDetector(
+                        onTap: _showPayForm ? _pay : () => setState(() => _showPayForm = true),
+                        child: Container(height: 42,
+                          decoration: BoxDecoration(color: AppColors.teal, borderRadius: BorderRadius.circular(8)),
+                          child: Center(child: _paying
+                            ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                            : Text(_showPayForm ? 'Confirm Payment' : 'Record Payment',
+                                style: AppTheme.bodyStrong.copyWith(color: const Color(0xFF06120F), fontSize: 13)))),
+                      )),
                   ]),
                 ),
               ],

@@ -58,4 +58,19 @@ class ExpenseService {
 
   Future<void> setCategoryRequiresDirector(int categoryId, bool value) =>
       _dio.put('/expense-categories/$categoryId', data: {'requires_director_approval': value});
+
+  Future<ExpenseCategory> createCategory(Map<String, dynamic> data) async {
+    final res = await _dio.post('/expense-categories', data: data);
+    return ExpenseCategory.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+  }
+
+  // data may explicitly include 'parent_id': null to move a subcategory
+  // back to top-level — pass a plain map (not the ?-omit convenience) so
+  // an explicit null actually reaches the server as null, not omitted.
+  Future<ExpenseCategory> updateCategoryDetails(int id, Map<String, dynamic> data) async {
+    final res = await _dio.put('/expense-categories/$id', data: data);
+    return ExpenseCategory.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+  }
+
+  Future<void> deleteCategory(int id) => _dio.delete('/expense-categories/$id');
 }

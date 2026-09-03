@@ -48,7 +48,17 @@ class AppColors {
   // vary for themes added after this fix (fundify's own blue700).
   static Color get blueStrong  => switch (themeNotifier.value) {
     AppThemeMode.dark || AppThemeMode.light || AppThemeMode.neutral => const Color(0xFF4ADE80),
-    AppThemeMode.fundify || AppThemeMode.aurora => AppTheme.pal.blue700,
+    AppThemeMode.fundify ||
+    AppThemeMode.aurora ||
+    AppThemeMode.hypermed ||
+    AppThemeMode.hypermedLight ||
+    AppThemeMode.slateDusk ||
+    AppThemeMode.ledgerPaper ||
+    AppThemeMode.carbonAmber ||
+    AppThemeMode.nocturne ||
+    AppThemeMode.daylight ||
+    AppThemeMode.forestDeep ||
+    AppThemeMode.inkCopper => AppTheme.pal.blue700,
   };
 
   static Color get green       => AppTheme.pal.green;
@@ -64,6 +74,13 @@ class AppColors {
   static const Color violetSoft  = Color(0x29A78BFA);
 
   static const Color info        = Color(0xFF38BDF8); // gwgps --info
+
+  // Fixed, theme-invariant cyan — the "People" HR category needs its own
+  // identity distinct from the brand accent (payroll now owns the actual
+  // brand green in the HR Redesign color legend). Same fixed-constant
+  // pattern as violet above, not a AppTheme.pal-derived role.
+  static const Color cyan        = Color(0xFF2DD4BF);
+  static const Color cyanSoft    = Color(0x292DD4BF);
 
   // ── Radii (gwgps --r-sm/md/lg/xl) ───────────────────────────
   static const double rSm = 10;

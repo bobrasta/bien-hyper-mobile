@@ -4,6 +4,7 @@ import '../main.dart' show notificationCountNotifier;
 import 'auth_service.dart';
 import 'email_service.dart';
 import 'notification_service.dart';
+import 'staff_service.dart';
 import 'ticket_service.dart';
 
 class BackgroundSync {
@@ -39,7 +40,7 @@ class BackgroundSync {
   }
 
   Future<void> _poll() async {
-    await Future.wait([_pollNotifications(), _pollEmail(), _pollTickets()]);
+    await Future.wait([_pollNotifications(), _pollEmail(), _pollTickets(), StaffService.instance.poll()]);
     _initialized = true;
   }
 

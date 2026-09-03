@@ -227,7 +227,7 @@ class _InventoryItemsScreenState extends State<InventoryItemsScreen> {
           // Detail panel
           if (_selected != null) ...[
             Container(width: 1, color: context.pal.border),
-            SizedBox(width: 320, child: _ItemDetailPanel(
+            Expanded(flex: 2, child: _ItemDetailPanel(
               item:    _selected!,
               catLabel: _catLabel(_selected!.category),
               catColor: _catColor(_selected!.category),

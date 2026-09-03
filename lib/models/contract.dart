@@ -34,6 +34,9 @@ class Contract {
   final String? resignationDate;
   final String? resignationReason;
   final int? renewedFromContractId;
+  final String? documentUrl;
+  final String? documentName;
+  final String? documentUploadedAt;
   final String? createdByName;
   final List<Allowance> allowances;
 
@@ -42,6 +45,7 @@ class Contract {
     required this.startDate, this.endDate, required this.probationPeriodDays,
     this.probationEndDate, this.baseSalary, required this.status,
     this.resignationDate, this.resignationReason, this.renewedFromContractId,
+    this.documentUrl, this.documentName, this.documentUploadedAt,
     this.createdByName, this.allowances = const [],
   });
 
@@ -58,10 +62,14 @@ class Contract {
     resignationDate:        j['resignation_date'] as String?,
     resignationReason:      j['resignation_reason'] as String?,
     renewedFromContractId:  (j['renewed_from_contract_id'] as num?)?.toInt(),
+    documentUrl:            j['document_url'] as String?,
+    documentName:           j['document_name'] as String?,
+    documentUploadedAt:     j['document_uploaded_at'] as String?,
     createdByName:          j['created_by_name'] as String?,
     allowances:             (j['allowances'] as List<dynamic>? ?? [])
         .map((a) => Allowance.fromJson(a as Map<String, dynamic>)).toList(),
   );
 
   bool get isActive => status == 'active';
+  bool get hasDocument => documentUrl != null;
 }

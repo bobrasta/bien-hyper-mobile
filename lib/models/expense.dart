@@ -2,10 +2,15 @@ class ExpenseCategory {
   final int    id;
   final String name;
   final int    accountId;
+  final String? accountCode;
+  final String? accountName;
+  final int?    parentId;
+  final String? parentName;
   final bool   requiresDirectorApproval;
 
   const ExpenseCategory({
     required this.id, required this.name, required this.accountId,
+    this.accountCode, this.accountName, this.parentId, this.parentName,
     this.requiresDirectorApproval = false,
   });
 
@@ -13,8 +18,14 @@ class ExpenseCategory {
     id:        (j['id'] as num).toInt(),
     name:      j['name'] as String? ?? '—',
     accountId: (j['account_id'] as num? ?? 0).toInt(),
+    accountCode: j['account_code'] as String?,
+    accountName: j['account_name'] as String?,
+    parentId:  (j['parent_id'] as num?)?.toInt(),
+    parentName: j['parent_name'] as String?,
     requiresDirectorApproval: j['requires_director_approval'] as bool? ?? false,
   );
+
+  bool get isSubcategory => parentId != null;
 }
 
 enum ExpenseStatus { pendingCto, pendingDirector, approved, rejected }
@@ -29,10 +40,20 @@ extension ExpenseStatusX on ExpenseStatus {
 }
 
 ExpenseStatus _parseExpenseStatus(String s) => switch (s) {
-  'pending_director' => ExpenseStatus.pendingDirector,
+  'pending_cto'       => ExpenseStatus.pendingCto,
+  'pending_director'  => ExpenseStatus.pendingDirector,
   'approved'          => ExpenseStatus.approved,
+  // A handful of historic payroll-driven expenses were posted directly as
+  // 'paid' by an earlier version of PayrollController::markPaid(), before
+  // it was fixed to post 'approved' like every other expense. Treat it as
+  // approved (accurate — it was reviewed and paid) rather than falling
+  // into the default below.
+  'paid'              => ExpenseStatus.approved,
   'rejected'          => ExpenseStatus.rejected,
-  _                   => ExpenseStatus.pendingCto,
+  // An unrecognised status must never be silently treated as an actionable
+  // "awaiting my approval" — that previously made the CTO/Director icons
+  // clickable on rows the backend then correctly rejected with a 422.
+  _                   => ExpenseStatus.approved,
 };
 
 class Expense {

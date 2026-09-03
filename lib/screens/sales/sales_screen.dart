@@ -5,10 +5,25 @@ import '../../services/sales_service.dart';
 import '../../services/staff_service.dart';
 import '../../theme/app_colors.dart';
 import '../../utils/api_error.dart';
+import '../../utils/format.dart';
 import '../../widgets/common/error_view.dart';
 import '../../theme/app_theme.dart';
-import '../../widgets/common/app_button.dart';
 import '../../theme/app_palette.dart';
+
+Color _stageColor(PipelineStage s) => switch (s) {
+  PipelineStage.lead          => AppColors.textMute,
+  PipelineStage.qualified     => AppColors.green,
+  PipelineStage.demoScheduled => AppColors.violet,
+  PipelineStage.proposalSent  => AppColors.amber,
+  PipelineStage.negotiation   => AppColors.coral,
+  PipelineStage.won           => AppColors.green,
+  PipelineStage.lost          => AppColors.textMute,
+};
+
+const _boardStages = [
+  PipelineStage.lead, PipelineStage.qualified, PipelineStage.demoScheduled,
+  PipelineStage.proposalSent, PipelineStage.negotiation, PipelineStage.won,
+];
 
 String _isoDate(DateTime d) =>
     '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
@@ -27,6 +42,8 @@ class _SalesScreenState extends State<SalesScreen> {
   bool            _loading = true;
   String?         _error;
   bool            _autoOpenedLead = false;
+  String? _repFilter;
+  String? _machineFilter;
 
   @override
   void initState() {
@@ -60,55 +77,51 @@ class _SalesScreenState extends State<SalesScreen> {
     if (changed == true) _load();
   }
 
+  List<String> get _reps => _leads.map((l) => l.assigneeName).whereType<String>().toSet().toList()..sort();
+  List<String> get _machines => _leads.map((l) => l.machineType).toSet().toList()..sort();
+
+  List<SalesLead> get _filtered => _leads.where((l) {
+    if (_repFilter != null && l.assigneeName != _repFilter) return false;
+    if (_machineFilter != null && l.machineType != _machineFilter) return false;
+    return true;
+  }).toList();
+
   @override
   Widget build(BuildContext context) {
-    final leads = _leads;
+    final leads = _filtered;
 
-    // Group leads by stage
-    Map<PipelineStage, List<SalesLead>> grouped = {};
+    final grouped = <PipelineStage, List<SalesLead>>{};
     for (final stage in PipelineStage.values) {
       grouped[stage] = leads.where((l) => l.stage == stage).toList();
     }
 
-    final totalPipeline = leads.where((l) =>
-      l.stage != PipelineStage.lost && l.stage != PipelineStage.won)
-        .fold(0, (s, l) => s + l.dealValue);
+    final openLeads = leads.where((l) => l.stage != PipelineStage.lost && l.stage != PipelineStage.won).toList();
+    final totalPipeline = openLeads.fold<int>(0, (s, l) => s + l.dealValue);
+    final weighted = totalPipeline; // no per-stage win-probability data; shown as raw open value
+    final stalled = openLeads.where((l) => l.daysInStage >= 90).length;
 
     return Stack(children: [
-      Column(
-        children: [
-          // Top bar
-          Container(
-            padding: const EdgeInsets.fromLTRB(28, 24, 28, 16),
-            decoration: BoxDecoration(
-              border: Border(bottom: BorderSide(color: context.pal.border)),
-            ),
-            child: LayoutBuilder(builder: (ctx, cst) {
-              final narrow = cst.maxWidth < 560;
-              final titleBlock = Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Sales Pipeline', style: AppTheme.pageTitle),
-                const SizedBox(height: 4),
-                Text('${leads.length} deals · Pipeline value: TSh ${(totalPipeline / 1e6).toStringAsFixed(0)}M',
-                  style: AppTheme.bodySub),
-              ]);
-              final actions = Row(mainAxisSize: MainAxisSize.min, children: [
-                AppButton(label: 'New Lead', icon: Symbols.add, variant: BtnVariant.primary,
-                    onPressed: () => setState(() => _showNewDeal = true)),
-                const SizedBox(width: 8),
-                AppButton(label: 'Filter by Rep', icon: Symbols.person, variant: BtnVariant.ghost),
-                const SizedBox(width: 8),
-                AppButton(label: 'Machine Type', icon: Symbols.category, variant: BtnVariant.ghost),
-              ]);
-              if (narrow) {
-                return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  titleBlock, const SizedBox(height: 12), actions,
-                ]);
-              }
-              return Row(children: [titleBlock, const Spacer(), actions]);
-            }),
+      LayoutBuilder(builder: (ctx, cst) {
+        final pad = cst.maxWidth < 560 ? 16.0 : 26.0;
+        return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Padding(
+            padding: EdgeInsets.fromLTRB(pad, pad, pad, 0),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+              Container(width: 2, height: 36, decoration: BoxDecoration(color: AppColors.violet, borderRadius: BorderRadius.circular(2))),
+              const SizedBox(width: 13),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Sales Pipeline', style: AppTheme.pageTitle.copyWith(fontSize: 23)),
+                const SizedBox(height: 3),
+                Text('${openLeads.length} deals · ${tshFromDouble(totalPipeline)} open · weighted ${tshFromDouble(weighted)} · $stalled stalled over 90 days', style: AppTheme.bodySub.copyWith(fontSize: 12)),
+              ])),
+              _filterDropdown(context, 'Rep', Symbols.person, _repFilter, _reps, (v) => setState(() => _repFilter = v)),
+              const SizedBox(width: 8),
+              _filterDropdown(context, 'Machine type', Symbols.medical_services, _machineFilter, _machines, (v) => setState(() => _machineFilter = v)),
+              const SizedBox(width: 8),
+              FilledButton.icon(onPressed: () => setState(() => _showNewDeal = true), icon: const Icon(Symbols.add, size: 16), label: const Text('New lead')),
+            ]),
           ),
-
-          // Kanban board
+          const SizedBox(height: 16),
           if (_loading)
             const Expanded(child: Center(child: CircularProgressIndicator(strokeWidth: 2)))
           else if (_error != null)
@@ -118,21 +131,21 @@ class _SalesScreenState extends State<SalesScreen> {
               child: RefreshIndicator(
                 onRefresh: _load,
                 child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.all(20),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: PipelineStage.values.map((stage) {
-                      final stageLeads = grouped[stage] ?? [];
-                      return _KanbanColumn(stage: stage, leads: stageLeads, onChanged: _load);
-                    }).toList(),
-                  ),
+                  padding: EdgeInsets.fromLTRB(pad, 0, pad, pad),
+                  child: IntrinsicHeight(child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: _boardStages.map((stage) => Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.only(right: 10),
+                        child: _KanbanColumn(stage: stage, leads: grouped[stage] ?? [], totalOpen: totalPipeline, onChanged: _load, onAddDeal: () => setState(() => _showNewDeal = true)),
+                      ),
+                    )).toList(),
+                  )),
                 ),
               ),
             ),
-        ],
-      ),
+        ]);
+      }),
 
       // New Deal dialog
       if (_showNewDeal)
@@ -142,26 +155,49 @@ class _SalesScreenState extends State<SalesScreen> {
         ),
     ]);
   }
+
+  Widget _filterDropdown(BuildContext context, String label, IconData icon, String? value, List<String> options, ValueChanged<String?> onChanged) {
+    final active = value != null;
+    return PopupMenuButton<String?>(
+      onSelected: onChanged,
+      color: context.pal.surface2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppColors.rMd), side: BorderSide(color: context.pal.border)),
+      itemBuilder: (_) => [
+        PopupMenuItem<String?>(value: null, child: Text('All')),
+        ...options.map((o) => PopupMenuItem<String?>(value: o, child: Text(o))),
+      ],
+      child: Container(
+        height: 30,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: active ? AppColors.violet.withValues(alpha: 0.10) : context.pal.surface1,
+          borderRadius: BorderRadius.circular(9),
+          border: Border.all(color: active ? AppColors.violet.withValues(alpha: 0.5) : context.pal.border),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(icon, size: 13, color: active ? AppColors.violet : context.pal.textDim),
+          const SizedBox(width: 7),
+          Text(value ?? label, style: AppTheme.bodySm.copyWith(fontSize: 12, color: active ? AppColors.violet : null)),
+          const SizedBox(width: 5),
+          Icon(Symbols.expand_more, size: 15, color: context.pal.textDim),
+        ]),
+      ),
+    );
+  }
 }
 
 class _KanbanColumn extends StatelessWidget {
-  const _KanbanColumn({required this.stage, required this.leads, required this.onChanged});
+  const _KanbanColumn({required this.stage, required this.leads, required this.totalOpen, required this.onChanged, required this.onAddDeal});
   final PipelineStage stage;
   final List<SalesLead> leads;
+  final int totalOpen;
   final VoidCallback onChanged;
+  final VoidCallback onAddDeal;
 
-  Color get _dotColor => switch (stage) {
-    PipelineStage.lead          => AppColors.textDim,
-    PipelineStage.qualified     => AppColors.blue,
-    PipelineStage.demoScheduled => AppColors.violet,
-    PipelineStage.proposalSent  => AppColors.amber,
-    PipelineStage.negotiation   => AppColors.coral,
-    PipelineStage.won           => AppColors.teal,
-    PipelineStage.lost          => AppColors.coral,
-  };
+  Color get _dotColor => _stageColor(stage);
 
   Color? get _columnTint => switch (stage) {
-    PipelineStage.won  => AppColors.tealSoft,
+    PipelineStage.won  => AppColors.greenSoft,
     PipelineStage.lost => AppColors.coralSoft,
     _                  => null,
   };
@@ -174,61 +210,67 @@ class _KanbanColumn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final total = leads.fold<int>(0, (a, l) => a + l.dealValue);
+    final share = totalOpen > 0 ? (total / totalOpen * 100).round() : 0;
     return Container(
-      width: 280,
-      margin: const EdgeInsets.only(right: 12),
-      padding: const EdgeInsets.all(12),
-      constraints: const BoxConstraints(minHeight: 540),
+      constraints: const BoxConstraints(minHeight: 460),
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: _columnTint ?? const Color(0x05FFFFFF),
-        borderRadius: BorderRadius.circular(12),
+        color: _columnTint ?? context.pal.surface2,
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: _columnBorder ?? context.pal.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Column header
-          Padding(
-            padding: const EdgeInsets.only(bottom: 12),
+          Container(
+            height: 38, padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(border: Border(bottom: BorderSide(color: context.pal.divider))),
             child: Row(children: [
-              Container(width: 8, height: 8,
-                decoration: BoxDecoration(color: _dotColor, shape: BoxShape.circle)),
+              Container(width: 7, height: 7, decoration: BoxDecoration(color: _dotColor, borderRadius: BorderRadius.circular(2))),
               const SizedBox(width: 8),
-              Text(stage.label.toUpperCase(),
-                style: AppTheme.monoXs.copyWith(
-                  fontSize: 12, fontWeight: FontWeight.w600, letterSpacing: 0.08,
-                )),
-              const Spacer(),
+              Expanded(child: Text(stage.label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 9.5, color: stage == PipelineStage.won ? AppColors.green : context.pal.textMute), maxLines: 1, overflow: TextOverflow.ellipsis)),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
-                decoration: BoxDecoration(
-                  color: context.pal.surface3, borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text('${leads.length}', style: AppTheme.bodySub.copyWith(fontSize: 11)),
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                decoration: BoxDecoration(color: context.pal.surface3, borderRadius: BorderRadius.circular(5)),
+                child: Text('${leads.length}', style: AppTheme.monoXs.copyWith(fontSize: 10, color: context.pal.textDim)),
               ),
             ]),
           ),
-          // Cards
-          ...leads.map((l) => _KanbanCard(lead: l, dotColor: _dotColor, onChanged: onChanged)),
-          // Add card placeholder
-          if (stage != PipelineStage.won && stage != PipelineStage.lost)
-            Container(
-              margin: const EdgeInsets.only(top: 4),
-              height: 36,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: context.pal.border, style: BorderStyle.solid),
-              ),
-              child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                const SizedBox(width: 4),
-                Text('Add deal', style: AppTheme.bodySub.copyWith(fontSize: 12)),
-              ]),
-            ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(border: Border(bottom: BorderSide(color: context.pal.divider))),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.baseline, textBaseline: TextBaseline.alphabetic, children: [
+              Text(tshFromDouble(total), style: AppTheme.monoSm.copyWith(fontSize: 12.5)),
+              if (stage != PipelineStage.won) ...[const SizedBox(width: 6), Text('$share%', style: AppTheme.bodySub.copyWith(fontSize: 10))],
+            ]),
+          ),
+          Expanded(child: SingleChildScrollView(
+            padding: const EdgeInsets.all(10),
+            child: Column(children: [
+              ...leads.map((l) => _KanbanCard(lead: l, dotColor: _dotColor, onChanged: onChanged)),
+              if (stage != PipelineStage.won)
+                GestureDetector(
+                  onTap: onAddDeal,
+                  child: Container(
+                    height: 30,
+                    decoration: BoxDecoration(borderRadius: BorderRadius.circular(9), border: Border.all(color: context.pal.border)),
+                    child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                      Icon(Symbols.add, size: 13, color: context.pal.textDim),
+                      const SizedBox(width: 5),
+                      Text('Add deal', style: AppTheme.bodySub.copyWith(fontSize: 11)),
+                    ]),
+                  ),
+                ),
+            ]),
+          )),
         ],
       ),
     );
   }
 }
+
+final _avatarPalette = [AppColors.cyan, AppColors.amber, AppColors.violet, AppColors.coral, AppColors.info, AppColors.green];
 
 class _KanbanCard extends StatelessWidget {
   const _KanbanCard({required this.lead, required this.dotColor, required this.onChanged});
@@ -236,8 +278,23 @@ class _KanbanCard extends StatelessWidget {
   final Color dotColor;
   final VoidCallback onChanged;
 
+  String get _initials {
+    final parts = lead.contact.trim().split(RegExp(r'\s+'));
+    if (parts.length >= 2) return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+    return parts.isNotEmpty && parts[0].isNotEmpty ? parts[0][0].toUpperCase() : '?';
+  }
+
+  String? get _nextStep {
+    if (lead.demoDate != null) return 'Next: demo ${lead.demoDate}';
+    if (lead.followUpDate != null) return 'Next: follow up ${lead.followUpDate}';
+    return null;
+  }
+
+  bool get _stalled => lead.daysInStage >= 90 || lead.isFollowUpDue;
+
   @override
   Widget build(BuildContext context) {
+    final avatarColor = _avatarPalette[lead.id % _avatarPalette.length];
     return GestureDetector(
       onTap: () async {
         final changed = await showDialog<bool>(
@@ -247,82 +304,61 @@ class _KanbanCard extends StatelessWidget {
         if (changed == true) onChanged();
       },
       child: Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: context.pal.surface1,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: lead.isFollowUpDue ? AppColors.amber.withValues(alpha: 0.5) : context.pal.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+        margin: const EdgeInsets.only(bottom: 9),
+        padding: const EdgeInsets.all(11),
+        decoration: BoxDecoration(
+          color: context.pal.surface1,
+          borderRadius: BorderRadius.circular(11),
+          border: Border.all(color: _stalled ? AppColors.amber.withValues(alpha: 0.35) : context.pal.border),
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(lead.hospital, style: AppTheme.bodySm.copyWith(fontSize: 12.5), maxLines: 2, overflow: TextOverflow.ellipsis),
+          const SizedBox(height: 7),
           Row(children: [
-            Expanded(child: Text(lead.hospital,
-              style: AppTheme.bodyStrong.copyWith(fontSize: 13))),
-            if (lead.isFollowUpDue)
-              Icon(Symbols.hourglass_top, size: 13, color: AppColors.amber),
+            Container(
+              width: 18, height: 18, alignment: Alignment.center,
+              decoration: BoxDecoration(color: avatarColor, shape: BoxShape.circle),
+              child: Text(_initials, style: AppTheme.monoXs.copyWith(fontSize: 8, fontWeight: FontWeight.w700, color: const Color(0xFF08090B))),
+            ),
+            const SizedBox(width: 7),
+            Expanded(child: Text(lead.contact, style: AppTheme.bodySub.copyWith(fontSize: 11), maxLines: 1, overflow: TextOverflow.ellipsis)),
           ]),
-          const SizedBox(height: 2),
-          Text(lead.contact,
-            style: AppTheme.bodySub.copyWith(fontSize: 11.5)),
-          const SizedBox(height: 8),
+          const SizedBox(height: 7),
           Wrap(spacing: 6, runSpacing: 4, children: [
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-              decoration: BoxDecoration(
-                color: context.pal.surface3, borderRadius: BorderRadius.circular(4),
-              ),
-              child: Text(lead.machineType,
-                style: AppTheme.monoXs.copyWith(fontSize: 10.5, letterSpacing: 0.04)),
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(color: context.pal.surface3, borderRadius: BorderRadius.circular(5)),
+              child: Text(lead.machineType, style: AppTheme.monoXs.copyWith(fontSize: 9.5)),
             ),
             if (lead.source != null)
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: (lead.source == LeadSource.tender ? AppColors.violet : context.pal.textDim)
-                      .withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(4),
+                  color: (lead.source == LeadSource.tender ? AppColors.violet : context.pal.textDim).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(5),
                 ),
                 child: Text(lead.source!.label, style: AppTheme.monoXs.copyWith(
-                    fontSize: 10.5, letterSpacing: 0.04,
-                    color: lead.source == LeadSource.tender ? AppColors.violet : context.pal.textMute)),
+                    fontSize: 9.5, color: lead.source == LeadSource.tender ? AppColors.violet : context.pal.textMute)),
               ),
           ]),
-          const SizedBox(height: 10),
-          Text(
-            'TSh ${(lead.dealValue / 1e6).toStringAsFixed(0)}M',
-            style: AppTheme.kpiValue.copyWith(
-              fontSize: 15, color: AppColors.amber,
-            ),
-          ),
           const SizedBox(height: 8),
+          Text(tshFromDouble(lead.dealValue), style: AppTheme.kpiValue.copyWith(fontSize: 16, color: dotColor)),
+          const SizedBox(height: 8),
+          Container(height: 1, color: context.pal.divider),
+          const SizedBox(height: 7),
           Row(children: [
-            const SizedBox(width: 4),
-            Text('${lead.daysInStage}d in stage',
-              style: AppTheme.bodySub.copyWith(fontSize: 11)),
-            const Spacer(),
-            if (lead.demoDate != null) ...[
-              const Icon(Symbols.event, size: 12, color: AppColors.violet),
-              const SizedBox(width: 4),
-              Text(lead.demoDate!, style: AppTheme.bodySub.copyWith(
-                fontSize: 11, color: AppColors.violet,
-              )),
-            ],
+            Icon(_stalled ? Symbols.warning : Symbols.check_circle, size: 12, color: _stalled ? AppColors.amber : AppColors.green),
+            const SizedBox(width: 6),
+            Expanded(child: Text(
+              _stalled ? '${lead.daysInStage}d in stage — stalled' : '${lead.daysInStage}d in stage',
+              style: AppTheme.bodySub.copyWith(fontSize: 10.5, color: _stalled ? AppColors.amber : AppColors.green),
+            )),
           ]),
-          if (lead.followUpDate != null) ...[
-            const SizedBox(height: 4),
-            Row(children: [
-              Icon(Symbols.hourglass_top, size: 12,
-                  color: lead.isFollowUpDue ? AppColors.amber : context.pal.textDim),
-              const SizedBox(width: 4),
-              Text('Follow up ${lead.followUpDate}', style: AppTheme.bodySub.copyWith(
-                fontSize: 11, color: lead.isFollowUpDue ? AppColors.amber : context.pal.textDim,
-              )),
-            ]),
+          if (_nextStep != null) ...[
+            const SizedBox(height: 5),
+            Text(_nextStep!, style: AppTheme.bodySub.copyWith(fontSize: 10.5)),
           ],
-        ],
-      ),
+        ]),
       ),
     );
   }

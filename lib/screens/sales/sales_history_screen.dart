@@ -7,7 +7,7 @@ import '../../theme/app_colors.dart';
 import '../../theme/app_palette.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/format.dart';
-import '../../widgets/common/app_button.dart';
+import '../../utils/pdf_download.dart';
 import '../../widgets/common/error_view.dart';
 import '../../widgets/common/shimmer_box.dart';
 
@@ -78,194 +78,148 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
   int get _totalOutstanding => _filtered.fold(0, (s, i) => s + i.balanceDue);
   int get _overdueCount     => _filtered.where((i) => i.status == PaymentStatus.overdue).length;
 
-  void _openDetail(Invoice inv) {
-    showDialog(
-      context: context,
-      barrierDismissible: true,
-      builder: (_) => _InvoiceDetailDialog(inv: inv),
-    );
-  }
+  Invoice? _selected;
+
+  void _openDetail(Invoice inv) => setState(() => _selected = inv);
 
   @override
   Widget build(BuildContext context) {
     final items = _filtered;
 
-    return Column(children: [
-      // ── Top bar ───────────────────────────────────────────────────────────
-      Container(
-        padding: const EdgeInsets.fromLTRB(24, 16, 24, 14),
-        decoration: BoxDecoration(
-          color: context.pal.surface1,
-          border: Border(bottom: BorderSide(color: context.pal.border)),
-        ),
-        child: Row(children: [
-          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [
-              Icon(Symbols.history, size: 18, color: AppColors.teal),
+    return LayoutBuilder(builder: (ctx, cst) {
+      final pad = cst.maxWidth < 560 ? 16.0 : 26.0;
+      return Stack(children: [
+        Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Padding(
+            padding: EdgeInsets.fromLTRB(pad, pad, pad, 0),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+              Container(width: 2, height: 36, decoration: BoxDecoration(color: AppColors.textMute, borderRadius: BorderRadius.circular(2))),
+              const SizedBox(width: 13),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Sales History', style: AppTheme.pageTitle.copyWith(fontSize: 23)),
+                const SizedBox(height: 3),
+                Text(
+                  _loading ? 'Loading…' : '${_periodLabel(_period)} · ${items.length} invoice${items.length == 1 ? '' : 's'} · ${tshFromDouble(_totalRevenue)} revenue · ${tshFromDouble(_totalCollected)} collected',
+                  style: AppTheme.bodySub.copyWith(fontSize: 12),
+                ),
+              ])),
+              ...[
+                ('all', 'All time'), ('year', 'This year'), ('quarter', 'This quarter'), ('month', 'This month'),
+              ].map((p) => Padding(padding: const EdgeInsets.only(left: 6), child: _PeriodChip(label: p.$2, active: _period == p.$1, onTap: () => setState(() => _period = p.$1)))),
               const SizedBox(width: 8),
-              Text('Sales History', style: AppTheme.pageTitle.copyWith(fontSize: 16)),
-            ]),
-            const SizedBox(height: 2),
-            Text(
-              _loading ? 'Loading…' : '${items.length} invoice${items.length == 1 ? '' : 's'}',
-              style: AppTheme.bodySub,
-            ),
-          ]),
-          const Spacer(),
-
-          // Period chips
-          ...[
-            ('all', 'All Time'),
-            ('year', 'This Year'),
-            ('quarter', 'This Quarter'),
-            ('month', 'This Month'),
-          ].map((p) => _PeriodChip(
-                label: p.$2,
-                active: _period == p.$1,
-                onTap: () => setState(() => _period = p.$1),
-              )),
-
-          const SizedBox(width: 16),
-
-          // Search
-          Container(
-            height: 34,
-            width: 220,
-            decoration: BoxDecoration(
-              color: context.pal.surface2,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: context.pal.border),
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 10),
-            child: Row(children: [
-              Icon(Symbols.search, size: 14, color: context.pal.textDim),
-              const SizedBox(width: 8),
-              Expanded(
+              SizedBox(
+                width: 190, height: 32,
                 child: TextField(
                   controller: _searchCtrl,
                   style: AppTheme.bodySm.copyWith(fontSize: 12.5),
                   decoration: InputDecoration(
                     hintText: 'Invoice, client, order…',
-                    border: InputBorder.none,
-                    isDense: true,
-                    contentPadding: EdgeInsets.zero,
                     hintStyle: AppTheme.bodySub.copyWith(fontSize: 12),
+                    prefixIcon: Icon(Symbols.search, size: 15, color: context.pal.textDim),
+                    filled: true, fillColor: context.pal.surface1,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 6, horizontal: 10),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(9), borderSide: BorderSide(color: context.pal.border)),
+                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(9), borderSide: BorderSide(color: context.pal.border)),
                   ),
                 ),
               ),
-              if (_search.isNotEmpty)
-                GestureDetector(
-                  onTap: () { _searchCtrl.clear(); setState(() => _search = ''); },
-                  child: Icon(Symbols.close, size: 13, color: context.pal.textDim),
-                ),
             ]),
           ),
-        ]),
-      ),
-
-      // ── KPI cards ─────────────────────────────────────────────────────────
-      if (!_loading && _error == null)
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-          decoration: BoxDecoration(
-            color: context.pal.bg,
-            border: Border(bottom: BorderSide(color: context.pal.border)),
-          ),
-          child: Row(children: [
-            _KpiCard(
-              icon: Symbols.payments,
-              label: 'Total Revenue',
-              value: tshFromDouble(_totalRevenue),
-              color: AppColors.teal,
+          const SizedBox(height: 16),
+          if (!_loading && _error == null)
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: pad),
+              child: Container(
+                decoration: BoxDecoration(color: context.pal.surface1, borderRadius: BorderRadius.circular(14), border: Border.all(color: context.pal.border)),
+                child: Row(children: [
+                  Expanded(child: _histStat('Revenue', Symbols.payments, AppColors.cyan, tshFromDouble(_totalRevenue), '${items.length} invoices raised')),
+                  Expanded(child: _histStat('Collected', Symbols.hand_gesture, AppColors.green, tshFromDouble(_totalCollected), '${items.where((i) => i.isPaid).length} paid in full', border: true)),
+                  Expanded(child: _histStat('Outstanding', Symbols.hourglass_top, AppColors.amber, tshFromDouble(_totalOutstanding), '$_overdueCount overdue', border: true)),
+                  Expanded(child: _histStat('Avg invoice', Symbols.receipt_long, AppColors.violet, items.isEmpty ? '—' : tshFromDouble(_totalRevenue ~/ items.length), 'across period', border: true)),
+                  Expanded(child: _histStat('Days to pay', Symbols.timer, AppColors.textMute, _avgDaysToPay(items), 'average, paid invoices', border: true)),
+                ]),
+              ),
             ),
-            const SizedBox(width: 12),
-            _KpiCard(
-              icon: Symbols.check_circle,
-              label: 'Collected',
-              value: tshFromDouble(_totalCollected),
-              color: AppColors.green,
-            ),
-            const SizedBox(width: 12),
-            _KpiCard(
-              icon: Symbols.pending,
-              label: 'Outstanding',
-              value: tshFromDouble(_totalOutstanding),
-              color: _totalOutstanding > 0 ? AppColors.amber : AppColors.textDim,
-            ),
-            const SizedBox(width: 12),
-            _KpiCard(
-              icon: Symbols.receipt_long,
-              label: 'Invoices',
-              value: '${items.length}',
-              color: AppColors.violet,
-            ),
-            const SizedBox(width: 12),
-            _KpiCard(
-              icon: Symbols.warning,
-              label: 'Overdue',
-              value: '$_overdueCount',
-              color: _overdueCount > 0 ? AppColors.coral : AppColors.textDim,
-              highlight: _overdueCount > 0,
-            ),
-          ]),
-        ),
-
-      // ── Table header ──────────────────────────────────────────────────────
-      if (!_loading && _error == null)
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 9),
-          decoration: BoxDecoration(
-            color: context.pal.surface2,
-            border: Border(bottom: BorderSide(color: context.pal.border)),
-          ),
-          child: Row(children: [
-            const SizedBox(width: 4),
-            SizedBox(width: 130, child: Text('INVOICE',   style: AppTheme.labelCaps)),
-            Expanded(flex: 3, child: Text('CLIENT',     style: AppTheme.labelCaps)),
-            Expanded(flex: 2, child: Text('ORDER',      style: AppTheme.labelCaps)),
-            SizedBox(width: 110, child: Text('TOTAL',   style: AppTheme.labelCaps)),
-            SizedBox(width: 100, child: Text('COLLECTED', style: AppTheme.labelCaps)),
-            SizedBox(width: 90,  child: Text('BALANCE',  style: AppTheme.labelCaps)),
-            SizedBox(width: 80,  child: Text('STATUS',   style: AppTheme.labelCaps)),
-            SizedBox(width: 86,  child: Text('DATE',     style: AppTheme.labelCaps)),
-          ]),
-        ),
-
-      // ── List ──────────────────────────────────────────────────────────────
-      Expanded(
-        child: _loading
-            ? Padding(
-                padding: const EdgeInsets.all(24),
-                child: shimmerTable(count: 10, cols: 7))
-            : _error != null
-                ? ErrorView(message: _error!, onRetry: _load)
-                : items.isEmpty
-                    ? Center(
-                        child: Column(mainAxisSize: MainAxisSize.min, children: [
-                          Icon(Symbols.history, size: 48,
-                              color: context.pal.textDim),
-                          const SizedBox(height: 12),
-                          Text('No sales records found',
-                              style: AppTheme.bodyStrong
-                                  .copyWith(color: context.pal.textMute)),
-                          const SizedBox(height: 4),
-                          Text(
-                            _search.isNotEmpty
-                                ? 'Try a different search term'
-                                : 'Completed invoices will appear here',
-                            style: AppTheme.bodySub,
-                          ),
-                        ]),
-                      )
-                    : ListView.builder(
-                        itemCount: items.length,
-                        itemBuilder: (_, i) => _HistoryRow(
-                          inv: items[i],
-                          onTap: () => _openDetail(items[i]),
+          const SizedBox(height: 16),
+          Expanded(
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(pad, 0, pad, pad),
+              child: _loading
+                  ? shimmerTable(count: 10, cols: 7)
+                  : _error != null
+                      ? ErrorView(message: _error!, onRetry: _load)
+                      : Container(
+                          decoration: BoxDecoration(color: context.pal.surface1, borderRadius: BorderRadius.circular(14), border: Border.all(color: context.pal.border)),
+                          clipBehavior: Clip.antiAlias,
+                          child: Column(children: [
+                            Container(
+                              height: 38, padding: const EdgeInsets.symmetric(horizontal: 16),
+                              color: context.pal.surface2,
+                              child: Row(children: [
+                                SizedBox(width: 130, child: Text('INVOICE', style: AppTheme.labelCaps.copyWith(fontSize: 9.5))),
+                                Expanded(flex: 3, child: Text('CLIENT', style: AppTheme.labelCaps.copyWith(fontSize: 9.5))),
+                                Expanded(flex: 2, child: Text('TRAIL', style: AppTheme.labelCaps.copyWith(fontSize: 9.5))),
+                                Expanded(child: Text('TOTAL', textAlign: TextAlign.right, style: AppTheme.labelCaps.copyWith(fontSize: 9.5))),
+                                Expanded(child: Text('COLLECTED', textAlign: TextAlign.right, style: AppTheme.labelCaps.copyWith(fontSize: 9.5))),
+                                Expanded(child: Text('BALANCE', textAlign: TextAlign.right, style: AppTheme.labelCaps.copyWith(fontSize: 9.5))),
+                                Expanded(child: Text('STATUS', textAlign: TextAlign.right, style: AppTheme.labelCaps.copyWith(fontSize: 9.5))),
+                                Expanded(child: Text('DATE', textAlign: TextAlign.right, style: AppTheme.labelCaps.copyWith(fontSize: 9.5))),
+                              ]),
+                            ),
+                            Expanded(child: items.isEmpty
+                                ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+                                    Icon(Symbols.history, size: 40, color: context.pal.textDim),
+                                    const SizedBox(height: 10),
+                                    Text('No sales records found', style: AppTheme.bodyStrong.copyWith(color: context.pal.textMute)),
+                                    const SizedBox(height: 4),
+                                    Text(_search.isNotEmpty ? 'Try a different search term' : 'Completed invoices will appear here', style: AppTheme.bodySub),
+                                  ]))
+                                : ListView.builder(
+                                    itemCount: items.length,
+                                    itemBuilder: (_, i) => _HistoryRow(inv: items[i], selected: _selected?.id == items[i].id, onTap: () => _openDetail(items[i])),
+                                  )),
+                          ]),
                         ),
-                      ),
-      ),
-    ]);
+            ),
+          ),
+        ]),
+        if (_selected != null) ...[
+          Positioned.fill(child: GestureDetector(onTap: () => setState(() => _selected = null), child: Container(color: const Color(0x8C06070A)))),
+          Positioned(top: 0, right: 0, bottom: 0, child: _InvoiceDetailPanel(inv: _selected!, onClose: () => setState(() => _selected = null))),
+        ],
+      ]);
+    });
+  }
+
+  Widget _histStat(String label, IconData icon, Color color, String value, String note, {bool border = false}) => Container(
+    padding: const EdgeInsets.all(14),
+    decoration: border ? BoxDecoration(border: Border(left: BorderSide(color: Colors.white.withValues(alpha: 0.06)))) : null,
+    child: Builder(builder: (context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Icon(icon, size: 13, color: color),
+        const SizedBox(width: 7),
+        Expanded(child: Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 9.5), maxLines: 1, overflow: TextOverflow.ellipsis)),
+      ]),
+      const SizedBox(height: 8),
+      Text(value, style: AppTheme.kpiValue.copyWith(fontSize: 19, color: color)),
+      const SizedBox(height: 5),
+      Text(note, style: AppTheme.bodySub.copyWith(fontSize: 10.5), maxLines: 1, overflow: TextOverflow.ellipsis),
+    ])),
+  );
+
+  String _periodLabel(String p) => switch (p) { 'year' => 'This year', 'quarter' => 'This quarter', 'month' => 'This month', _ => 'All time' };
+
+  String _avgDaysToPay(List<Invoice> items) {
+    final paid = items.where((i) => i.isPaid && i.payments.isNotEmpty).toList();
+    if (paid.isEmpty) return '—';
+    final days = paid.map((i) {
+      final issue = DateTime.tryParse(i.issueDate);
+      final paidAt = DateTime.tryParse(i.payments.last.paidAt);
+      if (issue == null || paidAt == null) return 0;
+      return paidAt.difference(issue).inDays;
+    }).where((d) => d >= 0).toList();
+    if (days.isEmpty) return '—';
+    return (days.reduce((a, b) => a + b) / days.length).toStringAsFixed(1);
   }
 }
 
@@ -285,79 +239,15 @@ class _PeriodChip extends StatelessWidget {
   Widget build(BuildContext context) => GestureDetector(
         onTap: onTap,
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
-          margin: const EdgeInsets.only(left: 6),
+          height: 30,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: active ? AppColors.teal : Colors.transparent,
-            border: Border.all(
-              color: active ? AppColors.teal : context.pal.border,
-            ),
-            borderRadius: BorderRadius.circular(20),
+            color: active ? AppColors.green.withValues(alpha: 0.10) : Colors.transparent,
+            borderRadius: BorderRadius.circular(9),
+            border: Border.all(color: active ? AppColors.green.withValues(alpha: 0.5) : context.pal.border),
           ),
-          child: Text(label,
-              style: AppTheme.bodySm.copyWith(
-                color: active
-                    ? const Color(0xFF06120F)
-                    : context.pal.textMute,
-                fontSize: 12,
-                fontWeight: active ? FontWeight.w600 : FontWeight.w400,
-              )),
-        ),
-      );
-}
-
-// ── KPI card ───────────────────────────────────────────────────────────────────
-
-class _KpiCard extends StatelessWidget {
-  const _KpiCard({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.color,
-    this.highlight = false,
-  });
-  final IconData icon;
-  final String label, value;
-  final Color color;
-  final bool highlight;
-
-  @override
-  Widget build(BuildContext context) => Expanded(
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          decoration: BoxDecoration(
-            color: highlight
-                ? color.withValues(alpha: 0.08)
-                : context.pal.surface1,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color: highlight ? color.withValues(alpha: 0.3) : context.pal.border,
-            ),
-          ),
-          child: Row(children: [
-            Container(
-              width: 34,
-              height: 34,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(icon, size: 17, color: color),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(label,
-                    style: AppTheme.labelCaps.copyWith(fontSize: 9.5),
-                    overflow: TextOverflow.ellipsis),
-                const SizedBox(height: 2),
-                Text(value,
-                    style: AppTheme.bodyStrong.copyWith(
-                        color: color, fontSize: 13.5),
-                    overflow: TextOverflow.ellipsis),
-              ]),
-            ),
-          ]),
+          child: Text(label, style: AppTheme.bodySm.copyWith(fontSize: 12, color: active ? AppColors.green : context.pal.textMute)),
         ),
       );
 }
@@ -365,8 +255,9 @@ class _KpiCard extends StatelessWidget {
 // ── History row ────────────────────────────────────────────────────────────────
 
 class _HistoryRow extends StatefulWidget {
-  const _HistoryRow({required this.inv, required this.onTap});
+  const _HistoryRow({required this.inv, required this.selected, required this.onTap});
   final Invoice inv;
+  final bool selected;
   final VoidCallback onTap;
 
   @override
@@ -390,7 +281,6 @@ class _HistoryRowState extends State<_HistoryRow> {
     final inv         = widget.inv;
     final statusColor = _statusColor();
     final hasBalance  = inv.balanceDue > 0;
-    final isOverdue   = inv.status == PaymentStatus.overdue;
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
@@ -398,119 +288,45 @@ class _HistoryRowState extends State<_HistoryRow> {
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
         onTap: widget.onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 120),
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 11),
+        child: Container(
+          height: 56,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
           decoration: BoxDecoration(
-            color: _hovered
-                ? context.pal.surface2
-                : Colors.transparent,
-            border: Border(
-              left: BorderSide(
-                color: isOverdue ? AppColors.coral : Colors.transparent,
-                width: 3,
-              ),
-              bottom: BorderSide(color: context.pal.divider, width: 0.5),
-            ),
+            color: widget.selected ? AppColors.cyan.withValues(alpha: 0.07) : (_hovered ? context.pal.surface2 : null),
+            border: Border(bottom: BorderSide(color: context.pal.divider)),
           ),
           child: Row(children: [
-            // Overdue dot indicator
-            SizedBox(
-              width: 4,
-              child: isOverdue
-                  ? Container(
-                      width: 4, height: 4,
-                      decoration: BoxDecoration(
-                        color: AppColors.coral,
-                        shape: BoxShape.circle,
-                      ))
-                  : null,
-            ),
-
-            // Invoice number
-            SizedBox(
-              width: 130,
-              child: Text(inv.invoiceNumber,
-                  style: AppTheme.monoXs.copyWith(
-                      color: AppColors.teal, fontSize: 11.5)),
-            ),
-
-            // Client
-            Expanded(flex: 3, child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(inv.displayName,
-                  style: AppTheme.bodyStrong.copyWith(fontSize: 12.5),
-                  overflow: TextOverflow.ellipsis),
-              if (inv.clientContact != null)
-                Text(inv.clientContact!,
-                    style: AppTheme.bodySub.copyWith(fontSize: 11),
-                    overflow: TextOverflow.ellipsis),
+            SizedBox(width: 130, child: Row(children: [
+              Container(width: 3, height: 26, decoration: BoxDecoration(color: statusColor, borderRadius: BorderRadius.circular(2))),
+              const SizedBox(width: 9),
+              Expanded(child: Text(inv.invoiceNumber, style: AppTheme.monoXs.copyWith(color: widget.selected ? AppColors.green : context.pal.textMute, fontSize: 11.5))),
             ])),
-
-            // Order
-            Expanded(flex: 2, child: Text(
-                inv.salesOrderNumber ?? '—',
-                style: inv.salesOrderNumber != null
-                    ? AppTheme.monoXs.copyWith(
-                        color: context.pal.textMute, fontSize: 11)
-                    : AppTheme.bodySub.copyWith(fontSize: 12),
-                overflow: TextOverflow.ellipsis)),
-
-            // Total
-            SizedBox(width: 110, child: Text(tshFromDouble(inv.total),
-                style: AppTheme.bodyStrong.copyWith(fontSize: 12.5))),
-
-            // Collected
-            SizedBox(
-              width: 100,
-              child: Text(
-                inv.amountPaid > 0 ? tshFromDouble(inv.amountPaid) : '—',
-                style: AppTheme.bodySm.copyWith(
-                    color: inv.amountPaid > 0
-                        ? AppColors.green
-                        : context.pal.textDim,
-                    fontSize: 12),
-              ),
-            ),
-
-            // Balance
-            SizedBox(
-              width: 90,
-              child: Text(
-                hasBalance ? tshFromDouble(inv.balanceDue) : '—',
-                style: AppTheme.bodySm.copyWith(
-                    color: hasBalance ? AppColors.amber : context.pal.textDim,
-                    fontSize: 12),
-              ),
-            ),
-
-            // Status badge
-            SizedBox(
-              width: 80,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(inv.status.label,
-                    style: AppTheme.monoXs.copyWith(
-                        color: statusColor, fontSize: 10),
-                    overflow: TextOverflow.ellipsis),
-              ),
-            ),
-
-            // Date
-            SizedBox(
-              width: 86,
-              child: Text(_fmtDate(inv.issueDate),
-                  style: AppTheme.bodySub.copyWith(fontSize: 11.5)),
-            ),
+            Expanded(flex: 3, child: Text(inv.displayName, style: AppTheme.bodySm.copyWith(fontSize: 12.5), maxLines: 1, overflow: TextOverflow.ellipsis)),
+            Expanded(flex: 2, child: Wrap(spacing: 5, runSpacing: 4, children: [
+              _trailChip('Order', inv.salesOrderNumber ?? 'Direct', context.pal.textMute),
+              if (inv.isPaid) _trailChip('Paid', inv.payments.isNotEmpty ? inv.payments.first.paymentNumber : 'Settled', AppColors.green)
+              else _trailChip('Balance', 'Awaiting', AppColors.amber),
+            ])),
+            Expanded(child: Text(tshFromDouble(inv.total), textAlign: TextAlign.right, style: AppTheme.monoSm.copyWith(fontSize: 12.5))),
+            Expanded(child: Text(inv.amountPaid > 0 ? tshFromDouble(inv.amountPaid) : '—', textAlign: TextAlign.right, style: AppTheme.monoSm.copyWith(fontSize: 12, color: inv.amountPaid > 0 ? AppColors.green : context.pal.textDim))),
+            Expanded(child: Text(hasBalance ? tshFromDouble(inv.balanceDue) : '—', textAlign: TextAlign.right, style: AppTheme.monoSm.copyWith(fontSize: 12, color: hasBalance ? AppColors.amber : context.pal.textDim))),
+            Expanded(child: Align(alignment: Alignment.centerRight, child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(color: statusColor.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(5)),
+              child: Text(inv.status.label, style: AppTheme.monoXs.copyWith(color: statusColor, fontSize: 9.5)),
+            ))),
+            Expanded(child: Text(_fmtDate(inv.issueDate), textAlign: TextAlign.right, style: AppTheme.monoXs.copyWith(fontSize: 11, color: context.pal.textDim))),
           ]),
         ),
       ),
     );
   }
+
+  Widget _trailChip(String label, String value, Color color) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+    decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(5)),
+    child: Text(value, style: AppTheme.monoXs.copyWith(fontSize: 9, color: color), maxLines: 1, overflow: TextOverflow.ellipsis),
+  );
 
   String _fmtDate(String iso) {
     final d = DateTime.tryParse(iso);
@@ -518,11 +334,15 @@ class _HistoryRowState extends State<_HistoryRow> {
   }
 }
 
-// ── Invoice detail dialog ──────────────────────────────────────────────────────
+// ── Invoice detail side panel ─────────────────────────────────────────────────
 
-class _InvoiceDetailDialog extends StatelessWidget {
-  const _InvoiceDetailDialog({required this.inv});
+class _InvoiceDetailPanel extends StatelessWidget {
+  const _InvoiceDetailPanel({required this.inv, required this.onClose});
   final Invoice inv;
+  final VoidCallback onClose;
+
+  Future<void> _viewPdf(BuildContext context) =>
+      downloadPdf(context, () => InvoiceService.instance.pdfBytes(inv.id), '${inv.invoiceNumber}.pdf');
 
   Color _statusColor() => switch (inv.status) {
     PaymentStatus.paid      => AppColors.green,
@@ -540,53 +360,45 @@ class _InvoiceDetailDialog extends StatelessWidget {
         ? (inv.amountPaid / inv.total).clamp(0.0, 1.0)
         : 0.0;
 
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-      child: Container(
-        width: 520,
-        constraints:
-            BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.85),
-        decoration: BoxDecoration(
-          color: context.pal.surface1,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: context.pal.borderStrong),
-          boxShadow: const [
-            BoxShadow(
-                color: Color(0x55000000), blurRadius: 60, offset: Offset(0, 20))
-          ],
-        ),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
+    return Container(
+      width: 420,
+      decoration: BoxDecoration(
+        color: context.pal.surface1,
+        border: Border(left: BorderSide(color: context.pal.borderStrong)),
+        boxShadow: const [
+          BoxShadow(color: Color(0x55000000), blurRadius: 60, offset: Offset(-24, 0))
+        ],
+      ),
+      child: Column(children: [
           // Header
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 14),
             child: Row(children: [
-              Icon(Symbols.receipt_long, size: 18, color: AppColors.teal),
-              const SizedBox(width: 10),
               Expanded(child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(inv.invoiceNumber,
-                    style: AppTheme.pageTitle.copyWith(fontSize: 16)),
-                const SizedBox(height: 4),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: statusColor.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(4),
+                Row(children: [
+                  Text(inv.invoiceNumber, style: AppTheme.pageTitle.copyWith(fontSize: 19)),
+                  const SizedBox(width: 9),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: statusColor.withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(5),
+                    ),
+                    child: Text(inv.status.label.toUpperCase(),
+                        style: AppTheme.monoXs.copyWith(color: statusColor, fontSize: 9.5)),
                   ),
-                  child: Text(inv.status.label,
-                      style: AppTheme.monoXs.copyWith(
-                          color: statusColor, fontSize: 11,
-                          fontWeight: FontWeight.w600)),
-                ),
+                ]),
+                const SizedBox(height: 4),
+                Text('${inv.displayName} · issued ${_fmtDate2(inv.issueDate)}', style: AppTheme.bodySub.copyWith(fontSize: 11.5)),
               ])),
               GestureDetector(
-                onTap: () => Navigator.pop(context),
+                onTap: onClose,
                 child: Container(
                   width: 28, height: 28,
                   decoration: BoxDecoration(
-                    color: context.pal.surface2,
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: context.pal.border),
                   ),
                   child: Icon(Symbols.close, size: 15, color: context.pal.textDim),
                 ),
@@ -742,17 +554,20 @@ class _InvoiceDetailDialog extends StatelessWidget {
             ),
           ),
 
-          // Footer close button
+          Container(height: 1, color: context.pal.divider),
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-            child: AppButton(
-              label: 'Close',
-              variant: BtnVariant.ghost,
-              onPressed: () => Navigator.pop(context),
-            ),
+            padding: const EdgeInsets.all(14),
+            child: Row(children: [
+              Expanded(child: OutlinedButton.icon(
+                onPressed: () => _viewPdf(context),
+                icon: const Icon(Symbols.download, size: 15),
+                label: const Text('Download PDF'),
+              )),
+              const SizedBox(width: 9),
+              Expanded(child: OutlinedButton.icon(onPressed: onClose, icon: const Icon(Symbols.close, size: 15), label: const Text('Close'))),
+            ]),
           ),
-        ]),
-      ),
+      ]),
     );
   }
 

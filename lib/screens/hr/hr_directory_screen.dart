@@ -1,28 +1,13 @@
 import 'package:flutter/material.dart';
-import '../../theme/app_theme.dart';
 import 'hr_directory_tab.dart';
 
-/// Own top-level destination now (was a tab on the old HrStaffScreen) — the
-/// design pass moved Directory/Recruitment/Reports out of one tabbed screen
-/// into flat sidebar entries, matching the reference dashboards where each
-/// is its own destination rather than nested behind tabs.
+/// Own top-level destination — HrDirectoryTab now renders its own full
+/// page header (accent bar/title/stats), matching the HR Redesign spec,
+/// so this wrapper is just a pass-through.
 class HrDirectoryScreen extends StatelessWidget {
-  const HrDirectoryScreen({super.key});
+  const HrDirectoryScreen({super.key, this.onNavigateTo});
+  final void Function(String key)? onNavigateTo;
 
   @override
-  Widget build(BuildContext context) => LayoutBuilder(builder: (ctx, cst) {
-    final pad = cst.maxWidth < 560 ? 16.0 : 28.0;
-    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      Padding(
-        padding: EdgeInsets.fromLTRB(pad, pad, pad, 0),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('Directory', style: AppTheme.pageTitle),
-          const SizedBox(height: 4),
-          Text('Personal info, contracts, discipline, and career progression', style: AppTheme.bodySub),
-        ]),
-      ),
-      const SizedBox(height: 16),
-      const Expanded(child: HrDirectoryTab()),
-    ]);
-  });
+  Widget build(BuildContext context) => HrDirectoryTab(onNavigateTo: onNavigateTo);
 }

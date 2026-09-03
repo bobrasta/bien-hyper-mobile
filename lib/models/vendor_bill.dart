@@ -76,10 +76,12 @@ class VendorBill {
   final int     total;
   final int     amountPaid;
   final int     balanceDue;
-  final String  status; // pending | partial | paid | overdue | cancelled
+  final String  status; // pending | approved | partial | paid | overdue | cancelled
   final String  currency;
   final String? notes;
   final String? createdByName;
+  final String? approvedByName;
+  final String? approvedAt;
   final List<VendorBillLineItem> lineItems;
   final List<VendorBillPayment>  payments;
   final DateTime? createdAt;
@@ -105,6 +107,8 @@ class VendorBill {
     this.currency = 'TZS',
     this.notes,
     this.createdByName,
+    this.approvedByName,
+    this.approvedAt,
     this.lineItems = const [],
     this.payments  = const [],
     this.createdAt,
@@ -131,6 +135,8 @@ class VendorBill {
     currency:            j['currency'] as String? ?? 'TZS',
     notes:               j['notes'] as String?,
     createdByName:       j['created_by_name'] as String?,
+    approvedByName:      j['approved_by_name'] as String?,
+    approvedAt:          j['approved_at'] as String?,
     lineItems:           (j['line_items'] as List? ?? [])
                              .map((e) => VendorBillLineItem.fromJson(e as Map<String, dynamic>)).toList(),
     payments:            (j['payments'] as List? ?? [])
@@ -139,6 +145,7 @@ class VendorBill {
   );
 
   String get statusLabel => switch (status) {
+    'approved'  => 'Approved',
     'partial'   => 'Partial',
     'paid'      => 'Paid',
     'overdue'   => 'Overdue',
@@ -147,6 +154,9 @@ class VendorBill {
   };
 
   bool get isPaid      => status == 'paid';
-  bool get canPay      => !isPaid && status != 'cancelled';
+  // Director approval is required (status: 'approved') before a payment
+  // can be recorded — a plain 'pending' bill isn't payable yet.
+  bool get canApprove => status == 'pending';
+  bool get canPay      => status == 'approved' || status == 'partial';
   bool get canCancel   => !isPaid && status != 'cancelled';
 }

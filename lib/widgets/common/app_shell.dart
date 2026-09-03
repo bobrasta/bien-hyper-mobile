@@ -41,6 +41,8 @@ import '../../screens/sales/sales_orders_screen.dart';
 import '../../screens/sales/sales_history_screen.dart';
 import '../../screens/service/service_ticket_screen.dart';
 import '../../screens/settings/settings_screen.dart';
+import '../../screens/settings/delegations_screen.dart';
+import '../../screens/settings/downloads_screen.dart';
 import '../../screens/notifications/notifications_screen.dart';
 import '../../screens/staff/staff_screen.dart';
 import '../../main.dart' show trialNotifier, userRoleNotifier, allowedScreenKeys, defaultScreenKey;
@@ -244,11 +246,11 @@ class _AppShellState extends State<AppShell> {
     'finance_bank_rec'       => const BankReconciliationScreen(),
     'email'     => const EmailScreen(),
     'sales' || 'sales_leads' => SalesScreen(initialLeadId: _pendingEntityId),
-    'sales_dashboard'         => const SalesDashboardScreen(),
+    'sales_dashboard'         => SalesDashboardScreen(onNavigateTo: _navigate),
     'sales_pos'               => const PosScreen(),
     'sales_quotations'       => const QuotationsScreen(),
-    'sales_orders'           => const SalesOrdersScreen(),
-    'sales_invoices'         => const InvoicesScreen(),
+    'sales_orders'           => SalesOrdersScreen(onNavigateTo: _navigate),
+    'sales_invoices'         => InvoicesScreen(onNavigateTo: _navigate),
     'sales_history'          => const SalesHistoryScreen(),
     'customers' => const CustomersScreen(),
     'staff'          => StaffScreen(initialTaskId: _pendingEntityId),
@@ -256,9 +258,9 @@ class _AppShellState extends State<AppShell> {
     'hr_approvals'   => HrApprovalScreen(initialTabIndex: _pendingTabIndex),
     'hr_settings'    => const HrSettingsScreen(),
     'hr_dashboard'   => const HrDashboardScreen(),
-    'hr_directory'   => const HrDirectoryScreen(),
+    'hr_directory'   => HrDirectoryScreen(onNavigateTo: _navigate),
     'hr_recruitment' => const HrRecruitmentScreen(),
-    'hr_leave_calendar' => const HrLeaveCalendarScreen(),
+    'hr_leave_calendar' => HrLeaveCalendarScreen(onNavigateTo: _navigate),
     'hr_attendance'  => const HrAttendanceScreen(),
     'hr_payroll'     => const HrPayrollScreen(),
     'hr_reports'     => const HrReportsScreen(),
@@ -266,6 +268,8 @@ class _AppShellState extends State<AppShell> {
     'notifications'  => NotificationsScreen(onOpenNotification: _openNotification),
     'reports'        => ReportsScreen(onNavigateTo: _navigate),
     'settings'  => const SettingsScreen(),
+    'delegations' => const DelegationsScreen(),
+    'downloads' => const DownloadsScreen(),
     _ => _PlaceholderScreen(title: _activeKey),
   };
 
