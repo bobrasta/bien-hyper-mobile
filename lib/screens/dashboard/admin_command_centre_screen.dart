@@ -69,6 +69,36 @@ class _AdminCommandCentreScreenState extends State<AdminCommandCentreScreen> {
     }
   }
 
+  // m7/m5 Materialize-grid proportion (map:rail), same pattern used
+  // elsewhere in this app rather than a fixed pixel rail width.
+  Widget _mainRow(AdminOverview o) => Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+    Expanded(flex: 7, child: _MapPanel(hospitals: _hospitals, legend: o.fleetLegend, zones: o.zones, onNavigateTo: widget.onNavigateTo)),
+    const SizedBox(width: 12),
+    Expanded(
+      flex: 5,
+      child: Column(children: [
+        Expanded(flex: 6, child: _AttentionPanel(items: o.attention)),
+        const SizedBox(height: 12),
+        Expanded(flex: 5, child: _TechnicianPanel(techs: o.technicians, onNavigateTo: widget.onNavigateTo)),
+      ]),
+    ),
+  ]);
+
+  Widget _bottomRow(AdminOverview o) => Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+    Expanded(flex: 11, child: _SalesMiniPanel(sales: o.sales)),
+    const SizedBox(width: 12),
+    Expanded(flex: 11, child: _FinanceMiniPanel(finance: o.finance)),
+    const SizedBox(width: 12),
+    Expanded(
+      flex: 8,
+      child: Column(children: [
+        Expanded(child: _InventoryMiniPanel(inventory: o.inventory)),
+        const SizedBox(height: 12),
+        Expanded(child: _PeopleMiniPanel(people: o.people)),
+      ]),
+    ),
+  ]);
+
   @override
   Widget build(BuildContext context) {
     if (_error != null) return ErrorView(message: _error!, onRetry: _load);
@@ -78,59 +108,49 @@ class _AdminCommandCentreScreenState extends State<AdminCommandCentreScreen> {
     return LayoutBuilder(builder: (ctx, cst) {
       final pad = cst.maxWidth < 900 ? 16.0 : 28.0;
       final narrow = cst.maxWidth < 1100;
-      return RefreshIndicator(
-        onRefresh: _load,
-        child: SingleChildScrollView(
-          padding: EdgeInsets.all(pad),
-          physics: const AlwaysScrollableScrollPhysics(),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            _Header(greeting: o.greeting),
-            const SizedBox(height: 16),
-            _kpiRow(o),
-            const SizedBox(height: 16),
-            if (narrow) ...[
-              SizedBox(height: 420, child: _MapPanel(hospitals: _hospitals, legend: o.fleetLegend, zones: o.zones)),
+
+      // Narrow windows stack every panel full-width, which is taller than
+      // any viewport can flex to fit — scroll instead of fill.
+      if (narrow) {
+        return RefreshIndicator(
+          onRefresh: _load,
+          child: SingleChildScrollView(
+            padding: EdgeInsets.all(pad),
+            physics: const AlwaysScrollableScrollPhysics(),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              _Header(greeting: o.greeting, onRefresh: _load),
+              const SizedBox(height: 16),
+              _kpiRow(o),
+              const SizedBox(height: 16),
+              SizedBox(height: 420, child: _MapPanel(hospitals: _hospitals, legend: o.fleetLegend, zones: o.zones, onNavigateTo: widget.onNavigateTo)),
               const SizedBox(height: 16),
               SizedBox(height: 340, child: _AttentionPanel(items: o.attention)),
               const SizedBox(height: 16),
-              SizedBox(height: 280, child: _TechnicianPanel(techs: o.technicians)),
-            ] else ...[
-              SizedBox(
-                height: 420,
-                child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                  Expanded(child: _MapPanel(hospitals: _hospitals, legend: o.fleetLegend, zones: o.zones)),
-                  const SizedBox(width: 12),
-                  SizedBox(
-                    width: 340,
-                    child: Column(children: [
-                      Expanded(flex: 6, child: _AttentionPanel(items: o.attention)),
-                      const SizedBox(height: 12),
-                      Expanded(flex: 5, child: _TechnicianPanel(techs: o.technicians)),
-                    ]),
-                  ),
-                ]),
-              ),
-            ],
-            const SizedBox(height: 16),
-            SizedBox(
-              height: 220,
-              child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                Expanded(flex: 11, child: _SalesMiniPanel(sales: o.sales)),
-                const SizedBox(width: 12),
-                Expanded(flex: 11, child: _FinanceMiniPanel(finance: o.finance)),
-                const SizedBox(width: 12),
-                Expanded(
-                  flex: 8,
-                  child: Column(children: [
-                    Expanded(child: _InventoryMiniPanel(inventory: o.inventory)),
-                    const SizedBox(height: 12),
-                    Expanded(child: _PeopleMiniPanel(people: o.people)),
-                  ]),
-                ),
-              ]),
-            ),
-          ]),
-        ),
+              SizedBox(height: 280, child: _TechnicianPanel(techs: o.technicians, onNavigateTo: widget.onNavigateTo)),
+              const SizedBox(height: 16),
+              SizedBox(height: 420, child: _bottomRow(o)),
+            ]),
+          ),
+        );
+      }
+
+      // Desktop: fill the real available height instead of clipping to
+      // arbitrary fixed pixel heights that leave dead space below on a
+      // tall window (what "too short" was — cards weren't wrong, the
+      // window was just taller than the fixed 420+220 total). app_shell.dart
+      // already wraps this screen in Expanded, so the incoming height here
+      // is genuinely bounded — safe to flex against it.
+      return Padding(
+        padding: EdgeInsets.all(pad),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          _Header(greeting: o.greeting, onRefresh: _load),
+          const SizedBox(height: 16),
+          _kpiRow(o),
+          const SizedBox(height: 16),
+          Expanded(flex: 3, child: _mainRow(o)),
+          const SizedBox(height: 16),
+          Expanded(flex: 2, child: _bottomRow(o)),
+        ]),
       );
     });
   }
@@ -179,8 +199,9 @@ Widget _kpiRow(AdminOverview o) => LayoutBuilder(builder: (ctx, cst) {
 });
 
 class _Header extends StatelessWidget {
-  const _Header({required this.greeting});
+  const _Header({required this.greeting, this.onRefresh});
   final AdminGreeting greeting;
+  final VoidCallback? onRefresh;
 
   @override
   Widget build(BuildContext context) {
@@ -189,41 +210,91 @@ class _Header extends StatelessWidget {
     return Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
       Container(width: 2, height: 34, color: AppColors.teal),
       const SizedBox(width: 11),
-      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('$salutation, ${greeting.name}', style: AppTheme.pageTitle),
-        const SizedBox(height: 3),
-        Text(
-          '${greeting.date} · ${greeting.machinesDown} machines down · '
-          '${greeting.openTickets} open tickets · ${greeting.techniciansOut} technicians on the road',
-          style: AppTheme.bodySub,
+      Expanded(
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('$salutation, ${greeting.name}', style: AppTheme.pageTitle),
+          const SizedBox(height: 3),
+          Text(
+            '${greeting.date} · ${greeting.machinesDown} machines down · '
+            '${greeting.openTickets} open tickets · ${greeting.techniciansOut} technicians on the road',
+            style: AppTheme.bodySub,
+          ),
+        ]),
+      ),
+      if (onRefresh != null)
+        IconButton(
+          icon: const Icon(Symbols.refresh, size: 18),
+          tooltip: 'Refresh',
+          onPressed: onRefresh,
         ),
-      ]),
     ]);
   }
 }
 
-class _MapPanel extends StatelessWidget {
-  const _MapPanel({required this.hospitals, required this.legend, required this.zones});
+enum _MapLayer { machines, alerts, technicians }
+
+class _MapPanel extends StatefulWidget {
+  const _MapPanel({required this.hospitals, required this.legend, required this.zones, this.onNavigateTo});
   final List<Hospital> hospitals;
   final Map<String, int> legend;
   final List<ZoneCount> zones;
+  final void Function(String key)? onNavigateTo;
+
+  @override
+  State<_MapPanel> createState() => _MapPanelState();
+}
+
+class _MapPanelState extends State<_MapPanel> {
+  _MapLayer _layer = _MapLayer.alerts;
 
   @override
   Widget build(BuildContext context) {
-    final totalMachines = hospitals.fold<int>(0, (a, h) => a + h.machineCount);
-    final operational = hospitals.fold<int>(0, (a, h) => a + h.machinesOperational);
+    // "Alerts" narrows the pins to what actually needs attention; "Machines"
+    // shows the full fleet. "Technicians" has no real per-technician
+    // location data wired yet (roster only, no hospital coordinate), so it
+    // falls back to the full fleet rather than fabricating a filter.
+    final shown = _layer == _MapLayer.alerts
+        ? widget.hospitals.where((h) => h.machinesOperational < h.machineCount).toList()
+        : widget.hospitals;
+    final totalMachines = widget.hospitals.fold<int>(0, (a, h) => a + h.machineCount);
+    final operational = widget.hospitals.fold<int>(0, (a, h) => a + h.machinesOperational);
     return AppCard(
       padding: EdgeInsets.zero,
       header: Row(children: [
         Icon(Symbols.map, size: 15, color: AppColors.teal),
         const SizedBox(width: 8),
         Text('Fleet & Service Activity', style: AppTheme.cardTitle),
+        const SizedBox(width: 8),
+        Text('${widget.hospitals.isEmpty ? 0 : totalMachines} machines · ${widget.hospitals.length} hospitals',
+            style: AppTheme.monoXs.copyWith(color: context.pal.textDim)),
+      ]),
+      trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+        _layerPill('Machines', Symbols.memory, _MapLayer.machines),
+        const SizedBox(width: 6),
+        _layerPill('Alerts', Symbols.warning, _MapLayer.alerts),
+        const SizedBox(width: 6),
+        _layerPill('Technicians', Symbols.person_pin_circle, _MapLayer.technicians),
+        const SizedBox(width: 10),
+        TextButton.icon(
+          onPressed: () => widget.onNavigateTo?.call('machines'),
+          icon: const Icon(Symbols.open_in_new, size: 13),
+          label: const Text('Open Map'),
+          style: TextButton.styleFrom(foregroundColor: AppColors.teal, textStyle: AppTheme.bodySm),
+        ),
       ]),
       expandChild: true,
-      child: Stack(children: [
+      // Header sits above with its own square top edge — round only the
+      // bottom two corners of the map itself to meet the card's bottom
+      // edge, matching the reference design's border-radius: 0 0 r r.
+      child: ClipRRect(
+        borderRadius: BorderRadius.only(
+          bottomLeft: Radius.circular(AppColors.rLg),
+          bottomRight: Radius.circular(AppColors.rLg),
+        ),
+        child: Stack(children: [
         Positioned.fill(
           child: FleetMapWidget(
-            hospitals: hospitals,
+            hospitals: shown,
             totalMachines: totalMachines,
             uptimePct: totalMachines == 0 ? 0 : operational / totalMachines,
           ),
@@ -238,10 +309,10 @@ class _MapPanel extends StatelessWidget {
               border: Border.all(color: context.pal.border),
             ),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              _legendRow('Operational', AppColors.teal, legend['operational'] ?? 0),
-              _legendRow('Needs Service', AppColors.amber, legend['needs_service'] ?? 0),
-              _legendRow('Down', AppColors.coral, legend['down'] ?? 0),
-              _legendRow('Technician En Route', AppColors.cyan, legend['technician_en_route'] ?? 0),
+              _legendRow('Operational', AppColors.teal, widget.legend['operational'] ?? 0),
+              _legendRow('Needs Service', AppColors.amber, widget.legend['needs_service'] ?? 0),
+              _legendRow('Down', AppColors.coral, widget.legend['down'] ?? 0),
+              _legendRow('Technician En Route', AppColors.cyan, widget.legend['technician_en_route'] ?? 0),
             ]),
           ),
         ),
@@ -254,8 +325,8 @@ class _MapPanel extends StatelessWidget {
               borderRadius: BorderRadius.circular(8),
               border: Border.all(color: context.pal.border),
             ),
-            child: Column(children: zones.map((z) {
-              final maxCount = zones.isEmpty ? 1 : zones.first.count.clamp(1, 1 << 30);
+            child: Column(children: widget.zones.map((z) {
+              final maxCount = widget.zones.isEmpty ? 1 : widget.zones.first.count.clamp(1, 1 << 30);
               return Padding(
                 padding: const EdgeInsets.symmetric(vertical: 3),
                 child: Row(children: [
@@ -274,7 +345,28 @@ class _MapPanel extends StatelessWidget {
             }).toList()),
           ),
         ),
-      ]),
+        ]),
+      ),
+    );
+  }
+
+  Widget _layerPill(String label, IconData icon, _MapLayer layer) {
+    final active = _layer == layer;
+    return GestureDetector(
+      onTap: () => setState(() => _layer = layer),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: active ? AppColors.tealSoft : Colors.transparent,
+          borderRadius: BorderRadius.circular(7),
+          border: Border.all(color: active ? AppColors.teal : context.pal.border),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(icon, size: 12, color: active ? AppColors.teal : context.pal.textMute),
+          const SizedBox(width: 5),
+          Text(label, style: AppTheme.bodySm.copyWith(fontSize: 11, color: active ? AppColors.teal : context.pal.textMute)),
+        ]),
+      ),
     );
   }
 
@@ -329,7 +421,12 @@ class _AttentionPanel extends StatelessWidget {
                       Text(a.title, style: AppTheme.bodySm.copyWith(fontSize: 11.5), maxLines: 1, overflow: TextOverflow.ellipsis),
                       Text(a.meta, style: AppTheme.bodySub.copyWith(fontSize: 10), maxLines: 1, overflow: TextOverflow.ellipsis),
                     ])),
-                    if (a.age != null) Text(a.age!, style: AppTheme.monoXs.copyWith(color: color, fontSize: 10)),
+                    if (a.age != null) ...[
+                      const SizedBox(width: 6),
+                      Text(a.age!, style: AppTheme.monoXs.copyWith(color: color, fontSize: 10)),
+                    ],
+                    const SizedBox(width: 4),
+                    Icon(Symbols.chevron_right, size: 14, color: context.pal.textDim),
                   ]),
                 );
               },
@@ -338,47 +435,89 @@ class _AttentionPanel extends StatelessWidget {
   }
 }
 
+String _initialsOf(String name) {
+  final parts = name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+  if (parts.isEmpty) return '?';
+  return (parts.length == 1 ? parts[0].substring(0, 1) : parts[0].substring(0, 1) + parts.last.substring(0, 1)).toUpperCase();
+}
+
 class _TechnicianPanel extends StatelessWidget {
-  const _TechnicianPanel({required this.techs});
+  const _TechnicianPanel({required this.techs, this.onNavigateTo});
   final List<TechnicianRosterEntry> techs;
+  final void Function(String key)? onNavigateTo;
 
   @override
   Widget build(BuildContext context) {
+    final onRoad = techs.where((t) => t.state == 'en_route').length;
+    final free = techs.where((t) => t.state == 'available').length;
+    final onLeave = techs.where((t) => t.state == 'on_leave').length;
+    const previewCount = 4;
+    final preview = techs.take(previewCount).toList();
+    final more = techs.length - preview.length;
+
     return AppCard(
       header: Row(children: [
         Icon(Symbols.groups, size: 15, color: AppColors.cyan),
         const SizedBox(width: 8),
         Text('Technicians', style: AppTheme.cardTitle),
       ]),
+      trailing: Text('$onRoad on road · $free free · $onLeave leave',
+          style: AppTheme.monoXs.copyWith(color: context.pal.textDim, fontSize: 10)),
       expandChild: true,
+      padding: EdgeInsets.zero,
       child: techs.isEmpty
           ? Center(child: Text('No technicians on staff.', style: TextStyle(color: context.pal.textMute, fontSize: 12)))
-          : ListView.separated(
-              itemCount: techs.length,
-              separatorBuilder: (_, _) => Divider(height: 1, color: context.pal.divider),
-              itemBuilder: (_, i) {
-                final t = techs[i];
-                final (label, color) = switch (t.state) {
-                  'en_route' => ('En Route', AppColors.cyan),
-                  'on_leave' => ('On Leave', context.pal.textMute),
-                  _          => ('Available', AppColors.teal),
-                };
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 7),
-                  child: Row(children: [
-                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text(t.name, style: AppTheme.bodySm.copyWith(fontSize: 11.5), maxLines: 1, overflow: TextOverflow.ellipsis),
-                      Text(t.where, style: AppTheme.bodySub.copyWith(fontSize: 10), maxLines: 1, overflow: TextOverflow.ellipsis),
-                    ])),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(5)),
-                      child: Text(label, style: AppTheme.monoXs.copyWith(color: color, fontSize: 9.5)),
-                    ),
-                  ]),
-                );
-              },
-            ),
+          : Column(children: [
+              Expanded(
+                child: ListView.separated(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  itemCount: preview.length,
+                  separatorBuilder: (_, _) => Divider(height: 1, color: context.pal.divider),
+                  itemBuilder: (_, i) {
+                    final t = preview[i];
+                    final (label, color) = switch (t.state) {
+                      'en_route' => ('en route', AppColors.cyan),
+                      'on_leave' => ('on leave', context.pal.textMute),
+                      _          => ('available', AppColors.teal),
+                    };
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 9),
+                      child: Row(children: [
+                        Container(
+                          width: 26, height: 26,
+                          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+                          alignment: Alignment.center,
+                          child: Text(_initialsOf(t.name),
+                              style: AppTheme.monoXs.copyWith(color: const Color(0xFF08090B), fontSize: 9.5, fontWeight: FontWeight.w600)),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Text(t.name, style: AppTheme.bodySm.copyWith(fontSize: 11.5), maxLines: 1, overflow: TextOverflow.ellipsis),
+                          Text(t.where, style: AppTheme.bodySub.copyWith(fontSize: 10), maxLines: 1, overflow: TextOverflow.ellipsis),
+                        ])),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(5)),
+                          child: Text(label, style: AppTheme.monoXs.copyWith(color: color, fontSize: 9.5)),
+                        ),
+                      ]),
+                    );
+                  },
+                ),
+              ),
+              if (more > 0)
+                GestureDetector(
+                  onTap: () => onNavigateTo?.call('staff'),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    child: Row(mainAxisAlignment: MainAxisAlignment.center, mainAxisSize: MainAxisSize.min, children: [
+                      Icon(Symbols.person_search, size: 13, color: AppColors.teal),
+                      const SizedBox(width: 6),
+                      Text('$more more · open roster', style: AppTheme.bodySub.copyWith(color: AppColors.teal, fontSize: 11)),
+                    ]),
+                  ),
+                ),
+            ]),
     );
   }
 }
