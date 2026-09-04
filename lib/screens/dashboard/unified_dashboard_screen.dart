@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
+import '../../main.dart' show userRoleNotifier, hasDirectorAuthority;
 import '../../models/unified_dashboard_section.dart';
 import '../../services/unified_dashboard_service.dart';
 import '../../theme/app_colors.dart';
@@ -12,6 +13,7 @@ import '../../widgets/charts/status_donut_chart.dart';
 import '../../widgets/common/app_card.dart';
 import '../../widgets/common/error_view.dart';
 import '../../widgets/common/kpi_card.dart';
+import 'admin_command_centre_screen.dart';
 
 /// Replaces the old one-size-fits-all Dashboard. Renders whatever ordered
 /// section list `GET /dashboard/unified` returns — section presence there
@@ -34,7 +36,9 @@ class _UnifiedDashboardScreenState extends State<UnifiedDashboardScreen> {
   @override
   void initState() {
     super.initState();
-    _load();
+    // Admin-tier renders AdminCommandCentreScreen instead (see build()) —
+    // no need to fetch the generic section list it'll never show.
+    if (!hasDirectorAuthority(userRoleNotifier.value)) _load();
   }
 
   Future<void> _load() async {
@@ -49,6 +53,9 @@ class _UnifiedDashboardScreenState extends State<UnifiedDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (hasDirectorAuthority(userRoleNotifier.value)) {
+      return AdminCommandCentreScreen(onNavigateTo: widget.onNavigateTo);
+    }
     if (_error != null) return ErrorView(message: _error!, onRetry: _load);
     if (_sections == null) return const Center(child: CircularProgressIndicator(strokeWidth: 2));
     if (_sections!.isEmpty) {

@@ -131,6 +131,25 @@ class _TopBarState extends State<TopBar> {
     authTokenNotifier.value = null;
   }
 
+  Future<void> _confirmLogout() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: context.pal.surface1,
+        title: Text('Log Out', style: AppTheme.bodyStrong),
+        content: Text('You are about to log out. Continue?', style: AppTheme.bodySm),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text('Log Out', style: TextStyle(color: AppColors.coral)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) await _logout();
+  }
+
   @override
   Widget build(BuildContext context) {
     final isMobile = widget.onMenuPressed != null;
@@ -401,7 +420,7 @@ class _TopBarState extends State<TopBar> {
           ),
           const SizedBox(width: 4),
           GestureDetector(
-            onTap: _logout,
+            onTap: _confirmLogout,
             child: _IconBtn(icon: Symbols.logout),
           ),
         ],
