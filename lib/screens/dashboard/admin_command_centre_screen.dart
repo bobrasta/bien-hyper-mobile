@@ -14,6 +14,13 @@ import '../../widgets/common/app_card.dart';
 import '../../widgets/common/error_view.dart';
 import '../../widgets/common/kpi_card.dart';
 
+// Postgres COALESCE(SUM(...))/COUNT(...) columns come back through PDO as
+// strings, not numbers, whenever they're forwarded to JSON raw (e.g.
+// DashboardController::buildSales()'s pipeline_by_stage) instead of being
+// explicitly (int)/(float) cast in PHP first — unlike this screen's KPI
+// fields, which already get that cast server-side. Handles both shapes.
+double _numField(dynamic v) => v is num ? v.toDouble() : double.tryParse(v?.toString() ?? '') ?? 0;
+
 /// Admin/Director-only "Command Centre" — a fixed bespoke layout (map,
 /// cross-department exception feed, technician roster, compact per-
 /// department mini-panels), matching the reference design supplied by the
@@ -185,6 +192,7 @@ class _MapPanel extends StatelessWidget {
         const SizedBox(width: 8),
         Text('Fleet & Service Activity', style: AppTheme.cardTitle),
       ]),
+      expandChild: true,
       child: Stack(children: [
         Positioned.fill(
           child: FleetMapWidget(
@@ -272,6 +280,7 @@ class _AttentionPanel extends StatelessWidget {
           child: Text('${items.length}', style: AppTheme.monoXs.copyWith(color: AppColors.coral, fontSize: 10)),
         ),
       ]),
+      expandChild: true,
       child: items.isEmpty
           ? Center(child: Text('Nothing needs attention right now.', style: TextStyle(color: context.pal.textMute, fontSize: 12)))
           : ListView.separated(
@@ -314,6 +323,7 @@ class _TechnicianPanel extends StatelessWidget {
         const SizedBox(width: 8),
         Text('Technicians', style: AppTheme.cardTitle),
       ]),
+      expandChild: true,
       child: techs.isEmpty
           ? Center(child: Text('No technicians on staff.', style: TextStyle(color: context.pal.textMute, fontSize: 12)))
           : ListView.separated(
@@ -354,7 +364,7 @@ class _SalesMiniPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final kpi = (sales['kpi'] as Map?)?.cast<String, dynamic>() ?? const {};
     final stages = (sales['pipeline_by_stage'] as List? ?? []).cast<Map>().map((m) => m.cast<String, dynamic>()).toList();
-    final maxVal = stages.isEmpty ? 1.0 : stages.map((s) => (s['value'] as num? ?? 0).toDouble()).reduce((a, b) => a > b ? a : b);
+    final maxVal = stages.isEmpty ? 1.0 : stages.map((s) => _numField(s['value'])).reduce((a, b) => a > b ? a : b);
     return AppCard(
       header: Row(children: [
         Icon(Symbols.trending_up, size: 14, color: AppColors.violet),
@@ -365,11 +375,12 @@ class _SalesMiniPanel extends StatelessWidget {
         const SizedBox(width: 4),
         Text('pipeline', style: AppTheme.bodySub.copyWith(fontSize: 10)),
       ]),
+      expandChild: true,
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Expanded(
           child: ListView(
             children: stages.map((s) {
-              final v = (s['value'] as num? ?? 0).toDouble();
+              final v = _numField(s['value']);
               return Padding(
                 padding: const EdgeInsets.symmetric(vertical: 3),
                 child: Row(children: [
@@ -415,6 +426,7 @@ class _FinanceMiniPanel extends StatelessWidget {
         const SizedBox(width: 8),
         Text('Finance', style: AppTheme.cardTitle),
       ]),
+      expandChild: true,
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           _miniStat('Revenue', tshFromDouble((last['revenue'] as num? ?? 0).toDouble())),

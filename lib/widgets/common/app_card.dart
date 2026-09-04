@@ -18,6 +18,7 @@ class AppCard extends StatelessWidget {
     this.header,
     this.trailing,
     this.glass = false,
+    this.expandChild = false,
   });
 
   final Widget child;
@@ -25,6 +26,13 @@ class AppCard extends StatelessWidget {
   final Widget? header;
   final Widget? trailing;
   final bool glass;
+  // Column gives its non-flex children unbounded height by default, which
+  // breaks a scrollable `child` (e.g. ListView) whenever the card itself
+  // sits in a bounded-height slot (a fixed-height Row/Column) — the usual
+  // shape for dashboard-style cards. Opt in with expandChild: true to wrap
+  // the content in Expanded instead; defaults to false so every existing
+  // caller (sized-to-content children) is unaffected.
+  final bool expandChild;
 
   @override
   Widget build(BuildContext context) {
@@ -44,7 +52,9 @@ class AppCard extends StatelessWidget {
               ],
             ),
           ),
-        Padding(padding: padding, child: child),
+        expandChild
+            ? Expanded(child: Padding(padding: padding, child: child))
+            : Padding(padding: padding, child: child),
       ],
     );
 
