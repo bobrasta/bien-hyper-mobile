@@ -2,7 +2,7 @@
 import 'package:material_symbols_icons/symbols.dart';
 import '../../screens/approvals/approvals_screen.dart';
 import '../../screens/customers/customers_screen.dart';
-import '../../screens/dashboard/dashboard_screen.dart';
+import '../../screens/dashboard/unified_dashboard_screen.dart';
 import '../../screens/email/email_screen.dart';
 import '../../screens/finance/bank_reconciliation_screen.dart';
 import '../../screens/finance/chart_of_accounts_screen.dart';
@@ -217,7 +217,7 @@ class _AppShellState extends State<AppShell> {
   }
 
   Widget _buildScreen() => switch (_activeKey) {
-    'dashboard' => const DashboardScreen(),
+    'dashboard' => UnifiedDashboardScreen(onNavigateTo: _navigate),
     'machines'  => MachineListScreen(
         onMachineSelected: (id) => setState(() {
           _selectedMachineId = id;

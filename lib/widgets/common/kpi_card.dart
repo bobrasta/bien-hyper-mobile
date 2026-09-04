@@ -14,10 +14,10 @@ class KpiCard extends StatelessWidget {
     required this.icon,
     required this.value,
     this.unit,
-    required this.deltaValue,
-    required this.deltaUp,
-    required this.deltaNote,
-    required this.sparkValues,
+    this.deltaValue,
+    this.deltaUp,
+    this.deltaNote,
+    this.sparkValues,
     this.accent = KpiAccent.teal,
   });
 
@@ -25,10 +25,13 @@ class KpiCard extends StatelessWidget {
   final IconData icon;
   final String value;
   final String? unit;
-  final String deltaValue;
-  final bool deltaUp;
-  final String deltaNote;
-  final List<double> sparkValues;
+  // All four are optional — a caller with no real trend/history data (e.g.
+  // a plain headcount or stock-value tile) omits them entirely rather than
+  // faking a delta/sparkline; the delta pill and sparkline just don't render.
+  final String? deltaValue;
+  final bool? deltaUp;
+  final String? deltaNote;
+  final List<double>? sparkValues;
   final KpiAccent accent;
 
   @override
@@ -38,8 +41,9 @@ class KpiCard extends StatelessWidget {
       KpiAccent.amber => AppColors.amber,
       KpiAccent.coral => AppColors.coral,
     };
-    final pillBg = deltaUp ? AppColors.tealSoft : AppColors.coralSoft;
-    final pillFg = deltaUp ? AppColors.teal     : AppColors.coral;
+    final hasDelta = deltaValue != null && deltaNote != null;
+    final pillBg = (deltaUp ?? true) ? AppColors.tealSoft : AppColors.coralSoft;
+    final pillFg = (deltaUp ?? true) ? AppColors.teal     : AppColors.coral;
 
     return LayoutBuilder(builder: (context, constraints) {
       // Compact mode: 2-column grid on phone (~159 px per card)
@@ -108,57 +112,60 @@ class KpiCard extends StatelessWidget {
                         ),
                       ),
 
-                SizedBox(height: narrow ? 6 : 10),
+                if (hasDelta) ...[
+                  SizedBox(height: narrow ? 6 : 10),
 
-                // Delta row — hide note text on narrow
-                Row(children: [
-                  Container(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: narrow ? 5 : 7,
-                      vertical: narrow ? 1 : 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: pillBg,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      Icon(
-                        deltaUp ? Icons.arrow_upward : Icons.arrow_downward,
-                        size: narrow ? 10 : 11,
-                        color: pillFg,
+                  // Delta row — hide note text on narrow
+                  Row(children: [
+                    Container(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: narrow ? 5 : 7,
+                        vertical: narrow ? 1 : 2,
                       ),
-                      const SizedBox(width: 2),
-                      Text(
-                        deltaValue,
-                        style: AppTheme.bodySub.copyWith(
+                      decoration: BoxDecoration(
+                        color: pillBg,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        Icon(
+                          (deltaUp ?? true) ? Icons.arrow_upward : Icons.arrow_downward,
+                          size: narrow ? 10 : 11,
                           color: pillFg,
-                          fontSize: narrow ? 10 : 11,
-                          fontWeight: FontWeight.w500,
                         ),
-                      ),
-                    ]),
-                  ),
-                  if (!narrow) ...[
-                    const SizedBox(width: 6),
-                    Text(deltaNote, style: AppTheme.bodySub.copyWith(fontSize: 12)),
-                  ],
-                ]),
+                        const SizedBox(width: 2),
+                        Text(
+                          deltaValue!,
+                          style: AppTheme.bodySub.copyWith(
+                            color: pillFg,
+                            fontSize: narrow ? 10 : 11,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ]),
+                    ),
+                    if (!narrow) ...[
+                      const SizedBox(width: 6),
+                      Text(deltaNote!, style: AppTheme.bodySub.copyWith(fontSize: 12)),
+                    ],
+                  ]),
+                ],
               ],
             ),
 
             // Sparkline — bottom-right corner
-            Positioned(
-              right: 0, bottom: 0,
-              child: Opacity(
-                opacity: 0.7,
-                child: SparklineChart(
-                  values: sparkValues,
-                  color: accentColor,
-                  width: sparkW,
-                  height: sparkH,
+            if (sparkValues != null)
+              Positioned(
+                right: 0, bottom: 0,
+                child: Opacity(
+                  opacity: 0.7,
+                  child: SparklineChart(
+                    values: sparkValues!,
+                    color: accentColor,
+                    width: sparkW,
+                    height: sparkH,
+                  ),
                 ),
               ),
-            ),
           ],
         ),
       );
