@@ -81,8 +81,11 @@ class _FleetMapWidgetState extends State<FleetMapWidget> {
               ),
               children: [
                 TileLayer(
-                  urlTemplate: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-                  subdomains: const ['a', 'b', 'c', 'd'],
+                  // CartoDB's dark_all basemap now requires a registered API
+                  // key — without one every tile renders as a plastered
+                  // "API KEY REQUIRED" watermark instead of a map. Standard
+                  // OSM tiles need no key/registration for this traffic level.
+                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                   userAgentPackageName: 'com.bienhypermed.app',
                 ),
                 MarkerLayer(markers: [

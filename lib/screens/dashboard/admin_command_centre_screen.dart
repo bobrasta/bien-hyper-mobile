@@ -21,6 +21,9 @@ import '../../widgets/common/kpi_card.dart';
 // fields, which already get that cast server-side. Handles both shapes.
 double _numField(dynamic v) => v is num ? v.toDouble() : double.tryParse(v?.toString() ?? '') ?? 0;
 
+String _humanizeStage(String stage) =>
+    stage.split('_').map((w) => w.isEmpty ? w : w[0].toUpperCase() + w.substring(1)).join(' ');
+
 /// Admin/Director-only "Command Centre" — a fixed bespoke layout (map,
 /// cross-department exception feed, technician roster, compact per-
 /// department mini-panels), matching the reference design supplied by the
@@ -83,7 +86,7 @@ class _AdminCommandCentreScreenState extends State<AdminCommandCentreScreen> {
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             _Header(greeting: o.greeting),
             const SizedBox(height: 16),
-            _kpiRow(o.kpis),
+            _kpiRow(o),
             const SizedBox(height: 16),
             if (narrow) ...[
               SizedBox(height: 420, child: _MapPanel(hospitals: _hospitals, legend: o.fleetLegend, zones: o.zones)),
@@ -133,16 +136,40 @@ class _AdminCommandCentreScreenState extends State<AdminCommandCentreScreen> {
   }
 }
 
-Widget _kpiRow(Map<String, dynamic> kpis) => LayoutBuilder(builder: (ctx, cst) {
+Widget _kpiRow(AdminOverview o) => LayoutBuilder(builder: (ctx, cst) {
+  final kpis = o.kpis;
+  final operational = o.fleetLegend['operational'] ?? 0;
+  final needsService = o.fleetLegend['needs_service'] ?? 0;
+  final down = (kpis['machines_down'] as num? ?? 0).toInt();
+  final approxTotal = operational + needsService + down;
+  final overdue = (kpis['overdue_tickets'] as num? ?? 0).toInt();
+  final openLeads = ((o.sales['kpi'] as Map?)?.cast<String, dynamic>()['open_leads'] as num? ?? 0).toInt();
+
   final tiles = [
-    KpiCard(label: 'Fleet Uptime', icon: Symbols.monitor_heart, value: '${kpis['fleet_uptime_pct'] ?? 0}', unit: '%'),
-    KpiCard(label: 'Machines Down', icon: Symbols.error, value: '${kpis['machines_down'] ?? 0}', accent: KpiAccent.coral),
-    KpiCard(label: 'Open Tickets', icon: Symbols.build, value: '${kpis['open_tickets'] ?? 0}',
-        accent: (kpis['overdue_tickets'] as num? ?? 0) > 0 ? KpiAccent.amber : KpiAccent.teal),
-    KpiCard(label: 'Cash Position', icon: Symbols.account_balance_wallet,
-        value: tshSigned((kpis['cash_position'] as num? ?? 0).toDouble()),
-        accent: (kpis['cash_position'] as num? ?? 0) >= 0 ? KpiAccent.teal : KpiAccent.coral),
-    KpiCard(label: 'Pipeline', icon: Symbols.trending_up, value: tshFromDouble((kpis['pipeline_value'] as num? ?? 0).toDouble())),
+    KpiCard(
+      label: 'Fleet Uptime', icon: Symbols.monitor_heart, value: '${kpis['fleet_uptime_pct'] ?? 0}', unit: '%',
+      deltaValue: '$operational/$approxTotal', deltaUp: true, deltaNote: 'operational now',
+    ),
+    KpiCard(
+      label: 'Machines Down', icon: Symbols.error, value: '$down', accent: KpiAccent.coral,
+      deltaValue: '$needsService', deltaUp: false, deltaNote: 'needs service',
+    ),
+    KpiCard(
+      label: 'Open Tickets', icon: Symbols.build, value: '${kpis['open_tickets'] ?? 0}',
+      accent: overdue > 0 ? KpiAccent.amber : KpiAccent.teal,
+      deltaValue: overdue > 0 ? '$overdue overdue' : 'On track', deltaUp: overdue == 0, deltaNote: overdue > 0 ? 'need attention' : 'no overdue',
+    ),
+    KpiCard(
+      label: 'Cash Position', icon: Symbols.account_balance_wallet,
+      value: tshSigned((kpis['cash_position'] as num? ?? 0).toDouble()),
+      accent: (kpis['cash_position'] as num? ?? 0) >= 0 ? KpiAccent.teal : KpiAccent.coral,
+      deltaValue: (kpis['cash_position'] as num? ?? 0) >= 0 ? 'profit' : 'loss',
+      deltaUp: (kpis['cash_position'] as num? ?? 0) >= 0, deltaNote: 'this month',
+    ),
+    KpiCard(
+      label: 'Pipeline', icon: Symbols.trending_up, value: tshFromDouble((kpis['pipeline_value'] as num? ?? 0).toDouble()),
+      deltaValue: '$openLeads open', deltaUp: true, deltaNote: 'active deals',
+    ),
   ];
   final cols = cst.maxWidth < 480 ? 2 : (cst.maxWidth < 900 ? 3 : 5);
   return Wrap(
@@ -363,7 +390,13 @@ class _SalesMiniPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final kpi = (sales['kpi'] as Map?)?.cast<String, dynamic>() ?? const {};
-    final stages = (sales['pipeline_by_stage'] as List? ?? []).cast<Map>().map((m) => m.cast<String, dynamic>()).toList();
+    final rawStages = (sales['pipeline_by_stage'] as List? ?? []).cast<Map>().map((m) => m.cast<String, dynamic>()).toList();
+    // Backend groups by stage with no fixed order (Postgres GROUP BY order
+    // is arbitrary) — sort into the real funnel sequence rather than
+    // whatever order rows happened to come back in.
+    const funnelOrder = ['lead', 'qualified', 'demo_scheduled', 'proposal_sent', 'negotiation'];
+    final stages = [...rawStages]..sort((a, b) =>
+        funnelOrder.indexOf(a['stage']).compareTo(funnelOrder.indexOf(b['stage'])));
     final maxVal = stages.isEmpty ? 1.0 : stages.map((s) => _numField(s['value'])).reduce((a, b) => a > b ? a : b);
     return AppCard(
       header: Row(children: [
@@ -384,7 +417,7 @@ class _SalesMiniPanel extends StatelessWidget {
               return Padding(
                 padding: const EdgeInsets.symmetric(vertical: 3),
                 child: Row(children: [
-                  SizedBox(width: 84, child: Text('${s['stage'] ?? ''}', style: AppTheme.bodySub.copyWith(fontSize: 10.5), overflow: TextOverflow.ellipsis)),
+                  SizedBox(width: 84, child: Text(_humanizeStage('${s['stage'] ?? ''}'), style: AppTheme.bodySub.copyWith(fontSize: 10.5), overflow: TextOverflow.ellipsis)),
                   Expanded(
                     child: LinearProgressIndicator(
                       value: v / maxVal, backgroundColor: context.pal.border,
@@ -436,17 +469,23 @@ class _FinanceMiniPanel extends StatelessWidget {
         const SizedBox(height: 8),
         Expanded(
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: months.map((m) {
               final rev = (m['revenue'] as num? ?? 0).toDouble();
               final exp = (m['expenses'] as num? ?? 0).toDouble();
               return Expanded(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 1),
-                  child: Row(crossAxisAlignment: CrossAxisAlignment.end, mainAxisAlignment: MainAxisAlignment.center, children: [
-                    Container(width: 4, height: (rev / maxVal * 44).clamp(1, 44), color: AppColors.cyan),
-                    const SizedBox(width: 1),
-                    Container(width: 4, height: (exp / maxVal * 44).clamp(1, 44), color: AppColors.coral),
+                  child: Column(children: [
+                    Expanded(
+                      child: Row(crossAxisAlignment: CrossAxisAlignment.end, mainAxisAlignment: MainAxisAlignment.center, children: [
+                        Container(width: 4, height: (rev / maxVal * 34).clamp(1, 34), color: AppColors.cyan),
+                        const SizedBox(width: 1),
+                        Container(width: 4, height: (exp / maxVal * 34).clamp(1, 34), color: AppColors.coral),
+                      ]),
+                    ),
+                    const SizedBox(height: 2),
+                    Text('${m['label'] ?? ''}', style: AppTheme.monoXs.copyWith(fontSize: 7.5), textAlign: TextAlign.center),
                   ]),
                 ),
               );
@@ -479,6 +518,7 @@ class _InventoryMiniPanel extends StatelessWidget {
         const Spacer(),
         Text(tshFromDouble((inventory['total_stock_value'] as num? ?? 0).toDouble()), style: AppTheme.monoXs),
       ]),
+      padding: const EdgeInsets.fromLTRB(13, 8, 13, 10),
       child: Row(children: [
         _stat('${inventory['total_items'] ?? 0}', 'Items'),
         _stat('${inventory['low_stock_count'] ?? 0}', 'Low Stock', color: AppColors.amber),
@@ -507,6 +547,7 @@ class _PeopleMiniPanel extends StatelessWidget {
         const SizedBox(width: 8),
         Text('People', style: AppTheme.cardTitle),
       ]),
+      padding: const EdgeInsets.fromLTRB(13, 8, 13, 10),
       child: Row(children: [
         _stat('${people['active_staff'] ?? 0}', 'Active Staff'),
         _stat('${people['on_leave_today'] ?? 0}', 'On Leave'),
