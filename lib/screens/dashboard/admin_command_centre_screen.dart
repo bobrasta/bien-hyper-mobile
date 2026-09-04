@@ -109,48 +109,33 @@ class _AdminCommandCentreScreenState extends State<AdminCommandCentreScreen> {
       final pad = cst.maxWidth < 900 ? 16.0 : 28.0;
       final narrow = cst.maxWidth < 1100;
 
-      // Narrow windows stack every panel full-width, which is taller than
-      // any viewport can flex to fit — scroll instead of fill.
-      if (narrow) {
-        return RefreshIndicator(
-          onRefresh: _load,
-          child: SingleChildScrollView(
-            padding: EdgeInsets.all(pad),
-            physics: const AlwaysScrollableScrollPhysics(),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              _Header(greeting: o.greeting, onRefresh: _load),
-              const SizedBox(height: 16),
-              _kpiRow(o),
-              const SizedBox(height: 16),
-              SizedBox(height: 420, child: _MapPanel(hospitals: _hospitals, legend: o.fleetLegend, zones: o.zones, onNavigateTo: widget.onNavigateTo)),
+      // Scrolling is fine — this is the front page of the system, so it
+      // should show enough of each department to actually be useful rather
+      // than being squeezed to fit whatever the window's height happens to
+      // be. Generous fixed heights (not viewport-filling flex) give the map
+      // and bar charts real room; narrow windows just stack everything.
+      return RefreshIndicator(
+        onRefresh: _load,
+        child: SingleChildScrollView(
+          padding: EdgeInsets.all(pad),
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            _Header(greeting: o.greeting, onRefresh: _load),
+            const SizedBox(height: 16),
+            _kpiRow(o),
+            const SizedBox(height: 16),
+            if (narrow) ...[
+              SizedBox(height: 480, child: _MapPanel(hospitals: _hospitals, legend: o.fleetLegend, zones: o.zones, onNavigateTo: widget.onNavigateTo)),
               const SizedBox(height: 16),
               SizedBox(height: 340, child: _AttentionPanel(items: o.attention)),
               const SizedBox(height: 16),
               SizedBox(height: 280, child: _TechnicianPanel(techs: o.technicians, onNavigateTo: widget.onNavigateTo)),
-              const SizedBox(height: 16),
-              SizedBox(height: 420, child: _bottomRow(o)),
-            ]),
-          ),
-        );
-      }
-
-      // Desktop: fill the real available height instead of clipping to
-      // arbitrary fixed pixel heights that leave dead space below on a
-      // tall window (what "too short" was — cards weren't wrong, the
-      // window was just taller than the fixed 420+220 total). app_shell.dart
-      // already wraps this screen in Expanded, so the incoming height here
-      // is genuinely bounded — safe to flex against it.
-      return Padding(
-        padding: EdgeInsets.all(pad),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          _Header(greeting: o.greeting, onRefresh: _load),
-          const SizedBox(height: 16),
-          _kpiRow(o),
-          const SizedBox(height: 16),
-          Expanded(flex: 3, child: _mainRow(o)),
-          const SizedBox(height: 16),
-          Expanded(flex: 2, child: _bottomRow(o)),
-        ]),
+            ] else
+              SizedBox(height: 560, child: _mainRow(o)),
+            const SizedBox(height: 16),
+            SizedBox(height: 340, child: _bottomRow(o)),
+          ]),
+        ),
       );
     });
   }
@@ -283,10 +268,14 @@ class _MapPanelState extends State<_MapPanel> {
         ),
       ]),
       expandChild: true,
-      // Header sits above with its own square top edge — round only the
-      // bottom two corners of the map itself to meet the card's bottom
-      // edge, matching the reference design's border-radius: 0 0 r r.
-      child: ClipRRect(
+      // Header sits above with its own square top edge, and needs a little
+      // breathing room below it before the map starts (was sitting flush
+      // against it) — round only the bottom two corners of the map itself
+      // to meet the card's bottom edge, matching the reference design's
+      // border-radius: 0 0 r r.
+      child: Padding(
+        padding: const EdgeInsets.only(top: 10),
+        child: ClipRRect(
         borderRadius: BorderRadius.only(
           bottomLeft: Radius.circular(AppColors.rLg),
           bottomRight: Radius.circular(AppColors.rLg),
@@ -297,6 +286,10 @@ class _MapPanelState extends State<_MapPanel> {
             hospitals: shown,
             totalMachines: totalMachines,
             uptimePct: totalMachines == 0 ? 0 : operational / totalMachines,
+            borderRadius: BorderRadius.only(
+              bottomLeft: Radius.circular(AppColors.rLg),
+              bottomRight: Radius.circular(AppColors.rLg),
+            ),
           ),
         ),
         Positioned(
@@ -346,6 +339,7 @@ class _MapPanelState extends State<_MapPanel> {
           ),
         ),
         ]),
+        ),
       ),
     );
   }
@@ -537,13 +531,20 @@ class _SalesMiniPanel extends StatelessWidget {
     final stages = [...rawStages]..sort((a, b) =>
         funnelOrder.indexOf(a['stage']).compareTo(funnelOrder.indexOf(b['stage'])));
     final maxVal = stages.isEmpty ? 1.0 : stages.map((s) => _numField(s['value'])).reduce((a, b) => a > b ? a : b);
+    final quotesOpen = (kpi['quotes_open_value'] as num? ?? 0).toDouble();
+    final collectedPct = (kpi['collected_pct'] as num? ?? 0).toInt();
+    final stalled = (kpi['deals_stalled_90d'] as num? ?? 0).toInt();
+    // Dropping the "TSh" prefix here specifically — at this card's actual
+    // width the full "TSh 268.0M" pushed past the header and overflowed;
+    // the bare figure plus the "pipeline" label next to it still reads fine.
+    final pipelineValue = tshFromDouble((kpi['pipeline_value'] as num? ?? 0).toDouble()).replaceFirst('TSh ', '');
     return AppCard(
-      header: Row(children: [
+      header: Row(crossAxisAlignment: CrossAxisAlignment.baseline, textBaseline: TextBaseline.alphabetic, children: [
         Icon(Symbols.trending_up, size: 14, color: AppColors.violet),
         const SizedBox(width: 8),
         Text('Sales', style: AppTheme.cardTitle),
         const Spacer(),
-        Text(tshFromDouble((kpi['pipeline_value'] as num? ?? 0).toDouble()), style: AppTheme.monoXs),
+        Text(pipelineValue, style: AppTheme.monoXs.copyWith(fontSize: 12)),
         const SizedBox(width: 4),
         Text('pipeline', style: AppTheme.bodySub.copyWith(fontSize: 10)),
       ]),
@@ -570,15 +571,28 @@ class _SalesMiniPanel extends StatelessWidget {
             }).toList(),
           ),
         ),
-        Divider(height: 14, color: context.pal.divider),
-        Row(children: [
-          Text('Open leads ${kpi['open_leads'] ?? 0}', style: AppTheme.bodySub.copyWith(fontSize: 10.5)),
-          const SizedBox(width: 12),
-          Text('Won MTD ${kpi['won_this_month'] ?? 0}', style: AppTheme.bodySub.copyWith(fontSize: 10.5)),
+        Divider(height: 16, color: context.pal.divider),
+        Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+          _miniStat('Quotes Open', tshFromDouble(quotesOpen)),
+          _miniStat('Collected', '$collectedPct%', valueColor: AppColors.teal),
+          if (stalled > 0)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(color: AppColors.coralSoft, borderRadius: BorderRadius.circular(6)),
+              child: Text('$stalled deals stalled 90d+', style: AppTheme.monoXs.copyWith(color: AppColors.coral, fontSize: 9.5)),
+            ),
         ]),
       ]),
     );
   }
+
+  Widget _miniStat(String label, String value, {Color? valueColor}) => Expanded(
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Builder(builder: (context) => Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 9.5))),
+      const SizedBox(height: 2),
+      Text(value, style: AppTheme.cardTitle.copyWith(fontSize: 16, color: valueColor)),
+    ]),
+  );
 }
 
 class _FinanceMiniPanel extends StatelessWidget {
@@ -592,6 +606,7 @@ class _FinanceMiniPanel extends StatelessWidget {
     final maxVal = months.isEmpty ? 1.0 : months.expand((m) => [
       (m['revenue'] as num? ?? 0).toDouble(), (m['expenses'] as num? ?? 0).toDouble(),
     ]).fold(1.0, (a, b) => b > a ? b : a);
+    final net = (last['net_profit'] as num? ?? 0).toDouble();
     return AppCard(
       header: Row(children: [
         Icon(Symbols.account_balance, size: 14, color: AppColors.cyan),
@@ -601,44 +616,50 @@ class _FinanceMiniPanel extends StatelessWidget {
       expandChild: true,
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          _miniStat('Revenue', tshFromDouble((last['revenue'] as num? ?? 0).toDouble())),
+          _miniStat('Revenue MTD', tshFromDouble((last['revenue'] as num? ?? 0).toDouble())),
           _miniStat('Expenses', tshFromDouble((last['expenses'] as num? ?? 0).toDouble())),
-          _miniStat('Net', tshSigned((last['net_profit'] as num? ?? 0).toDouble())),
+          _miniStat('Net Result', tshSigned(net), valueColor: net < 0 ? AppColors.coral : null),
         ]),
-        const SizedBox(height: 8),
+        const SizedBox(height: 10),
+        // Bars were hardcoded to a 34px cap regardless of how much room the
+        // card actually had — LayoutBuilder lets them use the real space.
         Expanded(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: months.map((m) {
-              final rev = (m['revenue'] as num? ?? 0).toDouble();
-              final exp = (m['expenses'] as num? ?? 0).toDouble();
-              return Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 1),
-                  child: Column(children: [
-                    Expanded(
-                      child: Row(crossAxisAlignment: CrossAxisAlignment.end, mainAxisAlignment: MainAxisAlignment.center, children: [
-                        Container(width: 4, height: (rev / maxVal * 34).clamp(1, 34), color: AppColors.cyan),
-                        const SizedBox(width: 1),
-                        Container(width: 4, height: (exp / maxVal * 34).clamp(1, 34), color: AppColors.coral),
-                      ]),
-                    ),
-                    const SizedBox(height: 2),
-                    Text('${m['label'] ?? ''}', style: AppTheme.monoXs.copyWith(fontSize: 7.5), textAlign: TextAlign.center),
-                  ]),
-                ),
-              );
-            }).toList(),
-          ),
+          child: LayoutBuilder(builder: (ctx, cst) {
+            final barMax = (cst.maxHeight - 16).clamp(8.0, double.infinity);
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: months.map((m) {
+                final rev = (m['revenue'] as num? ?? 0).toDouble();
+                final exp = (m['expenses'] as num? ?? 0).toDouble();
+                return Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 1),
+                    child: Column(children: [
+                      Expanded(
+                        child: Row(crossAxisAlignment: CrossAxisAlignment.end, mainAxisAlignment: MainAxisAlignment.center, children: [
+                          Container(width: 5, height: (rev / maxVal * barMax).clamp(1, barMax), color: AppColors.cyan),
+                          const SizedBox(width: 2),
+                          Container(width: 5, height: (exp / maxVal * barMax).clamp(1, barMax), color: AppColors.coral),
+                        ]),
+                      ),
+                      const SizedBox(height: 3),
+                      Text('${m['label'] ?? ''}', style: AppTheme.monoXs.copyWith(fontSize: 8.5), textAlign: TextAlign.center),
+                    ]),
+                  ),
+                );
+              }).toList(),
+            );
+          }),
         ),
       ]),
     );
   }
 
-  Widget _miniStat(String label, String value) => Expanded(
+  Widget _miniStat(String label, String value, {Color? valueColor}) => Expanded(
     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Builder(builder: (context) => Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 9))),
-      Text(value, style: AppTheme.bodyStrong.copyWith(fontSize: 13)),
+      Builder(builder: (context) => Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 9.5))),
+      const SizedBox(height: 2),
+      Text(value, style: AppTheme.cardTitle.copyWith(fontSize: 18, color: valueColor)),
     ]),
   );
 }
@@ -658,18 +679,22 @@ class _InventoryMiniPanel extends StatelessWidget {
         Text(tshFromDouble((inventory['total_stock_value'] as num? ?? 0).toDouble()), style: AppTheme.monoXs),
       ]),
       padding: const EdgeInsets.fromLTRB(13, 8, 13, 10),
-      child: Row(children: [
-        _stat('${inventory['total_items'] ?? 0}', 'Items'),
-        _stat('${inventory['low_stock_count'] ?? 0}', 'Low Stock', color: AppColors.amber),
-        _stat('${inventory['open_purchase_orders'] ?? 0}', 'Open POs'),
-      ]),
+      expandChild: true,
+      child: Center(
+        child: Row(children: [
+          _stat('${inventory['total_items'] ?? 0}', 'Items'),
+          _stat('${inventory['low_stock_count'] ?? 0}', 'Low Stock', color: AppColors.amber),
+          _stat('${inventory['open_purchase_orders'] ?? 0}', 'Open POs'),
+        ]),
+      ),
     );
   }
 
   Widget _stat(String value, String label, {Color? color}) => Expanded(
     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(value, style: AppTheme.cardTitle.copyWith(fontSize: 17, color: color)),
-      Builder(builder: (context) => Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 9))),
+      Text(value, style: AppTheme.cardTitle.copyWith(fontSize: 26, color: color)),
+      const SizedBox(height: 3),
+      Builder(builder: (context) => Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10.5))),
     ]),
   );
 }
@@ -687,18 +712,22 @@ class _PeopleMiniPanel extends StatelessWidget {
         Text('People', style: AppTheme.cardTitle),
       ]),
       padding: const EdgeInsets.fromLTRB(13, 8, 13, 10),
-      child: Row(children: [
-        _stat('${people['active_staff'] ?? 0}', 'Active Staff'),
-        _stat('${people['on_leave_today'] ?? 0}', 'On Leave'),
-        _stat('${people['pending_approvals'] ?? 0}', 'Approvals', color: AppColors.violet),
-      ]),
+      expandChild: true,
+      child: Center(
+        child: Row(children: [
+          _stat('${people['active_staff'] ?? 0}', 'Active Staff'),
+          _stat('${people['on_leave_today'] ?? 0}', 'On Leave'),
+          _stat('${people['pending_approvals'] ?? 0}', 'Approvals', color: AppColors.violet),
+        ]),
+      ),
     );
   }
 
   Widget _stat(String value, String label, {Color? color}) => Expanded(
     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(value, style: AppTheme.cardTitle.copyWith(fontSize: 17, color: color)),
-      Builder(builder: (context) => Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 9))),
+      Text(value, style: AppTheme.cardTitle.copyWith(fontSize: 26, color: color)),
+      const SizedBox(height: 3),
+      Builder(builder: (context) => Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10.5))),
     ]),
   );
 }

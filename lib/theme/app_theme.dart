@@ -271,23 +271,30 @@ class AppTheme {
     fontSize: 10.5, color: pal.textDim, fontWeight: FontWeight.w500,
     letterSpacing: 0.13, height: 1,
   );
-  static TextStyle get kpiValue => const TextStyle(
+  // These four used to omit color entirely, relying on Text widgets
+  // inheriting the ambient themed DefaultTextStyle — which silently breaks
+  // (falls back to Flutter's own default, near-black) anywhere that
+  // inheritance doesn't reach: a separate Overlay route, a Positioned
+  // overlay atop a map, a widget built outside the normal tree — exactly
+  // the same class of bug bodySm below was already fixed for. Explicit
+  // color: pal.text closes it here too, everywhere these are used.
+  static TextStyle get kpiValue => TextStyle(
     fontFamily: 'TildaSans',
     fontSize: 30, fontWeight: FontWeight.w700,
-    letterSpacing: -0.02, height: 1,
-    fontFeatures: [FontFeature.tabularFigures()],
+    letterSpacing: -0.02, height: 1, color: pal.text,
+    fontFeatures: const [FontFeature.tabularFigures()],
   );
-  static TextStyle get pageTitle => const TextStyle(
+  static TextStyle get pageTitle => TextStyle(
     fontFamily: 'TildaSans',
-    fontSize: 22, fontWeight: FontWeight.w600, letterSpacing: -0.01,
+    fontSize: 22, fontWeight: FontWeight.w600, letterSpacing: -0.01, color: pal.text,
   );
-  static TextStyle get cardTitle => const TextStyle(
+  static TextStyle get cardTitle => TextStyle(
     fontFamily: 'TildaSans',
-    fontSize: 14, fontWeight: FontWeight.w600, letterSpacing: -0.005,
+    fontSize: 14, fontWeight: FontWeight.w600, letterSpacing: -0.005, color: pal.text,
   );
-  static TextStyle get bodyStrong => const TextStyle(
+  static TextStyle get bodyStrong => TextStyle(
     fontFamily: 'TildaSans',
-    fontSize: 13, fontWeight: FontWeight.w500,
+    fontSize: 13, fontWeight: FontWeight.w500, color: pal.text,
   );
   // Unlike the other named styles above (which lean on plain Text widgets
   // correctly inheriting DefaultTextStyle from the themed textTheme), this

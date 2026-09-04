@@ -19,10 +19,15 @@ class FleetMapWidget extends StatefulWidget {
     required this.hospitals,
     this.totalMachines,
     this.uptimePct,
+    this.borderRadius,
   });
   final List<Hospital> hospitals;
   final int? totalMachines;
   final double? uptimePct;
+  // Defaults to all-corners rounded (existing behavior); pass a
+  // corner-specific radius when the map sits directly under a card header
+  // with its own square top edge, so the two don't double-round.
+  final BorderRadius? borderRadius;
 
   @override
   State<FleetMapWidget> createState() => _FleetMapWidgetState();
@@ -61,7 +66,7 @@ class _FleetMapWidgetState extends State<FleetMapWidget> {
         clipBehavior: Clip.none,
         children: [
           ClipRRect(
-            borderRadius: BorderRadius.circular(AppColors.rLg),
+            borderRadius: widget.borderRadius ?? BorderRadius.circular(AppColors.rLg),
             child: FlutterMap(
               mapController: _mapController,
               options: const MapOptions(
