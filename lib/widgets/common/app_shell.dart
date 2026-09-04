@@ -105,6 +105,7 @@ class _AppShellState extends State<AppShell> {
     if (key.startsWith('inventory_')) permKey = 'inventory';
     if (key.startsWith('sales_'))     permKey = 'sales';
     if (key.startsWith('finance_'))   permKey = 'finance';
+    if (key == 'machines_map')        permKey = 'machines';
     return (allowed == null || allowed.contains(permKey))
         ? key
         : defaultScreenKey(userRoleNotifier.value);
@@ -218,7 +219,8 @@ class _AppShellState extends State<AppShell> {
 
   Widget _buildScreen() => switch (_activeKey) {
     'dashboard' => UnifiedDashboardScreen(onNavigateTo: _navigate),
-    'machines'  => MachineListScreen(
+    'machines' || 'machines_map' => MachineListScreen(
+        initialMapView: _activeKey == 'machines_map',
         onMachineSelected: (id) => setState(() {
           _selectedMachineId = id;
           _activeKey         = 'detail';
@@ -277,7 +279,7 @@ class _AppShellState extends State<AppShell> {
   // - machine detail → highlight "machines"
   // - inventory sub-keys → sidebar uses the sub-key directly for child highlighting
   String get _sidebarKey {
-    if (_activeKey == 'detail')    return 'machines';
+    if (_activeKey == 'detail' || _activeKey == 'machines_map') return 'machines';
     if (_activeKey == 'inventory') return 'inventory_items';
     if (_activeKey == 'sales')     return 'sales_leads';
     if (_activeKey == 'finance')   return 'finance_dashboard';
@@ -286,7 +288,7 @@ class _AppShellState extends State<AppShell> {
 
   // "More" tab is active when the current screen isn't in the 4 primary tabs
   bool get _moreActive {
-    const primary = {'dashboard', 'machines', 'detail', 'service', 'revenue'};
+    const primary = {'dashboard', 'machines', 'machines_map', 'detail', 'service', 'revenue'};
     return !primary.contains(_activeKey);
   }
 

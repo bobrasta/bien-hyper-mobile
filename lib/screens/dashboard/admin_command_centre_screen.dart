@@ -261,7 +261,7 @@ class _MapPanelState extends State<_MapPanel> {
         _layerPill('Technicians', Symbols.person_pin_circle, _MapLayer.technicians),
         const SizedBox(width: 10),
         TextButton.icon(
-          onPressed: () => widget.onNavigateTo?.call('machines'),
+          onPressed: () => widget.onNavigateTo?.call('machines_map'),
           icon: const Icon(Symbols.open_in_new, size: 13),
           label: const Text('Open Map'),
           style: TextButton.styleFrom(foregroundColor: AppColors.teal, textStyle: AppTheme.bodySm),

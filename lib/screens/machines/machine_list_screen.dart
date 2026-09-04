@@ -18,8 +18,11 @@ import 'machine_map_screen.dart';
 import '../../theme/app_palette.dart';
 
 class MachineListScreen extends StatefulWidget {
-  const MachineListScreen({super.key, this.onMachineSelected});
+  const MachineListScreen({super.key, this.onMachineSelected, this.initialMapView = false});
   final ValueChanged<int>? onMachineSelected;
+  // Lets a caller (e.g. the admin dashboard's "Open Map" link) land
+  // straight on the map view instead of the default list.
+  final bool initialMapView;
 
   @override
   State<MachineListScreen> createState() => _MachineListScreenState();
@@ -50,6 +53,7 @@ class _MachineListScreenState extends State<MachineListScreen> {
   @override
   void initState() {
     super.initState();
+    _mapView = widget.initialMapView;
     _loadHospitals();
     _load();
   }
