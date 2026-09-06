@@ -3,17 +3,19 @@ import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../../main.dart' show hasCtoApprovalAuthority, userRoleNotifier, userIdNotifier;
+import '../../main.dart' show allowedScreenKeys, hasCtoApprovalAuthority, hasServiceTicketResolveAuthority, userRoleNotifier, userIdNotifier;
 import '../../models/hospital.dart';
 import '../../utils/csv_export.dart';
 import '../../models/inventory_item.dart';
 import '../../models/machine.dart';
+import '../../models/per_diem_request.dart';
 import '../../models/serial_number.dart';
 import '../../models/service_ticket.dart';
 import '../../models/spare_part.dart';
 import '../../services/hospital_service.dart';
 import '../../services/inventory_service.dart';
 import '../../services/machine_service.dart';
+import '../../services/per_diem_service.dart';
 import '../../services/serial_number_service.dart';
 import '../../services/spare_part_service.dart';
 import '../../services/staff_service.dart';
@@ -25,6 +27,7 @@ import '../../theme/app_theme.dart';
 import '../../utils/api_error.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/common/app_button.dart';
+import '../../widgets/common/app_text_field.dart';
 import '../../widgets/common/avatar_widget.dart';
 import '../../widgets/common/error_view.dart';
 import '../../widgets/common/scan_or_type_field.dart';
@@ -71,6 +74,9 @@ class ServiceTicketScreen extends StatefulWidget {
 class _ServiceTicketScreenState extends State<ServiceTicketScreen> {
   int _selectedIdx = 0;
   TicketStatus? _filter;
+  bool _myAssignmentsOnly = false;
+  int? _technicianFilter;
+  final _searchCtrl = TextEditingController();
   bool _showNew = false;
   bool _showTravelPlan = false;
   ServiceTicket? _travelPlanTicket;
@@ -93,14 +99,50 @@ class _ServiceTicketScreenState extends State<ServiceTicketScreen> {
   Map<int, StaffMember>          _staffById     = {};
   late final Future<List<StaffMember>> _staffFuture = _fetchStaff();
 
+  // My own per-diem requests (the backend self-scopes /per-diem-requests to
+  // the caller) — loaded once, refreshed after submitting a new travel
+  // plan, and looked up per-ticket to show its approval/payment status
+  // instead of a "Submit Travel Plan" button once one already exists.
+  List<PerDiemRequest> _myPerDiemRequests = [];
+  late final Future<List<PerDiemRequest>> _perDiemFuture = _fetchPerDiem();
+
   @override
   void initState() {
     super.initState();
     _load();
     _staffFuture; // kick off the future
+    _perDiemFuture; // kick off the future
+  }
+
+  @override
+  void dispose() { _searchCtrl.dispose(); super.dispose(); }
+
+  Future<List<PerDiemRequest>> _fetchPerDiem() async {
+    try {
+      final list = await PerDiemService.instance.list();
+      if (mounted) setState(() => _myPerDiemRequests = list);
+      return list;
+    } catch (_) {
+      return [];
+    }
+  }
+
+  // Most recent per-diem request filed for this ticket, if any — "most
+  // recent" so a resubmission after a rejection shows the new one's
+  // status, not the dead one's.
+  PerDiemRequest? _travelPlanFor(ServiceTicket t) {
+    final matches = _myPerDiemRequests.where((p) => p.serviceTicketId == t.dbId).toList()
+      ..sort((a, b) => b.id.compareTo(a.id));
+    return matches.isEmpty ? null : matches.first;
   }
 
   Future<List<StaffMember>> _fetchStaff() async {
+    // GET /staff needs screens.staff (the operational task-board
+    // permission) — technician deliberately doesn't have it. Skip the
+    // call outright rather than firing a request known to 403; the
+    // technician filter dropdown falls back to ticket-embedded assignee
+    // data instead (see _technicianOptions).
+    if (!(allowedScreenKeys(userRoleNotifier.value)?.contains('staff') ?? true)) return [];
     try {
       final list = await StaffService.instance.list();
       if (mounted) {
@@ -176,14 +218,104 @@ class _ServiceTicketScreenState extends State<ServiceTicketScreen> {
     }
   }
 
-  List<ServiceTicket> get _filtered => _filter == null
-      ? _tickets
-      : _tickets.where((t) => t.status == _filter).toList();
+  List<ServiceTicket> get _filtered {
+    var list = _tickets;
+    if (_myAssignmentsOnly) {
+      list = list.where((t) => t.assignedToId != null && t.assignedToId == userIdNotifier.value).toList();
+    } else if (_filter != null) {
+      list = list.where((t) => t.status == _filter).toList();
+    }
+    if (_technicianFilter != null) {
+      list = list.where((t) => t.assignedToId == _technicianFilter).toList();
+    }
+    final q = _searchCtrl.text.trim().toLowerCase();
+    if (q.isNotEmpty) {
+      list = list.where((t) =>
+          t.id.toLowerCase().contains(q) ||
+          t.machineName.toLowerCase().contains(q) ||
+          t.hospital.toLowerCase().contains(q) ||
+          t.ward.toLowerCase().contains(q) ||
+          _resolveTechName(t).toLowerCase().contains(q)).toList();
+    }
+    return list;
+  }
+
+  void _resetSelectionAfterFilter() {
+    final filtered = _filtered;
+    if (filtered.isNotEmpty) _loadDetail(filtered[0]);
+  }
 
   void _setFilter(TicketStatus? f) {
-    setState(() { _filter = f; _selectedIdx = 0; _loadedDbId = null; });
-    final filtered = _filter == null ? _tickets : _tickets.where((t) => t.status == _filter).toList();
-    if (filtered.isNotEmpty) _loadDetail(filtered[0]);
+    setState(() { _filter = f; _myAssignmentsOnly = false; _selectedIdx = 0; _loadedDbId = null; });
+    _resetSelectionAfterFilter();
+  }
+
+  void _setMyAssignmentsOnly() {
+    setState(() { _myAssignmentsOnly = true; _filter = null; _selectedIdx = 0; _loadedDbId = null; });
+    _resetSelectionAfterFilter();
+  }
+
+  void _setTechnicianFilter(int? technicianId) {
+    setState(() { _technicianFilter = technicianId; _selectedIdx = 0; _loadedDbId = null; });
+    _resetSelectionAfterFilter();
+  }
+
+  void _onSearchChanged() {
+    setState(() { _selectedIdx = 0; _loadedDbId = null; });
+    _resetSelectionAfterFilter();
+  }
+
+  // Prefers the full roster (already role-filtered to technician) when
+  // available, but falls back to whoever tickets are actually assigned to
+  // — works even when this role can't call GET /staff (e.g. the
+  // technician role itself, which lost screens.staff this session on
+  // purpose: that's the operational task-board permission, a different
+  // thing from "who can I filter my own ticket list by").
+  Map<int, String> get _technicianOptions {
+    final map = <int, String>{};
+    for (final s in _staffById.values) {
+      if (s.role == 'technician') map[s.id] = s.name;
+    }
+    for (final t in _tickets) {
+      final id = t.assignedToId;
+      if (id == null || map.containsKey(id)) continue;
+      final name = t.assignee?.name ?? (t.technicianName != '—' ? t.technicianName : null);
+      if (name != null) map[id] = name;
+    }
+    return map;
+  }
+
+  Widget _technicianDropdown(BuildContext context) {
+    final options = _technicianOptions;
+    final technicians = options.entries.toList()
+      ..sort((a, b) => a.value.compareTo(b.value));
+    return Container(
+      height: 34,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: context.pal.surface1,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: context.pal.border),
+      ),
+      child: DropdownButtonHideUnderline(child: DropdownButton<int?>(
+        value: _technicianFilter,
+        isExpanded: true,
+        isDense: true,
+        icon: Icon(Symbols.expand_more, size: 16, color: context.pal.textDim),
+        style: AppTheme.bodySm.copyWith(color: context.pal.text),
+        dropdownColor: context.pal.surface1,
+        hint: Row(children: [
+          Icon(Symbols.engineering, size: 15, color: context.pal.textDim),
+          const SizedBox(width: 6),
+          Text('All Technicians', style: AppTheme.bodySm.copyWith(color: context.pal.textDim)),
+        ]),
+        items: [
+          DropdownMenuItem<int?>(value: null, child: Text('All Technicians', style: AppTheme.bodySm)),
+          ...technicians.map((s) => DropdownMenuItem<int?>(value: s.key, child: Text(s.value, style: AppTheme.bodySm))),
+        ],
+        onChanged: _setTechnicianFilter,
+      )),
+    );
   }
 
   void _selectTicket(int idx) {
@@ -411,12 +543,35 @@ class _ServiceTicketScreenState extends State<ServiceTicketScreen> {
               return Row(children: [titleRow, const Spacer(), actions]);
             }),
             const SizedBox(height: 12),
+            LayoutBuilder(builder: (ctx, cst) {
+              final narrow = cst.maxWidth < 560;
+              final searchBox = AppTextField(
+                height: 40,
+                controller: _searchCtrl,
+                onChanged: (_) => _onSearchChanged(),
+                icon: Symbols.search,
+                hintText: 'Search by ticket, machine, or hospital…',
+              );
+              final techDropdown = _technicianDropdown(context);
+              if (narrow) {
+                return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  searchBox, const SizedBox(height: 8), techDropdown,
+                ]);
+              }
+              return Row(children: [
+                Expanded(child: searchBox),
+                const SizedBox(width: 10),
+                SizedBox(width: 220, child: techDropdown),
+              ]);
+            }),
+            const SizedBox(height: 12),
             Wrap(spacing: 6, runSpacing: 6, children: [
               _FilterTab('All',         active: _filter == null,                       onTap: () => _setFilter(null)),
               _FilterTab('Open',        active: _filter == TicketStatus.open,          onTap: () => _setFilter(TicketStatus.open)),
               _FilterTab('In Progress', active: _filter == TicketStatus.inProgress,    onTap: () => _setFilter(TicketStatus.inProgress)),
               _FilterTab('Resolved',    active: _filter == TicketStatus.resolved,      onTap: () => _setFilter(TicketStatus.resolved)),
               _FilterTab('Overdue',     active: _filter == TicketStatus.overdue,       onTap: () => _setFilter(TicketStatus.overdue), danger: true),
+              _FilterTab('My Assignments', active: _myAssignmentsOnly,                 onTap: _setMyAssignmentsOnly),
             ]),
           ]),
         ),
@@ -465,7 +620,8 @@ class _ServiceTicketScreenState extends State<ServiceTicketScreen> {
                     onDeleteAttachment: (id) => _deleteAttachment(ticket, id),
                     onAcknowledge: () => _acknowledge(ticket),
                     acknowledging: _acknowledging,
-                    onSubmitTravelPlan: () => _showTravelPlanDialog(ticket))),
+                    onSubmitTravelPlan: () => _showTravelPlanDialog(ticket),
+                    travelPlan: _travelPlanFor(ticket))),
               ]);
             }
 
@@ -502,6 +658,7 @@ class _ServiceTicketScreenState extends State<ServiceTicketScreen> {
                       onAcknowledge: () => _acknowledge(ticket),
                       acknowledging: _acknowledging,
                       onSubmitTravelPlan: () => _showTravelPlanDialog(ticket),
+                      travelPlan: _travelPlanFor(ticket),
                     ),
             ),
           ]);  // Row
@@ -523,6 +680,7 @@ class _ServiceTicketScreenState extends State<ServiceTicketScreen> {
           onSaved: () {
             setState(() => _showTravelPlan = false);
             showSuccessToast(context, 'Travel plan submitted for approval');
+            _fetchPerDiem();
           },
         ),
     ]);
@@ -607,6 +765,7 @@ class _TicketDetailPanel extends StatelessWidget {
     this.onAcknowledge,
     this.acknowledging = false,
     this.onSubmitTravelPlan,
+    this.travelPlan,
   });
   final ServiceTicket ticket;
   final ServiceTicket? detailTicket;
@@ -627,6 +786,10 @@ class _TicketDetailPanel extends StatelessWidget {
   final VoidCallback? onAcknowledge;
   final bool acknowledging;
   final VoidCallback? onSubmitTravelPlan;
+  // Most recent per-diem request filed for this ticket by its assignee, if
+  // any — drives whether we show the "Submit Travel Plan" button or a
+  // status banner instead.
+  final PerDiemRequest? travelPlan;
 
   @override
   Widget build(BuildContext context) {
@@ -637,7 +800,18 @@ class _TicketDetailPanel extends StatelessWidget {
     final isResolved = t.status == TicketStatus.resolved;
     final isAssignee = t.assignedToId != null && t.assignedToId == userIdNotifier.value;
     final needsAcknowledgement = isAssignee && t.acknowledgedAt == null;
-    final canSubmitTravelPlan = isAssignee && t.acknowledgedAt != null && !isResolved;
+    // A rejected/cancelled plan doesn't block filing a new one — anything
+    // else (submitted and still moving through approval/payment, or paid)
+    // means there's already an active plan, so show its status instead.
+    final resubmittable = travelPlan == null
+        || travelPlan!.status == PerDiemStatus.rejected
+        || travelPlan!.status == PerDiemStatus.cancelled;
+    final canSubmitTravelPlan = isAssignee && t.acknowledgedAt != null && !isResolved && resubmittable;
+    final showTravelStatus = isAssignee && t.acknowledgedAt != null && !isResolved && !resubmittable;
+    // Read-only for anyone but the assignee or CTO/Director tier — a
+    // technician can see every ticket but only act on their own.
+    final canAct = isAssignee || hasCtoApprovalAuthority(userRoleNotifier.value);
+    final canResolve = hasServiceTicketResolveAuthority(userRoleNotifier.value);
 
     return SingleChildScrollView(
     padding: const EdgeInsets.all(24),
@@ -656,9 +830,10 @@ class _TicketDetailPanel extends StatelessWidget {
           const SizedBox(height: 3),
           Text('${ticket.machineType} · ${ticket.hospital}', style: AppTheme.bodySub),
         ])),
-        AppButton(label: 'Edit', icon: Symbols.edit, variant: BtnVariant.ghost, onPressed: onEdit),
+        if (canAct)
+          AppButton(label: 'Edit', icon: Symbols.edit, variant: BtnVariant.ghost, onPressed: onEdit),
         const SizedBox(width: 8),
-        if (!isResolved)
+        if (!isResolved && canResolve)
           AppButton(label: 'Resolve', icon: Symbols.check_circle, variant: BtnVariant.normal,
               onPressed: onResolve),
       ]),
@@ -694,7 +869,9 @@ class _TicketDetailPanel extends StatelessWidget {
       ],
 
       // Travel-plan prompt —the next step once the assignee has acknowledged:
-      // file the day-by-day itinerary for this trip before heading out.
+      // file the day-by-day itinerary for this trip before heading out. If
+      // a previous plan was rejected/cancelled, the prompt says so and
+      // this doubles as the resubmit flow.
       if (canSubmitTravelPlan) ...[
         Container(
           width: double.infinity,
@@ -708,7 +885,11 @@ class _TicketDetailPanel extends StatelessWidget {
             Icon(Symbols.map, size: 18, color: AppColors.teal),
             const SizedBox(width: 10),
             Expanded(child: Text(
-                'Next: submit a travel plan for this trip — sites, dates, and per-diem/transport costs.',
+                travelPlan == null
+                    ? 'Next: submit a travel plan for this trip — sites, dates, and per-diem/transport costs.'
+                    : 'Your previous travel plan was ${travelPlan!.status == PerDiemStatus.rejected ? 'rejected' : 'cancelled'}'
+                        '${(travelPlan!.rejectionReason ?? travelPlan!.teamLeadRejectionReason) != null ? ': ${travelPlan!.rejectionReason ?? travelPlan!.teamLeadRejectionReason}' : ''}. '
+                        'Submit a new one to try again.',
                 style: AppTheme.bodySm.copyWith(color: context.pal.text))),
             const SizedBox(width: 12),
             AppButton(
@@ -719,6 +900,40 @@ class _TicketDetailPanel extends StatelessWidget {
             ),
           ]),
         ),
+        const SizedBox(height: 16),
+      ],
+
+      // Travel-plan status —shown instead of the prompt once a plan is
+      // already filed and still active (not rejected/cancelled), so the
+      // technician can see where it is in approval/payment rather than
+      // being offered to submit a duplicate.
+      if (showTravelStatus) ...[
+        Builder(builder: (context) {
+          final (color, icon, label) = switch (travelPlan!.status) {
+            PerDiemStatus.pendingTeamLead => (AppColors.amber, Symbols.hourglass_top, 'Travel plan submitted — awaiting Team Lead approval.'),
+            PerDiemStatus.pendingCto      => (AppColors.amber, Symbols.hourglass_top, 'Approved by Team Lead — awaiting CTO approval.'),
+            PerDiemStatus.pendingPayment  => (AppColors.violet, Symbols.payments, 'Approved — awaiting payment initiation.'),
+            PerDiemStatus.pendingDirector => (AppColors.amber, Symbols.hourglass_bottom, "Payment initiated — awaiting release. Don't travel yet."),
+            PerDiemStatus.paid            => (AppColors.teal, Symbols.flight_takeoff, 'Money is out — start your journey!'),
+            _ => (context.pal.textDim, Symbols.info, travelPlan!.status.label),
+          };
+          final emphasize = travelPlan!.status == PerDiemStatus.paid;
+          return Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: emphasize ? 0.14 : 0.08),
+              borderRadius: BorderRadius.circular(AppColors.rLg),
+              border: Border.all(color: color.withValues(alpha: emphasize ? 0.5 : 0.3)),
+            ),
+            child: Row(children: [
+              Icon(icon, size: 18, color: color),
+              const SizedBox(width: 10),
+              Expanded(child: Text(label,
+                  style: (emphasize ? AppTheme.bodyStrong : AppTheme.bodySm).copyWith(color: context.pal.text))),
+            ]),
+          );
+        }),
         const SizedBox(height: 16),
       ],
 
@@ -873,7 +1088,7 @@ class _TicketDetailPanel extends StatelessWidget {
                 children: checks.asMap().entries.map((e) {
                   final on = e.value['on'] as bool;
                   return GestureDetector(
-                    onTap: () => onToggle(e.key),
+                    onTap: canAct ? () => onToggle(e.key) : null,
                     child: Container(
                       padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
                       decoration: e.key < checks.length - 1
@@ -906,14 +1121,16 @@ class _TicketDetailPanel extends StatelessWidget {
       _SectionCard(
         icon: Symbols.inventory_2,
         title: 'Parts Used',
-        trailing: GestureDetector(
-          onTap: onAddPart,
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Icon(Symbols.add, size: 14, color: AppColors.teal),
-            const SizedBox(width: 4),
-            Text('Add Part', style: AppTheme.bodySub.copyWith(color: AppColors.teal, fontSize: 12)),
-          ]),
-        ),
+        trailing: canAct
+            ? GestureDetector(
+                onTap: onAddPart,
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Symbols.add, size: 14, color: AppColors.teal),
+                  const SizedBox(width: 4),
+                  Text('Add Part', style: AppTheme.bodySub.copyWith(color: AppColors.teal, fontSize: 12)),
+                ]),
+              )
+            : null,
         child: Column(children: [
           if (parts.isEmpty)
             Padding(
@@ -1046,38 +1263,41 @@ class _TicketDetailPanel extends StatelessWidget {
       const SizedBox(height: 24),
 
       // Action buttons
-      if (!isResolved)
+      if (!isResolved && (canAct || canResolve))
         Row(children: [
-          Expanded(child: GestureDetector(
-            onTap: onUpdateStatus,
-            child: Container(
-              height: 42,
-              decoration: BoxDecoration(
-                border: Border.all(color: context.pal.border),
-                borderRadius: BorderRadius.circular(8),
+          if (canAct) ...[
+            Expanded(child: GestureDetector(
+              onTap: onUpdateStatus,
+              child: Container(
+                height: 42,
+                decoration: BoxDecoration(
+                  border: Border.all(color: context.pal.border),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Center(child: Text('Update Status',
+                    style: AppTheme.bodySm.copyWith(color: context.pal.textMute))),
               ),
-              child: Center(child: Text('Update Status',
-                  style: AppTheme.bodySm.copyWith(color: context.pal.textMute))),
-            ),
-          )),
-          const SizedBox(width: 12),
-          Expanded(child: GestureDetector(
-            onTap: onResolve,
-            child: Container(
-              height: 42,
-              decoration: BoxDecoration(
-                color: AppColors.teal,
-                borderRadius: BorderRadius.circular(8),
-                boxShadow: [BoxShadow(color: AppColors.teal.withValues(alpha: 0.3), blurRadius: 12)],
+            )),
+            const SizedBox(width: 12),
+          ],
+          if (canResolve)
+            Expanded(child: GestureDetector(
+              onTap: onResolve,
+              child: Container(
+                height: 42,
+                decoration: BoxDecoration(
+                  color: AppColors.teal,
+                  borderRadius: BorderRadius.circular(8),
+                  boxShadow: [BoxShadow(color: AppColors.teal.withValues(alpha: 0.3), blurRadius: 12)],
+                ),
+                child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                  const Icon(Symbols.check_circle, size: 16, color: Color(0xFF06120F)),
+                  const SizedBox(width: 8),
+                  Text('Mark Resolved', style: AppTheme.bodyStrong.copyWith(
+                      color: const Color(0xFF06120F), fontSize: 13)),
+                ]),
               ),
-              child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                const Icon(Symbols.check_circle, size: 16, color: Color(0xFF06120F)),
-                const SizedBox(width: 8),
-                Text('Mark Resolved', style: AppTheme.bodyStrong.copyWith(
-                    color: const Color(0xFF06120F), fontSize: 13)),
-              ]),
-            ),
-          )),
+            )),
         ])
       else
         Container(
@@ -1388,30 +1608,12 @@ class _NewTicketModalState extends State<_NewTicketModal> {
                 ),
                 const SizedBox(height: 14),
                 // 5. Description
-                _ModalField(
+                AppTextField(
                   label: 'Issue Description',
-                  child: Container(
-                    height: 80,
-                    decoration: BoxDecoration(
-                      color: context.pal.surface2,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: context.pal.border),
-                    ),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                    child: TextField(
-                      controller: _descCtrl,
-                      maxLines: null,
-                      expands: true,
-                      style: AppTheme.bodySm,
-                      decoration: InputDecoration(
-                        hintText: 'Describe the issue in detail—',
-                        hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
-                        border: InputBorder.none,
-                        isDense: true,
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                    ),
-                  ),
+                  controller: _descCtrl,
+                  maxLines: null,
+                  height: 80,
+                  hintText: 'Describe the issue in detail…',
                 ),
                 if (_error != null) ...[
                   const SizedBox(height: 8),
@@ -1701,28 +1903,12 @@ class _ResolveDialogState extends State<_ResolveDialog> {
                'This will be included in service reports.',
             style: AppTheme.bodySub.copyWith(fontSize: 12.5)),
           const SizedBox(height: 14),
-          Container(
+          AppTextField(
+            controller: _notesCtrl,
+            maxLines: null,
             height: 110,
-            decoration: BoxDecoration(
-              color: context.pal.surface2,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: context.pal.border),
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            child: TextField(
-              controller: _notesCtrl,
-              maxLines: null,
-              expands: true,
-              autofocus: true,
-              style: AppTheme.bodySm.copyWith(height: 1.6),
-              decoration: InputDecoration(
-                hintText: 'e.g. Replaced flow sensor, recalibrated unit, tested 3 cycles —all passed.',
-                hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim, fontSize: 12),
-                border: InputBorder.none,
-                isDense: true,
-                contentPadding: EdgeInsets.zero,
-              ),
-            ),
+            autofocus: true,
+            hintText: 'e.g. Replaced flow sensor, recalibrated unit, tested 3 cycles — all passed.',
           ),
         ]),
       ),
@@ -2377,25 +2563,13 @@ class _EditTicketDialogState extends State<_EditTicketDialog> {
           ),
         ]),
         const SizedBox(height: 12),
-        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('DESCRIPTION / NOTES', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
-          const SizedBox(height: 6),
-          Container(
-            height: 90,
-            decoration: BoxDecoration(color: context.pal.surface2,
-                borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-            child: TextField(
-              controller: _descCtrl, maxLines: null, expands: true,
-              style: AppTheme.bodySm,
-              decoration: InputDecoration(
-                hintText: 'Describe the issue or work required—',
-                hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
-                border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero,
-              ),
-            ),
-          ),
-        ]),
+        AppTextField(
+          label: 'Description / Notes',
+          controller: _descCtrl,
+          maxLines: null,
+          height: 90,
+          hintText: 'Describe the issue or work required…',
+        ),
         if (_error != null) ...[
           const SizedBox(height: 8),
           Text(_error!, style: TextStyle(color: AppColors.coral, fontSize: 12.5)),
@@ -2424,21 +2598,10 @@ class _EditTicketDialogState extends State<_EditTicketDialog> {
 // ── Shared field helper ─────────────────────────────────────────────────────
 Widget _ticketField(String label, TextEditingController ctrl, String hint,
     BuildContext context, {bool numeric = false}) =>
-  Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10)),
-    const SizedBox(height: 6),
-    Container(
-      decoration: BoxDecoration(color: context.pal.surface2,
-          borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      child: TextField(
-        controller: ctrl,
-        keyboardType: numeric ? const TextInputType.numberWithOptions(decimal: false) : TextInputType.text,
-        style: AppTheme.bodySm,
-        decoration: InputDecoration(hintText: hint,
-            hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
-            border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero),
-      ),
-    ),
-  ]);
+  AppTextField(
+    label: label,
+    controller: ctrl,
+    hintText: hint,
+    keyboardType: numeric ? const TextInputType.numberWithOptions(decimal: false) : TextInputType.text,
+  );
 

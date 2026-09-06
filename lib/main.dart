@@ -79,7 +79,9 @@ Set<String>? allowedScreenKeys(String role) {
 Set<String>? _legacyAllowedScreenKeys(String role) => switch (role) {
   'super_admin' || 'admin' => null,
   'cto'            => {'dashboard', 'approvals', 'machines', 'detail', 'hospitals', 'service', 'inventory', 'finance', 'staff', 'my_leave', 'reports', 'settings', 'notifications'},
-  'technician'     => {'dashboard', 'machines', 'detail', 'hospitals', 'service', 'inventory', 'staff', 'my_leave', 'reports', 'settings', 'notifications'},
+  // No 'staff' or 'inventory' — a technician does the repair work, not
+  // staff task assignment or stock management.
+  'technician'     => {'dashboard', 'machines', 'detail', 'hospitals', 'service', 'my_leave', 'reports', 'settings', 'notifications'},
   'team_leader'    => {'dashboard', 'approvals', 'machines', 'detail', 'hospitals', 'service', 'staff', 'my_leave', 'reports', 'settings', 'notifications'},
   'sales_manager' || 'sales' => {'dashboard', 'machines', 'detail', 'sales', 'customers', 'revenue', 'email', 'staff', 'my_leave', 'reports', 'settings', 'notifications'},
   'finance_manager' || 'finance' => {'dashboard', 'revenue', 'finance', 'staff', 'my_leave', 'reports', 'settings', 'notifications'},
@@ -107,10 +109,8 @@ String defaultScreenKey(String role) => switch (role) {
   'cto' || 'team_leader'           => 'approvals',
   'technician'                    => 'service',
   'sales_manager' || 'sales'      => 'sales',
-  'finance_manager' || 'finance'  => 'finance_dashboard',
   'cs'                             => 'customers',
   'storekeeper'                    => 'inventory',
-  'hr'                             => 'hr_dashboard',
   'procurement_manager' || 'accountant' => 'approvals',
   'logistics'                      => 'inventory',
   _                                => 'dashboard',
@@ -155,6 +155,12 @@ bool hasServiceTicketCreateAuthority(String role) {
   final allowed = allowedScreenKeys(role);
   return allowed == null || allowed.contains('service');
 }
+
+/// Mirrors the services.close_ticket grant (backend authority, this only
+/// toggles the Resolve button) — resolving a ticket is CTO/Director work,
+/// not the assigned technician's.
+bool hasServiceTicketResolveAuthority(String role) =>
+    const {'super_admin', 'admin', 'cto', 'team_leader'}.contains(role);
 
 /// Mirrors the staff.manage grant (create/edit/deactivate staff, change
 /// roles) — hr + admin tier.
