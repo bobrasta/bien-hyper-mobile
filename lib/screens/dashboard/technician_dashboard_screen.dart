@@ -4,12 +4,14 @@ import 'package:material_symbols_icons/symbols.dart';
 import '../../main.dart' show userIdNotifier;
 import '../../models/service_ticket.dart';
 import '../../models/staff_member.dart';
+import '../../models/task_item.dart';
 import '../../services/attendance_service.dart';
 import '../../services/auth_service.dart';
 import '../../services/contract_service.dart';
 import '../../services/payroll_service.dart';
 import '../../services/position_change_service.dart';
 import '../../services/spare_part_service.dart';
+import '../../services/task_service.dart';
 import '../../services/ticket_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_palette.dart';
@@ -131,6 +133,13 @@ class _TechnicianDashboardScreenState extends State<TechnicianDashboardScreen> {
 
   List<Contract> _contracts = [];
 
+  // General (non-ticket) tasks assigned to this technician — the /tasks
+  // endpoint, unrelated to service tickets. This technician role has no
+  // 'staff' screen access (that's the task-assignment board), so the
+  // dashboard is the only place these are visible/actionable.
+  List<TaskItem> _myTasks = [];
+  bool _tasksActionBusy = false;
+
   List<PayrollHistoryItem> _payrollHistory = [];
   bool _payrollLoading = true;
   bool _payrollForbidden = false;
@@ -162,6 +171,7 @@ class _TechnicianDashboardScreenState extends State<TechnicianDashboardScreen> {
         _loadTickets(me),
         _loadContracts(me),
         _loadPositionChanges(me),
+        _loadTasks(me),
       ]);
       // Payroll/attendance may 403 until the backend self-access relaxation
       // lands — kept separate so a failure there never blocks the rest.
@@ -211,6 +221,36 @@ class _TechnicianDashboardScreenState extends State<TechnicianDashboardScreen> {
       final list = await PositionChangeService.instance.list(me);
       if (mounted) setState(() => _positionChanges = list);
     } catch (_) {}
+  }
+
+  Future<void> _loadTasks(int? me) async {
+    if (me == null) return;
+    try {
+      final list = await TaskService.instance.list(assignedTo: me);
+      if (mounted) setState(() => _myTasks = list);
+    } catch (_) {
+      // Non-critical — the card just shows nothing if this 403s/fails.
+    }
+  }
+
+  Future<void> _setTaskStatus(TaskItem task, String status) async {
+    setState(() => _tasksActionBusy = true);
+    try {
+      final updated = await TaskService.instance.update(task.id, {
+        'status': status,
+      });
+      if (mounted) {
+        setState(() {
+          _myTasks = _myTasks.map((t) => t.id == task.id ? updated : t).toList();
+          _tasksActionBusy = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _tasksActionBusy = false);
+        showErrorToast(context, e);
+      }
+    }
   }
 
   Future<void> _loadPayroll(int? me) async {
@@ -523,6 +563,10 @@ class _TechnicianDashboardScreenState extends State<TechnicianDashboardScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         _currentAssignmentCard(context, current),
+                        if (_myTasks.isNotEmpty) ...[
+                          const SizedBox(height: 20),
+                          _myTasksCard(context),
+                        ],
                         const SizedBox(height: 20),
                         _taskHistorySection(context),
                       ],
@@ -1005,6 +1049,82 @@ class _TechnicianDashboardScreenState extends State<TechnicianDashboardScreen> {
       ),
     ],
   );
+
+  // ── 3b. My Tasks (general, non-ticket assignments) ──────────────────────
+
+  Widget _myTasksCard(BuildContext context) {
+    final open = _myTasks.where((t) => t.status != 'completed').toList();
+    return AppCard(
+      header: Text('My Tasks (${open.length})', style: AppTheme.cardTitle),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (final t in open) ...[
+            _myTaskRow(context, t),
+            if (t != open.last) Container(height: 1, color: context.pal.divider),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _myTaskRow(BuildContext context, TaskItem t) {
+    final priorityColor = switch (t.priority.toLowerCase()) {
+      'critical' => AppColors.coral,
+      'high' => AppColors.amber,
+      _ => AppColors.textDim,
+    };
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(t.title, style: AppTheme.bodyStrong.copyWith(fontSize: 13.5)),
+                const SizedBox(height: 4),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  children: [
+                    _pillTag(context, t.taskType, AppColors.blue),
+                    _pillTag(
+                      context,
+                      t.priority.isEmpty
+                          ? '—'
+                          : t.priority[0].toUpperCase() + t.priority.substring(1),
+                      priorityColor,
+                    ),
+                    if (t.dueDate != null)
+                      Text('Due ${t.dueDate}', style: AppTheme.bodySub.copyWith(fontSize: 11)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          if (t.status == 'assigned')
+            AppButton(
+              label: 'Start',
+              icon: Symbols.play_arrow,
+              variant: BtnVariant.normal,
+              small: true,
+              onPressed: _tasksActionBusy ? null : () => _setTaskStatus(t, 'in_progress'),
+            )
+          else if (t.status == 'in_progress' || t.status == 'overdue')
+            AppButton(
+              label: 'Complete',
+              icon: Symbols.check_circle,
+              variant: BtnVariant.primary,
+              small: true,
+              onPressed: _tasksActionBusy ? null : () => _setTaskStatus(t, 'completed'),
+            ),
+        ],
+      ),
+    );
+  }
 
   // ── 4. Employee profile ─────────────────────────────────────────────────
 
