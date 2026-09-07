@@ -518,7 +518,10 @@ class _PerDiemTab extends StatelessWidget {
         final canActOnThis = atTeamLead ? canTeamLead
             : atCto ? canCto
             : atPaymentInit ? canAccountant
-            : atDirectorAuth ? canDirector
+            // Either can release — the accountant, since the Director is
+            // often busy, or the Director directly. Never the same person
+            // who initiated payment (enforced server-side).
+            : atDirectorAuth ? (canAccountant || canDirector)
             : false;
 
         return Container(
@@ -646,7 +649,7 @@ class _PerDiemTab extends StatelessWidget {
                     child: Center(child: Text(
                         atTeamLead ? 'Forward to CTO'
                             : atPaymentInit ? 'Initiate Payment'
-                            : atDirectorAuth ? 'Authorize Payment'
+                            : atDirectorAuth ? 'Money is Out'
                             : 'Approve',
                         style: AppTheme.bodyStrong.copyWith(color: const Color(0xFF06120F), fontSize: 12.5)))),
                 )),
@@ -657,7 +660,7 @@ class _PerDiemTab extends StatelessWidget {
                   atTeamLead ? 'Waiting on the team lead.'
                       : atCto ? 'Waiting on the CTO.'
                       : atPaymentInit ? 'Waiting on the accountant to initiate payment.'
-                      : atDirectorAuth ? 'Waiting on the Director to authorize payment.'
+                      : atDirectorAuth ? 'Waiting on the accountant or Director to release payment.'
                       : 'Waiting.',
                   style: AppTheme.bodySub.copyWith(fontSize: 11.5, fontStyle: FontStyle.italic)),
             ],

@@ -44,7 +44,9 @@ const _business = [
   NavDestination(icon: Symbols.mail,                    label: 'Email',      key: 'email'),
 ];
 const _hr = [
-  NavDestination(icon: Symbols.space_dashboard,         label: 'HR Dashboard', key: 'hr_dashboard'),
+  // No standalone "HR Dashboard" item — its content is what the main
+  // Dashboard nav entry shows for the hr role (see UnifiedDashboardScreen's
+  // department delegation). One dashboard, not two.
   // Personal-info directory — position, statutory IDs, contracts,
   // discipline, career progression. Not the operational task-board above.
   NavDestination(icon: Symbols.badge,                   label: 'Directory',  key: 'hr_directory'),
@@ -57,9 +59,13 @@ const _hr = [
   NavDestination(icon: Symbols.settings_applications,   label: 'HR Settings', key: 'hr_settings'),
 ];
 
-// Sub-items shown when Sales group is expanded
+// Sub-items shown when Sales group is expanded. No "Dashboard" row here —
+// tapping the "Sales" parent header already lands on sales_dashboard (see
+// _SalesGroup below), and the main Dashboard nav entry shows the same
+// screen too (UnifiedDashboardScreen's department delegation) — a third
+// entry for the identical screen would be the same duplication we removed
+// from HR.
 const _salesChildren = [
-  (key: 'sales_dashboard',   icon: Symbols.bar_chart,     label: 'Dashboard'),
   (key: 'sales_leads',       icon: Symbols.trending_up,   label: 'Leads'),
   (key: 'sales_pos',         icon: Symbols.point_of_sale, label: 'Point of Sale'),
   (key: 'sales_quotations',  icon: Symbols.request_quote, label: 'Quotations'),
@@ -67,9 +73,9 @@ const _salesChildren = [
   (key: 'sales_invoices',    icon: Symbols.receipt_long,  label: 'Invoices'),
   (key: 'sales_history',     icon: Symbols.history,       label: 'History'),
 ];
-// Sub-items shown when Finance group is expanded
+// Sub-items shown when Finance group is expanded. No "Dashboard" row — same
+// reasoning as _salesChildren above.
 const _financeChildren = [
-  (key: 'finance_dashboard', icon: Symbols.bar_chart,             label: 'Dashboard'),
   (key: 'finance_expenses',  icon: Symbols.receipt_long,          label: 'Expenses'),
   (key: 'finance_bills',     icon: Symbols.account_balance_wallet, label: 'Vendor Bills'),
   (key: 'finance_ledger',    icon: Symbols.book,                  label: 'Chart of Accounts'),

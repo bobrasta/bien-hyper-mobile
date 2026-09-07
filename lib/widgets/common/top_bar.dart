@@ -240,27 +240,30 @@ class _TopBarState extends State<TopBar> {
                     child: Row(children: [
                       Icon(Symbols.search, size: 16, color: context.pal.textDim),
                       const SizedBox(width: 8),
-                      Expanded(child: TextField(
-                        controller: _searchCtrl,
-                        focusNode: _searchFocus,
-                        style: AppTheme.bodySm,
-                        onChanged: (v) {
-                          _onSearchChanged(v);
-                          if (v.trim().isNotEmpty && !_searchOverlayController.isShowing) {
-                            _searchOverlayController.show();
-                          } else if (v.trim().isEmpty) {
-                            _searchOverlayController.hide();
-                          }
-                        },
-                        onTap: () {
-                          if (_searchCtrl.text.trim().isNotEmpty && !_searchOverlayController.isShowing) {
-                            _searchOverlayController.show();
-                          }
-                        },
-                        decoration: InputDecoration(
-                          hintText: 'Search machines, hospitals, tickets…',
-                          hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
-                          border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero,
+                      Expanded(child: Padding(
+                        padding: const EdgeInsets.only(right: 8.0),
+                        child: TextField(
+                          controller: _searchCtrl,
+                          focusNode: _searchFocus,
+                          style: AppTheme.bodySm,
+                          onChanged: (v) {
+                            _onSearchChanged(v);
+                            if (v.trim().isNotEmpty && !_searchOverlayController.isShowing) {
+                              _searchOverlayController.show();
+                            } else if (v.trim().isEmpty) {
+                              _searchOverlayController.hide();
+                            }
+                          },
+                          onTap: () {
+                            if (_searchCtrl.text.trim().isNotEmpty && !_searchOverlayController.isShowing) {
+                              _searchOverlayController.show();
+                            }
+                          },
+                          decoration: InputDecoration(
+                            hintText: 'Search machines, hospitals, tickets…',
+                            hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
+                            border: InputBorder.none, isDense: false, contentPadding: EdgeInsets.symmetric(horizontal: 8),
+                          ),
                         ),
                       )),
                       if (_searchCtrl.text.isEmpty)

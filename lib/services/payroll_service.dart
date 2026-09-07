@@ -127,12 +127,16 @@ class PayrollHistoryItem {
   final int grossPay;
   final int netPay;
   final String? paidAt;
+  // Employer-side NSSF contribution — new field, may not exist in every
+  // backend deployment yet; null (not fabricated) when the server omits it.
+  final int? nssfEmployerAmount;
 
   const PayrollHistoryItem({
     required this.id, required this.periodMonth, required this.periodYear, required this.status,
     required this.baseSalary, required this.allowancesTotal, required this.overtimeAmount,
     required this.payeAmount, required this.nssfAmount, required this.heslbAmount,
     required this.otherDeductions, required this.grossPay, required this.netPay, this.paidAt,
+    this.nssfEmployerAmount,
   });
 
   factory PayrollHistoryItem.fromJson(Map<String, dynamic> j) => PayrollHistoryItem(
@@ -150,6 +154,7 @@ class PayrollHistoryItem {
     grossPay: (j['gross_pay'] as num).toInt(),
     netPay: (j['net_pay'] as num).toInt(),
     paidAt: j['paid_at'] as String?,
+    nssfEmployerAmount: (j['nssf_employer_amount'] as num?)?.toInt(),
   );
 }
 

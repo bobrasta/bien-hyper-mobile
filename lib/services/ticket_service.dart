@@ -64,6 +64,13 @@ class TicketService {
     return ServiceTicket.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
   }
 
+  // Stage tracker (technician dashboard) — advances the ticket to the next
+  // step: assigned -> travelling -> on_site -> repair -> signed_off.
+  Future<ServiceTicket> advanceStage(int id, String nextStage) async {
+    final res = await _dio.post('/tickets/$id/advance-stage', data: {'stage': nextStage});
+    return ServiceTicket.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+  }
+
   Future<void> delete(int id) => _dio.delete('/tickets/$id');
 
   Future<TicketAttachment> uploadAttachment(int ticketId, String filePath, String fileName) async {

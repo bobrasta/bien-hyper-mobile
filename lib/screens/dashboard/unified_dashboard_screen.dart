@@ -13,14 +13,27 @@ import '../../widgets/charts/status_donut_chart.dart';
 import '../../widgets/common/app_card.dart';
 import '../../widgets/common/error_view.dart';
 import '../../widgets/common/kpi_card.dart';
+import '../finance/finance_dashboard_screen.dart';
+import '../hr/hr_dashboard_screen.dart';
+import '../sales/sales_dashboard_screen.dart';
 import 'admin_command_centre_screen.dart';
+import 'technician_dashboard_screen.dart';
 
-/// Replaces the old one-size-fits-all Dashboard. Renders whatever ordered
-/// section list `GET /dashboard/unified` returns — section presence there
-/// IS the permission gate (screens.machines/service/inventory/sales/
-/// revenue/finance/hr_dashboard), so this screen has no role/permission
-/// logic of its own. Admin/CTO see every section because they hold every
-/// permission; a single-department role sees only its own section(s).
+// Single-department roles (hr, finance, sales, technician, admin) never see
+// a thin generic summary card with a "View full dashboard" link off to a
+// separate nav item — that was two dashboards for one screen. They get
+// their full department screen directly on the one "Dashboard" nav entry
+// instead (see build()). Cross-functional roles (e.g. CTO, who holds
+// several `screens.*` permissions at once) still get the generic
+// multi-section summary below, since there's no single "their" screen to
+// delegate to — that's the one legitimate use of the section-card system.
+const _departmentDelegates = {'hr', 'finance_manager', 'finance', 'sales_manager', 'sales'};
+
+/// Renders whatever ordered section list `GET /dashboard/unified` returns
+/// for cross-functional roles — section presence there IS the permission
+/// gate (screens.machines/service/inventory/sales/revenue/finance/hr), so
+/// this screen has no role/permission logic of its own beyond the
+/// single-department delegation above.
 class UnifiedDashboardScreen extends StatefulWidget {
   const UnifiedDashboardScreen({super.key, this.onNavigateTo});
   final void Function(String key)? onNavigateTo;
@@ -36,9 +49,11 @@ class _UnifiedDashboardScreenState extends State<UnifiedDashboardScreen> {
   @override
   void initState() {
     super.initState();
-    // Admin-tier renders AdminCommandCentreScreen instead (see build()) —
-    // no need to fetch the generic section list it'll never show.
-    if (!hasDirectorAuthority(userRoleNotifier.value)) _load();
+    // Admin-tier, technicians, and single-department roles all delegate to
+    // their own full screen instead (see build()) — no need to fetch the
+    // generic section list none of them will ever show.
+    final role = userRoleNotifier.value;
+    if (!hasDirectorAuthority(role) && role != 'technician' && !_departmentDelegates.contains(role)) _load();
   }
 
   Future<void> _load() async {
@@ -55,6 +70,19 @@ class _UnifiedDashboardScreenState extends State<UnifiedDashboardScreen> {
   Widget build(BuildContext context) {
     if (hasDirectorAuthority(userRoleNotifier.value)) {
       return AdminCommandCentreScreen(onNavigateTo: widget.onNavigateTo);
+    }
+    if (userRoleNotifier.value == 'technician') {
+      return TechnicianDashboardScreen(onNavigateTo: widget.onNavigateTo);
+    }
+    switch (userRoleNotifier.value) {
+      case 'hr':
+        return const HrDashboardScreen();
+      case 'finance_manager':
+      case 'finance':
+        return FinanceDashboardScreen(onNavigateTo: widget.onNavigateTo);
+      case 'sales_manager':
+      case 'sales':
+        return SalesDashboardScreen(onNavigateTo: widget.onNavigateTo);
     }
     if (_error != null) return ErrorView(message: _error!, onRetry: _load);
     if (_sections == null) return const Center(child: CircularProgressIndicator(strokeWidth: 2));

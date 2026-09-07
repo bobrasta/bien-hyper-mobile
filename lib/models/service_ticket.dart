@@ -62,6 +62,11 @@ class ServiceTicket {
   final String hospital;
   final String ward;
   final int?         assignedToId;
+  // Not in the original spec's field list, but the technician dashboard's
+  // revisit-detection logic explicitly needs to match tickets by machine —
+  // added alongside the other new fields since there was no other way to
+  // compute it. Read from top-level `machine_id` or a nested `machine.id`.
+  final int?         machineId;
   final StaffMember? assignee;       // eager-loaded from j['assignee']
   final String       technicianInitials;
   final String       technicianName;
@@ -73,6 +78,16 @@ class ServiceTicket {
   final List<ChecklistItem>?    checklist;
   final List<PartUsed>?         partsUsed;
   final List<TicketAttachment>? attachments;
+  // Priority/stage/SLA fields — used by the technician's personal dashboard
+  // (current-assignment SLA badge, stage tracker) and task-history table.
+  final String    priority;      // critical | high | medium | low, default 'medium'
+  final String    stage;         // assigned | travelling | on_site | repair | signed_off
+  final DateTime? travellingAt;
+  final DateTime? onSiteAt;
+  final DateTime? repairAt;
+  final DateTime? signedOffAt;
+  final DateTime? resolvedAt;
+  final String    type;          // installation | corrective | preventive | ... — 'other' if absent
 
   const ServiceTicket({
     required this.dbId,
@@ -82,6 +97,7 @@ class ServiceTicket {
     required this.hospital,
     required this.ward,
     this.assignedToId,
+    this.machineId,
     this.assignee,
     required this.technicianInitials,
     required this.technicianName,
@@ -93,6 +109,14 @@ class ServiceTicket {
     this.checklist,
     this.partsUsed,
     this.attachments,
+    this.priority = 'medium',
+    this.stage = 'assigned',
+    this.travellingAt,
+    this.onSiteAt,
+    this.repairAt,
+    this.signedOffAt,
+    this.resolvedAt,
+    this.type = 'other',
   });
 
   factory ServiceTicket.fromJson(Map<String, dynamic> j) {
@@ -123,6 +147,9 @@ class ServiceTicket {
       assignedToId: j['assigned_to'] is int
                       ? j['assigned_to'] as int
                       : int.tryParse(j['assigned_to']?.toString() ?? ''),
+      machineId:   j['machine_id'] is num
+                      ? (j['machine_id'] as num).toInt()
+                      : (machineMap?['id'] is num ? (machineMap!['id'] as num).toInt() : null),
       assignee:    assignee,
       technicianInitials: assignee?.initials
                         ?? _str(j['technician_initials'])
@@ -145,6 +172,14 @@ class ServiceTicket {
       attachments: (j['attachments'] as List?)
           ?.map((a) => TicketAttachment.fromJson(a as Map<String, dynamic>))
           .toList(),
+      priority:     _str(j['priority']) ?? 'medium',
+      stage:        _str(j['stage']) ?? 'assigned',
+      travellingAt: j['travelling_at'] != null ? DateTime.tryParse(j['travelling_at'] as String) : null,
+      onSiteAt:     j['on_site_at']    != null ? DateTime.tryParse(j['on_site_at']    as String) : null,
+      repairAt:     j['repair_at']     != null ? DateTime.tryParse(j['repair_at']     as String) : null,
+      signedOffAt:  j['signed_off_at'] != null ? DateTime.tryParse(j['signed_off_at'] as String) : null,
+      resolvedAt:   j['resolved_at']   != null ? DateTime.tryParse(j['resolved_at']   as String) : null,
+      type:         _str(j['type']) ?? 'other',
     );
   }
 }

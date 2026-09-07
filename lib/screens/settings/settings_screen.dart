@@ -677,7 +677,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         controller: _memberSearchCtrl,
         style: AppTheme.bodySub.copyWith(fontSize: 12),
         decoration: InputDecoration(
-          isDense: true, border: InputBorder.none, contentPadding: EdgeInsets.zero,
+          isDense: false, border: InputBorder.none, contentPadding: EdgeInsets.zero,
           hintText: 'Search members…',
           hintStyle: AppTheme.bodySub.copyWith(fontSize: 12),
         ),
@@ -1299,7 +1299,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 decoration: InputDecoration(
                   hintText: '-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----',
                   hintStyle: AppTheme.monoXs.copyWith(color: context.pal.textDim, fontSize: 11),
-                  border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero),
+                  border: InputBorder.none, isDense: false, contentPadding: EdgeInsets.zero),
               ),
             ),
           ]),
@@ -2523,7 +2523,7 @@ class _SettingsField extends StatelessWidget {
         controller: ctrl, obscureText: obscure, style: AppTheme.bodySm,
         decoration: InputDecoration(hintText: hint,
             hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
-            border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero),
+            border: InputBorder.none, isDense: false, contentPadding: EdgeInsets.zero),
       ),
     ),
   ]);

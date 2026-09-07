@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
+import '../../main.dart' show can;
 import '../../models/hospital.dart';
 import '../../models/machine.dart';
 import '../../services/hospital_service.dart';
@@ -101,9 +102,11 @@ class _HospitalListScreenState extends State<HospitalListScreen> {
                   AppButton(label: 'Export', icon: Symbols.download, variant: BtnVariant.ghost),
                   const SizedBox(width: 8),
                   AppButton(label: 'Map View', icon: Symbols.map, variant: BtnVariant.ghost),
-                  const SizedBox(width: 8),
-                  AppButton(label: 'Add Hospital', icon: Symbols.add, variant: BtnVariant.primary,
-                      onPressed: () => setState(() => _showAdd = true)),
+                  if (can('hospitals.manage')) ...[
+                    const SizedBox(width: 8),
+                    AppButton(label: 'Add Hospital', icon: Symbols.add, variant: BtnVariant.primary,
+                        onPressed: () => setState(() => _showAdd = true)),
+                  ],
                 ]);
                 if (narrow) {
                   return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -160,7 +163,7 @@ class _HospitalListScreenState extends State<HospitalListScreen> {
                       decoration: InputDecoration(
                         hintText: 'Search by name, region or code—',
                         hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
-                        border: InputBorder.none, isDense: true,
+                        border: InputBorder.none, isDense: false,
                         contentPadding: EdgeInsets.zero,
                       ),
                     )),
@@ -248,6 +251,7 @@ class _HospitalListScreenState extends State<HospitalListScreen> {
         }),   // LayoutBuilder
 
         // FAB
+        if (can('hospitals.manage'))
         Positioned(
           right: 28, bottom: 28,
           child: GestureDetector(
@@ -535,9 +539,11 @@ class _HospitalRow extends StatelessWidget {
           GestureDetector(onTap: onView,
               child: Icon(Symbols.visibility, size: 16, color: context.pal.textDim)),
           const SizedBox(width: 8),
-          GestureDetector(onTap: onEdit,
-              child: Icon(Symbols.edit, size: 16, color: context.pal.textDim)),
-          const SizedBox(width: 8),
+          if (can('hospitals.manage')) ...[
+            GestureDetector(onTap: onEdit,
+                child: Icon(Symbols.edit, size: 16, color: context.pal.textDim)),
+            const SizedBox(width: 8),
+          ],
         ])),
       ]),
     );
@@ -876,9 +882,11 @@ class _HospitalDetailSheetState extends State<_HospitalDetailSheet> {
                           style: AppTheme.bodySub.copyWith(fontSize: 11.5)),
                     ]),
                   ])),
-                  AppButton(label: 'Edit', icon: Symbols.edit, variant: BtnVariant.normal, small: true,
-                      onPressed: widget.onEdit),
-                  const SizedBox(width: 8),
+                  if (can('hospitals.manage')) ...[
+                    AppButton(label: 'Edit', icon: Symbols.edit, variant: BtnVariant.normal, small: true,
+                        onPressed: widget.onEdit),
+                    const SizedBox(width: 8),
+                  ],
                   GestureDetector(onTap: widget.onClose,
                       child: Icon(Symbols.close, size: 18, color: context.pal.textDim)),
                 ]),
@@ -1010,19 +1018,21 @@ class _HospitalDetailSheetState extends State<_HospitalDetailSheet> {
                           borderRadius: BorderRadius.circular(8)),
                       child: Center(child: Text('Close', style: AppTheme.bodySm))),
                   )),
-                  const SizedBox(width: 12),
-                  Expanded(child: GestureDetector(
-                    onTap: widget.onEdit,
-                    child: Container(height: 38,
-                      decoration: BoxDecoration(color: AppColors.teal,
-                          borderRadius: BorderRadius.circular(8)),
-                      child: Center(child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                        const Icon(Symbols.edit, size: 15, color: Color(0xFF06120F)),
-                        const SizedBox(width: 6),
-                        Text('Edit Hospital', style: AppTheme.bodyStrong.copyWith(
-                            color: const Color(0xFF06120F), fontSize: 13)),
-                      ]))),
-                  )),
+                  if (can('hospitals.manage')) ...[
+                    const SizedBox(width: 12),
+                    Expanded(child: GestureDetector(
+                      onTap: widget.onEdit,
+                      child: Container(height: 38,
+                        decoration: BoxDecoration(color: AppColors.teal,
+                            borderRadius: BorderRadius.circular(8)),
+                        child: Center(child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                          const Icon(Symbols.edit, size: 15, color: Color(0xFF06120F)),
+                          const SizedBox(width: 6),
+                          Text('Edit Hospital', style: AppTheme.bodyStrong.copyWith(
+                              color: const Color(0xFF06120F), fontSize: 13)),
+                        ]))),
+                    )),
+                  ],
                 ]),
               ),
             ]),
