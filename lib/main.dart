@@ -111,7 +111,12 @@ String defaultScreenKey(String role) => switch (role) {
   'sales_manager' || 'sales'      => 'sales',
   'cs'                             => 'customers',
   'storekeeper'                    => 'inventory',
-  'procurement_manager' || 'accountant' => 'approvals',
+  // Not 'approvals' — the PO chain they created doesn't route back through
+  // them for any of its 4 stages (sales_manager/director/accountant), so
+  // that page shows nothing they can act on. Inventory is where their real
+  // authority (create_po, approve_requisition) actually lives.
+  'procurement_manager'            => 'inventory',
+  'accountant'                     => 'approvals',
   'logistics'                      => 'inventory',
   _                                => 'dashboard',
 };
@@ -166,6 +171,15 @@ bool hasServiceTicketResolveAuthority(String role) =>
 /// roles) — hr + admin tier.
 bool hasStaffManageAuthority(String role) =>
     const {'super_admin', 'admin', 'hr'}.contains(role);
+
+/// Mirrors the tasks.manage_board grant (create/reassign/delete a general,
+/// non-ticket task on the Staff screen's task board) — separate from
+/// authority.manager_tier since cto/team_leader supervise technicians and
+/// need this even though they're not in that set. This only toggles the
+/// button; the backend enforces the real check regardless.
+bool hasTaskManageAuthority(String role) => const {
+  'super_admin', 'admin', 'sales_manager', 'finance_manager', 'cto', 'team_leader',
+}.contains(role);
 
 /// Derive initials from a display name (e.g. "Joseph Mwakasege" → "JM").
 String nameInitials(String name) {

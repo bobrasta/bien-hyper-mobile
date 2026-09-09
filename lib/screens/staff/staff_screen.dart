@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
-import '../../main.dart' show userRoleNotifier, hasStaffManageAuthority;
+import '../../main.dart' show userRoleNotifier, hasStaffManageAuthority, hasTaskManageAuthority;
 import '../../models/service_ticket.dart';
 import '../../models/task_item.dart';
 import '../../services/staff_service.dart';
@@ -83,6 +83,7 @@ class _StaffScreenState extends State<StaffScreen> {
   bool _showNewStaff = false;
 
   bool get _canManageStaff => hasStaffManageAuthority(userRoleNotifier.value);
+  bool get _canManageTasks => hasTaskManageAuthority(userRoleNotifier.value);
 
   int?    _filterStaffId;
   String? _filterStaffName;
@@ -266,23 +267,26 @@ class _StaffScreenState extends State<StaffScreen> {
     });
   }
 
-  void _assignTask(_TeamMember m) {
+  Future<void> _assignTask(_TeamMember m) async {
     final task = _task;
-    if (task == null) return;
-    if (task.dbId != null) {
+    if (task == null || task.dbId == null) return;
+    try {
       if (task.isGeneral) {
-        TaskService.instance.update(task.dbId!, {'assigned_to': m.staffIntId});
+        await TaskService.instance.update(task.dbId!, {'assigned_to': m.staffIntId});
       } else {
-        TicketService.instance.update(task.dbId!, {'assigned_to': m.staffIntId});
+        await TicketService.instance.update(task.dbId!, {'assigned_to': m.staffIntId});
       }
-    }
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('${task.id} assigned to ${m.name}'),
-        backgroundColor: AppColors.teal,
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 2),
-      ));
+      await _load();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('${task.id} assigned to ${m.name}'),
+          backgroundColor: AppColors.teal,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+        ));
+      }
+    } catch (e) {
+      if (mounted) showErrorToast(context, e);
     }
   }
 
@@ -341,7 +345,7 @@ class _StaffScreenState extends State<StaffScreen> {
       SizedBox(width: 280, child: _TaskListPane(
         typeTab: _typeTab, onTypeTab: (i) => setState(() => _typeTab = i),
         grouped: _grouped, selectedIdx: _selectedTask, onSelect: _selectTask,
-        onAdd: () => setState(() => _showNewTask = true),
+        onAdd: _canManageTasks ? () => setState(() => _showNewTask = true) : null,
         loading: _loadingTasks, onRefresh: _load,
         filterStaffName: _filterStaffName,
         onClearFilter: () => setState(() { _filterStaffId = null; _filterStaffName = null; }),
@@ -372,7 +376,7 @@ class _StaffScreenState extends State<StaffScreen> {
       SizedBox(width: 260, child: _TaskListPane(
         typeTab: _typeTab, onTypeTab: (i) => setState(() => _typeTab = i),
         grouped: _grouped, selectedIdx: _selectedTask, onSelect: _selectTask,
-        onAdd: () => setState(() => _showNewTask = true),
+        onAdd: _canManageTasks ? () => setState(() => _showNewTask = true) : null,
         loading: _loadingTasks, onRefresh: _load,
         filterStaffName: _filterStaffName,
         onClearFilter: () => setState(() { _filterStaffId = null; _filterStaffName = null; }),
@@ -416,7 +420,7 @@ class _StaffScreenState extends State<StaffScreen> {
       _ => _TaskListPane(
         typeTab: _typeTab, onTypeTab: (i) => setState(() => _typeTab = i),
         grouped: _grouped, selectedIdx: _selectedTask, onSelect: _selectTask,
-        onAdd: () => setState(() => _showNewTask = true),
+        onAdd: _canManageTasks ? () => setState(() => _showNewTask = true) : null,
         loading: _loadingTasks, onRefresh: _load,
         filterStaffName: _filterStaffName,
         onClearFilter: () => setState(() { _filterStaffId = null; _filterStaffName = null; }),
@@ -532,15 +536,16 @@ class _TaskListPane extends StatelessWidget {
                   child: Icon(Symbols.download, size: 16, color: context.pal.textDim),
                 ),
               ),
-            GestureDetector(
-              onTap: onAdd,
-              child: Container(
-                width: 28, height: 28,
-                decoration: BoxDecoration(
-                  color: AppColors.teal, borderRadius: BorderRadius.circular(7)),
-                child: const Icon(Symbols.add, size: 16, color: Color(0xFF06120F)),
+            if (onAdd != null)
+              GestureDetector(
+                onTap: onAdd,
+                child: Container(
+                  width: 28, height: 28,
+                  decoration: BoxDecoration(
+                    color: AppColors.teal, borderRadius: BorderRadius.circular(7)),
+                  child: const Icon(Symbols.add, size: 16, color: Color(0xFF06120F)),
+                ),
               ),
-            ),
           ]),
         ),
 
