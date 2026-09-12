@@ -59,7 +59,17 @@ class SalesDashboardData {
     required this.topReps,
     required this.recentQuotations,
     required this.recentOrders,
+    this.scope = 'team',
   });
+
+  // 'team' (sales.view_full_numbers — sales_manager+) shows exact,
+  // company-wide figures and the rep leaderboard. 'own' (plain 'sales' role)
+  // scopes every figure to this user's own leads/quotations/orders and
+  // rounds currency KPIs to the nearest 100K — topReps arrives empty in
+  // that case, never masked, since a rep isn't shown teammates' numbers at
+  // any resolution.
+  final String scope;
+  bool get isMasked => scope == 'own';
 
   final int pipelineValue;
   final int openLeads;
@@ -95,6 +105,7 @@ class SalesDashboardData {
           .map((e) => Quotation.fromJson(e as Map<String, dynamic>)).toList(),
       recentOrders: (j['recent_orders'] as List? ?? [])
           .map((e) => SalesOrder.fromJson(e as Map<String, dynamic>)).toList(),
+      scope: j['scope'] as String? ?? 'team',
     );
   }
 }
