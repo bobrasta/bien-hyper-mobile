@@ -104,11 +104,11 @@ class _SalesDashboardScreenState extends State<SalesDashboardScreen> {
             Container(
               decoration: BoxDecoration(color: context.pal.surface1, borderRadius: BorderRadius.circular(14), border: Border.all(color: context.pal.border)),
               child: Row(children: [
-                Expanded(child: _kpiTile('Pipeline value', Symbols.filter_alt, AppColors.cyan, _mask(d, tshFromDouble(d.pipelineValue)), '${openLeads.length} open', 'across 5 stages')),
-                Expanded(child: _kpiTile('Won this month', Symbols.emoji_events, AppColors.green, _mask(d, tshFromDouble(d.wonValueThisMonth)), '${d.wonThisMonth} deal${d.wonThisMonth == 1 ? '' : 's'}', 'win rate ${d.winRateThisMonth.toStringAsFixed(0)}%', border: true)),
-                Expanded(child: _kpiTile('Quotations open', Symbols.description, AppColors.amber, _mask(d, tshFromDouble(openQuotationValue)), '${d.quotationsAwaitingResponse} sent', 'awaiting client', border: true)),
-                Expanded(child: _kpiTile('Invoiced', Symbols.receipt_long, AppColors.violet, _mask(d, tshFromDouble(invoicedTotal)), '${_invoices.length} invoices', '${d.salesOrdersThisMonth} orders raised', border: true)),
-                Expanded(child: _kpiTile('Collected', Symbols.payments, AppColors.green, _mask(d, tshFromDouble(collectedTotal)), '${collectionPct.toStringAsFixed(0)}%', '${_mask(d, tshFromDouble(outstanding))} outstanding', border: true)),
+                Expanded(child: _kpiTile('Pipeline value', Symbols.filter_alt, AppColors.cyan, _mask(d, tshFromDouble(d.pipelineValue)), '${openLeads.length} open', 'across 5 stages', masked: d.isMasked)),
+                Expanded(child: _kpiTile('Won this month', Symbols.emoji_events, AppColors.green, _mask(d, tshFromDouble(d.wonValueThisMonth)), '${d.wonThisMonth} deal${d.wonThisMonth == 1 ? '' : 's'}', 'win rate ${d.winRateThisMonth.toStringAsFixed(0)}%', border: true, masked: d.isMasked)),
+                Expanded(child: _kpiTile('Quotations open', Symbols.description, AppColors.amber, _mask(d, tshFromDouble(openQuotationValue)), '${d.quotationsAwaitingResponse} sent', 'awaiting client', border: true, masked: d.isMasked)),
+                Expanded(child: _kpiTile('Invoiced', Symbols.receipt_long, AppColors.violet, _mask(d, tshFromDouble(invoicedTotal)), '${_invoices.length} invoices', '${d.salesOrdersThisMonth} orders raised', border: true, masked: d.isMasked)),
+                Expanded(child: _kpiTile('Collected', Symbols.payments, AppColors.green, _mask(d, tshFromDouble(collectedTotal)), '${collectionPct.toStringAsFixed(0)}%', '${_mask(d, tshFromDouble(outstanding))} outstanding', border: true, masked: d.isMasked)),
               ]),
             ),
             const SizedBox(height: 16),
@@ -147,7 +147,7 @@ class _SalesDashboardScreenState extends State<SalesDashboardScreen> {
 
   String _mask(SalesDashboardData d, String value) => d.isMasked ? '~$value' : value;
 
-  Widget _kpiTile(String label, IconData icon, Color color, String value, String chip, String note, {bool border = false}) => Container(
+  Widget _kpiTile(String label, IconData icon, Color color, String value, String chip, String note, {bool border = false, bool masked = false}) => Container(
     padding: const EdgeInsets.all(15),
     decoration: border ? BoxDecoration(border: Border(left: BorderSide(color: Colors.white.withValues(alpha: 0.06)))) : null,
     child: Builder(builder: (context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -155,6 +155,7 @@ class _SalesDashboardScreenState extends State<SalesDashboardScreen> {
         Icon(icon, size: 13, color: color),
         const SizedBox(width: 7),
         Expanded(child: Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 9.5), maxLines: 1, overflow: TextOverflow.ellipsis)),
+        if (masked) Icon(Symbols.lock, size: 11, color: context.pal.textMute),
       ]),
       const SizedBox(height: 9),
       Text(value, style: AppTheme.kpiValue.copyWith(fontSize: 21)),
@@ -294,7 +295,7 @@ class _SalesDashboardScreenState extends State<SalesDashboardScreen> {
         // — reps get an explanatory note instead of an empty leaderboard that
         // could be misread as "nobody's selling anything."
         child: masked
-            ? Text('Visible to sales managers.', style: AppTheme.bodySub.copyWith(fontSize: 12))
+            ? Text('Team revenue, quota comparison and commission owed need sales.view_full_numbers — this panel is absent rather than locked.', style: AppTheme.bodySub.copyWith(fontSize: 12))
             : reps.isEmpty
             ? Text('No confirmed orders yet.', style: AppTheme.bodySub.copyWith(fontSize: 12))
             : Column(children: reps.asMap().entries.map((e) => Padding(
