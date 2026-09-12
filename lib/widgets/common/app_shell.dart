@@ -38,6 +38,7 @@ import '../../screens/sales/quotations_screen.dart';
 import '../../screens/sales/sales_dashboard_screen.dart';
 import '../../screens/sales/sales_orders_screen.dart';
 import '../../screens/sales/sales_history_screen.dart';
+import '../../screens/sales/team_screen.dart';
 import '../../screens/service/service_ticket_screen.dart';
 import '../../screens/settings/settings_screen.dart';
 import '../../screens/settings/delegations_screen.dart';
@@ -252,6 +253,7 @@ class _AppShellState extends State<AppShell> {
     'sales_orders'           => SalesOrdersScreen(onNavigateTo: _navigate),
     'sales_invoices'         => InvoicesScreen(onNavigateTo: _navigate),
     'sales_history'          => const SalesHistoryScreen(),
+    'sales_team'             => const TeamScreen(),
     'customers' => const CustomersScreen(),
     'staff'          => StaffScreen(initialTaskId: _pendingEntityId),
     'my_leave'       => const MyLeaveScreen(),

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
-import '../../main.dart' show userNameNotifier, userRoleNotifier, nameInitials, allowedScreenKeys;
+import '../../main.dart' show userNameNotifier, userRoleNotifier, nameInitials, allowedScreenKeys, can;
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
 import 'avatar_widget.dart';
@@ -71,6 +71,10 @@ const _salesChildren = [
   (key: 'sales_orders',      icon: Symbols.shopping_cart, label: 'Sales Orders'),
   (key: 'sales_invoices',    icon: Symbols.receipt_long,  label: 'Invoices'),
   (key: 'sales_history',     icon: Symbols.history,       label: 'History'),
+  // sales.create_subordinate_user-gated — filtered out below for anyone who
+  // doesn't hold it (a plain 'sales' rep), so this only ever appears for a
+  // sales_manager building their own team.
+  (key: 'sales_team',        icon: Symbols.group,         label: 'Team'),
 ];
 // Sub-items shown when Finance group is expanded. No "Dashboard" row — same
 // reasoning as _salesChildren above.
@@ -389,7 +393,9 @@ class _SalesGroupState extends State<_SalesGroup> {
           curve: Curves.easeInOut,
           child: _open
             ? Column(
-                children: _salesChildren.map((c) => _SubNavItem(
+                children: _salesChildren
+                    .where((c) => c.key != 'sales_team' || can('sales.create_subordinate_user'))
+                    .map((c) => _SubNavItem(
                   icon:   c.icon,
                   label:  c.label,
                   active: widget.activeKey == c.key,
