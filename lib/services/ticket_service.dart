@@ -59,6 +59,14 @@ class TicketService {
           'resolution_notes': resolutionNotes,
       });
 
+  Future<ServiceTicket> overrideBilling(int id, {required String billingStatus, required String reason}) async {
+    final res = await _dio.post('/tickets/$id/override-billing', data: {
+      'billing_status': billingStatus,
+      'reason': reason,
+    });
+    return ServiceTicket.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+  }
+
   Future<ServiceTicket> acknowledge(int id) async {
     final res = await _dio.post('/tickets/$id/acknowledge');
     return ServiceTicket.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);

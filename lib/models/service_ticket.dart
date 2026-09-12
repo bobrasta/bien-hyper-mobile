@@ -88,6 +88,13 @@ class ServiceTicket {
   final DateTime? signedOffAt;
   final DateTime? resolvedAt;
   final String    type;          // installation | corrective | preventive | ... — 'other' if absent
+  // Auto-decided at resolve() from the machine's warranty_expiry; CTO/
+  // Director can correct it via TicketService.overrideBilling(). Null until
+  // the ticket is resolved.
+  final String?   billingStatus; // warranty_covered | billable | goodwill
+  final String?   billingDecidedByName;
+  final String?   billingOverrideReason;
+  final int?      invoiceId;
 
   const ServiceTicket({
     required this.dbId,
@@ -117,6 +124,10 @@ class ServiceTicket {
     this.signedOffAt,
     this.resolvedAt,
     this.type = 'other',
+    this.billingStatus,
+    this.billingDecidedByName,
+    this.billingOverrideReason,
+    this.invoiceId,
   });
 
   factory ServiceTicket.fromJson(Map<String, dynamic> j) {
@@ -180,6 +191,10 @@ class ServiceTicket {
       signedOffAt:  j['signed_off_at'] != null ? DateTime.tryParse(j['signed_off_at'] as String) : null,
       resolvedAt:   j['resolved_at']   != null ? DateTime.tryParse(j['resolved_at']   as String) : null,
       type:         _str(j['type']) ?? 'other',
+      billingStatus:         _str(j['billing_status']),
+      billingDecidedByName:  _str(j['billing_decided_by_name']),
+      billingOverrideReason: _str(j['billing_override_reason']),
+      invoiceId:             j['invoice_id'] is num ? (j['invoice_id'] as num).toInt() : null,
     );
   }
 }

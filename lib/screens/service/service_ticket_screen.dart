@@ -3,7 +3,7 @@ import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../../main.dart' show allowedScreenKeys, hasCtoApprovalAuthority, hasServiceTicketResolveAuthority, userRoleNotifier, userIdNotifier;
+import '../../main.dart' show allowedScreenKeys, hasCtoApprovalAuthority, hasDirectorAuthority, hasServiceTicketResolveAuthority, userRoleNotifier, userIdNotifier;
 import '../../models/hospital.dart';
 import '../../utils/csv_export.dart';
 import '../../models/inventory_item.dart';
@@ -359,6 +359,28 @@ class _ServiceTicketScreenState extends State<ServiceTicketScreen> {
     }
   }
 
+  Future<void> _overrideBilling(ServiceTicket ticket, {required String billingStatus, required String reason}) async {
+    try {
+      final updated = await TicketService.instance.overrideBilling(ticket.dbId, billingStatus: billingStatus, reason: reason);
+      if (mounted) {
+        setState(() { if (_detailTicket?.dbId == updated.dbId) _detailTicket = updated; });
+        showSuccessToast(context, 'Billing decision updated');
+      }
+    } catch (e) {
+      if (mounted) showErrorToast(context, e);
+    }
+  }
+
+  void _showOverrideBillingDialog(BuildContext context, ServiceTicket ticket) {
+    showDialog<void>(
+      context: context,
+      builder: (_) => _OverrideBillingDialog(
+        ticket: ticket,
+        onConfirm: (status, reason) => _overrideBilling(ticket, billingStatus: status, reason: reason),
+      ),
+    );
+  }
+
   void _showResolveDialog(BuildContext context, ServiceTicket ticket) {
     showDialog<void>(
       context: context,
@@ -612,6 +634,7 @@ class _ServiceTicketScreenState extends State<ServiceTicketScreen> {
                     onToggle: _toggleCheck,
                     loadingDetail: _loadingDetail,
                     onResolve: () => _showResolveDialog(context, ticket),
+                    onOverrideBilling: () => _showOverrideBillingDialog(context, ticket),
                     onUpdateStatus: () => _showStatusPicker(context, ticket),
                     onEdit: () => _showEditDialog(context, ticket),
                     onAddPart: () => _showAddPartDialog(context, ticket),
@@ -756,6 +779,7 @@ class _TicketDetailPanel extends StatelessWidget {
     this.loadingDetail = false,
     this.uploadingAttachment = false,
     this.onResolve,
+    this.onOverrideBilling,
     this.onUpdateStatus,
     this.onEdit,
     this.onAddPart,
@@ -777,6 +801,7 @@ class _TicketDetailPanel extends StatelessWidget {
   final bool loadingDetail;
   final bool uploadingAttachment;
   final VoidCallback? onResolve;
+  final VoidCallback? onOverrideBilling;
   final VoidCallback? onUpdateStatus;
   final VoidCallback? onEdit;
   final VoidCallback? onAddPart;
@@ -1044,6 +1069,49 @@ class _TicketDetailPanel extends StatelessWidget {
                   color: resNotes?.isNotEmpty == true ? context.pal.text : context.pal.textMute),
             ),
           ),
+        ),
+        const SizedBox(height: 16),
+      ],
+
+      // Billing decision — auto-set from the machine's warranty at resolve()
+      // time; CTO/Director can correct it until an invoice is generated.
+      if (isResolved && t.billingStatus != null) ...[
+        _SectionCard(
+          icon: Symbols.receipt_long,
+          title: 'Billing',
+          trailing: (t.invoiceId == null &&
+                  (hasCtoApprovalAuthority(userRoleNotifier.value) || hasDirectorAuthority(userRoleNotifier.value)))
+              ? GestureDetector(
+                  onTap: onOverrideBilling,
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(Symbols.edit, size: 13, color: AppColors.teal),
+                    const SizedBox(width: 4),
+                    Text('Override', style: AppTheme.bodySub.copyWith(color: AppColors.teal, fontSize: 12)),
+                  ]),
+                )
+              : null,
+          child: Builder(builder: (context) {
+            final (label, color) = switch (t.billingStatus) {
+              'warranty_covered' => ('Warranty Covered', AppColors.blue),
+              'goodwill'         => ('Goodwill (Not Billed)', AppColors.violet),
+              _                  => ('Billable', AppColors.amber),
+            };
+            return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(999)),
+                child: Text(label.toUpperCase(), style: AppTheme.monoXs.copyWith(color: color, fontSize: 10)),
+              ),
+              if (t.billingDecidedByName != null) ...[
+                const SizedBox(height: 6),
+                Text('Decided by ${t.billingDecidedByName}', style: AppTheme.bodySub.copyWith(fontSize: 11.5)),
+              ],
+              if (t.billingOverrideReason != null && t.billingOverrideReason!.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(t.billingOverrideReason!, style: AppTheme.bodySub.copyWith(fontSize: 11.5, fontStyle: FontStyle.italic)),
+              ],
+            ]);
+          }),
         ),
         const SizedBox(height: 16),
       ],
@@ -1932,6 +2000,95 @@ class _ResolveDialogState extends State<_ResolveDialog> {
               Text('Resolve Ticket', style: AppTheme.bodyStrong.copyWith(
                   color: const Color(0xFF06120F), fontSize: 13)),
             ]),
+          ),
+        ),
+      ],
+    );
+}
+
+// ── Override Billing Dialog ──────────────────────────────────────────────────
+class _OverrideBillingDialog extends StatefulWidget {
+  const _OverrideBillingDialog({required this.ticket, required this.onConfirm});
+  final ServiceTicket ticket;
+  final void Function(String billingStatus, String reason) onConfirm;
+
+  @override
+  State<_OverrideBillingDialog> createState() => _OverrideBillingDialogState();
+}
+
+class _OverrideBillingDialogState extends State<_OverrideBillingDialog> {
+  static const _labels = {
+    'Warranty Covered': 'warranty_covered',
+    'Billable': 'billable',
+    'Goodwill (Not Billed)': 'goodwill',
+  };
+  late String _selectedLabel = _labels.entries
+      .firstWhere((e) => e.value == widget.ticket.billingStatus, orElse: () => _labels.entries.first)
+      .key;
+  final _reasonCtrl = TextEditingController();
+  bool _saving = false;
+
+  @override
+  void dispose() { _reasonCtrl.dispose(); super.dispose(); }
+
+  void _submit() {
+    if (_saving || _reasonCtrl.text.trim().isEmpty) return;
+    setState(() => _saving = true);
+    Navigator.of(context).pop();
+    widget.onConfirm(_labels[_selectedLabel]!, _reasonCtrl.text.trim());
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+      backgroundColor: context.pal.surface1,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      titlePadding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+      contentPadding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+      actionsPadding: const EdgeInsets.fromLTRB(20, 8, 20, 14),
+      title: Row(children: [
+        Icon(Symbols.receipt_long, size: 18, color: AppColors.teal),
+        const SizedBox(width: 10),
+        Expanded(child: Text('Override Billing — ${widget.ticket.id}',
+            style: AppTheme.bodyStrong, overflow: TextOverflow.ellipsis)),
+      ]),
+      content: SizedBox(
+        width: 460,
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('Correct the automatic warranty-vs-billable decision — a goodwill '
+               'repair on an out-of-warranty machine, or a rejected warranty claim.',
+            style: AppTheme.bodySub.copyWith(fontSize: 12.5)),
+          const SizedBox(height: 14),
+          _DropdownField(
+            value: _selectedLabel,
+            items: _labels.keys.toList(),
+            onChanged: (v) => setState(() => _selectedLabel = v),
+          ),
+          const SizedBox(height: 14),
+          AppTextField(
+            controller: _reasonCtrl,
+            maxLines: null,
+            height: 90,
+            autofocus: true,
+            hintText: 'Reason (required) — e.g. Manufacturer rejected the warranty claim.',
+          ),
+        ]),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text('Cancel', style: AppTheme.bodySm.copyWith(color: context.pal.textMute)),
+        ),
+        GestureDetector(
+          onTap: _submit,
+          child: Container(
+            height: 36,
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            decoration: BoxDecoration(
+              color: AppColors.teal,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Center(child: Text('Save', style: AppTheme.bodyStrong.copyWith(
+                color: const Color(0xFF06120F), fontSize: 13))),
           ),
         ),
       ],
