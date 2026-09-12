@@ -4,6 +4,7 @@ import '../../main.dart' show userRoleNotifier, hasSalesApprovalAuthority;
 import '../../models/inventory_item.dart';
 import '../../models/location.dart';
 import '../../models/quotation.dart';
+import '../../services/auth_service.dart';
 import '../../services/inventory_service.dart';
 import '../../services/location_service.dart';
 import '../../services/quotation_service.dart';
@@ -828,6 +829,12 @@ class _QuotationFormModalState extends State<_QuotationFormModal> {
   final _lines = [_LineItemEntry(), _LineItemEntry()];
   List<InventoryItem> _invItems = [];
   Map<String, String> _errors  = {};
+  // The creator's own discount ceiling — mirrors ApprovalService::evaluate()
+  // server-side, which compares this same field against the quotation's
+  // overall effective discount (discountAmount/subtotal), not any single
+  // line's percentage. Null while loading or if the account has no ceiling
+  // set (max_discount_percent nullable = no cap).
+  double? _maxDiscountPercent;
 
   @override
   void initState() {
@@ -835,7 +842,41 @@ class _QuotationFormModalState extends State<_QuotationFormModal> {
     InventoryService.instance.list().then((items) {
       if (mounted) setState(() => _invItems = items);
     });
+    AuthService.instance.getProfile().then((profile) {
+      final v = profile?['max_discount_percent'];
+      if (mounted && v != null) setState(() => _maxDiscountPercent = (v as num).toDouble());
+    });
+    for (final l in _lines) { _attachLineListeners(l); }
   }
+
+  // Fields don't otherwise trigger a rebuild as you type (the onChanged
+  // passed into _LineItemRow is only wired to the item picker) — attach
+  // listeners so the discount-ceiling banner and totals stay live.
+  void _attachLineListeners(_LineItemEntry l) {
+    l.qtyCtrl.addListener(_recalc);
+    l.priceCtrl.addListener(_recalc);
+    l.discCtrl.addListener(_recalc);
+  }
+
+  void _recalc() { if (mounted) setState(() {}); }
+
+  int get _subtotal => _lines.fold(0, (s, l) {
+    final qty = int.tryParse(l.qtyCtrl.text) ?? 0;
+    final price = int.tryParse(l.priceCtrl.text.replaceAll(',', '')) ?? 0;
+    return s + (qty * price);
+  });
+
+  int get _discountAmount => _lines.fold(0, (s, l) {
+    final qty = int.tryParse(l.qtyCtrl.text) ?? 0;
+    final price = int.tryParse(l.priceCtrl.text.replaceAll(',', '')) ?? 0;
+    final disc = double.tryParse(l.discCtrl.text) ?? 0;
+    return s + ((qty * price) * disc / 100).round();
+  });
+
+  double get _effectiveDiscountPercent => _subtotal > 0 ? (_discountAmount / _subtotal * 100) : 0;
+
+  bool get _overDiscountCeiling =>
+      _maxDiscountPercent != null && _effectiveDiscountPercent > _maxDiscountPercent!;
 
   @override
   void dispose() {
@@ -860,6 +901,41 @@ class _QuotationFormModalState extends State<_QuotationFormModal> {
     }
     setState(() => _errors = errs);
     return errs.isEmpty;
+  }
+
+  // Live preview of ApprovalService::evaluate()'s discount check — issuing
+  // still works either way, this just tells the rep up front whether it'll
+  // go out immediately or need sales_manager sign-off first, instead of
+  // that being a surprise after they hit Save.
+  Widget _discountCeilingBanner(BuildContext context) {
+    final over = _overDiscountCeiling;
+    final color = over ? AppColors.amber : AppColors.green;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        border: Border.all(color: color.withValues(alpha: over ? 0.4 : 0.3)),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Icon(over ? Symbols.warning : Symbols.check_circle, size: 15, color: color),
+        const SizedBox(width: 8),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(
+            'Discount ${_effectiveDiscountPercent.toStringAsFixed(1)}% of ${_maxDiscountPercent!.toStringAsFixed(1)}% ceiling',
+            style: AppTheme.bodySm.copyWith(fontSize: 12.5, fontWeight: FontWeight.w600, color: color),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            over
+                ? 'Over your ceiling by ${(_effectiveDiscountPercent - _maxDiscountPercent!).toStringAsFixed(1)} points. '
+                  'Issuing still works, but this quotation will need sales_manager approval before the client can accept it.'
+                : 'Within your ceiling — this quotation will issue straight to the client with no approval step.',
+            style: AppTheme.bodySub.copyWith(fontSize: 11.5),
+          ),
+        ])),
+      ]),
+    );
   }
 
   Future<void> _save() async {
@@ -990,7 +1066,11 @@ class _QuotationFormModalState extends State<_QuotationFormModal> {
                   ],
                   const Spacer(),
                   GestureDetector(
-                    onTap: () => setState(() => _lines.add(_LineItemEntry())),
+                    onTap: () => setState(() {
+                      final l = _LineItemEntry();
+                      _attachLineListeners(l);
+                      _lines.add(l);
+                    }),
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                       decoration: BoxDecoration(
@@ -1015,6 +1095,10 @@ class _QuotationFormModalState extends State<_QuotationFormModal> {
                       : null,
                   onChanged: () => setState(() {}),
                 )),
+                if (_maxDiscountPercent != null && _subtotal > 0) ...[
+                  const SizedBox(height: 4),
+                  _discountCeilingBanner(context),
+                ],
                 const SizedBox(height: 12),
                 _formField('Notes', _notesCtrl, 'Payment terms, delivery notes…', context, maxLines: 2),
               ]),
