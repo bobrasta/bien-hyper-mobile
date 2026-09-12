@@ -56,6 +56,19 @@ class ExpenseService {
     return Expense.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
   }
 
+  Future<Expense> initiatePayment(int id, {String? paymentMethod, String? reference}) async {
+    final res = await _dio.post('/expenses/$id/initiate-payment', data: {
+      'payment_method':    paymentMethod,
+      'payment_reference': reference,
+    });
+    return Expense.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+  }
+
+  Future<Expense> markPaid(int id) async {
+    final res = await _dio.post('/expenses/$id/mark-paid');
+    return Expense.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+  }
+
   Future<void> setCategoryRequiresDirector(int categoryId, bool value) =>
       _dio.put('/expense-categories/$categoryId', data: {'requires_director_approval': value});
 

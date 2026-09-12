@@ -28,13 +28,20 @@ class ExpenseCategory {
   bool get isSubcategory => parentId != null;
 }
 
-enum ExpenseStatus { pendingCto, pendingDirector, approved, rejected }
+// pendingPayment/pendingRelease/paid replace the old single "approved"
+// terminal-ish status (which used to post to the ledger the instant
+// CTO/Director signed off, with no separate payment-release step or
+// self-approval check — see 2026_09_12_090000_add_payment_release_to_expenses_table
+// in hypermed-api). Mirrors PerDiemRequest's pendingPayment/paid split.
+enum ExpenseStatus { pendingCto, pendingDirector, pendingPayment, pendingRelease, paid, rejected }
 
 extension ExpenseStatusX on ExpenseStatus {
   String get label => switch (this) {
     ExpenseStatus.pendingCto      => 'Awaiting CTO',
     ExpenseStatus.pendingDirector => 'Awaiting Director',
-    ExpenseStatus.approved        => 'Approved',
+    ExpenseStatus.pendingPayment  => 'Awaiting Payment',
+    ExpenseStatus.pendingRelease  => 'Awaiting Release',
+    ExpenseStatus.paid            => 'Paid',
     ExpenseStatus.rejected        => 'Rejected',
   };
 }
@@ -42,18 +49,14 @@ extension ExpenseStatusX on ExpenseStatus {
 ExpenseStatus _parseExpenseStatus(String s) => switch (s) {
   'pending_cto'       => ExpenseStatus.pendingCto,
   'pending_director'  => ExpenseStatus.pendingDirector,
-  'approved'          => ExpenseStatus.approved,
-  // A handful of historic payroll-driven expenses were posted directly as
-  // 'paid' by an earlier version of PayrollController::markPaid(), before
-  // it was fixed to post 'approved' like every other expense. Treat it as
-  // approved (accurate — it was reviewed and paid) rather than falling
-  // into the default below.
-  'paid'              => ExpenseStatus.approved,
+  'pending_payment'   => ExpenseStatus.pendingPayment,
+  'pending_release'   => ExpenseStatus.pendingRelease,
+  'paid'              => ExpenseStatus.paid,
   'rejected'          => ExpenseStatus.rejected,
   // An unrecognised status must never be silently treated as an actionable
   // "awaiting my approval" — that previously made the CTO/Director icons
   // clickable on rows the backend then correctly rejected with a 422.
-  _                   => ExpenseStatus.approved,
+  _                   => ExpenseStatus.paid,
 };
 
 class Expense {
@@ -76,6 +79,9 @@ class Expense {
   final String?  escalationReason;
   final String?  reviewerName;
   final String?  rejectionReason;
+  final int?     paymentInitiatedBy;
+  final String?  paymentInitiatedByName;
+  final String?  paidByName;
 
   const Expense({
     required this.id,
@@ -97,6 +103,9 @@ class Expense {
     this.escalationReason,
     this.reviewerName,
     this.rejectionReason,
+    this.paymentInitiatedBy,
+    this.paymentInitiatedByName,
+    this.paidByName,
   });
 
   factory Expense.fromJson(Map<String, dynamic> j) => Expense(
@@ -119,6 +128,9 @@ class Expense {
     escalationReason: j['escalation_reason'] as String?,
     reviewerName:     j['reviewer_name'] as String?,
     rejectionReason:  j['rejection_reason'] as String?,
+    paymentInitiatedBy:     (j['payment_initiated_by'] as num?)?.toInt(),
+    paymentInitiatedByName: j['payment_initiated_by_name'] as String?,
+    paidByName:             j['paid_by_name'] as String?,
   );
 
   String get paymentModeLabel => switch (paymentMode) {

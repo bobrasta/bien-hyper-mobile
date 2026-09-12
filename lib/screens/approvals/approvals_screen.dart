@@ -48,7 +48,8 @@ class _ApprovalsScreenState extends State<ApprovalsScreen> with SingleTickerProv
       _perDiem.where((r) =>
           r.isPendingTeamLead || r.isPendingCto || r.isPendingPayment || r.isPendingDirector).toList();
   List<Expense> get _pendingExpenses => _expenses.where(
-      (e) => e.status == ExpenseStatus.pendingCto || e.status == ExpenseStatus.pendingDirector).toList();
+      (e) => e.status == ExpenseStatus.pendingCto || e.status == ExpenseStatus.pendingDirector
+          || e.status == ExpenseStatus.pendingPayment || e.status == ExpenseStatus.pendingRelease).toList();
   List<PurchaseOrder> get _pendingPurchaseOrders =>
       _purchaseOrders.where((po) => _pendingPoStatuses.contains(po.status)).toList();
 
@@ -192,6 +193,27 @@ class _ApprovalsScreenState extends State<ApprovalsScreen> with SingleTickerProv
     }
   }
 
+  Future<void> _initiateExpensePayment(Expense e) async {
+    final result = await showDialog<(String?, String?)>(context: context,
+        builder: (_) => const _InitiatePaymentDialog(methods: ['cash', 'bank', 'mobile_money']));
+    if (result == null) return;
+    try {
+      await ExpenseService.instance.initiatePayment(e.id, paymentMethod: result.$1, reference: result.$2);
+      if (mounted) { showSuccessToast(context, 'Payment initiated — awaiting release.'); _load(); }
+    } catch (err) {
+      if (mounted) showErrorToast(context, err);
+    }
+  }
+
+  Future<void> _releaseExpensePayment(Expense e) async {
+    try {
+      await ExpenseService.instance.markPaid(e.id);
+      if (mounted) { showSuccessToast(context, 'Payment released — marked paid.'); _load(); }
+    } catch (err) {
+      if (mounted) showErrorToast(context, err);
+    }
+  }
+
   Future<void> _approvePoSalesStage(PurchaseOrder po) async {
     try {
       await PurchaseOrderService.instance.approveSalesManager(po.id);
@@ -317,6 +339,7 @@ class _ApprovalsScreenState extends State<ApprovalsScreen> with SingleTickerProv
                         _ExpenseTab(
                           expenses: _pendingExpenses, pad: pad, viewerRole: role,
                           onApprove: _approveExpense, onEscalate: _escalateExpense, onReject: _rejectExpense,
+                          onInitiatePayment: _initiateExpensePayment, onReleasePayment: _releaseExpensePayment,
                         ),
                         _PurchaseOrderTab(
                           orders: _pendingPurchaseOrders, pad: pad, viewerRole: role,
@@ -360,13 +383,18 @@ class _RejectReasonDialogState extends State<_RejectReasonDialog> {
 }
 
 class _InitiatePaymentDialog extends StatefulWidget {
+  // Per-Diem's payment_method enum is cash/bank_transfer/mobile_money/cheque;
+  // Expense's is cash/bank/mobile_money (matches its existing payment_mode
+  // vocabulary) — pass the caller's own list rather than hardcoding one.
+  const _InitiatePaymentDialog({this.methods = const ['cash', 'bank_transfer', 'mobile_money', 'cheque']});
+  final List<String> methods;
+
   @override
   State<_InitiatePaymentDialog> createState() => _InitiatePaymentDialogState();
 }
 
 class _InitiatePaymentDialogState extends State<_InitiatePaymentDialog> {
-  static const _methods = ['cash', 'bank_transfer', 'mobile_money', 'cheque'];
-  String _method = _methods.first;
+  late String _method = widget.methods.first;
   final _refCtrl = TextEditingController();
 
   @override
@@ -385,7 +413,7 @@ class _InitiatePaymentDialogState extends State<_InitiatePaymentDialog> {
         dropdownColor: context.pal.surface1,
         style: AppTheme.bodySm.copyWith(color: context.pal.text),
         decoration: const InputDecoration(isDense: true, border: OutlineInputBorder()),
-        items: _methods.map((m) => DropdownMenuItem(value: m, child: Text(
+        items: widget.methods.map((m) => DropdownMenuItem(value: m, child: Text(
             m.split('_').map((w) => w[0].toUpperCase() + w.substring(1)).join(' '),
             style: AppTheme.bodySm))).toList(),
         onChanged: (v) => setState(() => _method = v ?? _method),
@@ -675,6 +703,7 @@ class _ExpenseTab extends StatelessWidget {
   const _ExpenseTab({
     required this.expenses, required this.pad, required this.viewerRole,
     required this.onApprove, required this.onEscalate, required this.onReject,
+    required this.onInitiatePayment, required this.onReleasePayment,
   });
   final List<Expense> expenses;
   final double pad;
@@ -682,6 +711,8 @@ class _ExpenseTab extends StatelessWidget {
   final ValueChanged<Expense> onApprove;
   final ValueChanged<Expense> onEscalate;
   final ValueChanged<Expense> onReject;
+  final ValueChanged<Expense> onInitiatePayment;
+  final ValueChanged<Expense> onReleasePayment;
 
   @override
   Widget build(BuildContext context) {
@@ -690,14 +721,30 @@ class _ExpenseTab extends StatelessWidget {
     }
     final canCto = hasCtoApprovalAuthority(viewerRole);
     final canDirector = hasDirectorAuthority(viewerRole);
+    final canAccountant = hasAccountantAuthority(viewerRole);
 
     return SingleChildScrollView(
       padding: EdgeInsets.all(pad),
       child: Column(children: expenses.map((e) {
         final atCto = e.status == ExpenseStatus.pendingCto;
+        final atDirector = e.status == ExpenseStatus.pendingDirector;
+        final atPaymentInit = e.status == ExpenseStatus.pendingPayment;
+        final atRelease = e.status == ExpenseStatus.pendingRelease;
         // If flagged for Director, CTO can only escalate (approve would 422 server-side).
         final mustEscalate = atCto && e.requiresDirectorApproval;
-        final canActOnThis = atCto ? canCto : canDirector;
+        final canActOnThis = atCto ? canCto
+            : atDirector ? canDirector
+            : atPaymentInit ? canAccountant
+            // Either can release — the accountant, since the Director is
+            // often busy, or the Director directly. Never the same person
+            // who initiated payment (enforced server-side).
+            : atRelease ? (canAccountant || canDirector)
+            : false;
+        final stageColor = atCto ? AppColors.amber
+            : atDirector ? AppColors.violet
+            : atPaymentInit ? AppColors.blue
+            : atRelease ? AppColors.teal
+            : context.pal.textMute;
 
         return Container(
           margin: const EdgeInsets.only(bottom: 12),
@@ -716,11 +763,11 @@ class _ExpenseTab extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                 decoration: BoxDecoration(
-                  color: (atCto ? AppColors.amber : AppColors.violet).withValues(alpha: 0.12),
+                  color: stageColor.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Text(e.status.label, style: AppTheme.monoXs.copyWith(
-                    color: atCto ? AppColors.amber : AppColors.violet, fontSize: 9.5)),
+                    color: stageColor, fontSize: 9.5)),
               ),
             ]),
             const SizedBox(height: 8),
@@ -739,27 +786,56 @@ class _ExpenseTab extends StatelessWidget {
                     style: AppTheme.bodySub.copyWith(fontSize: 11.5, color: AppColors.amber)),
               ),
             ],
+            if (e.paymentInitiatedByName != null) ...[
+              // Once the accountant has initiated payment, everyone sees the
+              // same trail here — mirrors the Per-Diem tab's equivalent panel.
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppColors.blue.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppColors.blue.withValues(alpha: 0.25)),
+                ),
+                child: Text('Payment initiated by ${e.paymentInitiatedByName}',
+                    style: AppTheme.monoXs.copyWith(fontSize: 10.5, color: AppColors.blue)),
+              ),
+            ],
             if (canActOnThis) ...[
               const SizedBox(height: 12),
               Row(children: [
+                if (atCto || atDirector) ...[
+                  Expanded(child: GestureDetector(
+                    onTap: () => onReject(e),
+                    child: Container(height: 36,
+                      decoration: BoxDecoration(border: Border.all(color: AppColors.coral.withValues(alpha: 0.4)), borderRadius: BorderRadius.circular(8)),
+                      child: Center(child: Text('Reject', style: AppTheme.bodySm.copyWith(color: AppColors.coral)))),
+                  )),
+                  const SizedBox(width: 10),
+                ],
                 Expanded(child: GestureDetector(
-                  onTap: () => onReject(e),
-                  child: Container(height: 36,
-                    decoration: BoxDecoration(border: Border.all(color: AppColors.coral.withValues(alpha: 0.4)), borderRadius: BorderRadius.circular(8)),
-                    child: Center(child: Text('Reject', style: AppTheme.bodySm.copyWith(color: AppColors.coral)))),
-                )),
-                const SizedBox(width: 10),
-                Expanded(child: GestureDetector(
-                  onTap: () => mustEscalate ? onEscalate(e) : onApprove(e),
+                  onTap: () => atPaymentInit ? onInitiatePayment(e)
+                      : atRelease ? onReleasePayment(e)
+                      : mustEscalate ? onEscalate(e)
+                      : onApprove(e),
                   child: Container(height: 36,
                     decoration: BoxDecoration(color: AppColors.teal, borderRadius: BorderRadius.circular(8)),
-                    child: Center(child: Text(mustEscalate ? 'Escalate to Director' : 'Approve',
+                    child: Center(child: Text(
+                        atPaymentInit ? 'Initiate Payment'
+                            : atRelease ? 'Release Payment'
+                            : mustEscalate ? 'Escalate to Director'
+                            : 'Approve',
                         style: AppTheme.bodyStrong.copyWith(color: const Color(0xFF06120F), fontSize: 12.5)))),
                 )),
               ]),
             ] else ...[
               const SizedBox(height: 8),
-              Text(atCto ? 'Waiting on CTO.' : 'Waiting on the Director.',
+              Text(
+                  atCto ? 'Waiting on CTO.'
+                      : atDirector ? 'Waiting on the Director.'
+                      : atPaymentInit ? 'Waiting on the accountant to initiate payment.'
+                      : atRelease ? 'Waiting on the accountant or Director to release payment.'
+                      : 'Waiting.',
                   style: AppTheme.bodySub.copyWith(fontSize: 11.5, fontStyle: FontStyle.italic)),
             ],
           ]),

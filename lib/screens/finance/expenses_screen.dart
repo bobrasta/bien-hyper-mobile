@@ -223,8 +223,10 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
 
   Widget _statusPill(ExpenseStatus s) {
     final (label, color) = switch (s) {
-      ExpenseStatus.approved => ('approved', AppColors.green),
-      ExpenseStatus.rejected => ('rejected', AppColors.coral),
+      ExpenseStatus.pendingPayment => ('awaiting payment', AppColors.blue),
+      ExpenseStatus.pendingRelease => ('awaiting release', AppColors.violet),
+      ExpenseStatus.paid           => ('paid', AppColors.green),
+      ExpenseStatus.rejected       => ('rejected', AppColors.coral),
       _ => ('pending', AppColors.amber),
     };
     return Container(
