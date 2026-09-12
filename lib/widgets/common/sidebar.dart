@@ -67,7 +67,6 @@ const _hr = [
 // from HR.
 const _salesChildren = [
   (key: 'sales_leads',       icon: Symbols.trending_up,   label: 'Leads'),
-  (key: 'sales_pos',         icon: Symbols.point_of_sale, label: 'Point of Sale'),
   (key: 'sales_quotations',  icon: Symbols.request_quote, label: 'Quotations'),
   (key: 'sales_orders',      icon: Symbols.shopping_cart, label: 'Sales Orders'),
   (key: 'sales_invoices',    icon: Symbols.receipt_long,  label: 'Invoices'),

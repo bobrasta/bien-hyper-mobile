@@ -34,7 +34,6 @@ import '../../screens/reports/reports_screen.dart';
 import '../../screens/revenue/revenue_screen.dart';
 import '../../screens/sales/sales_screen.dart';
 import '../../screens/sales/invoices_screen.dart';
-import '../../screens/sales/pos_screen.dart';
 import '../../screens/sales/quotations_screen.dart';
 import '../../screens/sales/sales_dashboard_screen.dart';
 import '../../screens/sales/sales_orders_screen.dart';
@@ -249,7 +248,6 @@ class _AppShellState extends State<AppShell> {
     'email'     => const EmailScreen(),
     'sales' || 'sales_leads' => SalesScreen(initialLeadId: _pendingEntityId),
     'sales_dashboard'         => SalesDashboardScreen(onNavigateTo: _navigate),
-    'sales_pos'               => const PosScreen(),
     'sales_quotations'       => const QuotationsScreen(),
     'sales_orders'           => SalesOrdersScreen(onNavigateTo: _navigate),
     'sales_invoices'         => InvoicesScreen(onNavigateTo: _navigate),
