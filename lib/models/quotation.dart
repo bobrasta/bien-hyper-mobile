@@ -46,6 +46,7 @@ class Quotation {
     required this.approvalStatus,
     required this.approvalReason,
     required this.approvedByName,
+    this.approvedAt,
     required this.rejectionReason,
     required this.validUntil,
     required this.currency,
@@ -59,6 +60,9 @@ class Quotation {
     required this.sentAt,
     required this.acceptedAt,
     required this.createdAt,
+    this.updatedAt,
+    this.salesOrderId,
+    this.convertedAt,
     required this.items,
   });
 
@@ -72,6 +76,7 @@ class Quotation {
   final String approvalStatus;
   final String? approvalReason;
   final String? approvedByName;
+  final String? approvedAt;
   final String? rejectionReason;
   final String? validUntil;
   final String currency;
@@ -85,6 +90,9 @@ class Quotation {
   final String? sentAt;
   final String? acceptedAt;
   final String createdAt;
+  final String? updatedAt;
+  final int? salesOrderId;
+  final String? convertedAt;
   final List<QuotationItem> items;
 
   String get statusLabel => const {
@@ -109,6 +117,7 @@ class Quotation {
     approvalStatus:  j['approval_status'] as String? ?? 'not_required',
     approvalReason:  j['approval_reason'] as String?,
     approvedByName:  j['approved_by_name'] as String?,
+    approvedAt:      j['approved_at'] as String?,
     rejectionReason: j['rejection_reason'] as String?,
     validUntil:      j['valid_until'] as String?,
     currency:        j['currency'] as String? ?? 'TZS',
@@ -122,6 +131,9 @@ class Quotation {
     sentAt:          j['sent_at'] as String?,
     acceptedAt:      j['accepted_at'] as String?,
     createdAt:       j['created_at'] as String,
+    updatedAt:       j['updated_at'] as String?,
+    salesOrderId:    j['sales_order_id'] as int?,
+    convertedAt:     j['converted_at'] as String?,
     items: (j['items'] as List<dynamic>? ?? [])
         .map((e) => QuotationItem.fromJson(e as Map<String, dynamic>))
         .toList(),

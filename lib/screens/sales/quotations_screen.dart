@@ -16,7 +16,6 @@ import '../../utils/api_error.dart';
 import '../../utils/format.dart';
 import '../../utils/pdf_download.dart';
 import '../../utils/whatsapp_share.dart';
-import '../../widgets/common/app_button.dart';
 import '../../widgets/common/error_view.dart';
 
 // ── Status colours ─────────────────────────────────────────────────────────────
@@ -100,19 +99,9 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
   }
 
   Future<void> _showDetailModal(Quotation qt) async {
-    Quotation full;
-    try {
-      full = qt.items.isEmpty ? await QuotationService.instance.get(qt.id) : qt;
-    } catch (e) {
-      if (mounted) showErrorToast(context, e);
-      return;
-    }
-    if (!mounted) return;
-    final reload = await showDialog<bool>(
-      context: context,
-      barrierDismissible: true,
-      builder: (_) => _QuotationDetailDialog(qt: full),
-    );
+    final reload = await Navigator.push<bool>(context, MaterialPageRoute(
+      builder: (_) => QuotationDetailScreen(quotationId: qt.id),
+    ));
     if (reload == true && mounted) _load();
   }
 
@@ -351,102 +340,58 @@ class _StatusBadge extends StatelessWidget {
   }
 }
 
-// ── Approval banner ──────────────────────────────────────────────────────────
 
-class _ApprovalBanner extends StatelessWidget {
-  const _ApprovalBanner({
-    required this.status, required this.reason, required this.approvedByName,
-    required this.onApprove, required this.onReject,
-  });
-  final String status;
-  final String? reason;
-  final String? approvedByName;
-  final VoidCallback onApprove;
-  final VoidCallback onReject;
+// ── Quotation detail (full page) ────────────────────────────────────────────────
+
+const _docStages = ['draft', 'sent', 'accepted', 'converted'];
+
+class QuotationDetailScreen extends StatefulWidget {
+  const QuotationDetailScreen({super.key, required this.quotationId});
+  final int quotationId;
 
   @override
-  Widget build(BuildContext context) {
-    final color = switch (status) {
-      'pending'  => AppColors.amber,
-      'approved' => AppColors.teal,
-      'rejected' => AppColors.coral,
-      _          => context.pal.textDim,
-    };
-    final label = switch (status) {
-      'pending'  => 'Awaiting Manager Approval',
-      'approved' => 'Approved${approvedByName != null ? ' by $approvedByName' : ''}',
-      'rejected' => 'Rejected${approvedByName != null ? ' by $approvedByName' : ''}',
-      _          => status,
-    };
-    final isAdmin = hasSalesApprovalAuthority(userRoleNotifier.value);
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 14),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
-      ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Icon(status == 'pending' ? Symbols.hourglass_top
-              : status == 'approved' ? Symbols.check_circle : Symbols.cancel,
-              size: 16, color: color),
-          const SizedBox(width: 8),
-          Text(label, style: AppTheme.bodyStrong.copyWith(color: color, fontSize: 12.5)),
-        ]),
-        if (reason != null) ...[
-          const SizedBox(height: 4),
-          Text(reason!, style: AppTheme.bodySub.copyWith(fontSize: 11.5)),
-        ],
-        if (status == 'pending' && isAdmin) ...[
-          const SizedBox(height: 10),
-          Row(children: [
-            AppButton(label: 'Approve', icon: Symbols.check, variant: BtnVariant.primary, onPressed: onApprove),
-            const SizedBox(width: 8),
-            AppButton(label: 'Reject', icon: Symbols.close, variant: BtnVariant.ghost, onPressed: onReject),
-          ]),
-        ],
-      ]),
-    );
-  }
+  State<QuotationDetailScreen> createState() => _QuotationDetailScreenState();
 }
 
-// ── Quotation detail dialog ────────────────────────────────────────────────────
-
-class _QuotationDetailDialog extends StatefulWidget {
-  const _QuotationDetailDialog({required this.qt});
-  final Quotation qt;
-
-  @override
-  State<_QuotationDetailDialog> createState() => _QuotationDetailDialogState();
-}
-
-class _QuotationDetailDialogState extends State<_QuotationDetailDialog> {
+class _QuotationDetailScreenState extends State<QuotationDetailScreen> {
+  Quotation? _qt;
+  bool _loading = true;
   bool _acting = false;
   bool _sharing = false;
+  String? _error;
+  bool _changed = false;
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    setState(() { _loading = true; _error = null; });
+    try {
+      final qt = await QuotationService.instance.get(widget.quotationId);
+      if (mounted) setState(() { _qt = qt; _loading = false; });
+    } catch (e) {
+      if (mounted) setState(() { _error = friendlyError(e); _loading = false; });
+    }
+  }
 
   Future<void> _viewPdf() async {
-    if (_sharing) return;
+    if (_sharing || _qt == null) return;
     setState(() => _sharing = true);
-    await downloadPdf(context, () => QuotationService.instance.pdfBytes(widget.qt.id), '${widget.qt.quotationNumber}.pdf');
+    await downloadPdf(context, () => QuotationService.instance.pdfBytes(_qt!.id), '${_qt!.quotationNumber}.pdf');
     if (mounted) setState(() => _sharing = false);
   }
 
   Future<void> _shareWhatsApp() async {
-    if (_sharing) return;
+    if (_sharing || _qt == null) return;
     setState(() => _sharing = true);
     try {
-      final qt = widget.qt;
+      final qt = _qt!;
       final url = await QuotationService.instance.shareLink(qt.id);
       final message = 'Hello, here is your quotation ${qt.quotationNumber} from Hypermed Health Care.\n'
           'Total: ${_fmtAmount(qt.totalAmount)}\n\nView / download: $url';
       await shareViaWhatsApp(phone: phoneDigitsFrom(qt.clientContact), message: message);
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));
-      }
+      if (mounted) showErrorToast(context, e);
     } finally {
       if (mounted) setState(() => _sharing = false);
     }
@@ -457,17 +402,39 @@ class _QuotationDetailDialogState extends State<_QuotationDetailDialog> {
     setState(() => _acting = true);
     try {
       await fn();
-      if (mounted) Navigator.pop(context, true);
+      _changed = true;
+      await _load();
     } catch (e) {
-      if (mounted) {
-        setState(() => _acting = false);
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(friendlyError(e))));
-      }
+      if (mounted) showErrorToast(context, e);
+    } finally {
+      if (mounted) setState(() => _acting = false);
     }
   }
 
+  Future<void> _rejectApproval() async {
+    final reasonCtrl = TextEditingController();
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: context.pal.surface1,
+        title: const Text('Reject this quotation?'),
+        content: SizedBox(width: 340, child: TextField(
+          controller: reasonCtrl, maxLines: 3,
+          decoration: const InputDecoration(hintText: 'Reason (recorded against the approval)…', border: OutlineInputBorder()),
+        )),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(dialogCtx).pop(false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.of(dialogCtx).pop(true), child: Text('Reject', style: TextStyle(color: AppColors.coral))),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+    await _act(() => QuotationService.instance.rejectApproval(_qt!.id,
+        reason: reasonCtrl.text.trim().isNotEmpty ? reasonCtrl.text.trim() : null));
+  }
+
   Future<void> _convert() async {
+    final qt = _qt!;
     DateTime? deliveryDate;
     int? locationId;
     List<Location> locations = [];
@@ -487,8 +454,7 @@ class _QuotationDetailDialogState extends State<_QuotationDetailDialog> {
           backgroundColor: ctx.pal.surface1,
           title: Text('Convert to Sales Order', style: AppTheme.bodyStrong),
           content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Convert ${widget.qt.quotationNumber} into a Sales Order?',
-                style: AppTheme.bodySm),
+            Text('Convert ${qt.quotationNumber} into a Sales Order?', style: AppTheme.bodySm),
             const SizedBox(height: 12),
             if (loadError != null)
               Text(loadError, style: AppTheme.bodySub.copyWith(color: AppColors.coral))
@@ -509,303 +475,352 @@ class _QuotationDetailDialogState extends State<_QuotationDetailDialog> {
             ],
             const SizedBox(height: 12),
             _DatePickerField(
-              label: 'Expected Delivery Date',
-              selected: deliveryDate,
-              firstDate: DateTime.now(),
+              label: 'Expected Delivery Date', selected: deliveryDate, firstDate: DateTime.now(),
               onPicked: (d) => setS(() => deliveryDate = d),
             ),
           ]),
           actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('Cancel')),
-            TextButton(
-                onPressed: locationId == null ? null : () => Navigator.pop(ctx, true),
-                child: Text('Convert',
-                    style: TextStyle(color: AppColors.teal))),
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+            TextButton(onPressed: locationId == null ? null : () => Navigator.pop(ctx, true),
+                child: Text('Convert', style: TextStyle(color: AppColors.teal))),
           ],
         ),
       ),
     );
     if (confirm != true || !mounted || locationId == null) return;
     await _act(() => QuotationService.instance.convert(
-          widget.qt.id,
-          locationId: locationId!,
-          expectedDeliveryDate:
-              deliveryDate != null ? _isoDate(deliveryDate!) : null,
+          qt.id, locationId: locationId!,
+          expectedDeliveryDate: deliveryDate != null ? _isoDate(deliveryDate!) : null,
         ));
   }
 
   @override
   Widget build(BuildContext context) {
-    final qt = widget.qt;
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-      child: Container(
-        width: 560,
-        constraints:
-            BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.85),
-        decoration: BoxDecoration(
-          color: context.pal.surface1,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: context.pal.borderStrong),
-          boxShadow: const [
-            BoxShadow(
-                color: Color(0x55000000), blurRadius: 60, offset: Offset(0, 20))
+    final qt = _qt;
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) { if (!didPop) Navigator.of(context).pop(_changed); },
+      child: Scaffold(
+        backgroundColor: context.pal.bg,
+        appBar: AppBar(
+          backgroundColor: context.pal.surface1,
+          foregroundColor: context.pal.text,
+          elevation: 0,
+          surfaceTintColor: Colors.transparent,
+          titleSpacing: 4,
+          title: qt == null ? const Text('Quotation') : Row(mainAxisSize: MainAxisSize.min, children: [
+            Text(qt.quotationNumber, style: AppTheme.bodyStrong.copyWith(fontSize: 15)),
+            const SizedBox(width: 8),
+            _StatusBadge(qt.status, qt.statusLabel),
+            if (qt.approvalStatus != 'not_required') ...[
+              const SizedBox(width: 6),
+              _StatusBadge(qt.approvalStatus == 'pending' ? 'pending' : qt.approvalStatus,
+                  qt.approvalStatus == 'pending' ? 'approval pending' : 'approval ${qt.approvalStatus}'),
+            ],
+          ]),
+          actions: qt == null ? null : [
+            if (_sharing)
+              const Padding(padding: EdgeInsets.only(right: 12), child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)))
+            else ...[
+              IconButton(onPressed: _viewPdf, icon: const Icon(Symbols.picture_as_pdf, size: 18), tooltip: 'PDF'),
+              IconButton(onPressed: _shareWhatsApp, icon: const Icon(Symbols.share, size: 18), tooltip: 'Share link'),
+            ],
+            OutlinedButton.icon(
+              onPressed: qt.status == 'accepted' ? _convert : null,
+              icon: const Icon(Symbols.shopping_cart, size: 14),
+              label: const Text('Convert to order'),
+            ),
+            const SizedBox(width: 16),
           ],
         ),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          // ── Header ──
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
-            child: Row(children: [
-              Icon(Symbols.request_quote,
-                  size: 18, color: AppColors.teal),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                  Text(qt.quotationNumber,
-                      style: AppTheme.pageTitle.copyWith(fontSize: 16)),
-                  const SizedBox(height: 4),
-                  _StatusBadge(qt.status, qt.statusLabel),
-                ]),
-              ),
-              if (_sharing)
-                const Padding(
-                  padding: EdgeInsets.only(right: 12),
-                  child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
-                )
-              else ...[
-                Tooltip(
-                  message: 'Download PDF',
-                  child: GestureDetector(
-                    onTap: _viewPdf,
-                    child: Icon(Symbols.download, size: 18, color: context.pal.textDim),
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Tooltip(
-                  message: 'Share via WhatsApp',
-                  child: GestureDetector(
-                    onTap: _shareWhatsApp,
-                    child: Icon(Symbols.share, size: 18, color: AppColors.teal),
-                  ),
-                ),
-                const SizedBox(width: 14),
-              ],
-              GestureDetector(
-                onTap: () => Navigator.pop(context, false),
-                child: Container(
-                  width: 28,
-                  height: 28,
-                  decoration: BoxDecoration(
-                    color: context.pal.surface2,
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Icon(Symbols.close,
-                      size: 15, color: context.pal.textDim),
-                ),
-              ),
-            ]),
-          ),
-          Divider(height: 1, color: context.pal.border),
-
-          // ── Scrollable body ──
-          Flexible(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                if (qt.approvalStatus != 'not_required')
-                  _ApprovalBanner(
-                    status: qt.approvalStatus,
-                    reason: qt.approvalStatus == 'rejected' ? qt.rejectionReason : qt.approvalReason,
-                    approvedByName: qt.approvedByName,
-                    onApprove: () => _act(() => QuotationService.instance.approve(qt.id)),
-                    onReject: () => _act(() => QuotationService.instance.rejectApproval(qt.id)),
-                  ),
-                // Info 2-col grid
-                Wrap(children: [
-                  _infoTile('Client', qt.clientName),
-                  if (qt.clientContact != null)
-                    _infoTile('Contact', qt.clientContact!),
-                  if (qt.clientEmail != null)
-                    _infoTile('Email', qt.clientEmail!),
-                  if (qt.validUntil != null)
-                    _infoTile('Valid Until', qt.validUntil!),
-                  _infoTile('Currency', qt.currency),
-                  if (qt.createdByName != null)
-                    _infoTile('Created By', qt.createdByName!),
-                ]),
-                const SizedBox(height: 16),
-
-                // Financials
-                Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: context.pal.surface2,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: context.pal.border),
-                  ),
-                  child: Column(children: [
-                    _finRow('Subtotal', qt.subtotal),
-                    if (qt.discountAmount > 0)
-                      _finRow('Discount', -qt.discountAmount,
-                          isDiscount: true),
-                    if (qt.taxAmount > 0) _finRow('Tax', qt.taxAmount),
-                    const Divider(height: 16),
-                    Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text('Total', style: AppTheme.bodyStrong),
-                          Text(_fmtAmount(qt.totalAmount),
-                              style: AppTheme.bodyStrong.copyWith(
-                                  color: AppColors.amber, fontSize: 15)),
-                        ]),
-                  ]),
-                ),
-                const SizedBox(height: 16),
-
-                // Line items
-                if (qt.items.isNotEmpty) ...[
-                  Text('Line Items', style: AppTheme.bodyStrong),
-                  const SizedBox(height: 8),
-                  ...qt.items.map((item) => Container(
-                        margin: const EdgeInsets.only(bottom: 6),
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 10),
-                        decoration: BoxDecoration(
-                          color: context.pal.surface2,
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: context.pal.border),
-                        ),
-                        child: Row(children: [
-                          Expanded(
-                            child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                              Text(item.description,
-                                  style: AppTheme.bodySm
-                                      .copyWith(fontWeight: FontWeight.w500)),
-                              if (item.itemSku != null)
-                                Text(item.itemSku!,
-                                    style: AppTheme.monoXs.copyWith(
-                                        color: context.pal.textDim)),
-                            ]),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                              '${item.quantity} × ${_fmtAmount(item.unitPrice)}',
-                              style: AppTheme.bodySub.copyWith(fontSize: 11)),
-                          const SizedBox(width: 12),
-                          Text(_fmtAmount(item.totalPrice),
-                              style: AppTheme.bodySm.copyWith(
-                                  color: AppColors.amber,
-                                  fontWeight: FontWeight.w600)),
-                        ]),
-                      )),
-                ],
-
-                if (qt.notes != null) ...[
-                  const SizedBox(height: 16),
-                  Text('Notes', style: AppTheme.bodyStrong),
-                  const SizedBox(height: 4),
-                  Text(qt.notes!, style: AppTheme.bodySub),
-                ],
-              ]),
-            ),
-          ),
-
-          // ── Action footer ──
-          if (qt.status == 'draft' ||
-              qt.status == 'sent' ||
-              qt.status == 'accepted') ...[
-            Divider(height: 1, color: context.pal.border),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
-              child: _acting
-                  ? const Center(
-                      child: SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2)))
-                  : Wrap(spacing: 8, runSpacing: 8, children: [
-                      if (qt.status == 'draft') ...[
-                        AppButton(
-                          label: 'Send to Client',
-                          icon: Symbols.send,
-                          variant: BtnVariant.primary,
-                          onPressed: () =>
-                              _act(() => QuotationService.instance.send(qt.id)),
-                        ),
-                        AppButton(
-                          label: 'Delete',
-                          icon: Symbols.delete,
-                          variant: BtnVariant.ghost,
-                          onPressed: () => _act(
-                              () => QuotationService.instance.delete(qt.id)),
-                        ),
-                      ],
-                      if (qt.status == 'sent') ...[
-                        AppButton(
-                          label: 'Mark Accepted',
-                          icon: Symbols.check_circle,
-                          variant: BtnVariant.primary,
-                          onPressed: () => _act(
-                              () => QuotationService.instance.accept(qt.id)),
-                        ),
-                        AppButton(
-                          label: 'Mark Rejected',
-                          icon: Symbols.cancel,
-                          variant: BtnVariant.ghost,
-                          onPressed: () => _act(
-                              () => QuotationService.instance.reject(qt.id)),
-                        ),
-                      ],
-                      if (qt.status == 'accepted')
-                        AppButton(
-                          label: 'Convert to Sales Order',
-                          icon: Symbols.swap_horiz,
-                          variant: BtnVariant.primary,
-                          onPressed: _convert,
-                        ),
-                    ]),
-            ),
-          ],
-        ]),
+        body: _loading
+            ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
+            : _error != null
+                ? ErrorView(message: _error!, onRetry: _load)
+                : qt == null
+                    ? const SizedBox.shrink()
+                    : LayoutBuilder(builder: (ctx, cst) {
+                        final wide = cst.maxWidth >= 900;
+                        final left = _leftColumn(context, qt);
+                        final right = SizedBox(width: wide ? 372 : double.infinity, child: _rightColumn(context, qt));
+                        return SingleChildScrollView(
+                          padding: const EdgeInsets.all(20),
+                          child: wide
+                              ? IntrinsicHeight(child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                                  Expanded(child: left), const SizedBox(width: 16), right,
+                                ]))
+                              : Column(children: [left, const SizedBox(height: 16), right]),
+                        );
+                      }),
       ),
     );
   }
 
-  Widget _infoTile(String label, String value) => SizedBox(
-        width: 250,
-        child: Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(label.toUpperCase(), style: AppTheme.labelCaps),
-            const SizedBox(height: 2),
-            Text(value,
-                style: AppTheme.bodySm, overflow: TextOverflow.ellipsis),
+  Widget _leftColumn(BuildContext context, Quotation qt) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Expanded(child: _stageCard(context, 'DOCUMENT STATUS',
+            qt.status == 'rejected' ? -1 : _docStages.indexOf(qt.status), _docStages,
+            (s) => s[0].toUpperCase() + s.substring(1))),
+        if (qt.approvalStatus != 'not_required') ...[
+          const SizedBox(width: 13),
+          Expanded(child: _stageCard(context, 'APPROVAL STATUS — SEPARATE MACHINE',
+              qt.approvalStatus == 'pending' ? 0 : (qt.approvalStatus == 'approved' ? 1 : -1),
+              const ['pending', 'approved', 'rejected'],
+              (s) => s[0].toUpperCase() + s.substring(1), accent: AppColors.violet)),
+        ],
+      ]),
+      const SizedBox(height: 13),
+      Container(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+        decoration: BoxDecoration(color: context.pal.surface1, borderRadius: BorderRadius.circular(14), border: Border.all(color: context.pal.border)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Icon(Symbols.receipt_long, size: 14, color: AppColors.teal),
+            const SizedBox(width: 8),
+            Text('Quoted lines', style: AppTheme.bodyStrong.copyWith(fontSize: 12.5)),
+            const Spacer(),
+            if (qt.discountAmount > 0 && qt.subtotal > 0)
+              Text('discount ${(qt.discountAmount / qt.subtotal * 100).toStringAsFixed(0)}%',
+                  style: AppTheme.monoXs.copyWith(fontSize: 10, color: context.pal.textMute)),
           ]),
-        ),
-      );
-
-  Widget _finRow(String label, int amount, {bool isDiscount = false}) =>
-      Padding(
-        padding: const EdgeInsets.symmetric(vertical: 3),
-        child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          Text(label, style: AppTheme.bodySub),
-          Text(
-            isDiscount ? '-${_fmtAmount(-amount)}' : _fmtAmount(amount),
-            style: AppTheme.bodySub
-                .copyWith(color: isDiscount ? AppColors.coral : null),
+          const SizedBox(height: 10),
+          Row(children: [
+            Expanded(flex: 3, child: Text('ITEM', style: AppTheme.monoXs.copyWith(fontSize: 9, color: context.pal.textMute))),
+            SizedBox(width: 44, child: Text('QTY', textAlign: TextAlign.right, style: AppTheme.monoXs.copyWith(fontSize: 9, color: context.pal.textMute))),
+            const SizedBox(width: 8),
+            SizedBox(width: 90, child: Text('UNIT', textAlign: TextAlign.right, style: AppTheme.monoXs.copyWith(fontSize: 9, color: context.pal.textMute))),
+            const SizedBox(width: 8),
+            SizedBox(width: 56, child: Text('DISC', textAlign: TextAlign.right, style: AppTheme.monoXs.copyWith(fontSize: 9, color: context.pal.textMute))),
+            const SizedBox(width: 8),
+            SizedBox(width: 96, child: Text('TOTAL', textAlign: TextAlign.right, style: AppTheme.monoXs.copyWith(fontSize: 9, color: context.pal.textMute))),
+          ]),
+          Padding(padding: const EdgeInsets.symmetric(vertical: 8), child: Container(height: 1, color: context.pal.divider)),
+          ...qt.items.map((item) => Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+              Expanded(flex: 3, child: Text(item.description, style: AppTheme.bodySm.copyWith(fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis)),
+              SizedBox(width: 44, child: Text('${item.quantity}', textAlign: TextAlign.right, style: AppTheme.monoSm.copyWith(fontSize: 12))),
+              const SizedBox(width: 8),
+              SizedBox(width: 90, child: Text(_fmtAmount(item.unitPrice), textAlign: TextAlign.right, style: AppTheme.monoSm.copyWith(fontSize: 12, color: context.pal.textDim))),
+              const SizedBox(width: 8),
+              SizedBox(width: 56, child: Text(item.discountPercent > 0 ? '${item.discountPercent.toStringAsFixed(0)}%' : '—', textAlign: TextAlign.right, style: AppTheme.monoXs.copyWith(fontSize: 11, color: item.discountPercent > 0 ? AppColors.amber : context.pal.textMute))),
+              const SizedBox(width: 8),
+              SizedBox(width: 96, child: Text(_fmtAmount(item.totalPrice), textAlign: TextAlign.right, style: AppTheme.monoSm.copyWith(fontSize: 12.5))),
+            ]),
+          )),
+          const Spacer(),
+          Container(
+            margin: const EdgeInsets.only(left: -16, right: -16),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+            decoration: BoxDecoration(color: context.pal.surface2, borderRadius: const BorderRadius.vertical(bottom: Radius.circular(14))),
+            child: Row(children: [
+              Text('TOTAL QUOTED', style: AppTheme.labelCaps.copyWith(fontSize: 10.5)),
+              const Spacer(),
+              Text(_fmtAmount(qt.totalAmount), style: AppTheme.kpiValue.copyWith(fontSize: 16)),
+            ]),
           ),
         ]),
-      );
+      ),
+    ],
+  );
+
+  Widget _stageCard(BuildContext context, String title, int currentIdx, List<String> stages, String Function(String) label, {Color? accent}) => Container(
+    padding: const EdgeInsets.all(13),
+    decoration: BoxDecoration(
+      color: accent != null ? accent.withValues(alpha: 0.05) : context.pal.surface1,
+      borderRadius: BorderRadius.circular(14),
+      border: Border.all(color: accent != null ? accent.withValues(alpha: 0.28) : context.pal.border),
+    ),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(title, style: AppTheme.monoXs.copyWith(fontSize: 9.5, color: context.pal.textMute)),
+      const SizedBox(height: 9),
+      Row(children: stages.asMap().entries.map((e) {
+        final reached = currentIdx >= 0 && e.key <= currentIdx;
+        final color = accent ?? AppColors.teal;
+        return Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Container(width: 12, height: 12, decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: reached ? color : context.pal.surface2,
+              border: Border.all(color: reached ? color : context.pal.border, width: 1.5),
+            )),
+            if (e.key < stages.length - 1)
+              Expanded(child: Container(height: 2, color: (currentIdx >= 0 && e.key < currentIdx) ? color : context.pal.border)),
+          ]),
+          const SizedBox(height: 5),
+          Text(label(e.value), style: AppTheme.bodySub.copyWith(fontSize: 10), maxLines: 1, overflow: TextOverflow.ellipsis),
+        ]));
+      }).toList()),
+    ]),
+  );
+
+  Widget _rightColumn(BuildContext context, Quotation qt) {
+    final isManager = hasSalesApprovalAuthority(userRoleNotifier.value);
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      if (qt.approvalStatus == 'pending' && isManager) ...[
+        Container(
+          padding: const EdgeInsets.all(15),
+          decoration: BoxDecoration(color: AppColors.violet.withValues(alpha: 0.06), borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.violet.withValues(alpha: 0.4))),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Icon(Symbols.verified, size: 15, color: AppColors.violet),
+              const SizedBox(width: 8),
+              Text('Approval required', style: AppTheme.bodySm.copyWith(fontSize: 12.5)),
+              const Spacer(),
+              Text('sales.approve_order', style: AppTheme.monoXs.copyWith(fontSize: 9, color: context.pal.textMute)),
+            ]),
+            const SizedBox(height: 9),
+            Text(qt.approvalReason ?? 'This quotation needs manager approval before it can be sent to the client.',
+                style: AppTheme.bodySub.copyWith(fontSize: 11.5)),
+            const SizedBox(height: 11),
+            if (_acting)
+              const Center(child: Padding(padding: EdgeInsets.all(6), child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))))
+            else
+              Row(children: [
+                Expanded(child: OutlinedButton.icon(onPressed: () => _act(() => QuotationService.instance.approve(qt.id)),
+                    icon: const Icon(Symbols.check, size: 13), label: const Text('Approve'))),
+                const SizedBox(width: 8),
+                Expanded(child: OutlinedButton.icon(onPressed: _rejectApproval,
+                    icon: const Icon(Symbols.close, size: 13), label: const Text('Reject'))),
+              ]),
+          ]),
+        ),
+        const SizedBox(height: 14),
+      ] else if (qt.approvalStatus == 'pending' && !isManager) ...[
+        Container(
+          padding: const EdgeInsets.all(15),
+          decoration: BoxDecoration(color: AppColors.violet.withValues(alpha: 0.05), borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.violet.withValues(alpha: 0.28))),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Icon(Symbols.hourglass_top, size: 16, color: AppColors.violet),
+            const SizedBox(width: 11),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Awaiting sales_manager approval', style: AppTheme.bodySm.copyWith(fontSize: 12.5)),
+              const SizedBox(height: 4),
+              Text('Read-only for you — only a sales manager can approve or reject.', style: AppTheme.bodySub.copyWith(fontSize: 11)),
+            ])),
+          ]),
+        ),
+        const SizedBox(height: 14),
+      ] else if (qt.approvalStatus == 'rejected') ...[
+        Container(
+          padding: const EdgeInsets.all(15),
+          decoration: BoxDecoration(color: AppColors.coral.withValues(alpha: 0.06), borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.coral.withValues(alpha: 0.3))),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Icon(Symbols.cancel, size: 16, color: AppColors.coral),
+            const SizedBox(width: 11),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Rejected${qt.approvedByName != null ? ' by ${qt.approvedByName}' : ''}', style: AppTheme.bodySm.copyWith(fontSize: 12.5, color: AppColors.coral)),
+              if (qt.rejectionReason != null) ...[
+                const SizedBox(height: 4),
+                Text(qt.rejectionReason!, style: AppTheme.bodySub.copyWith(fontSize: 11)),
+              ],
+            ])),
+          ]),
+        ),
+        const SizedBox(height: 14),
+      ],
+
+      Container(
+        padding: const EdgeInsets.all(15),
+        decoration: BoxDecoration(color: context.pal.surface1, borderRadius: BorderRadius.circular(14), border: Border.all(color: context.pal.border)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('CLIENT RESPONSE', style: AppTheme.labelCaps.copyWith(fontSize: 11)),
+          const SizedBox(height: 10),
+          Row(children: [
+            Icon(qt.status == 'accepted' ? Symbols.thumb_up : qt.status == 'rejected' ? Symbols.thumb_down : Symbols.schedule,
+                size: 14, color: qt.status == 'accepted' ? AppColors.green : qt.status == 'rejected' ? AppColors.coral : context.pal.textMute),
+            const SizedBox(width: 9),
+            Expanded(child: Text(
+              qt.status == 'accepted' ? 'Accepted${qt.acceptedAt != null ? ' · ${formatDate(DateTime.tryParse(qt.acceptedAt!) ?? DateTime.now())}' : ''}'
+                  : qt.status == 'rejected' ? 'Rejected by client'
+                  : 'No response recorded yet',
+              style: AppTheme.bodySub.copyWith(fontSize: 11.5),
+            )),
+          ]),
+          if (qt.status == 'sent') ...[
+            const SizedBox(height: 11),
+            _acting
+                ? const Center(child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)))
+                : Row(children: [
+                    Expanded(child: OutlinedButton.icon(onPressed: () => _act(() => QuotationService.instance.accept(qt.id)),
+                        icon: const Icon(Symbols.thumb_up, size: 12), label: const Text('Record accept'))),
+                    const SizedBox(width: 8),
+                    Expanded(child: OutlinedButton.icon(onPressed: () => _act(() => QuotationService.instance.reject(qt.id)),
+                        icon: const Icon(Symbols.thumb_down, size: 12), label: const Text('Record reject'))),
+                  ]),
+          ],
+        ]),
+      ),
+      const SizedBox(height: 14),
+
+      if (qt.status == 'draft') ...[
+        Row(children: [
+          Expanded(child: _acting
+              ? const SizedBox(height: 36, child: Center(child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))))
+              : FilledButton.icon(onPressed: () => _act(() => QuotationService.instance.send(qt.id)),
+                  icon: const Icon(Symbols.send, size: 14), label: const Text('Send to client'))),
+          const SizedBox(width: 8),
+          OutlinedButton.icon(onPressed: _acting ? null : () => _act(() => QuotationService.instance.delete(qt.id)),
+              icon: Icon(Symbols.delete, size: 14, color: AppColors.coral), label: Text('Delete', style: TextStyle(color: AppColors.coral))),
+        ]),
+        const SizedBox(height: 14),
+      ],
+
+      Container(
+        padding: const EdgeInsets.all(15),
+        decoration: BoxDecoration(color: context.pal.surface1, borderRadius: BorderRadius.circular(14), border: Border.all(color: context.pal.border)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('TRAIL', style: AppTheme.labelCaps.copyWith(fontSize: 11)),
+          const SizedBox(height: 11),
+          ..._trail(qt).map((e) => Padding(
+            padding: const EdgeInsets.only(bottom: 11),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Icon(e.$1, size: 12, color: e.$2),
+              const SizedBox(width: 9),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  Expanded(child: Text(e.$3, style: AppTheme.bodySm.copyWith(fontSize: 11.5), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                  if (e.$5 != null) Text(formatDate(e.$5!), style: AppTheme.monoXs.copyWith(fontSize: 9.5, color: context.pal.textMute)),
+                ]),
+                if (e.$4 != null) Text(e.$4!, style: AppTheme.bodySub.copyWith(fontSize: 10.5), maxLines: 1, overflow: TextOverflow.ellipsis),
+              ])),
+            ]),
+          )),
+        ]),
+      ),
+    ]);
+  }
+
+  // Real trail built entirely from timestamped fields already on the
+  // record — created_at, sent_at, approved_at/rejection_reason,
+  // accepted_at, and the linked sales order's created_at. No separate
+  // audit-log table exists for quotations, so a client-side rejection has
+  // no dedicated timestamp — falls back to updated_at for that one case.
+  List<(IconData, Color, String, String?, DateTime?)> _trail(Quotation qt) {
+    final events = <(IconData, Color, String, String?, DateTime?)>[
+      (Symbols.add_circle, AppColors.textDim, 'Created${qt.createdByName != null ? ' by ${qt.createdByName}' : ''}', null, DateTime.tryParse(qt.createdAt)),
+    ];
+    if (qt.sentAt != null) {
+      events.add((Symbols.send, AppColors.blue, 'Issued to client', 'PDF and share link generated', DateTime.tryParse(qt.sentAt!)));
+    }
+    if (qt.approvalStatus == 'approved' && qt.approvedAt != null) {
+      events.add((Symbols.verified, AppColors.violet, 'Approved${qt.approvedByName != null ? ' by ${qt.approvedByName}' : ''}', qt.approvalReason, DateTime.tryParse(qt.approvedAt!)));
+    } else if (qt.approvalStatus == 'rejected' && qt.approvedAt != null) {
+      events.add((Symbols.cancel, AppColors.coral, 'Approval rejected${qt.approvedByName != null ? ' by ${qt.approvedByName}' : ''}', qt.rejectionReason, DateTime.tryParse(qt.approvedAt!)));
+    }
+    if (qt.acceptedAt != null) {
+      events.add((Symbols.thumb_up, AppColors.green, 'Client accepted', null, DateTime.tryParse(qt.acceptedAt!)));
+    } else if (qt.status == 'rejected') {
+      events.add((Symbols.thumb_down, AppColors.coral, 'Rejected by client', null, qt.updatedAt != null ? DateTime.tryParse(qt.updatedAt!) : null));
+    }
+    if (qt.salesOrderId != null) {
+      events.add((Symbols.shopping_cart, AppColors.teal, 'Converted to sales order', null, qt.convertedAt != null ? DateTime.tryParse(qt.convertedAt!) : null));
+    }
+    events.sort((a, b) => (a.$5 ?? DateTime(2000)).compareTo(b.$5 ?? DateTime(2000)));
+    return events.reversed.toList();
+  }
 }
 
 // ── Quotation builder (full page) ───────────────────────────────────────────────
