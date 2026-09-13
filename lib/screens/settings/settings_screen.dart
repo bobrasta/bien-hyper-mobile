@@ -327,17 +327,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
     authTokenNotifier.value = null;
   }
 
+  // Index is the real, fixed position _buildSectionContent's switch keys off
+  // of — kept stable even when a role can't see every entry. 'adminOnly'
+  // sections carry org-wide or secret content (API key, billing, org
+  // structure, director-only approval policy) that has no business being
+  // visible to an individual contributor, so they're filtered out below for
+  // anyone without authority.admin_tier rather than just hidden by CSS.
   static const _sections = [
     {'icon': Symbols.person,        'label': 'Profile'},
-    {'icon': Symbols.domain,        'label': 'Workspace'},
-    {'icon': Symbols.credit_card,   'label': 'Billing & Plan'},
+    {'icon': Symbols.domain,        'label': 'Workspace',      'adminOnly': true},
+    {'icon': Symbols.credit_card,   'label': 'Billing & Plan',  'adminOnly': true},
     {'icon': Symbols.notifications, 'label': 'Communication'},
-    {'icon': Symbols.cable,         'label': 'Connections'},
-    {'icon': Symbols.security,      'label': 'Security'},
+    {'icon': Symbols.cable,         'label': 'Connections',     'adminOnly': true},
+    {'icon': Symbols.security,      'label': 'Security',        'adminOnly': true},
     {'icon': Symbols.tune,          'label': 'Preferences'},
-    {'icon': Symbols.fact_check,    'label': 'Approvals'},
-    {'icon': Symbols.account_tree,  'label': 'Org Chart'},
+    {'icon': Symbols.fact_check,    'label': 'Approvals',       'adminOnly': true},
+    {'icon': Symbols.account_tree,  'label': 'Org Chart',       'adminOnly': true},
   ];
+
+  List<MapEntry<int, Map<String, Object>>> get _visibleSections {
+    final isAdmin = can('authority.admin_tier');
+    return _sections.asMap().entries
+        .where((e) => isAdmin || e.value['adminOnly'] != true)
+        .toList();
+  }
 
   static const _memberTabs = ['Members', 'Pending', 'Roles', 'Activity', 'SSO'];
 
@@ -357,7 +370,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const SizedBox(height: 12),
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
-              child: Row(children: _sections.asMap().entries.map((e) {
+              child: Row(children: _visibleSections.map((e) {
                 final active = _section == e.key;
                 return GestureDetector(
                   onTap: () => setState(() { _section = e.key; }),
@@ -402,7 +415,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('Settings', style: AppTheme.pageTitle.copyWith(fontSize: 18)),
               const SizedBox(height: 16),
-              ..._sections.asMap().entries.map((e) => _SettingsSideItem(
+              ..._visibleSections.map((e) => _SettingsSideItem(
                 icon: e.value['icon'] as IconData,
                 label: e.value['label'] as String,
                 active: _section == e.key,

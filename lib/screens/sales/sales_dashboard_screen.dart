@@ -98,6 +98,14 @@ class _SalesDashboardScreenState extends State<SalesDashboardScreen> {
                 Text('${formatDate(DateTime.now())} · ${openLeads.length} open deals · ${d.quotationsAwaitingResponse} quotation${d.quotationsAwaitingResponse == 1 ? '' : 's'} awaiting the client'
                     '${d.isMasked ? ' · figures rounded to the nearest 100K' : ''}', style: AppTheme.bodySub.copyWith(fontSize: 12)),
               ])),
+              if (!d.isMasked && d.quotationsPendingApproval > 0) ...[
+                OutlinedButton.icon(
+                  onPressed: () => widget.onNavigateTo?.call('sales_quotations'),
+                  icon: const Icon(Symbols.fact_check, size: 16),
+                  label: Text('Review ${d.quotationsPendingApproval} approval${d.quotationsPendingApproval == 1 ? '' : 's'}'),
+                ),
+                const SizedBox(width: 10),
+              ],
               FilledButton.icon(onPressed: () => widget.onNavigateTo?.call('sales_quotations'), icon: const Icon(Symbols.add, size: 16), label: const Text('New quotation')),
             ]),
             const SizedBox(height: 16),
@@ -107,6 +115,12 @@ class _SalesDashboardScreenState extends State<SalesDashboardScreen> {
                 Expanded(child: _kpiTile('Pipeline value', Symbols.filter_alt, AppColors.cyan, _mask(d, tshFromDouble(d.pipelineValue)), '${openLeads.length} open', 'across 5 stages', masked: d.isMasked)),
                 Expanded(child: _kpiTile('Won this month', Symbols.emoji_events, AppColors.green, _mask(d, tshFromDouble(d.wonValueThisMonth)), '${d.wonThisMonth} deal${d.wonThisMonth == 1 ? '' : 's'}', 'win rate ${d.winRateThisMonth.toStringAsFixed(0)}%', border: true, masked: d.isMasked)),
                 Expanded(child: _kpiTile('Quotations open', Symbols.description, AppColors.amber, _mask(d, tshFromDouble(openQuotationValue)), '${d.quotationsAwaitingResponse} sent', 'awaiting client', border: true, masked: d.isMasked)),
+                // Manager-only, same reasoning as the reps card below — a rep
+                // never approves their own quotation, so this tile has
+                // nothing to show them and is omitted rather than shown
+                // empty or locked.
+                if (!d.isMasked)
+                  Expanded(child: _kpiTile('Awaiting my approval', Symbols.fact_check, AppColors.coral, '${d.quotationsPendingApproval}', d.quotationsPendingApproval == 1 ? 'quote' : 'quotes', 'over threshold or discount', border: true)),
                 Expanded(child: _kpiTile('Invoiced', Symbols.receipt_long, AppColors.violet, _mask(d, tshFromDouble(invoicedTotal)), '${_invoices.length} invoices', '${d.salesOrdersThisMonth} orders raised', border: true, masked: d.isMasked)),
                 Expanded(child: _kpiTile('Collected', Symbols.payments, AppColors.green, _mask(d, tshFromDouble(collectedTotal)), '${collectionPct.toStringAsFixed(0)}%', '${_mask(d, tshFromDouble(outstanding))} outstanding', border: true, masked: d.isMasked)),
               ]),
@@ -148,25 +162,25 @@ class _SalesDashboardScreenState extends State<SalesDashboardScreen> {
   String _mask(SalesDashboardData d, String value) => d.isMasked ? '~$value' : value;
 
   Widget _kpiTile(String label, IconData icon, Color color, String value, String chip, String note, {bool border = false, bool masked = false}) => Container(
-    padding: const EdgeInsets.all(15),
+    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
     decoration: border ? BoxDecoration(border: Border(left: BorderSide(color: Colors.white.withValues(alpha: 0.06)))) : null,
-    child: Builder(builder: (context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    child: Builder(builder: (context) => Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
-        Icon(icon, size: 13, color: color),
-        const SizedBox(width: 7),
-        Expanded(child: Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 9.5), maxLines: 1, overflow: TextOverflow.ellipsis)),
-        if (masked) Icon(Symbols.lock, size: 11, color: context.pal.textMute),
+        Icon(icon, size: 12, color: color),
+        const SizedBox(width: 6),
+        Expanded(child: Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 9), maxLines: 1, overflow: TextOverflow.ellipsis)),
+        if (masked) Icon(Symbols.lock, size: 10, color: context.pal.textMute),
       ]),
-      const SizedBox(height: 9),
-      Text(value, style: AppTheme.kpiValue.copyWith(fontSize: 21)),
-      const SizedBox(height: 8),
-      Wrap(spacing: 6, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
+      const SizedBox(height: 6),
+      Text(value, style: AppTheme.kpiValue.copyWith(fontSize: 19)),
+      const SizedBox(height: 5),
+      Wrap(spacing: 6, runSpacing: 2, crossAxisAlignment: WrapCrossAlignment.center, children: [
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
           decoration: BoxDecoration(color: color.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(5)),
-          child: Text(chip, style: AppTheme.monoXs.copyWith(fontSize: 10, color: color)),
+          child: Text(chip, style: AppTheme.monoXs.copyWith(fontSize: 9.5, color: color)),
         ),
-        Text(note, style: AppTheme.bodySub.copyWith(fontSize: 10.5)),
+        Text(note, style: AppTheme.bodySub.copyWith(fontSize: 10), maxLines: 1, overflow: TextOverflow.ellipsis),
       ]),
     ])),
   );
@@ -295,7 +309,7 @@ class _SalesDashboardScreenState extends State<SalesDashboardScreen> {
         // — reps get an explanatory note instead of an empty leaderboard that
         // could be misread as "nobody's selling anything."
         child: masked
-            ? Text('Team revenue, quota comparison and commission owed need sales.view_full_numbers — this panel is absent rather than locked.', style: AppTheme.bodySub.copyWith(fontSize: 12))
+            ? Text('Team revenue and rep rankings are only visible to your manager — this panel is intentionally hidden on your account.', style: AppTheme.bodySub.copyWith(fontSize: 12))
             : reps.isEmpty
             ? Text('No confirmed orders yet.', style: AppTheme.bodySub.copyWith(fontSize: 12))
             : Column(children: reps.asMap().entries.map((e) => Padding(
