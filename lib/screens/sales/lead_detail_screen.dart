@@ -113,10 +113,10 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
     }
   }
 
-  void _convertToQuotation() {
+  Future<void> _convertToQuotation() async {
     final lead = _lead;
     if (lead == null) return;
-    Navigator.push(context, MaterialPageRoute(builder: (_) => QuotationsScreen(prefillFromLead: lead)));
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => QuotationBuilderScreen(prefillFromLead: lead)));
   }
 
   @override

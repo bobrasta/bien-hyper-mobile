@@ -40,11 +40,7 @@ String _fmtAmount(int tzs) {
 }
 
 class QuotationsScreen extends StatefulWidget {
-  const QuotationsScreen({super.key, this.prefillFromLead});
-  // Set when pushed from the Lead detail page's "Convert to quotation" —
-  // opens straight into the new-quotation form with the lead's client
-  // details carried over, same as the approved design.
-  final SalesLead? prefillFromLead;
+  const QuotationsScreen({super.key});
 
   @override
   State<QuotationsScreen> createState() => _QuotationsScreenState();
@@ -56,15 +52,20 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
   bool            _loading  = true;
   String?         _error;
   String?         _statusFilter;
-  bool            _showForm = false;
   final _searchCtrl = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    if (widget.prefillFromLead != null) _showForm = true;
     _load();
     _searchCtrl.addListener(_applyFilter);
+  }
+
+  Future<void> _openBuilder({SalesLead? prefillFromLead}) async {
+    final created = await Navigator.push<bool>(context, MaterialPageRoute(
+      builder: (_) => QuotationBuilderScreen(prefillFromLead: prefillFromLead),
+    ));
+    if (created == true) _load();
   }
 
   @override
@@ -151,7 +152,7 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
                 ),
               ),
               const SizedBox(width: 8),
-              FilledButton.icon(onPressed: () => setState(() => _showForm = true), icon: const Icon(Symbols.add, size: 16), label: const Text('New quotation')),
+              FilledButton.icon(onPressed: () => _openBuilder(), icon: const Icon(Symbols.add, size: 16), label: const Text('New quotation')),
             ]),
           ),
           const SizedBox(height: 14),
@@ -177,13 +178,6 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
           ),
         ]);
       }),
-
-      if (_showForm)
-        _QuotationFormModal(
-          onClose: () => setState(() => _showForm = false),
-          onSaved: () { setState(() => _showForm = false); _load(); },
-          prefillFromLead: widget.prefillFromLead,
-        ),
     ]);
   }
 }
@@ -814,19 +808,17 @@ class _QuotationDetailDialogState extends State<_QuotationDetailDialog> {
       );
 }
 
-// ── Quotation form modal ───────────────────────────────────────────────────────
+// ── Quotation builder (full page) ───────────────────────────────────────────────
 
-class _QuotationFormModal extends StatefulWidget {
-  const _QuotationFormModal({required this.onClose, required this.onSaved, this.prefillFromLead});
-  final VoidCallback onClose;
-  final VoidCallback onSaved;
+class QuotationBuilderScreen extends StatefulWidget {
+  const QuotationBuilderScreen({super.key, this.prefillFromLead});
   final SalesLead? prefillFromLead;
 
   @override
-  State<_QuotationFormModal> createState() => _QuotationFormModalState();
+  State<QuotationBuilderScreen> createState() => _QuotationBuilderScreenState();
 }
 
-class _QuotationFormModalState extends State<_QuotationFormModal> {
+class _QuotationBuilderScreenState extends State<QuotationBuilderScreen> {
   final _clientCtrl  = TextEditingController();
   final _contactCtrl = TextEditingController();
   final _emailCtrl   = TextEditingController();
@@ -917,70 +909,45 @@ class _QuotationFormModalState extends State<_QuotationFormModal> {
     return errs.isEmpty;
   }
 
-  // Live preview of ApprovalService::evaluate()'s discount check — issuing
-  // still works either way, this just tells the rep up front whether it'll
-  // go out immediately or need sales_manager sign-off first, instead of
-  // that being a surprise after they hit Save.
-  Widget _discountCeilingBanner(BuildContext context) {
-    final over = _overDiscountCeiling;
-    final color = over ? AppColors.amber : AppColors.green;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
-        border: Border.all(color: color.withValues(alpha: over ? 0.4 : 0.3)),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Icon(over ? Symbols.warning : Symbols.check_circle, size: 15, color: color),
-        const SizedBox(width: 8),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(
-            'Discount ${_effectiveDiscountPercent.toStringAsFixed(1)}% of ${_maxDiscountPercent!.toStringAsFixed(1)}% ceiling',
-            style: AppTheme.bodySm.copyWith(fontSize: 12.5, fontWeight: FontWeight.w600, color: color),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            over
-                ? 'Over your ceiling by ${(_effectiveDiscountPercent - _maxDiscountPercent!).toStringAsFixed(1)} points. '
-                  'Issuing still works, but this quotation will need sales_manager approval before the client can accept it.'
-                : 'Within your ceiling — this quotation will issue straight to the client with no approval step.',
-            style: AppTheme.bodySub.copyWith(fontSize: 11.5),
-          ),
-        ])),
-      ]),
-    );
+  Future<Quotation?> _create() async {
+    if (!_validate()) return null;
+    final validLines = _lines.where((l) => l.descCtrl.text.trim().isNotEmpty).toList();
+    return QuotationService.instance.create({
+      'lead_id':        widget.prefillFromLead?.id,
+      'client_name':    _clientCtrl.text.trim(),
+      'client_contact': _contactCtrl.text.trim().isNotEmpty ? _contactCtrl.text.trim() : null,
+      'client_email':   _emailCtrl.text.trim().isNotEmpty   ? _emailCtrl.text.trim()   : null,
+      'valid_until':    _validUntil != null ? _isoDate(_validUntil!) : null,
+      'currency':       _currency,
+      'notes':          _notesCtrl.text.trim().isNotEmpty ? _notesCtrl.text.trim() : null,
+      'items': validLines.map((l) => {
+        'inventory_item_id': l.selectedItem?.id,
+        'description':       l.descCtrl.text.trim(),
+        'unit_of_measure':   l.uomCtrl.text.trim().isNotEmpty ? l.uomCtrl.text.trim() : 'pcs',
+        'quantity':          int.tryParse(l.qtyCtrl.text) ?? 1,
+        'unit_price':        int.tryParse(l.priceCtrl.text.replaceAll(',', '')) ?? 0,
+        'discount_percent':  double.tryParse(l.discCtrl.text) ?? 0,
+      }).toList(),
+    });
   }
 
-  Future<void> _save() async {
+  // "Issue to client" chains create() + send() so a within-ceiling quotation
+  // reaches the client in one action. Over the ceiling, send() would just
+  // 422 immediately (ApprovalService blocks it server-side), so that case
+  // only ever offers "Submit for approval" — create() alone, staying a
+  // draft with approval_status=pending until a manager approves it from
+  // the Quotations list.
+  Future<void> _save({required bool issue}) async {
     if (_saving) return;
-    if (!_validate()) return;
-
-    final validLines = _lines.where((l) => l.descCtrl.text.trim().isNotEmpty).toList();
     setState(() => _saving = true);
     try {
-      await QuotationService.instance.create({
-        'lead_id':        widget.prefillFromLead?.id,
-        'client_name':    _clientCtrl.text.trim(),
-        'client_contact': _contactCtrl.text.trim().isNotEmpty ? _contactCtrl.text.trim() : null,
-        'client_email':   _emailCtrl.text.trim().isNotEmpty   ? _emailCtrl.text.trim()   : null,
-        'valid_until':    _validUntil != null ? _isoDate(_validUntil!) : null,
-        'currency':       _currency,
-        'notes':          _notesCtrl.text.trim().isNotEmpty ? _notesCtrl.text.trim() : null,
-        'items': validLines.map((l) => {
-          'inventory_item_id': l.selectedItem?.id,
-          'description':       l.descCtrl.text.trim(),
-          'unit_of_measure':   l.uomCtrl.text.trim().isNotEmpty ? l.uomCtrl.text.trim() : 'pcs',
-          'quantity':          int.tryParse(l.qtyCtrl.text) ?? 1,
-          'unit_price':        int.tryParse(l.priceCtrl.text.replaceAll(',', '')) ?? 0,
-          'discount_percent':  double.tryParse(l.discCtrl.text) ?? 0,
-        }).toList(),
-      });
-      widget.onSaved();
+      final created = await _create();
+      if (created == null) { setState(() => _saving = false); return; }
+      if (issue) await QuotationService.instance.send(created.id);
+      if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       if (mounted) setState(() => _saving = false);
       if (mounted) {
-        // Parse Laravel 422 field errors into the inline map; fall back to snackbar for server errors
         final msg = e.toString();
         if (msg.contains('422') || msg.toLowerCase().contains('validation')) {
           setState(() => _errors = {'_server': 'Please check your inputs and try again.'});
@@ -992,161 +959,285 @@ class _QuotationFormModalState extends State<_QuotationFormModal> {
   }
 
   @override
-  Widget build(BuildContext context) => GestureDetector(
-    onTap: widget.onClose,
-    child: Container(
-      color: const Color(0xAA06070A),
-      alignment: Alignment.center,
-      child: GestureDetector(
-        onTap: () {},
-        child: Container(
-          width: 640,
-          constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.85),
-          decoration: BoxDecoration(
-            color: context.pal.surface1,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: context.pal.borderStrong),
-            boxShadow: const [BoxShadow(color: Color(0x70000000), blurRadius: 60, offset: Offset(0, 20))],
+  Widget build(BuildContext context) {
+    final over = _maxDiscountPercent != null && _subtotal > 0 && _overDiscountCeiling;
+    return Scaffold(
+      backgroundColor: context.pal.bg,
+      appBar: AppBar(
+        backgroundColor: context.pal.surface1,
+        foregroundColor: context.pal.text,
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
+        titleSpacing: 4,
+        title: Row(mainAxisSize: MainAxisSize.min, children: [
+          Text('New quotation', style: AppTheme.bodyStrong.copyWith(fontSize: 15)),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+            decoration: BoxDecoration(color: context.pal.surface2, borderRadius: BorderRadius.circular(5)),
+            child: Text('draft', style: AppTheme.monoXs.copyWith(fontSize: 10, color: context.pal.textMute)),
           ),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            // Title bar
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
-              child: Row(children: [
-                Icon(Symbols.request_quote, size: 18, color: AppColors.teal),
-                const SizedBox(width: 10),
-                Text('New Quotation', style: AppTheme.bodyStrong),
-                const Spacer(),
-                GestureDetector(onTap: widget.onClose,
-                    child: Icon(Symbols.close, size: 18, color: context.pal.textDim)),
+          if (widget.prefillFromLead != null) ...[
+            const SizedBox(width: 10),
+            Text('Converted from LEAD-${widget.prefillFromLead!.id.toString().padLeft(4, '0')}',
+                style: AppTheme.bodySub.copyWith(fontSize: 11)),
+          ],
+        ]),
+        actions: [
+          OutlinedButton.icon(
+            onPressed: _saving ? null : () => _save(issue: false),
+            icon: const Icon(Symbols.save, size: 14),
+            label: Text(over ? 'Submit for approval' : 'Save draft'),
+          ),
+          const SizedBox(width: 8),
+          if (!over)
+            FilledButton.icon(
+              onPressed: _saving ? null : () => _save(issue: true),
+              icon: _saving
+                  ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Icon(Symbols.send, size: 14),
+              label: const Text('Issue to client'),
+            ),
+          const SizedBox(width: 16),
+        ],
+      ),
+      body: LayoutBuilder(builder: (ctx, cst) {
+        final wide = cst.maxWidth >= 900;
+        final left = _leftColumn(context);
+        final right = SizedBox(width: wide ? 340 : double.infinity, child: _rightColumn(context, over));
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: wide
+              ? IntrinsicHeight(child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                  Expanded(child: left), const SizedBox(width: 16), right,
+                ]))
+              : Column(children: [left, const SizedBox(height: 16), right]),
+        );
+      }),
+    );
+  }
+
+  Widget _leftColumn(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      if (_errors.containsKey('_server'))
+        Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: AppColors.coral.withValues(alpha: 0.1),
+              border: Border.all(color: AppColors.coral.withValues(alpha: 0.4)),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(children: [
+              Icon(Symbols.error_outline, size: 14, color: AppColors.coral),
+              const SizedBox(width: 8),
+              Text(_errors['_server']!, style: TextStyle(fontSize: 12, color: AppColors.coral)),
+            ]),
+          ),
+        ),
+      Container(
+        padding: const EdgeInsets.all(15),
+        decoration: BoxDecoration(color: context.pal.surface1, borderRadius: BorderRadius.circular(14), border: Border.all(color: context.pal.border)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('CLIENT', style: AppTheme.labelCaps.copyWith(fontSize: 11)),
+          const SizedBox(height: 11),
+          Row(children: [
+            Expanded(flex: 2, child: _formField('Client name *', _clientCtrl, 'Hospital or company', context,
+                error: _errors['client'],
+                onChanged: (_) { if (_errors.containsKey('client')) setState(() => _errors.remove('client')); })),
+            const SizedBox(width: 12),
+            Expanded(child: _formField('Contact', _contactCtrl, 'Dr. Name', context)),
+            const SizedBox(width: 12),
+            Expanded(child: _formField('Email', _emailCtrl, 'client@hospital.tz', context)),
+          ]),
+        ]),
+      ),
+      const SizedBox(height: 14),
+      Container(
+        padding: const EdgeInsets.fromLTRB(15, 14, 15, 0),
+        decoration: BoxDecoration(color: context.pal.surface1, borderRadius: BorderRadius.circular(14), border: Border.all(color: context.pal.border)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Icon(Symbols.playlist_add, size: 14, color: AppColors.amber),
+            const SizedBox(width: 8),
+            Text('Line items', style: AppTheme.bodyStrong.copyWith(fontSize: 12.5)),
+            if (_errors.containsKey('items')) ...[
+              const SizedBox(width: 8),
+              Text(_errors['items']!, style: TextStyle(fontSize: 11, color: AppColors.coral)),
+            ],
+            const Spacer(),
+            Text('picker draws from inventory · ${_lines.length} line${_lines.length == 1 ? '' : 's'}',
+                style: AppTheme.monoXs.copyWith(fontSize: 10, color: context.pal.textMute)),
+          ]),
+          const SizedBox(height: 11),
+          Row(children: [
+            Expanded(flex: 3, child: Text('ITEM', style: AppTheme.monoXs.copyWith(fontSize: 9, color: context.pal.textMute))),
+            SizedBox(width: 44, child: Text('QTY', textAlign: TextAlign.right, style: AppTheme.monoXs.copyWith(fontSize: 9, color: context.pal.textMute))),
+            const SizedBox(width: 8),
+            SizedBox(width: 90, child: Text('UNIT PRICE', textAlign: TextAlign.right, style: AppTheme.monoXs.copyWith(fontSize: 9, color: context.pal.textMute))),
+            const SizedBox(width: 8),
+            SizedBox(width: 56, child: Text('DISC %', textAlign: TextAlign.right, style: AppTheme.monoXs.copyWith(fontSize: 9, color: context.pal.textMute))),
+            const SizedBox(width: 8),
+            SizedBox(width: 96, child: Text('LINE TOTAL', textAlign: TextAlign.right, style: AppTheme.monoXs.copyWith(fontSize: 9, color: context.pal.textMute))),
+            const SizedBox(width: 22),
+          ]),
+          Padding(padding: const EdgeInsets.symmetric(vertical: 9), child: Container(height: 1, color: context.pal.divider)),
+          ..._lines.asMap().entries.map((e) => _LineItemTableRow(
+            entry: e.value,
+            invItems: _invItems,
+            onRemove: _lines.length > 1
+                ? () => setState(() { _lines[e.key].dispose(); _lines.removeAt(e.key); })
+                : null,
+            onChanged: () => setState(() {}),
+          )),
+          GestureDetector(
+            onTap: () => setState(() {
+              final l = _LineItemEntry();
+              _attachLineListeners(l);
+              _lines.add(l);
+            }),
+            child: Container(
+              margin: const EdgeInsets.symmetric(vertical: 10),
+              height: 32,
+              decoration: BoxDecoration(border: Border.all(color: context.pal.border, style: BorderStyle.solid), borderRadius: BorderRadius.circular(8)),
+              child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                Icon(Symbols.search, size: 13, color: context.pal.textDim),
+                const SizedBox(width: 7),
+                Text('Add item from inventory…', style: AppTheme.bodySub.copyWith(fontSize: 11.5)),
               ]),
             ),
+          ),
+          Container(
+            margin: const EdgeInsets.only(left: -15, right: -15),
+            padding: const EdgeInsets.fromLTRB(15, 12, 15, 14),
+            decoration: BoxDecoration(color: context.pal.surface2, borderRadius: const BorderRadius.vertical(bottom: Radius.circular(14))),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Expanded(child: _DatePickerField(
+                label: 'Valid until', selected: _validUntil, firstDate: DateTime.now(),
+                onPicked: (d) => setState(() => _validUntil = d),
+              )),
+              const SizedBox(width: 14),
+              Expanded(flex: 2, child: _formField('Terms & notes', _notesCtrl, 'Payment terms, delivery notes…', context)),
+              const SizedBox(width: 14),
+              SizedBox(width: 90, child: _dropField('Currency', _currency, const ['TZS', 'USD', 'EUR', 'KES'],
+                  (v) => setState(() => _currency = v), context)),
+            ]),
+          ),
+        ]),
+      ),
+    ],
+  );
 
-            // Body
-            Flexible(child: SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                // Client info row
-                Row(children: [
-                  Expanded(child: _formField('Client Name *', _clientCtrl, 'Hospital or company', context,
-                      error: _errors['client'],
-                      onChanged: (_) { if (_errors.containsKey('client')) setState(() => _errors.remove('client')); })),
-                  const SizedBox(width: 12),
-                  Expanded(child: _formField('Contact Person', _contactCtrl, 'Dr. Name', context)),
-                ]),
-                const SizedBox(height: 12),
-                Row(children: [
-                  Expanded(child: _formField('Email', _emailCtrl, 'client@hospital.tz', context)),
-                  const SizedBox(width: 12),
-                  Expanded(child: _DatePickerField(
-                    label: 'Valid Until',
-                    selected: _validUntil,
-                    firstDate: DateTime.now(),
-                    onPicked: (d) => setState(() => _validUntil = d),
-                  )),
-                  const SizedBox(width: 12),
-                  SizedBox(width: 100, child: _dropField('Currency', _currency,
-                    ['TZS', 'USD', 'EUR', 'KES'],
-                    (v) => setState(() => _currency = v), context,
-                  )),
-                ]),
-                const SizedBox(height: 20),
-
-                // Server-level error banner
-                if (_errors.containsKey('_server')) ...[
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    margin: const EdgeInsets.only(bottom: 12),
-                    decoration: BoxDecoration(
-                      color: AppColors.coral.withValues(alpha: 0.1),
-                      border: Border.all(color: AppColors.coral.withValues(alpha: 0.4)),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Row(children: [
-                      Icon(Symbols.error_outline, size: 14, color: AppColors.coral),
-                      const SizedBox(width: 8),
-                      Text(_errors['_server']!, style: TextStyle(fontSize: 12, color: AppColors.coral)),
-                    ]),
-                  ),
-                ],
-
-                // Line items
-                Row(children: [
-                  Text('Line Items', style: AppTheme.bodyStrong),
-                  const SizedBox(width: 8),
-                  Text('(${_lines.length})', style: AppTheme.bodySub.copyWith(fontSize: 12)),
-                  if (_errors.containsKey('items')) ...[
-                    const SizedBox(width: 8),
-                    Text(_errors['items']!, style: TextStyle(fontSize: 11, color: AppColors.coral)),
-                  ],
-                  const Spacer(),
-                  GestureDetector(
-                    onTap: () => setState(() {
-                      final l = _LineItemEntry();
-                      _attachLineListeners(l);
-                      _lines.add(l);
-                    }),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: AppColors.teal),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Row(mainAxisSize: MainAxisSize.min, children: [
-                        Icon(Symbols.add, size: 14, color: AppColors.teal),
-                        const SizedBox(width: 4),
-                        Text('Add Item', style: TextStyle(fontSize: 12, color: AppColors.teal, fontWeight: FontWeight.w500)),
-                      ]),
-                    ),
-                  ),
-                ]),
-                const SizedBox(height: 8),
-                ..._lines.asMap().entries.map((e) => _LineItemRow(
-                  entry: e.value,
-                  index: e.key,
-                  invItems: _invItems,
-                  onRemove: _lines.length > 1
-                      ? () => setState(() { _lines[e.key].dispose(); _lines.removeAt(e.key); })
-                      : null,
-                  onChanged: () => setState(() {}),
-                )),
-                if (_maxDiscountPercent != null && _subtotal > 0) ...[
-                  const SizedBox(height: 4),
-                  _discountCeilingBanner(context),
-                ],
-                const SizedBox(height: 12),
-                _formField('Notes', _notesCtrl, 'Payment terms, delivery notes…', context, maxLines: 2),
-              ]),
-            )),
-
-            // Footer
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-              child: Row(children: [
-                Expanded(child: GestureDetector(
-                  onTap: widget.onClose,
-                  child: Container(height: 38,
-                    decoration: BoxDecoration(border: Border.all(color: context.pal.border),
-                        borderRadius: BorderRadius.circular(8)),
-                    child: Center(child: Text('Cancel', style: AppTheme.bodySm))),
-                )),
-                const SizedBox(width: 12),
-                Expanded(child: GestureDetector(
-                  onTap: _save,
-                  child: Container(height: 38,
-                    decoration: BoxDecoration(color: AppColors.teal, borderRadius: BorderRadius.circular(8)),
-                    child: Center(child: _saving
-                      ? const SizedBox(width: 16, height: 16,
-                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                      : Text('Create Quotation', style: AppTheme.bodyStrong.copyWith(
-                          color: const Color(0xFF06120F), fontSize: 13)))),
-                )),
-              ]),
+  Widget _rightColumn(BuildContext context, bool over) {
+    final ceilColor = _maxDiscountPercent == null ? AppColors.green : (over ? AppColors.amber : AppColors.green);
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      if (_maxDiscountPercent != null) ...[
+        Container(
+          padding: const EdgeInsets.all(15),
+          decoration: BoxDecoration(
+            color: ceilColor.withValues(alpha: 0.06),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: ceilColor.withValues(alpha: 0.35)),
+          ),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Icon(over ? Symbols.warning : Symbols.check_circle, size: 15, color: ceilColor),
+              const SizedBox(width: 8),
+              Text('Your discount ceiling', style: AppTheme.bodySm.copyWith(fontSize: 12.5)),
+              const Spacer(),
+              Text('max_discount_percent', style: AppTheme.monoXs.copyWith(fontSize: 9.5, color: context.pal.textMute)),
+            ]),
+            const SizedBox(height: 10),
+            Row(crossAxisAlignment: CrossAxisAlignment.baseline, textBaseline: TextBaseline.alphabetic, children: [
+              Text('${_effectiveDiscountPercent.toStringAsFixed(0)}%', style: AppTheme.kpiValue.copyWith(fontSize: 26, color: ceilColor)),
+              const SizedBox(width: 8),
+              Text('of ${_maxDiscountPercent!.toStringAsFixed(0)}% allowed', style: AppTheme.monoXs.copyWith(fontSize: 11, color: context.pal.textMute)),
+            ]),
+            const SizedBox(height: 9),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(5),
+              child: LinearProgressIndicator(
+                value: _maxDiscountPercent! > 0
+                    ? (_effectiveDiscountPercent / _maxDiscountPercent!).clamp(0.0, 1.0)
+                    : 0.0,
+                minHeight: 8, backgroundColor: context.pal.surface2,
+                valueColor: AlwaysStoppedAnimation(ceilColor),
+              ),
+            ),
+            const SizedBox(height: 9),
+            Text(
+              over
+                  ? 'Over your ceiling by ${(_effectiveDiscountPercent - _maxDiscountPercent!).toStringAsFixed(1)} points. Issuing still works, but this quotation will need sales_manager approval before the client can accept it.'
+                  : 'Within your ceiling. This quotation issues straight to the client with no approval step.',
+              style: AppTheme.bodySub.copyWith(fontSize: 11),
             ),
           ]),
         ),
+        const SizedBox(height: 14),
+      ],
+
+      Container(
+        padding: const EdgeInsets.all(15),
+        decoration: BoxDecoration(color: context.pal.surface1, borderRadius: BorderRadius.circular(14), border: Border.all(color: context.pal.border)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('TOTALS', style: AppTheme.labelCaps.copyWith(fontSize: 11)),
+          const SizedBox(height: 10),
+          _totalsRow(context, 'Subtotal', tshFromDouble(_subtotal.toDouble())),
+          _totalsRow(context, 'Discount', '- ${tshFromDouble(_discountAmount.toDouble())}', color: AppColors.amber),
+          Padding(padding: const EdgeInsets.symmetric(vertical: 6), child: Container(height: 1, color: context.pal.divider)),
+          _totalsRow(context, 'TOTAL', tshFromDouble((_subtotal - _discountAmount).toDouble()), big: true),
+        ]),
       ),
-    ),
+      const SizedBox(height: 14),
+
+      Container(
+        padding: const EdgeInsets.all(15),
+        decoration: BoxDecoration(color: context.pal.surface1, borderRadius: BorderRadius.circular(14), border: Border.all(color: context.pal.border)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('WHAT HAPPENS ON ISSUE', style: AppTheme.labelCaps.copyWith(fontSize: 11)),
+          const SizedBox(height: 12),
+          _issueStep(context, Symbols.send, over ? AppColors.textDim : AppColors.green,
+              over ? 'Stays a draft' : 'Status → sent',
+              over ? 'Submitted for approval instead — the client sees nothing until a manager approves it.' : 'Client gets the PDF and a share link.'),
+          _issueStep(context, Symbols.verified, over ? AppColors.amber : AppColors.green,
+              over ? 'Approval → pending' : 'Approval → not required',
+              over ? 'Needs sales_manager sign-off — visible on the Quotations list until then.' : 'Within your ceiling, so no manager step is created.'),
+          _issueStep(context, Symbols.lock, AppColors.violet, 'Price locks',
+              'Line prices and discounts freeze on the document once it leaves draft.'),
+          _issueStep(context, Symbols.block, context.pal.textDim, 'Order stays blocked',
+              'Convert to order only unlocks once the client accepts.', last: true),
+        ]),
+      ),
+    ]);
+  }
+
+  Widget _totalsRow(BuildContext context, String label, String value, {Color? color, bool big = false}) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 3),
+    child: Row(crossAxisAlignment: CrossAxisAlignment.baseline, textBaseline: TextBaseline.alphabetic, children: [
+      Text(label, style: big
+          ? AppTheme.labelCaps.copyWith(fontSize: 10.5)
+          : AppTheme.bodySub.copyWith(fontSize: 11.5)),
+      const SizedBox(width: 8),
+      Expanded(child: Container(height: 1, color: context.pal.divider)),
+      const SizedBox(width: 8),
+      Text(value, style: (big ? AppTheme.kpiValue.copyWith(fontSize: 18) : AppTheme.monoSm.copyWith(fontSize: 12.5))
+          .copyWith(color: color ?? context.pal.text)),
+    ]),
+  );
+
+  Widget _issueStep(BuildContext context, IconData icon, Color color, String title, String note, {bool last = false}) => Padding(
+    padding: EdgeInsets.only(bottom: last ? 0 : 11),
+    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Icon(icon, size: 14, color: color),
+      const SizedBox(width: 9),
+      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(title, style: AppTheme.bodySm.copyWith(fontSize: 11.5, color: color)),
+        const SizedBox(height: 2),
+        Text(note, style: AppTheme.bodySub.copyWith(fontSize: 10.5)),
+      ])),
+    ]),
   );
 }
 
@@ -1166,68 +1257,97 @@ class _LineItemEntry {
   }
 }
 
-// ── Line item row in form ──────────────────────────────────────────────────────
+// ── Line item row — compact table row matching the design's Line items panel ────
 
-class _LineItemRow extends StatelessWidget {
-  const _LineItemRow({
+class _LineItemTableRow extends StatelessWidget {
+  const _LineItemTableRow({
     required this.entry,
-    required this.index,
     required this.invItems,
     required this.onChanged,
     required this.onRemove,
   });
 
   final _LineItemEntry entry;
-  final int index;
   final List<InventoryItem> invItems;
   final VoidCallback onChanged;
   final VoidCallback? onRemove;
 
+  int get _lineTotal {
+    final qty = int.tryParse(entry.qtyCtrl.text) ?? 0;
+    final price = int.tryParse(entry.priceCtrl.text.replaceAll(',', '')) ?? 0;
+    final disc = double.tryParse(entry.discCtrl.text) ?? 0;
+    return ((qty * price) * (1 - disc / 100)).round();
+  }
+
+  Future<void> _pickItem(BuildContext context) async {
+    final picked = await showDialog<InventoryItem?>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: context.pal.surface1,
+        title: const Text('Link inventory item'),
+        content: SizedBox(width: 360, height: 360, child: _InvItemPicker(
+          items: invItems, selected: entry.selectedItem,
+          onSelected: (item) => Navigator.of(dialogCtx).pop(item),
+        )),
+        actions: [TextButton(onPressed: () => Navigator.of(dialogCtx).pop(null), child: const Text('Custom item (no link)'))],
+      ),
+    );
+    entry.selectedItem = picked;
+    if (picked != null) {
+      entry.descCtrl.text  = picked.name;
+      entry.uomCtrl.text   = picked.unitOfMeasure;
+      entry.priceCtrl.text = picked.unitCost.toStringAsFixed(0);
+    }
+    onChanged();
+  }
+
   @override
   Widget build(BuildContext context) => Container(
-    margin: const EdgeInsets.only(bottom: 8),
-    padding: const EdgeInsets.all(10),
-    decoration: BoxDecoration(
-      color: context.pal.surface2,
-      borderRadius: BorderRadius.circular(8),
-      border: Border.all(color: context.pal.border),
-    ),
-    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(children: [
-        Expanded(
-          flex: 3,
-          child: _InvItemPicker(
-            items: invItems,
-            selected: entry.selectedItem,
-            onSelected: (item) {
-              entry.selectedItem = item;
-              if (item != null) {
-                entry.descCtrl.text  = item.name;
-                entry.uomCtrl.text   = item.unitOfMeasure;
-                entry.priceCtrl.text = item.unitCost.toStringAsFixed(0);
-              }
-              onChanged();
-            },
-          ),
-        ),
-        const SizedBox(width: 8),
-        if (onRemove != null)
-          GestureDetector(onTap: onRemove,
-            child: Icon(Symbols.close, size: 16, color: context.pal.textDim)),
-      ]),
-      const SizedBox(height: 8),
-      Row(children: [
-        Expanded(flex: 3, child: _miniField('Description *', entry.descCtrl, context)),
-        const SizedBox(width: 6),
-        Expanded(flex: 1, child: _miniField('UOM', entry.uomCtrl, context)),
-        const SizedBox(width: 6),
-        Expanded(flex: 1, child: _miniField('Qty', entry.qtyCtrl, context, numeric: true)),
-        const SizedBox(width: 6),
-        Expanded(flex: 2, child: _miniField('Unit Price', entry.priceCtrl, context, numeric: true)),
-        const SizedBox(width: 6),
-        Expanded(flex: 1, child: _miniField('Disc%', entry.discCtrl, context, numeric: true)),
-      ]),
+    padding: const EdgeInsets.symmetric(vertical: 6),
+    decoration: BoxDecoration(border: Border(bottom: BorderSide(color: context.pal.divider))),
+    child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+      Expanded(flex: 3, child: GestureDetector(
+        onTap: () => _pickItem(context),
+        child: entry.selectedItem != null
+            ? Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                Text(entry.descCtrl.text, style: AppTheme.bodySm.copyWith(fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
+                Text(entry.selectedItem!.sku, style: AppTheme.monoXs.copyWith(fontSize: 10, color: context.pal.textMute)),
+              ])
+            : Row(children: [
+                Expanded(child: TextField(
+                  controller: entry.descCtrl,
+                  style: AppTheme.bodySm.copyWith(fontSize: 12),
+                  decoration: InputDecoration(
+                    isDense: true, border: InputBorder.none,
+                    hintText: 'Item description…',
+                    hintStyle: AppTheme.bodySub.copyWith(fontSize: 12, color: context.pal.textMute),
+                  ),
+                  onChanged: (_) => onChanged(),
+                )),
+                Icon(Symbols.search, size: 13, color: context.pal.textDim),
+              ]),
+      )),
+      SizedBox(width: 44, child: _cellField(entry.qtyCtrl, context, onChanged)),
+      const SizedBox(width: 8),
+      SizedBox(width: 90, child: _cellField(entry.priceCtrl, context, onChanged)),
+      const SizedBox(width: 8),
+      SizedBox(width: 56, child: _cellField(entry.discCtrl, context, onChanged)),
+      const SizedBox(width: 8),
+      SizedBox(width: 96, child: Text(tshFromDouble(_lineTotal.toDouble()), textAlign: TextAlign.right,
+          style: AppTheme.monoSm.copyWith(fontSize: 12))),
+      SizedBox(width: 22, child: onRemove != null
+          ? GestureDetector(onTap: onRemove, child: Icon(Symbols.close, size: 15, color: context.pal.textDim))
+          : null),
     ]),
+  );
+
+  Widget _cellField(TextEditingController ctrl, BuildContext context, VoidCallback onChanged) => TextField(
+    controller: ctrl,
+    textAlign: TextAlign.right,
+    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+    style: AppTheme.monoSm.copyWith(fontSize: 12),
+    decoration: const InputDecoration(isDense: true, border: InputBorder.none, contentPadding: EdgeInsets.zero),
+    onChanged: (_) => onChanged(),
   );
 }
 
@@ -1298,29 +1418,6 @@ Widget _formField(String label, TextEditingController ctrl, String hint, BuildCo
         const SizedBox(height: 3),
         Text(error, style: TextStyle(fontSize: 11, color: AppColors.coral)),
       ],
-    ]);
-
-Widget _miniField(String label, TextEditingController ctrl, BuildContext ctx, {bool numeric = false}) =>
-    Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(label, style: AppTheme.labelCaps.copyWith(fontSize: 9, letterSpacing: 0.05)),
-      const SizedBox(height: 3),
-      Container(
-        height: 30,
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        decoration: BoxDecoration(
-          color: ctx.pal.surface1,
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: ctx.pal.border),
-        ),
-        child: Center(child: TextField(
-          controller: ctrl,
-          keyboardType: numeric ? TextInputType.number : TextInputType.text,
-          style: AppTheme.bodySm.copyWith(fontSize: 12),
-          decoration: const InputDecoration(
-            border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero,
-          ),
-        )),
-      ),
     ]);
 
 // ── Date picker field ──────────────────────────────────────────────────────────
