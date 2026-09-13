@@ -54,35 +54,65 @@ LeadSource? _parseSource(String? s) => switch (s) {
   _              => null,
 };
 
+class LeadEvent {
+  final String type;
+  final String title;
+  final String? note;
+  final String? by;
+  final DateTime? at;
+
+  const LeadEvent({required this.type, required this.title, this.note, this.by, this.at});
+
+  factory LeadEvent.fromJson(Map<String, dynamic> j) => LeadEvent(
+    type: j['type'] as String? ?? '',
+    title: j['title'] as String? ?? '',
+    note: j['note'] as String?,
+    by: j['by'] as String?,
+    at: j['at'] != null ? DateTime.tryParse(j['at'] as String) : null,
+  );
+}
+
 class SalesLead {
   final int    id;
   final String hospital;
   final String contact;
+  final String? contactEmail;
+  final String? contactPhone;
   final LeadSource? source;
   final String? sourceNotes;
+  final String? notes;
   final String machineType;
   final int    dealValue;
   final int    daysInStage;
+  final int    daysOpen;
   final PipelineStage stage;
   final String? demoDate;
   final String? followUpDate;
   final int?    assignedTo;
   final String? assigneeName;
+  final List<LeadEvent> events;
+  final DateTime? createdAt;
 
   const SalesLead({
     required this.id,
     required this.hospital,
     required this.contact,
+    this.contactEmail,
+    this.contactPhone,
     this.source,
     this.sourceNotes,
+    this.notes,
     required this.machineType,
     required this.dealValue,
     required this.daysInStage,
+    this.daysOpen = 0,
     required this.stage,
     this.demoDate,
     this.followUpDate,
     this.assignedTo,
     this.assigneeName,
+    this.events = const [],
+    this.createdAt,
   });
 
   factory SalesLead.fromJson(Map<String, dynamic> j) => SalesLead(
@@ -91,16 +121,24 @@ class SalesLead {
         ? (j['hospital'] as Map)['name'] as String? ?? j['hospital_name'] as String? ?? '—'
         : j['hospital'] as String? ?? j['hospital_name_raw'] as String? ?? j['hospital_name'] as String? ?? '—',
     contact:     j['contact']      as String? ?? j['contact_name_raw'] as String? ?? j['contact_name'] as String? ?? '—',
+    contactEmail: j['contact_email'] as String?,
+    contactPhone: j['contact_phone'] as String?,
     source:      _parseSource(j['source'] as String?),
     sourceNotes: j['source_notes'] as String?,
+    notes:       j['notes'] as String?,
     machineType: j['machine_type'] as String? ?? '—',
     dealValue:   (j['deal_value']  as num? ?? 0).toInt(),
     daysInStage: (j['days_in_stage'] as num? ?? 0).toInt(),
+    daysOpen:    (j['days_open'] as num? ?? 0).toInt(),
     stage:       _parseStage(j['stage'] as String? ?? 'lead'),
     demoDate:    j['demo_date']    as String?,
     followUpDate: j['follow_up_date'] as String?,
     assignedTo:  (j['assigned_to'] as num?)?.toInt(),
     assigneeName: j['assignee'] is Map ? (j['assignee'] as Map)['name'] as String? : null,
+    events:      j['events'] is List
+        ? (j['events'] as List).map((e) => LeadEvent.fromJson(e as Map<String, dynamic>)).toList()
+        : const [],
+    createdAt:   j['created_at'] != null ? DateTime.tryParse(j['created_at'] as String) : null,
   );
 
   bool get isFollowUpDue {
@@ -109,5 +147,14 @@ class SalesLead {
     if (d == null) return false;
     final today = DateTime.now();
     return !d.isAfter(DateTime(today.year, today.month, today.day));
+  }
+
+  bool get isDemoOverdue {
+    if (demoDate == null) return false;
+    if (stage != PipelineStage.demoScheduled) return false;
+    final d = DateTime.tryParse(demoDate!);
+    if (d == null) return false;
+    final today = DateTime.now();
+    return d.isBefore(DateTime(today.year, today.month, today.day));
   }
 }

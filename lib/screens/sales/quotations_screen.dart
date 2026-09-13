@@ -4,6 +4,7 @@ import '../../main.dart' show userRoleNotifier, hasSalesApprovalAuthority;
 import '../../models/inventory_item.dart';
 import '../../models/location.dart';
 import '../../models/quotation.dart';
+import '../../models/sales_lead.dart';
 import '../../services/auth_service.dart';
 import '../../services/inventory_service.dart';
 import '../../services/location_service.dart';
@@ -39,7 +40,11 @@ String _fmtAmount(int tzs) {
 }
 
 class QuotationsScreen extends StatefulWidget {
-  const QuotationsScreen({super.key});
+  const QuotationsScreen({super.key, this.prefillFromLead});
+  // Set when pushed from the Lead detail page's "Convert to quotation" —
+  // opens straight into the new-quotation form with the lead's client
+  // details carried over, same as the approved design.
+  final SalesLead? prefillFromLead;
 
   @override
   State<QuotationsScreen> createState() => _QuotationsScreenState();
@@ -57,6 +62,7 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
   @override
   void initState() {
     super.initState();
+    if (widget.prefillFromLead != null) _showForm = true;
     _load();
     _searchCtrl.addListener(_applyFilter);
   }
@@ -176,6 +182,7 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
         _QuotationFormModal(
           onClose: () => setState(() => _showForm = false),
           onSaved: () { setState(() => _showForm = false); _load(); },
+          prefillFromLead: widget.prefillFromLead,
         ),
     ]);
   }
@@ -810,9 +817,10 @@ class _QuotationDetailDialogState extends State<_QuotationDetailDialog> {
 // ── Quotation form modal ───────────────────────────────────────────────────────
 
 class _QuotationFormModal extends StatefulWidget {
-  const _QuotationFormModal({required this.onClose, required this.onSaved});
+  const _QuotationFormModal({required this.onClose, required this.onSaved, this.prefillFromLead});
   final VoidCallback onClose;
   final VoidCallback onSaved;
+  final SalesLead? prefillFromLead;
 
   @override
   State<_QuotationFormModal> createState() => _QuotationFormModalState();
@@ -846,6 +854,12 @@ class _QuotationFormModalState extends State<_QuotationFormModal> {
       final v = profile?['max_discount_percent'];
       if (mounted && v != null) setState(() => _maxDiscountPercent = (v as num).toDouble());
     });
+    final lead = widget.prefillFromLead;
+    if (lead != null) {
+      _clientCtrl.text  = lead.hospital;
+      _contactCtrl.text = lead.contact;
+      if (lead.contactEmail != null) _emailCtrl.text = lead.contactEmail!;
+    }
     for (final l in _lines) { _attachLineListeners(l); }
   }
 
@@ -946,6 +960,7 @@ class _QuotationFormModalState extends State<_QuotationFormModal> {
     setState(() => _saving = true);
     try {
       await QuotationService.instance.create({
+        'lead_id':        widget.prefillFromLead?.id,
         'client_name':    _clientCtrl.text.trim(),
         'client_contact': _contactCtrl.text.trim().isNotEmpty ? _contactCtrl.text.trim() : null,
         'client_email':   _emailCtrl.text.trim().isNotEmpty   ? _emailCtrl.text.trim()   : null,

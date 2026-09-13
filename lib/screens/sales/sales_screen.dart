@@ -9,6 +9,7 @@ import '../../utils/format.dart';
 import '../../widgets/common/error_view.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_palette.dart';
+import 'lead_detail_screen.dart';
 
 Color _stageColor(PipelineStage s) => switch (s) {
   PipelineStage.lead          => AppColors.textMute,
@@ -73,8 +74,8 @@ class _SalesScreenState extends State<SalesScreen> {
 
   Future<void> _openLead(SalesLead lead) async {
     if (!mounted) return;
-    final changed = await showDialog<bool>(context: context, builder: (_) => _LeadEditDialog(lead: lead));
-    if (changed == true) _load();
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => LeadDetailScreen(leadId: lead.id)));
+    _load();
   }
 
   List<String> get _reps => _leads.map((l) => l.assigneeName).whereType<String>().toSet().toList()..sort();
@@ -297,11 +298,8 @@ class _KanbanCard extends StatelessWidget {
     final avatarColor = _avatarPalette[lead.id % _avatarPalette.length];
     return GestureDetector(
       onTap: () async {
-        final changed = await showDialog<bool>(
-          context: context,
-          builder: (_) => _LeadEditDialog(lead: lead),
-        );
-        if (changed == true) onChanged();
+        await Navigator.push(context, MaterialPageRoute(builder: (_) => LeadDetailScreen(leadId: lead.id)));
+        onChanged();
       },
       child: Container(
         margin: const EdgeInsets.only(bottom: 9),
@@ -312,7 +310,16 @@ class _KanbanCard extends StatelessWidget {
           border: Border.all(color: _stalled ? AppColors.amber.withValues(alpha: 0.35) : context.pal.border),
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(lead.hospital, style: AppTheme.bodySm.copyWith(fontSize: 12.5), maxLines: 2, overflow: TextOverflow.ellipsis),
+          Row(children: [
+            Expanded(child: Text(lead.hospital, style: AppTheme.bodySm.copyWith(fontSize: 12.5), maxLines: 2, overflow: TextOverflow.ellipsis)),
+            GestureDetector(
+              onTap: () async {
+                final changed = await showDialog<bool>(context: context, builder: (_) => _LeadEditDialog(lead: lead));
+                if (changed == true) onChanged();
+              },
+              child: Icon(Symbols.edit, size: 13, color: context.pal.textMute),
+            ),
+          ]),
           const SizedBox(height: 7),
           Row(children: [
             Container(
