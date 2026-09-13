@@ -110,7 +110,7 @@ class _SalesDashboardScreenState extends State<SalesDashboardScreen> {
             ]),
             const SizedBox(height: 16),
             Container(
-              decoration: BoxDecoration(color: context.pal.surface1, borderRadius: BorderRadius.circular(14), border: Border.all(color: context.pal.border)),
+              decoration: BoxDecoration(border: Border(bottom: BorderSide(color: context.pal.border))),
               child: Row(children: [
                 Expanded(child: _kpiTile('Pipeline value', Symbols.filter_alt, AppColors.cyan, _mask(d, tshFromDouble(d.pipelineValue)), '${openLeads.length} open', 'across 5 stages', masked: d.isMasked)),
                 Expanded(child: _kpiTile('Won this month', Symbols.emoji_events, AppColors.green, _mask(d, tshFromDouble(d.wonValueThisMonth)), '${d.wonThisMonth} deal${d.wonThisMonth == 1 ? '' : 's'}', 'win rate ${d.winRateThisMonth.toStringAsFixed(0)}%', border: true, masked: d.isMasked)),
@@ -161,19 +161,19 @@ class _SalesDashboardScreenState extends State<SalesDashboardScreen> {
 
   String _mask(SalesDashboardData d, String value) => d.isMasked ? '~$value' : value;
 
-  Widget _kpiTile(String label, IconData icon, Color color, String value, String chip, String note, {bool border = false, bool masked = false}) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-    decoration: border ? BoxDecoration(border: Border(left: BorderSide(color: Colors.white.withValues(alpha: 0.06)))) : null,
-    child: Builder(builder: (context) => Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+  Widget _kpiTile(String label, IconData icon, Color color, String value, String chip, String note, {bool border = false, bool masked = false}) => Builder(builder: (context) => Container(
+    padding: const EdgeInsets.fromLTRB(15, 12, 15, 13),
+    decoration: border ? BoxDecoration(border: Border(left: BorderSide(color: context.pal.border))) : null,
+    child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
         Icon(icon, size: 12, color: color),
-        const SizedBox(width: 6),
+        const SizedBox(width: 7),
         Expanded(child: Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 9), maxLines: 1, overflow: TextOverflow.ellipsis)),
         if (masked) Icon(Symbols.lock, size: 10, color: context.pal.textMute),
       ]),
+      const SizedBox(height: 7),
+      Text(value, style: AppTheme.kpiValue.copyWith(fontSize: 22)),
       const SizedBox(height: 6),
-      Text(value, style: AppTheme.kpiValue.copyWith(fontSize: 19)),
-      const SizedBox(height: 5),
       Wrap(spacing: 6, runSpacing: 2, crossAxisAlignment: WrapCrossAlignment.center, children: [
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
@@ -182,8 +182,8 @@ class _SalesDashboardScreenState extends State<SalesDashboardScreen> {
         ),
         Text(note, style: AppTheme.bodySub.copyWith(fontSize: 10), maxLines: 1, overflow: TextOverflow.ellipsis),
       ]),
-    ])),
-  );
+    ]),
+  ));
 
   Widget _sectionHeader(BuildContext context, IconData icon, Color color, String title, {Widget? trailing}) => Row(children: [
     Icon(icon, size: 13, color: color),
