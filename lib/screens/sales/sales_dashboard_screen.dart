@@ -110,7 +110,7 @@ class _SalesDashboardScreenState extends State<SalesDashboardScreen> {
             ]),
             const SizedBox(height: 16),
             Container(
-              decoration: BoxDecoration(border: Border(bottom: BorderSide(color: context.pal.border))),
+              decoration: BoxDecoration(border: Border(bottom: BorderSide(color: context.pal.border.withValues(alpha: context.pal.border.a * 0.4)))),
               child: Row(children: [
                 Expanded(child: _kpiTile('Pipeline value', Symbols.filter_alt, AppColors.cyan, _mask(d, tshFromDouble(d.pipelineValue)), '${openLeads.length} open', 'across 5 stages', masked: d.isMasked)),
                 Expanded(child: _kpiTile('Won this month', Symbols.emoji_events, AppColors.green, _mask(d, tshFromDouble(d.wonValueThisMonth)), '${d.wonThisMonth} deal${d.wonThisMonth == 1 ? '' : 's'}', 'win rate ${d.winRateThisMonth.toStringAsFixed(0)}%', border: true, masked: d.isMasked)),
@@ -163,7 +163,11 @@ class _SalesDashboardScreenState extends State<SalesDashboardScreen> {
 
   Widget _kpiTile(String label, IconData icon, Color color, String value, String chip, String note, {bool border = false, bool masked = false}) => Builder(builder: (context) => Container(
     padding: const EdgeInsets.fromLTRB(15, 12, 15, 13),
-    decoration: border ? BoxDecoration(border: Border(left: BorderSide(color: context.pal.border))) : null,
+    // Deliberately much fainter than a normal card border (context.pal.border
+    // reads as a clear line on a light background) — the design's own
+    // divider is barely-there on its dark canvas, and this is the same
+    // relative subtlety, not a literal same-token copy.
+    decoration: border ? BoxDecoration(border: Border(left: BorderSide(color: context.pal.border.withValues(alpha: context.pal.border.a * 0.4)))) : null,
     child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
         Icon(icon, size: 12, color: color),
