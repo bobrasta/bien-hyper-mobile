@@ -354,7 +354,7 @@ class _OrgChartEditorState extends State<OrgChartEditor> {
             child: Stack(children: [
               CustomPaint(
                 size: const Size(2200, 1100),
-                painter: _EdgePainter(_nodes),
+                painter: _EdgePainter(_nodes, context.pal.textDim),
               ),
               for (final node in _nodes)
                 _DraggableNode(
@@ -606,8 +606,9 @@ class _DraggableNode extends StatelessWidget {
 // ── Connection line painter ─────────────────────────────────────────────────
 
 class _EdgePainter extends CustomPainter {
-  const _EdgePainter(this.nodes);
+  const _EdgePainter(this.nodes, this.lineColor);
   final List<OrgNode> nodes;
+  final Color lineColor;
 
   static const _nodeW = 168.0;
   static const _nodeH = 44.0;
@@ -615,7 +616,7 @@ class _EdgePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.28)
+      ..color = lineColor
       ..strokeWidth = 1.8
       ..style = PaintingStyle.stroke;
 
@@ -636,7 +637,8 @@ class _EdgePainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_EdgePainter oldDelegate) => true;
+  bool shouldRepaint(_EdgePainter oldDelegate) =>
+      oldDelegate.nodes != nodes || oldDelegate.lineColor != lineColor;
 }
 
 // ── Add / edit node dialog ──────────────────────────────────────────────────
