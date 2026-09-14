@@ -1398,7 +1398,7 @@ class _NewTicketModal extends StatefulWidget {
 }
 
 class _NewTicketModalState extends State<_NewTicketModal> {
-  String  _type     = 'Corrective';
+  String  _type     = 'Repair';
   String  _priority = 'High';
   final   _descCtrl = TextEditingController();
   bool    _saving   = false;
@@ -1473,7 +1473,7 @@ class _NewTicketModalState extends State<_NewTicketModal> {
     setState(() { _saving = true; _error = null; });
     try {
       await TicketService.instance.create({
-        'type':         _type,
+        'type':         _type.toLowerCase(),
         'priority':     _priority.toLowerCase(),
         'description':  _descCtrl.text.trim(),
         'status':       'open',
@@ -1626,7 +1626,7 @@ class _NewTicketModalState extends State<_NewTicketModal> {
                     label: 'Ticket Type',
                     child: _DropdownField(
                       value: _type,
-                      items: const ['Corrective', 'Preventive', 'Inspection', 'Installation'],
+                      items: const ['Repair', 'Installation'],
                       onChanged: (v) => setState(() => _type = v),
                     ),
                   )),
