@@ -72,9 +72,10 @@ const _salesChildren = [
   (key: 'sales_invoices',    icon: Symbols.receipt_long,  label: 'Invoices'),
   (key: 'sales_history',     icon: Symbols.history,       label: 'History'),
   // sales.create_subordinate_user-gated — filtered out below for anyone who
-  // doesn't hold it (a plain 'sales' rep), so this only ever appears for a
-  // sales_manager building their own team.
+  // doesn't hold it (a plain 'sales' rep), so these only ever appear for a
+  // sales_manager building their own team / reviewing team performance.
   (key: 'sales_team',        icon: Symbols.group,         label: 'Team'),
+  (key: 'team_performance',  icon: Symbols.bar_chart,     label: 'Team Performance'),
 ];
 // Sub-items shown when Finance group is expanded. No "Dashboard" row — same
 // reasoning as _salesChildren above.
@@ -87,6 +88,7 @@ const _financeChildren = [
 ];
 
 const _system = [
+  NavDestination(icon: Symbols.trending_up,             label: 'My Performance', key: 'my_performance'),
   NavDestination(icon: Symbols.assessment,              label: 'Reports',       key: 'reports'),
   NavDestination(icon: Symbols.notifications,           label: 'Notifications', key: 'notifications'),
   NavDestination(icon: Symbols.download,                label: 'Downloads',     key: 'downloads'),
@@ -129,6 +131,11 @@ class Sidebar extends StatelessWidget {
           // this machine's disk) — not gated by server permissions, same
           // as every role already seeing Notifications/Settings.
           if (key == 'downloads') return true;
+          // My Performance is deliberately universal — every role benchmarks
+          // their own real activity (tasks always; sales/field sections only
+          // when that role actually has any), not gated by a screens.*
+          // permission like module-specific pages are.
+          if (key == 'my_performance') return true;
           if (allowed == null) return true;
           if (key.startsWith('inventory_')) return allowed.contains('inventory');
           if (key.startsWith('sales_'))     return allowed.contains('sales');
@@ -394,7 +401,7 @@ class _SalesGroupState extends State<_SalesGroup> {
           child: _open
             ? Column(
                 children: _salesChildren
-                    .where((c) => c.key != 'sales_team' || can('sales.create_subordinate_user'))
+                    .where((c) => !{'sales_team', 'team_performance'}.contains(c.key) || can('sales.create_subordinate_user'))
                     .map((c) => _SubNavItem(
                   icon:   c.icon,
                   label:  c.label,
