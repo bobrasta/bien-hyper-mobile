@@ -40,7 +40,13 @@ class _ApprovalsScreenState extends State<ApprovalsScreen> with SingleTickerProv
   List<Expense>          _expenses = [];
   List<PurchaseOrder>    _purchaseOrders = [];
   bool    _loading = true;
-  String? _error;
+  // Per-tab load failure (e.g. a team_leader correctly lacks finance access
+  // and can't see Expenses at all) — kept separate per tab so one 403
+  // doesn't take the other three tabs down with it.
+  String? _stockOutError;
+  String? _perDiemError;
+  String? _expensesError;
+  String? _purchaseOrdersError;
 
   List<StockOutRequest> get _pendingStockOut =>
       _stockOut.where((r) => r.status == StockOutStatus.pending).toList();
@@ -63,24 +69,55 @@ class _ApprovalsScreenState extends State<ApprovalsScreen> with SingleTickerProv
   void dispose() { _tab.dispose(); super.dispose(); }
 
   Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      _loading = true;
+      _stockOutError = null; _perDiemError = null; _expensesError = null; _purchaseOrdersError = null;
+    });
+    // Each tab's resource loads independently — one tab lacking permission
+    // (e.g. team_leader has no finance access, so Expenses 403s) must not
+    // block the other three tabs the same user IS authorised to act on.
+    await Future.wait([
+      _loadStockOut(),
+      _loadPerDiem(),
+      _loadExpenses(),
+      _loadPurchaseOrders(),
+    ]);
+    if (mounted) setState(() => _loading = false);
+  }
+
+  Future<void> _loadStockOut() async {
     try {
-      final results = await Future.wait([
-        StockOutRequestService.instance.list(status: 'pending'),
-        PerDiemService.instance.list(),
-        ExpenseService.instance.list(),
-        PurchaseOrderService.instance.list(),
-      ]);
-      if (!mounted) return;
-      setState(() {
-        _stockOut       = results[0] as List<StockOutRequest>;
-        _perDiem        = results[1] as List<PerDiemRequest>;
-        _expenses       = results[2] as List<Expense>;
-        _purchaseOrders = results[3] as List<PurchaseOrder>;
-        _loading        = false;
-      });
+      final v = await StockOutRequestService.instance.list(status: 'pending');
+      if (mounted) setState(() => _stockOut = v);
     } catch (e) {
-      if (mounted) setState(() { _error = friendlyError(e); _loading = false; });
+      if (mounted) setState(() { _stockOut = []; _stockOutError = friendlyError(e); });
+    }
+  }
+
+  Future<void> _loadPerDiem() async {
+    try {
+      final v = await PerDiemService.instance.list();
+      if (mounted) setState(() => _perDiem = v);
+    } catch (e) {
+      if (mounted) setState(() { _perDiem = []; _perDiemError = friendlyError(e); });
+    }
+  }
+
+  Future<void> _loadExpenses() async {
+    try {
+      final v = await ExpenseService.instance.list();
+      if (mounted) setState(() => _expenses = v);
+    } catch (e) {
+      if (mounted) setState(() { _expenses = []; _expensesError = friendlyError(e); });
+    }
+  }
+
+  Future<void> _loadPurchaseOrders() async {
+    try {
+      final v = await PurchaseOrderService.instance.list();
+      if (mounted) setState(() => _purchaseOrders = v);
+    } catch (e) {
+      if (mounted) setState(() { _purchaseOrders = []; _purchaseOrdersError = friendlyError(e); });
     }
   }
 
@@ -323,25 +360,31 @@ class _ApprovalsScreenState extends State<ApprovalsScreen> with SingleTickerProv
         Expanded(
           child: _loading
               ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
-              : _error != null
-                  ? ErrorView(message: _error!, onRetry: _load)
-                  : ValueListenableBuilder<String>(
+              : ValueListenableBuilder<String>(
                       valueListenable: userRoleNotifier,
                       builder: (_, role, _) => TabBarView(controller: _tab, children: [
-                        _StockOutTab(requests: _pendingStockOut, pad: pad, onApprove: _approveStockOut, onReject: _rejectStockOut),
-                        _PerDiemTab(
+                        _stockOutError != null
+                            ? ErrorView(message: _stockOutError!, onRetry: _loadStockOut)
+                            : _StockOutTab(requests: _pendingStockOut, pad: pad, onApprove: _approveStockOut, onReject: _rejectStockOut),
+                        _perDiemError != null
+                            ? ErrorView(message: _perDiemError!, onRetry: _loadPerDiem)
+                            : _PerDiemTab(
                           requests: _pendingPerDiem, pad: pad, viewerRole: role,
                           onForward: _forwardPerDiem, onRejectTeamLead: _rejectPerDiemTeamLead,
                           onApprove: _approvePerDiem, onReject: _rejectPerDiem,
                           onInitiatePayment: _initiatePerDiemPayment,
                           onAuthorizePayment: _authorizePerDiemPayment,
                         ),
-                        _ExpenseTab(
+                        _expensesError != null
+                            ? ErrorView(message: _expensesError!, onRetry: _loadExpenses)
+                            : _ExpenseTab(
                           expenses: _pendingExpenses, pad: pad, viewerRole: role,
                           onApprove: _approveExpense, onEscalate: _escalateExpense, onReject: _rejectExpense,
                           onInitiatePayment: _initiateExpensePayment, onReleasePayment: _releaseExpensePayment,
                         ),
-                        _PurchaseOrderTab(
+                        _purchaseOrdersError != null
+                            ? ErrorView(message: _purchaseOrdersError!, onRetry: _loadPurchaseOrders)
+                            : _PurchaseOrderTab(
                           orders: _pendingPurchaseOrders, pad: pad, viewerRole: role,
                           onApproveSalesStage: _approvePoSalesStage, onRejectSalesStage: _rejectPoSalesStage,
                           onApproveDirectorReview: _approvePoDirectorReview, onRejectDirectorReview: _rejectPoDirectorReview,
