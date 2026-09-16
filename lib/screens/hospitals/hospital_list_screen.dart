@@ -790,11 +790,16 @@ class _HospitalDetailSheet extends StatefulWidget {
 class _HospitalDetailSheetState extends State<_HospitalDetailSheet> {
   List<Machine> _machines        = [];
   bool          _loadingMachines = true;
+  // Outstanding balance / available credit aren't on the list payload
+  // (would mean one query per hospital row) — fetched only when this
+  // sheet opens for one specific hospital.
+  Hospital?     _creditInfo;
 
   @override
   void initState() {
     super.initState();
     _loadMachines();
+    if (widget.hospital.creditLimit != null) _loadCreditInfo();
   }
 
   Future<void> _loadMachines() async {
@@ -803,6 +808,15 @@ class _HospitalDetailSheetState extends State<_HospitalDetailSheet> {
       if (mounted) setState(() { _machines = data; _loadingMachines = false; });
     } catch (_) {
       if (mounted) setState(() => _loadingMachines = false);
+    }
+  }
+
+  Future<void> _loadCreditInfo() async {
+    try {
+      final full = await HospitalService.instance.get(widget.hospital.id);
+      if (mounted) setState(() => _creditInfo = full);
+    } catch (_) {
+      // Non-critical — the sheet still works without the credit KPI card.
     }
   }
 
@@ -909,6 +923,21 @@ class _HospitalDetailSheetState extends State<_HospitalDetailSheet> {
                       _KpiCard(label: 'Monthly Revenue',
                           value: 'TSh ${hospital.revenueMonthly.toStringAsFixed(1)}M',
                           valueColor: AppColors.amber),
+                      if (hospital.creditLimit != null) ...[
+                        const SizedBox(width: 12),
+                        _KpiCard(
+                          label: 'Credit Available',
+                          value: _creditInfo == null
+                              ? '…'
+                              : 'TSh ${(_creditInfo!.creditAvailable! / 1e6).toStringAsFixed(1)}M',
+                          sub: _creditInfo == null
+                              ? null
+                              : 'of TSh ${(hospital.creditLimit! / 1e6).toStringAsFixed(1)}M limit',
+                          valueColor: _creditInfo == null
+                              ? null
+                              : (_creditInfo!.creditAvailable! <= 0 ? AppColors.coral : AppColors.teal),
+                        ),
+                      ],
                     ]),
                     const SizedBox(height: 16),
 

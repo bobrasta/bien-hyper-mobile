@@ -16,6 +16,12 @@ class Hospital {
   final String contactPhone;
   final String contactEmail;
   final String? notes;
+  // Only populated by HospitalService.get() (the single-hospital fetch) —
+  // omitted from the list endpoint to avoid an outstanding-balance query
+  // per row. Null on a hospital with no credit_limit set, or when this
+  // Hospital came from the list rather than a direct fetch.
+  final int?   outstandingBalance;
+  final int?   creditAvailable;
 
   const Hospital({
     required this.id,
@@ -35,6 +41,8 @@ class Hospital {
     required this.contactPhone,
     required this.contactEmail,
     this.notes,
+    this.outstandingBalance,
+    this.creditAvailable,
   });
 
   factory Hospital.fromJson(Map<String, dynamic> j) => Hospital(
@@ -55,6 +63,8 @@ class Hospital {
     contactPhone:        j['contact_phone'] as String? ?? '—',
     contactEmail:        j['contact_email'] as String? ?? '—',
     notes:               j['notes'] as String?,
+    outstandingBalance:  (j['outstanding_balance'] as num?)?.toInt(),
+    creditAvailable:     (j['credit_available'] as num?)?.toInt(),
   );
 
   double get uptimePct =>
