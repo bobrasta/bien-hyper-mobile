@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import '../../models/expense.dart';
 import '../../models/supplier.dart';
+import '../../models/tax_rate.dart';
 import '../../models/vendor_bill.dart';
 import '../../services/expense_service.dart';
 import '../../services/supplier_service.dart';
+import '../../services/tax_rate_service.dart';
 import '../../services/vendor_bill_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
@@ -377,6 +379,7 @@ class _NewBillDialogState extends State<_NewBillDialog> {
   int?   _supplierId;
   int?   _categoryId;
   double _taxRate = 18;
+  List<TaxRate> _taxRates = const [];
   final _lines = [_BillLineEntry()];
   bool   _saving = false;
   String? _error;
@@ -386,6 +389,20 @@ class _NewBillDialogState extends State<_NewBillDialog> {
     super.initState();
     if (widget.suppliers.isNotEmpty) _supplierId = widget.suppliers.first.id;
     if (widget.categories.isNotEmpty) _categoryId = widget.categories.first.id;
+    _loadTaxRates();
+  }
+
+  Future<void> _loadTaxRates() async {
+    try {
+      final all = await TaxRateService.instance.list();
+      if (!mounted || all.isEmpty) return;
+      final seenRates = <double>{};
+      final rates = all.where((r) => seenRates.add(r.rate)).toList();
+      final defaultRate = rates.firstWhere((r) => r.isDefault, orElse: () => rates.first);
+      setState(() { _taxRates = rates; _taxRate = defaultRate.rate; });
+    } catch (_) {
+      // Falls back to the static 0%/18% items below — non-critical.
+    }
   }
 
   @override
@@ -478,13 +495,15 @@ class _NewBillDialogState extends State<_NewBillDialog> {
                     onChanged: (v) => setState(() => _categoryId = v),
                   )),
                   const SizedBox(width: 12),
-                  SizedBox(width: 90, child: _Dropdown<double>(
+                  SizedBox(width: 130, child: _Dropdown<double>(
                     label: 'VAT %',
                     value: _taxRate,
-                    items: const [
-                      DropdownMenuItem(value: 0.0, child: Text('0%')),
-                      DropdownMenuItem(value: 18.0, child: Text('18%')),
-                    ],
+                    items: _taxRates.isNotEmpty
+                        ? _taxRates.map((r) => DropdownMenuItem(value: r.rate, child: Text(r.name, overflow: TextOverflow.ellipsis))).toList()
+                        : const [
+                            DropdownMenuItem(value: 0.0, child: Text('0%')),
+                            DropdownMenuItem(value: 18.0, child: Text('18%')),
+                          ],
                     onChanged: (v) => setState(() => _taxRate = v ?? 0),
                   )),
                 ]),
