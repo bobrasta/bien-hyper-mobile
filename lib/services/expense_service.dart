@@ -69,6 +69,11 @@ class ExpenseService {
     return Expense.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
   }
 
+  Future<Expense> stopRecurring(int id) async {
+    final res = await _dio.post('/expenses/$id/stop-recurring');
+    return Expense.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+  }
+
   Future<void> setCategoryRequiresDirector(int categoryId, bool value) =>
       _dio.put('/expense-categories/$categoryId', data: {'requires_director_approval': value});
 

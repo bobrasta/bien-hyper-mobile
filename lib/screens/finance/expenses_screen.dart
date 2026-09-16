@@ -105,6 +105,14 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
     } catch (err) { if (mounted) showErrorToast(context, err); }
   }
 
+  Future<void> _stopRecurring(Expense e) async {
+    try {
+      await ExpenseService.instance.stopRecurring(e.id);
+      if (mounted) showSuccessToast(context, 'Recurring expense stopped.');
+      _load();
+    } catch (err) { if (mounted) showErrorToast(context, err); }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Stack(children: [
@@ -270,7 +278,19 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
               Icon(_categoryIcons[e.categoryName] ?? Symbols.receipt_long, size: 15, color: color),
               const SizedBox(width: 12),
               Expanded(flex: 6, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(e.name, style: AppTheme.bodySm.copyWith(fontSize: 12.5), maxLines: 1, overflow: TextOverflow.ellipsis),
+                Row(children: [
+                  Flexible(child: Text(e.name, style: AppTheme.bodySm.copyWith(fontSize: 12.5), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                  if (e.isActiveRecurringTemplate) ...[
+                    const SizedBox(width: 6),
+                    Tooltip(message: 'Recurring — tap to stop', child: GestureDetector(
+                      onTap: () => _stopRecurring(e),
+                      child: Icon(Symbols.repeat, size: 13, color: AppColors.violet),
+                    )),
+                  ] else if (e.recurParentId != null) ...[
+                    const SizedBox(width: 6),
+                    Tooltip(message: 'Auto-generated from a recurring expense', child: Icon(Symbols.repeat, size: 12, color: context.pal.textDim)),
+                  ],
+                ]),
                 if (e.reference != null || e.createdByName != null) Padding(
                   padding: const EdgeInsets.only(top: 2),
                   child: Text([if (e.reference != null) e.reference!, if (e.createdByName != null) e.createdByName!].join(' · '), style: AppTheme.bodySub.copyWith(fontSize: 11)),
@@ -330,6 +350,9 @@ class _NewExpenseDialogState extends State<_NewExpenseDialog> {
   double  _taxRate   = 18;
   List<TaxRate> _taxRates = const [];
   String  _paymentMode = 'cash';
+  bool    _isRecurring = false;
+  int     _recurInterval = 1;
+  String  _recurIntervalType = 'months';
   bool    _saving  = false;
   String? _error;
 
@@ -378,6 +401,11 @@ class _NewExpenseDialogState extends State<_NewExpenseDialog> {
         'payment_mode': _paymentMode,
         'expense_date': DateTime.now().toIso8601String().substring(0, 10),
         'reference':    _refCtrl.text.trim().isEmpty ? null : _refCtrl.text.trim(),
+        if (_isRecurring) ...{
+          'is_recurring':        true,
+          'recur_interval':      _recurInterval,
+          'recur_interval_type': _recurIntervalType,
+        },
       });
       widget.onSaved();
     } catch (e) {
@@ -467,6 +495,38 @@ class _NewExpenseDialogState extends State<_NewExpenseDialog> {
                 const SizedBox(height: 14),
                 _LabeledField('Reference (optional)', TextField(controller: _refCtrl, style: AppTheme.bodySm,
                     decoration: const InputDecoration(border: InputBorder.none, isDense: true, hintText: 'Receipt / invoice no.'))),
+                const SizedBox(height: 10),
+                Row(children: [
+                  SizedBox(width: 22, height: 22, child: Checkbox(
+                      value: _isRecurring, materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      onChanged: (v) => setState(() => _isRecurring = v ?? false))),
+                  const SizedBox(width: 8),
+                  Text('Repeats automatically (e.g. rent, subscriptions)', style: AppTheme.bodySm),
+                ]),
+                if (_isRecurring) ...[
+                  const SizedBox(height: 10),
+                  Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+                    Text('Every', style: AppTheme.bodySm),
+                    const SizedBox(width: 8),
+                    SizedBox(width: 56, height: 34, child: _InlineDropdown(
+                      value: _recurInterval,
+                      items: List.generate(12, (i) => i + 1)
+                          .map((n) => DropdownMenuItem(value: n, child: Text('$n')))
+                          .toList(),
+                      onChanged: (v) => setState(() => _recurInterval = v ?? 1),
+                    )),
+                    const SizedBox(width: 8),
+                    Expanded(child: SizedBox(height: 34, child: _InlineDropdown(
+                      value: _recurIntervalType,
+                      items: const [
+                        DropdownMenuItem(value: 'days', child: Text('Day(s)')),
+                        DropdownMenuItem(value: 'months', child: Text('Month(s)')),
+                        DropdownMenuItem(value: 'years', child: Text('Year(s)')),
+                      ],
+                      onChanged: (v) => setState(() => _recurIntervalType = v ?? 'months'),
+                    ))),
+                  ]),
+                ],
               ]),
             ),
             Padding(
@@ -531,4 +591,23 @@ class _LabeledDropdown<T> extends StatelessWidget {
       )),
     ),
   ]);
+}
+
+class _InlineDropdown<T> extends StatelessWidget {
+  const _InlineDropdown({required this.value, required this.items, required this.onChanged});
+  final T? value;
+  final List<DropdownMenuItem<T>> items;
+  final ValueChanged<T?> onChanged;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    decoration: BoxDecoration(color: context.pal.surface2, borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
+    padding: const EdgeInsets.symmetric(horizontal: 10),
+    alignment: Alignment.center,
+    child: DropdownButtonHideUnderline(child: DropdownButton<T>(
+      value: value, isExpanded: true, isDense: true, dropdownColor: context.pal.surface2, style: AppTheme.bodySm,
+      icon: Icon(Symbols.expand_more, size: 16, color: context.pal.textDim),
+      items: items, onChanged: onChanged,
+    )),
+  );
 }

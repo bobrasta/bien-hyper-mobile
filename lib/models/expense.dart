@@ -82,6 +82,11 @@ class Expense {
   final int?     paymentInitiatedBy;
   final String?  paymentInitiatedByName;
   final String?  paidByName;
+  final bool     isRecurring;
+  final String?  recurIntervalType;
+  final int?     recurInterval;
+  final String?  recurStoppedOn;
+  final int?     recurParentId;
 
   const Expense({
     required this.id,
@@ -106,6 +111,11 @@ class Expense {
     this.paymentInitiatedBy,
     this.paymentInitiatedByName,
     this.paidByName,
+    this.isRecurring = false,
+    this.recurIntervalType,
+    this.recurInterval,
+    this.recurStoppedOn,
+    this.recurParentId,
   });
 
   factory Expense.fromJson(Map<String, dynamic> j) => Expense(
@@ -131,7 +141,16 @@ class Expense {
     paymentInitiatedBy:     (j['payment_initiated_by'] as num?)?.toInt(),
     paymentInitiatedByName: j['payment_initiated_by_name'] as String?,
     paidByName:             j['paid_by_name'] as String?,
+    isRecurring:            j['is_recurring'] as bool? ?? false,
+    recurIntervalType:      j['recur_interval_type'] as String?,
+    recurInterval:          (j['recur_interval'] as num?)?.toInt(),
+    recurStoppedOn:         j['recur_stopped_on'] as String?,
+    recurParentId:          (j['recur_parent_id'] as num?)?.toInt(),
   );
+
+  // A template that's still generating occurrences (not one of its
+  // generated children, and not manually stopped).
+  bool get isActiveRecurringTemplate => isRecurring && recurParentId == null && recurStoppedOn == null;
 
   String get paymentModeLabel => switch (paymentMode) {
     'bank'         => 'Bank',
