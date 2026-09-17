@@ -44,6 +44,7 @@ import '../../screens/performance/team_performance_screen.dart';
 import '../../screens/service/service_ticket_screen.dart';
 import '../../screens/settings/settings_screen.dart';
 import '../../screens/settings/delegations_screen.dart';
+import '../../screens/settings/notification_templates_screen.dart';
 import '../../screens/settings/downloads_screen.dart';
 import '../../screens/notifications/notifications_screen.dart';
 import '../../screens/staff/staff_screen.dart';
@@ -275,6 +276,7 @@ class _AppShellState extends State<AppShell> {
     'reports'        => ReportsScreen(onNavigateTo: _navigate),
     'settings'  => const SettingsScreen(),
     'delegations' => const DelegationsScreen(),
+    'notification_templates' => const NotificationTemplatesScreen(),
     'downloads' => const DownloadsScreen(),
     _ => _PlaceholderScreen(title: _activeKey),
   };

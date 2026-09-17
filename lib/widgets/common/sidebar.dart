@@ -93,6 +93,7 @@ const _system = [
   NavDestination(icon: Symbols.notifications,           label: 'Notifications', key: 'notifications'),
   NavDestination(icon: Symbols.download,                label: 'Downloads',     key: 'downloads'),
   NavDestination(icon: Symbols.badge,                   label: 'Delegations',   key: 'delegations'),
+  NavDestination(icon: Symbols.chat_bubble,             label: 'Notification Wording', key: 'notification_templates'),
   NavDestination(icon: Symbols.settings,                label: 'Settings',      key: 'settings'),
 ];
 
