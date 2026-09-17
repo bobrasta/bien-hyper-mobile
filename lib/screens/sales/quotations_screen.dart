@@ -573,46 +573,49 @@ class _QuotationDetailScreenState extends State<QuotationDetailScreen> {
       ]),
       const SizedBox(height: 13),
       Container(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
         decoration: BoxDecoration(color: context.pal.surface1, borderRadius: BorderRadius.circular(14), border: Border.all(color: context.pal.border)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Icon(Symbols.receipt_long, size: 14, color: AppColors.teal),
-            const SizedBox(width: 8),
-            Text('Quoted lines', style: AppTheme.bodyStrong.copyWith(fontSize: 12.5)),
-            const Spacer(),
-            if (qt.discountAmount > 0 && qt.subtotal > 0)
-              Text('discount ${(qt.discountAmount / qt.subtotal * 100).toStringAsFixed(0)}%',
-                  style: AppTheme.monoXs.copyWith(fontSize: 10, color: context.pal.textMute)),
-          ]),
-          const SizedBox(height: 10),
-          Row(children: [
-            Expanded(flex: 3, child: Text('ITEM', style: AppTheme.monoXs.copyWith(fontSize: 9, color: context.pal.textMute))),
-            SizedBox(width: 44, child: Text('QTY', textAlign: TextAlign.right, style: AppTheme.monoXs.copyWith(fontSize: 9, color: context.pal.textMute))),
-            const SizedBox(width: 8),
-            SizedBox(width: 90, child: Text('UNIT', textAlign: TextAlign.right, style: AppTheme.monoXs.copyWith(fontSize: 9, color: context.pal.textMute))),
-            const SizedBox(width: 8),
-            SizedBox(width: 56, child: Text('DISC', textAlign: TextAlign.right, style: AppTheme.monoXs.copyWith(fontSize: 9, color: context.pal.textMute))),
-            const SizedBox(width: 8),
-            SizedBox(width: 96, child: Text('TOTAL', textAlign: TextAlign.right, style: AppTheme.monoXs.copyWith(fontSize: 9, color: context.pal.textMute))),
-          ]),
-          Padding(padding: const EdgeInsets.symmetric(vertical: 8), child: Container(height: 1, color: context.pal.divider)),
-          ...qt.items.map((item) => Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
-              Expanded(flex: 3, child: Text(item.description, style: AppTheme.bodySm.copyWith(fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis)),
-              SizedBox(width: 44, child: Text('${item.quantity}', textAlign: TextAlign.right, style: AppTheme.monoSm.copyWith(fontSize: 12))),
-              const SizedBox(width: 8),
-              SizedBox(width: 90, child: Text(_fmtAmount(item.unitPrice), textAlign: TextAlign.right, style: AppTheme.monoSm.copyWith(fontSize: 12, color: context.pal.textDim))),
-              const SizedBox(width: 8),
-              SizedBox(width: 56, child: Text(item.discountPercent > 0 ? '${item.discountPercent.toStringAsFixed(0)}%' : '—', textAlign: TextAlign.right, style: AppTheme.monoXs.copyWith(fontSize: 11, color: item.discountPercent > 0 ? AppColors.amber : context.pal.textMute))),
-              const SizedBox(width: 8),
-              SizedBox(width: 96, child: Text(_fmtAmount(item.totalPrice), textAlign: TextAlign.right, style: AppTheme.monoSm.copyWith(fontSize: 12.5))),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Icon(Symbols.receipt_long, size: 14, color: AppColors.teal),
+                const SizedBox(width: 8),
+                Text('Quoted lines', style: AppTheme.bodyStrong.copyWith(fontSize: 12.5)),
+                const Spacer(),
+                if (qt.discountAmount > 0 && qt.subtotal > 0)
+                  Text('discount ${(qt.discountAmount / qt.subtotal * 100).toStringAsFixed(0)}%',
+                      style: AppTheme.monoXs.copyWith(fontSize: 10, color: context.pal.textMute)),
+              ]),
+              const SizedBox(height: 10),
+              Row(children: [
+                Expanded(flex: 3, child: Text('ITEM', style: AppTheme.monoXs.copyWith(fontSize: 9, color: context.pal.textMute))),
+                SizedBox(width: 44, child: Text('QTY', textAlign: TextAlign.right, style: AppTheme.monoXs.copyWith(fontSize: 9, color: context.pal.textMute))),
+                const SizedBox(width: 8),
+                SizedBox(width: 90, child: Text('UNIT', textAlign: TextAlign.right, style: AppTheme.monoXs.copyWith(fontSize: 9, color: context.pal.textMute))),
+                const SizedBox(width: 8),
+                SizedBox(width: 56, child: Text('DISC', textAlign: TextAlign.right, style: AppTheme.monoXs.copyWith(fontSize: 9, color: context.pal.textMute))),
+                const SizedBox(width: 8),
+                SizedBox(width: 96, child: Text('TOTAL', textAlign: TextAlign.right, style: AppTheme.monoXs.copyWith(fontSize: 9, color: context.pal.textMute))),
+              ]),
+              Padding(padding: const EdgeInsets.symmetric(vertical: 8), child: Container(height: 1, color: context.pal.divider)),
+              ...qt.items.map((item) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+                  Expanded(flex: 3, child: Text(item.description, style: AppTheme.bodySm.copyWith(fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                  SizedBox(width: 44, child: Text('${item.quantity}', textAlign: TextAlign.right, style: AppTheme.monoSm.copyWith(fontSize: 12))),
+                  const SizedBox(width: 8),
+                  SizedBox(width: 90, child: Text(_fmtAmount(item.unitPrice), textAlign: TextAlign.right, style: AppTheme.monoSm.copyWith(fontSize: 12, color: context.pal.textDim))),
+                  const SizedBox(width: 8),
+                  SizedBox(width: 56, child: Text(item.discountPercent > 0 ? '${item.discountPercent.toStringAsFixed(0)}%' : '—', textAlign: TextAlign.right, style: AppTheme.monoXs.copyWith(fontSize: 11, color: item.discountPercent > 0 ? AppColors.amber : context.pal.textMute))),
+                  const SizedBox(width: 8),
+                  SizedBox(width: 96, child: Text(_fmtAmount(item.totalPrice), textAlign: TextAlign.right, style: AppTheme.monoSm.copyWith(fontSize: 12.5))),
+                ]),
+              )),
             ]),
-          )),
+          ),
           const Spacer(),
           Container(
-            margin: const EdgeInsets.only(left: -16, right: -16),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
             decoration: BoxDecoration(color: context.pal.surface2, borderRadius: const BorderRadius.vertical(bottom: Radius.circular(14))),
             child: Row(children: [
@@ -1071,61 +1074,64 @@ class _QuotationBuilderScreenState extends State<QuotationBuilderScreen> {
       ),
       const SizedBox(height: 14),
       Container(
-        padding: const EdgeInsets.fromLTRB(15, 14, 15, 0),
         decoration: BoxDecoration(color: context.pal.surface1, borderRadius: BorderRadius.circular(14), border: Border.all(color: context.pal.border)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Icon(Symbols.playlist_add, size: 14, color: AppColors.amber),
-            const SizedBox(width: 8),
-            Text('Line items', style: AppTheme.bodyStrong.copyWith(fontSize: 12.5)),
-            if (_errors.containsKey('items')) ...[
-              const SizedBox(width: 8),
-              Text(_errors['items']!, style: TextStyle(fontSize: 11, color: AppColors.coral)),
-            ],
-            const Spacer(),
-            Text('picker draws from inventory · ${_lines.length} line${_lines.length == 1 ? '' : 's'}',
-                style: AppTheme.monoXs.copyWith(fontSize: 10, color: context.pal.textMute)),
-          ]),
-          const SizedBox(height: 11),
-          Row(children: [
-            Expanded(flex: 3, child: Text('ITEM', style: AppTheme.monoXs.copyWith(fontSize: 9, color: context.pal.textMute))),
-            SizedBox(width: 44, child: Text('QTY', textAlign: TextAlign.right, style: AppTheme.monoXs.copyWith(fontSize: 9, color: context.pal.textMute))),
-            const SizedBox(width: 8),
-            SizedBox(width: 90, child: Text('UNIT PRICE', textAlign: TextAlign.right, style: AppTheme.monoXs.copyWith(fontSize: 9, color: context.pal.textMute))),
-            const SizedBox(width: 8),
-            SizedBox(width: 56, child: Text('DISC %', textAlign: TextAlign.right, style: AppTheme.monoXs.copyWith(fontSize: 9, color: context.pal.textMute))),
-            const SizedBox(width: 8),
-            SizedBox(width: 96, child: Text('LINE TOTAL', textAlign: TextAlign.right, style: AppTheme.monoXs.copyWith(fontSize: 9, color: context.pal.textMute))),
-            const SizedBox(width: 22),
-          ]),
-          Padding(padding: const EdgeInsets.symmetric(vertical: 9), child: Container(height: 1, color: context.pal.divider)),
-          ..._lines.asMap().entries.map((e) => _LineItemTableRow(
-            entry: e.value,
-            invItems: _invItems,
-            onRemove: _lines.length > 1
-                ? () => setState(() { _lines[e.key].dispose(); _lines.removeAt(e.key); })
-                : null,
-            onChanged: () => setState(() {}),
-          )),
-          GestureDetector(
-            onTap: () => setState(() {
-              final l = _LineItemEntry();
-              _attachLineListeners(l);
-              _lines.add(l);
-            }),
-            child: Container(
-              margin: const EdgeInsets.symmetric(vertical: 10),
-              height: 32,
-              decoration: BoxDecoration(border: Border.all(color: context.pal.border, style: BorderStyle.solid), borderRadius: BorderRadius.circular(8)),
-              child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                Icon(Symbols.search, size: 13, color: context.pal.textDim),
-                const SizedBox(width: 7),
-                Text('Add item from inventory…', style: AppTheme.bodySub.copyWith(fontSize: 11.5)),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(15, 14, 15, 0),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Icon(Symbols.playlist_add, size: 14, color: AppColors.amber),
+                const SizedBox(width: 8),
+                Text('Line items', style: AppTheme.bodyStrong.copyWith(fontSize: 12.5)),
+                if (_errors.containsKey('items')) ...[
+                  const SizedBox(width: 8),
+                  Text(_errors['items']!, style: TextStyle(fontSize: 11, color: AppColors.coral)),
+                ],
+                const Spacer(),
+                Text('picker draws from inventory · ${_lines.length} line${_lines.length == 1 ? '' : 's'}',
+                    style: AppTheme.monoXs.copyWith(fontSize: 10, color: context.pal.textMute)),
               ]),
-            ),
+              const SizedBox(height: 11),
+              Row(children: [
+                Expanded(flex: 3, child: Text('ITEM', style: AppTheme.monoXs.copyWith(fontSize: 9, color: context.pal.textMute))),
+                SizedBox(width: 44, child: Text('QTY', textAlign: TextAlign.right, style: AppTheme.monoXs.copyWith(fontSize: 9, color: context.pal.textMute))),
+                const SizedBox(width: 8),
+                SizedBox(width: 90, child: Text('UNIT PRICE', textAlign: TextAlign.right, style: AppTheme.monoXs.copyWith(fontSize: 9, color: context.pal.textMute))),
+                const SizedBox(width: 8),
+                SizedBox(width: 56, child: Text('DISC %', textAlign: TextAlign.right, style: AppTheme.monoXs.copyWith(fontSize: 9, color: context.pal.textMute))),
+                const SizedBox(width: 8),
+                SizedBox(width: 96, child: Text('LINE TOTAL', textAlign: TextAlign.right, style: AppTheme.monoXs.copyWith(fontSize: 9, color: context.pal.textMute))),
+                const SizedBox(width: 22),
+              ]),
+              Padding(padding: const EdgeInsets.symmetric(vertical: 9), child: Container(height: 1, color: context.pal.divider)),
+              ..._lines.asMap().entries.map((e) => _LineItemTableRow(
+                entry: e.value,
+                invItems: _invItems,
+                onRemove: _lines.length > 1
+                    ? () => setState(() { _lines[e.key].dispose(); _lines.removeAt(e.key); })
+                    : null,
+                onChanged: () => setState(() {}),
+              )),
+              GestureDetector(
+                onTap: () => setState(() {
+                  final l = _LineItemEntry();
+                  _attachLineListeners(l);
+                  _lines.add(l);
+                }),
+                child: Container(
+                  margin: const EdgeInsets.symmetric(vertical: 10),
+                  height: 32,
+                  decoration: BoxDecoration(border: Border.all(color: context.pal.border, style: BorderStyle.solid), borderRadius: BorderRadius.circular(8)),
+                  child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                    Icon(Symbols.search, size: 13, color: context.pal.textDim),
+                    const SizedBox(width: 7),
+                    Text('Add item from inventory…', style: AppTheme.bodySub.copyWith(fontSize: 11.5)),
+                  ]),
+                ),
+              ),
+            ]),
           ),
           Container(
-            margin: const EdgeInsets.only(left: -15, right: -15),
             padding: const EdgeInsets.fromLTRB(15, 12, 15, 14),
             decoration: BoxDecoration(color: context.pal.surface2, borderRadius: const BorderRadius.vertical(bottom: Radius.circular(14))),
             child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
