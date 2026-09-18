@@ -92,7 +92,7 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
     final q = _searchCtrl.text.toLowerCase();
     setState(() {
       _filtered = _all.where((inv) {
-        final matchStatus = _statusFilter == null || inv.status == _statusFilter;
+        final matchStatus = _statusFilter == null || inv.effectiveStatus == _statusFilter;
         final matchSearch = q.isEmpty ||
             inv.invoiceNumber.toLowerCase().contains(q) ||
             (inv.displayName).toLowerCase().contains(q);
@@ -128,7 +128,7 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
       final outstanding = _all.fold<int>(0, (s, i) => s + i.balanceDue);
       final collected = totalRaised - outstanding;
       final collectionPct = totalRaised > 0 ? collected / totalRaised * 100 : 0.0;
-      final overdueCount = _all.where((i) => i.status == PaymentStatus.overdue).length;
+      final overdueCount = _all.where((i) => i.isOverdue).length;
       final buckets = (_arAging['buckets'] as Map?) ?? {};
       num b(String k) => (buckets[k] as num?) ?? 0;
       final agingRows = [
@@ -214,7 +214,7 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
         Padding(
           padding: EdgeInsets.symmetric(horizontal: pad),
           child: Row(children: [
-            _StatusChips(current: _statusFilter, counts: {for (final s in PaymentStatus.values) s: _all.where((i) => i.status == s).length}, total: _all.length, onChanged: (s) => setState(() { _statusFilter = s; _applyFilter(); })),
+            _StatusChips(current: _statusFilter, counts: {for (final s in PaymentStatus.values) s: _all.where((i) => i.effectiveStatus == s).length}, total: _all.length, onChanged: (s) => setState(() { _statusFilter = s; _applyFilter(); })),
             const Spacer(),
             SizedBox(
               width: 200, height: 32,
@@ -357,7 +357,7 @@ class _InvoiceTable extends StatelessWidget {
                         Expanded(child: Text(inv.salesOrderNumber ?? '—', style: AppTheme.monoXs.copyWith(fontSize: 11, color: context.pal.textDim))),
                         Expanded(child: Text(tshFromDouble(inv.total), textAlign: TextAlign.right, style: AppTheme.monoSm.copyWith(fontSize: 12.5))),
                         Expanded(child: Text(inv.balanceDue > 0 ? tshFromDouble(inv.balanceDue) : '—', textAlign: TextAlign.right, style: AppTheme.monoSm.copyWith(fontSize: 12.5, color: inv.balanceDue > 0 ? AppColors.amber : context.pal.textDim))),
-                        Expanded(child: Align(alignment: Alignment.centerRight, child: _StatusBadge(inv.status))),
+                        Expanded(child: Align(alignment: Alignment.centerRight, child: _StatusBadge(inv.effectiveStatus))),
                         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                           Text(inv.dueDate.length >= 10 ? inv.dueDate.substring(0, 10) : inv.dueDate, style: AppTheme.monoXs.copyWith(fontSize: 11)),
                           if (note.isNotEmpty) Text(note, style: AppTheme.bodySub.copyWith(fontSize: 10, color: inv.isPaid ? AppColors.green : AppColors.amber)),
@@ -534,7 +534,7 @@ class _InvoiceDetailDialogState extends State<_InvoiceDetailDialog> {
                 const SizedBox(height: 2),
                 Text(inv.displayName, style: AppTheme.bodySub.copyWith(fontSize: 12)),
               ])),
-              _StatusBadge(inv.status),
+              _StatusBadge(inv.effectiveStatus),
               const SizedBox(width: 12),
               if (_sharing)
                 const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))

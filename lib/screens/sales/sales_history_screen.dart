@@ -76,7 +76,7 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
   int get _totalRevenue     => _filtered.fold(0, (s, i) => s + i.total);
   int get _totalCollected   => _filtered.fold(0, (s, i) => s + i.amountPaid);
   int get _totalOutstanding => _filtered.fold(0, (s, i) => s + i.balanceDue);
-  int get _overdueCount     => _filtered.where((i) => i.status == PaymentStatus.overdue).length;
+  int get _overdueCount     => _filtered.where((i) => i.isOverdue).length;
 
   Invoice? _selected;
 
@@ -267,7 +267,7 @@ class _HistoryRow extends StatefulWidget {
 class _HistoryRowState extends State<_HistoryRow> {
   bool _hovered = false;
 
-  Color _statusColor() => switch (widget.inv.status) {
+  Color _statusColor() => switch (widget.inv.effectiveStatus) {
     PaymentStatus.paid      => AppColors.green,
     PaymentStatus.partial   => AppColors.amber,
     PaymentStatus.overdue   => AppColors.coral,
@@ -313,7 +313,7 @@ class _HistoryRowState extends State<_HistoryRow> {
             Expanded(child: Align(alignment: Alignment.centerRight, child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(color: statusColor.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(5)),
-              child: Text(inv.status.label, style: AppTheme.monoXs.copyWith(color: statusColor, fontSize: 9.5)),
+              child: Text(inv.effectiveStatus.label, style: AppTheme.monoXs.copyWith(color: statusColor, fontSize: 9.5)),
             ))),
             Expanded(child: Text(_fmtDate(inv.issueDate), textAlign: TextAlign.right, style: AppTheme.monoXs.copyWith(fontSize: 11, color: context.pal.textDim))),
           ]),
@@ -344,7 +344,7 @@ class _InvoiceDetailPanel extends StatelessWidget {
   Future<void> _viewPdf(BuildContext context) =>
       downloadPdf(context, () => InvoiceService.instance.pdfBytes(inv.id), '${inv.invoiceNumber}.pdf');
 
-  Color _statusColor() => switch (inv.status) {
+  Color _statusColor() => switch (inv.effectiveStatus) {
     PaymentStatus.paid      => AppColors.green,
     PaymentStatus.partial   => AppColors.amber,
     PaymentStatus.overdue   => AppColors.coral,
@@ -385,7 +385,7 @@ class _InvoiceDetailPanel extends StatelessWidget {
                       color: statusColor.withValues(alpha: 0.14),
                       borderRadius: BorderRadius.circular(5),
                     ),
-                    child: Text(inv.status.label.toUpperCase(),
+                    child: Text(inv.effectiveStatus.label.toUpperCase(),
                         style: AppTheme.monoXs.copyWith(color: statusColor, fontSize: 9.5)),
                   ),
                 ]),

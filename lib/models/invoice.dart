@@ -177,4 +177,18 @@ class Invoice {
   bool get canSend       => status == PaymentStatus.pending;
   bool get canPay        => !isPaid && status != PaymentStatus.cancelled;
   bool get canCancel     => !isPaid;
+
+  // The backend never actually stores PaymentStatus.overdue on a row — it's
+  // a point-in-time fact ("still unpaid past its due date"), not a workflow
+  // stage a controller transitions through, so it's computed here the same
+  // way FinanceReportController@arAging computes it server-side: unpaid
+  // balance + due_date in the past, not cancelled/waived.
+  bool get isOverdue => balanceDue > 0
+      && status != PaymentStatus.cancelled
+      && status != PaymentStatus.waived
+      && (DateTime.tryParse(dueDate)?.isBefore(DateTime.now()) ?? false);
+
+  // Single source of truth for both the status badge on a row and the
+  // filter chip counts, so "Overdue" means the same thing in both places.
+  PaymentStatus get effectiveStatus => isOverdue ? PaymentStatus.overdue : status;
 }
