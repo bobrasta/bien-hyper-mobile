@@ -10,6 +10,7 @@ class PayrollItem {
   final int overtimeAmount;
   final int payeAmount;
   final int nssfAmount;
+  final int? nssfEmployerAmount;
   final int heslbAmount;
   final int otherDeductions;
   final int grossPay;
@@ -19,7 +20,7 @@ class PayrollItem {
   const PayrollItem({
     required this.id, required this.payrollRunId, required this.userId, this.userName,
     required this.baseSalary, required this.allowancesTotal, required this.overtimeAmount,
-    required this.payeAmount, required this.nssfAmount, required this.heslbAmount,
+    required this.payeAmount, required this.nssfAmount, this.nssfEmployerAmount, required this.heslbAmount,
     required this.otherDeductions, required this.grossPay, required this.netPay, this.notes,
   });
 
@@ -33,6 +34,7 @@ class PayrollItem {
     overtimeAmount: (j['overtime_amount'] as num).toInt(),
     payeAmount: (j['paye_amount'] as num).toInt(),
     nssfAmount: (j['nssf_amount'] as num).toInt(),
+    nssfEmployerAmount: (j['nssf_employer_amount'] as num?)?.toInt(),
     heslbAmount: (j['heslb_amount'] as num).toInt(),
     otherDeductions: (j['other_deductions'] as num).toInt(),
     grossPay: (j['gross_pay'] as num).toInt(),
@@ -161,9 +163,31 @@ class PayrollHistoryItem {
 class EligibleStaffOption {
   final int id;
   final String name;
-  const EligibleStaffOption({required this.id, required this.name});
-  factory EligibleStaffOption.fromJson(Map<String, dynamic> j) =>
-      EligibleStaffOption(id: (j['id'] as num).toInt(), name: j['name'] as String);
+  // Prefill data from the staff member's active Contract, when they have
+  // one — null when no contract is on file yet (falls back to manual entry).
+  final int? baseSalary;
+  final int? allowancesTotal;
+  final int? nssfAmount;
+  final int? nssfEmployerAmount;
+  final int? payeAmount;
+  const EligibleStaffOption({
+    required this.id,
+    required this.name,
+    this.baseSalary,
+    this.allowancesTotal,
+    this.nssfAmount,
+    this.nssfEmployerAmount,
+    this.payeAmount,
+  });
+  factory EligibleStaffOption.fromJson(Map<String, dynamic> j) => EligibleStaffOption(
+    id: (j['id'] as num).toInt(),
+    name: j['name'] as String,
+    baseSalary: (j['base_salary'] as num?)?.toInt(),
+    allowancesTotal: (j['allowances_total'] as num?)?.toInt(),
+    nssfAmount: (j['nssf_amount'] as num?)?.toInt(),
+    nssfEmployerAmount: (j['nssf_employer_amount'] as num?)?.toInt(),
+    payeAmount: (j['paye_amount'] as num?)?.toInt(),
+  );
 }
 
 class PayrollService {

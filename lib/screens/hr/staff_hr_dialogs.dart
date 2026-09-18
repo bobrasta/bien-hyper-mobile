@@ -96,6 +96,13 @@ class _EditHrDetailsDialogState extends State<_EditHrDetailsDialog> {
   bool _saving = false;
   String? _error;
 
+  // Salary lives on the staff member's active Contract, not on the plain
+  // HR-details fields above — shown here read-only, since changing it must
+  // go through the Director-approval Salary Adjustment flow, never a
+  // direct edit (see SalaryAdjustmentController on the backend).
+  Contract? _activeContract;
+  bool _loadingContract = true;
+
   bool get _canEditPosition => hasDirectorAuthority(userRoleNotifier.value);
 
   @override
@@ -113,6 +120,7 @@ class _EditHrDetailsDialogState extends State<_EditHrDetailsDialog> {
     _nidaCtrl.text       = widget.member.nidaNumber ?? '';
     _biometricCtrl.text  = widget.member.biometricId ?? '';
     _loadPositions();
+    _loadContract();
   }
 
   Future<void> _loadPositions() async {
@@ -121,6 +129,45 @@ class _EditHrDetailsDialogState extends State<_EditHrDetailsDialog> {
       if (mounted) setState(() { _positions = list; _loadingPositions = false; });
     } catch (_) {
       if (mounted) setState(() => _loadingPositions = false);
+    }
+  }
+
+  Future<void> _loadContract() async {
+    try {
+      final list = await ContractService.instance.list(widget.member.id);
+      final active = list.where((c) => c.isActive).toList();
+      if (mounted) setState(() { _activeContract = active.isNotEmpty ? active.first : null; _loadingContract = false; });
+    } catch (_) {
+      if (mounted) setState(() => _loadingContract = false);
+    }
+  }
+
+  Future<void> _setInitialSalary() async {
+    final salaryCtrl = TextEditingController();
+    final salary = await showDialog<int>(context: context, builder: (dialogCtx) => AlertDialog(
+      backgroundColor: context.pal.surface1,
+      title: const Text('Set Initial Salary'),
+      content: SizedBox(width: 300, child: LabeledTextField(
+        label: 'Base salary (TZS)', controller: salaryCtrl, keyboardType: TextInputType.number,
+      )),
+      actions: [
+        TextButton(onPressed: () => Navigator.of(dialogCtx).pop(), child: const Text('Cancel')),
+        FilledButton(
+          onPressed: () => Navigator.of(dialogCtx).pop(int.tryParse(salaryCtrl.text.trim())),
+          child: const Text('Save'),
+        ),
+      ],
+    ));
+    if (salary == null) return;
+    try {
+      await ContractService.instance.create(widget.member.id, {
+        'contract_type': 'permanent',
+        'start_date': (widget.member.hireDate ?? DateTime.now()).toIso8601String().split('T').first,
+        'base_salary': salary,
+      });
+      _loadContract();
+    } catch (e) {
+      if (mounted) showErrorToast(context, e);
     }
   }
 
@@ -282,6 +329,26 @@ class _EditHrDetailsDialogState extends State<_EditHrDetailsDialog> {
               const SizedBox(width: 12),
               Expanded(child: LabeledTextField(label: 'Biometric ID', controller: _biometricCtrl)),
             ]),
+            const SizedBox(height: 16),
+            Text('SALARY', style: AppTheme.labelCaps.copyWith(fontSize: 10, color: context.pal.textDim)),
+            const SizedBox(height: 8),
+            if (_loadingContract)
+              const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
+            else
+              Row(children: [
+                Expanded(child: Text(
+                  _activeContract?.baseSalary != null
+                      ? 'TZS ${_activeContract!.baseSalary!.toString().replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (m) => ',')}'
+                      : 'Not set',
+                  style: AppTheme.bodySm,
+                )),
+                TextButton(
+                  onPressed: _activeContract != null
+                      ? () => showSalaryAdjustmentsDialog(context, widget.member)
+                      : _setInitialSalary,
+                  child: Text(_activeContract != null ? 'Adjust Salary' : 'Set Initial Salary'),
+                ),
+              ]),
           ]),
         ),
       ),

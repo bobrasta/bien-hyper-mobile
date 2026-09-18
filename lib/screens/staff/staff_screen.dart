@@ -1803,10 +1803,11 @@ class _NewStaffDialog extends StatefulWidget {
 }
 
 class _NewStaffDialogState extends State<_NewStaffDialog> {
-  final _nameCtrl  = TextEditingController();
-  final _emailCtrl = TextEditingController();
-  final _phoneCtrl = TextEditingController();
-  final _zoneCtrl  = TextEditingController();
+  final _nameCtrl   = TextEditingController();
+  final _emailCtrl  = TextEditingController();
+  final _phoneCtrl  = TextEditingController();
+  final _zoneCtrl   = TextEditingController();
+  final _salaryCtrl = TextEditingController();
   String  _role   = 'sales';
   bool    _saving = false;
   String? _error;
@@ -1837,6 +1838,7 @@ class _NewStaffDialogState extends State<_NewStaffDialog> {
   void dispose() {
     _nameCtrl.dispose(); _emailCtrl.dispose();
     _phoneCtrl.dispose(); _zoneCtrl.dispose();
+    _salaryCtrl.dispose();
     super.dispose();
   }
 
@@ -1858,6 +1860,7 @@ class _NewStaffDialogState extends State<_NewStaffDialog> {
         'phone': _phoneCtrl.text.trim().isNotEmpty ? _phoneCtrl.text.trim() : null,
         'role':  _role,
         'zone':  _zoneCtrl.text.trim().isNotEmpty ? _zoneCtrl.text.trim() : null,
+        'base_salary': int.tryParse(_salaryCtrl.text.trim()),
       });
       widget.onSaved?.call();
     } catch (e) {
@@ -1915,6 +1918,8 @@ class _NewStaffDialogState extends State<_NewStaffDialog> {
                   const SizedBox(width: 14),
                   Expanded(child: _TF('Zone (optional)', _zoneCtrl, 'Dar es Salaam')),
                 ]),
+                const SizedBox(height: 14),
+                _TF('Base Salary (TZS, optional)', _salaryCtrl, 'e.g. 600000'),
                 const SizedBox(height: 10),
                 Row(children: [
                   Icon(Symbols.info, size: 13, color: context.pal.textDim),

@@ -11,9 +11,11 @@ import '../../widgets/common/hr_empty_state.dart';
 import '../../widgets/common/labeled_field.dart';
 
 /// Payroll — ported from HR Redesign spec 1g: run list, a status stepper,
-/// and the full item table instead of a summary list. Manual entry (see
-/// PayrollController on the backend) — no PAYE/NSSF/HESLB auto-calculation
-/// engine yet, that needs real current TRA/NSSF/HESLB rate tables.
+/// and the full item table instead of a summary list. Base salary/
+/// allowances prefill from the staff member's saved Contract, and NSSF/PAYE
+/// prefill from PayrollCalculator's TRA-band formulas (see
+/// PayrollController::eligibleStaff on the backend) — all still editable
+/// for a one-off override. HESLB has no rate table and stays manual.
 class HrPayrollScreen extends StatefulWidget {
   const HrPayrollScreen({super.key});
 
@@ -103,15 +105,16 @@ class _HrPayrollScreenState extends State<HrPayrollScreen> {
     ));
     if (picked == null) return;
     if (!mounted) return;
-    await _editItem(userId: picked.id, userName: picked.name);
+    await _editItem(userId: picked.id, userName: picked.name, prefill: picked);
   }
 
-  Future<void> _editItem({required int userId, required String userName, PayrollItem? existing}) async {
-    final baseCtrl = TextEditingController(text: existing?.baseSalary.toString() ?? '0');
-    final allowCtrl = TextEditingController(text: existing?.allowancesTotal.toString() ?? '0');
+  Future<void> _editItem({required int userId, required String userName, PayrollItem? existing, EligibleStaffOption? prefill}) async {
+    final baseCtrl = TextEditingController(text: (existing?.baseSalary ?? prefill?.baseSalary ?? 0).toString());
+    final allowCtrl = TextEditingController(text: (existing?.allowancesTotal ?? prefill?.allowancesTotal ?? 0).toString());
     final otCtrl = TextEditingController(text: existing?.overtimeAmount.toString() ?? '0');
-    final payeCtrl = TextEditingController(text: existing?.payeAmount.toString() ?? '0');
-    final nssfCtrl = TextEditingController(text: existing?.nssfAmount.toString() ?? '0');
+    final payeCtrl = TextEditingController(text: (existing?.payeAmount ?? prefill?.payeAmount ?? 0).toString());
+    final nssfCtrl = TextEditingController(text: (existing?.nssfAmount ?? prefill?.nssfAmount ?? 0).toString());
+    final nssfEmployerCtrl = TextEditingController(text: (existing?.nssfEmployerAmount ?? prefill?.nssfEmployerAmount ?? 0).toString());
     final heslbCtrl = TextEditingController(text: existing?.heslbAmount.toString() ?? '0');
     final otherCtrl = TextEditingController(text: existing?.otherDeductions.toString() ?? '0');
     final notesCtrl = TextEditingController(text: existing?.notes ?? '');
@@ -133,12 +136,16 @@ class _HrPayrollScreenState extends State<HrPayrollScreen> {
         ]),
         const SizedBox(height: 12),
         Row(children: [
-          Expanded(child: LabeledTextField(label: 'NSSF', controller: nssfCtrl, keyboardType: TextInputType.number)),
+          Expanded(child: LabeledTextField(label: 'NSSF (employee)', controller: nssfCtrl, keyboardType: TextInputType.number)),
           const SizedBox(width: 10),
-          Expanded(child: LabeledTextField(label: 'HESLB', controller: heslbCtrl, keyboardType: TextInputType.number)),
+          Expanded(child: LabeledTextField(label: 'NSSF (employer)', controller: nssfEmployerCtrl, keyboardType: TextInputType.number)),
         ]),
         const SizedBox(height: 12),
-        LabeledTextField(label: 'Other Deductions', controller: otherCtrl, keyboardType: TextInputType.number),
+        Row(children: [
+          Expanded(child: LabeledTextField(label: 'HESLB', controller: heslbCtrl, keyboardType: TextInputType.number)),
+          const SizedBox(width: 10),
+          Expanded(child: LabeledTextField(label: 'Other Deductions', controller: otherCtrl, keyboardType: TextInputType.number)),
+        ]),
         const SizedBox(height: 12),
         LabeledTextField(label: 'Notes (optional)', controller: notesCtrl, maxLines: 2),
       ]))),
@@ -156,6 +163,7 @@ class _HrPayrollScreenState extends State<HrPayrollScreen> {
         'overtime_amount': int.tryParse(otCtrl.text.trim()) ?? 0,
         'paye_amount': int.tryParse(payeCtrl.text.trim()) ?? 0,
         'nssf_amount': int.tryParse(nssfCtrl.text.trim()) ?? 0,
+        'nssf_employer_amount': int.tryParse(nssfEmployerCtrl.text.trim()),
         'heslb_amount': int.tryParse(heslbCtrl.text.trim()) ?? 0,
         'other_deductions': int.tryParse(otherCtrl.text.trim()) ?? 0,
         'notes': notesCtrl.text.trim().isNotEmpty ? notesCtrl.text.trim() : null,
