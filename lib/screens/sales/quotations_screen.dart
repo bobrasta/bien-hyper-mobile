@@ -614,7 +614,7 @@ class _QuotationDetailScreenState extends State<QuotationDetailScreen> {
               )),
             ]),
           ),
-          const Spacer(),
+          const SizedBox(height: 14),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
             decoration: BoxDecoration(color: context.pal.surface2, borderRadius: const BorderRadius.vertical(bottom: Radius.circular(14))),
