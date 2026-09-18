@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import '../../main.dart' show authTokenNotifier, userNameNotifier, can;
 import '../../models/expense.dart';
@@ -40,37 +39,6 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   int _section = 0;
   int _tab     = 0;
-
-  // Security toggles
-  bool _twoFa   = true;
-  bool _sso     = false;
-  bool _audit   = true;
-  bool _session = true;
-
-  // Communication toggles
-  bool _emailTicket   = true;
-  bool _emailPayment  = true;
-  bool _emailWarranty = true;
-  bool _emailDigest   = true;
-  bool _pushTicket    = true;
-  bool _pushPayment   = false;
-  String _digestFreq  = 'Daily';
-
-  // SSO tab
-  bool _ssoEnabled     = false;
-  bool _ssoSaving      = false;
-  String? _ssoTestMsg;
-  final _entityIdCtrl  = TextEditingController();
-  final _ssoUrlCtrl    = TextEditingController();
-  final _sloUrlCtrl    = TextEditingController();
-  final _certCtrl      = TextEditingController();
-
-  // Workspace
-  final _companyCtrl   = TextEditingController();
-  String _timezone     = 'Africa/Dar_es_Salaam';
-  String _language     = 'English';
-  String _dateFormat   = 'DD/MM/YYYY';
-  bool   _savingWs     = false;
 
   // Profile
   bool _loadingProfile = true;
@@ -131,11 +99,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       return dt != null && dt.isAfter(cutoff);
     }).toList();
   }
-
-  // API key
-  bool _apiKeyVisible = false;
-  static const _apiKey = 'hmd_live_sk_••••••••••••••••••••••••••••••••';
-  static const _apiKeyReal = 'hmd_live_sk_a8f3c2d1e9b74f56a2c8d7e3f1b9a405';
 
   @override
   void initState() {
@@ -263,9 +226,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void dispose() {
     _nameCtrl.dispose(); _emailCtrl.dispose();
     _oldPwCtrl.dispose(); _newPwCtrl.dispose();
-    _entityIdCtrl.dispose(); _ssoUrlCtrl.dispose();
-    _sloUrlCtrl.dispose(); _certCtrl.dispose();
-    _companyCtrl.dispose(); _thresholdCtrl.dispose();
+    _thresholdCtrl.dispose();
     _memberSearchCtrl.dispose();
     super.dispose();
   }
@@ -336,10 +297,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   static const _sections = [
     {'icon': Symbols.person,        'label': 'Profile'},
     {'icon': Symbols.domain,        'label': 'Workspace',      'adminOnly': true},
-    {'icon': Symbols.credit_card,   'label': 'Billing & Plan',  'adminOnly': true},
-    {'icon': Symbols.notifications, 'label': 'Communication'},
-    {'icon': Symbols.cable,         'label': 'Connections',     'adminOnly': true},
-    {'icon': Symbols.security,      'label': 'Security',        'adminOnly': true},
     {'icon': Symbols.tune,          'label': 'Preferences'},
     {'icon': Symbols.fact_check,    'label': 'Approvals',       'adminOnly': true},
     {'icon': Symbols.account_tree,  'label': 'Org Chart',       'adminOnly': true},
@@ -352,7 +309,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         .toList();
   }
 
-  static const _memberTabs = ['Members', 'Pending', 'Roles', 'Activity', 'SSO'];
+  static const _memberTabs = ['Members', 'Pending', 'Roles', 'Activity'];
 
   // ── Build ─────────────────────────────────────────────────────────────────
   @override
@@ -521,13 +478,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _buildSectionContent(BuildContext context) => switch (_section) {
     0 => _profileSection(context),
     1 => _workspaceSection(context),
-    2 => _billingSection(context),
-    3 => _communicationSection(context),
-    4 => _connectionsSection(context),
-    5 => _securitySection(context),
-    6 => _preferencesSection(context),
-    7 => _approvalsSection(context),
-    8 => const OrgChartEditor(),
+    2 => _preferencesSection(context),
+    3 => _approvalsSection(context),
+    4 => const OrgChartEditor(),
     _ => const SizedBox.shrink(),
   };
 
@@ -589,56 +542,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   // ── Section 0: Workspace ──────────────────────────────────────────────────
   Widget _workspaceSection(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start, children: [
-    _SCard(
-      title: 'Organisation',
-      icon: Symbols.domain,
-      child: Column(children: [
-        Row(children: [
-          Expanded(child: _SettingsField(label: 'Company Name', ctrl: _companyCtrl,
-              hint: 'Your organisation name')),
-          const SizedBox(width: 14),
-          Expanded(child: _SDropdown(
-            label: 'Industry',
-            value: 'Healthcare / Medical',
-            items: const ['Healthcare / Medical', 'Pharmaceuticals', 'Diagnostics', 'Other'],
-            onChanged: (_) {},
-          )),
-        ]),
-        const SizedBox(height: 14),
-        Row(children: [
-          Expanded(child: _SDropdown(
-            label: 'Timezone',
-            value: _timezone,
-            items: const ['Africa/Dar_es_Salaam', 'Africa/Nairobi', 'UTC', 'Europe/London'],
-            onChanged: (v) => setState(() => _timezone = v),
-          )),
-          const SizedBox(width: 14),
-          Expanded(child: _SDropdown(
-            label: 'Language',
-            value: _language,
-            items: const ['English', 'Swahili', 'French'],
-            onChanged: (v) => setState(() => _language = v),
-          )),
-          const SizedBox(width: 14),
-          Expanded(child: _SDropdown(
-            label: 'Date Format',
-            value: _dateFormat,
-            items: const ['DD/MM/YYYY', 'MM/DD/YYYY', 'YYYY-MM-DD'],
-            onChanged: (v) => setState(() => _dateFormat = v),
-          )),
-        ]),
-        const SizedBox(height: 16),
-        Align(alignment: Alignment.centerRight,
-          child: _TealBtn(label: 'Save workspace', saving: _savingWs,
-              onTap: () async {
-                setState(() => _savingWs = true);
-                await Future.delayed(const Duration(milliseconds: 600));
-                if (mounted) setState(() => _savingWs = false);
-              })),
-      ]),
-    ),
-    const SizedBox(height: 24),
-
     // Team & Roles
     Text('Team & Roles', style: AppTheme.pageTitle),
     const SizedBox(height: 4),
@@ -672,7 +575,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       1 => _pendingTab(context),
       2 => _rolesTab(context),
       3 => _activityTab(context),
-      4 => _ssoTab(context),
       _ => const SizedBox.shrink(),
     },
   ]);
@@ -1242,524 +1144,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  // ── Tab 4: SSO ────────────────────────────────────────────────────────────
-  Widget _ssoTab(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start, children: [
-    // Enable toggle
-    Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: context.pal.surface1,
-        borderRadius: BorderRadius.circular(AppColors.rLg),
-        border: Border.all(color: _ssoEnabled
-            ? AppColors.teal.withValues(alpha: 0.4) : context.pal.border),
-      ),
-      child: Row(children: [
-        Container(
-          width: 36, height: 36,
-          decoration: BoxDecoration(
-            color: _ssoEnabled ? AppColors.tealSoft : context.pal.surface2,
-            borderRadius: BorderRadius.circular(8)),
-          child: Icon(Symbols.security, size: 18,
-              color: _ssoEnabled ? AppColors.teal : context.pal.textDim),
-        ),
-        const SizedBox(width: 14),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('SAML Single Sign-On', style: AppTheme.bodyStrong),
-          Text('Allow team members to log in via your organisation\'s identity provider.',
-              style: AppTheme.bodySub.copyWith(fontSize: 12)),
-        ])),
-        Switch(
-          value: _ssoEnabled,
-          onChanged: (v) => setState(() => _ssoEnabled = v),
-          activeThumbColor: AppColors.teal,
-          inactiveThumbColor: context.pal.textDim,
-          inactiveTrackColor: context.pal.surface3,
-        ),
-      ]),
-    ),
-
-    if (_ssoEnabled) ...[
-      const SizedBox(height: 16),
-      _SCard(
-        title: 'SAML Configuration',
-        icon: Symbols.settings,
-        child: Column(children: [
-          Row(children: [
-            Expanded(child: _SettingsField(label: 'Entity ID (SP)',
-                ctrl: _entityIdCtrl, hint: 'https://hypermed.app/auth/saml/metadata')),
-            const SizedBox(width: 14),
-            Expanded(child: _SettingsField(label: 'SSO URL (IdP)',
-                ctrl: _ssoUrlCtrl, hint: 'https://idp.yourcompany.com/sso')),
-          ]),
-          const SizedBox(height: 14),
-          _SettingsField(label: 'SLO URL (optional)',
-              ctrl: _sloUrlCtrl, hint: 'https://idp.yourcompany.com/slo'),
-          const SizedBox(height: 14),
-          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('X.509 CERTIFICATE'.toUpperCase(),
-                style: AppTheme.labelCaps.copyWith(fontSize: 10)),
-            const SizedBox(height: 6),
-            Container(
-              height: 100,
-              decoration: BoxDecoration(
-                color: context.pal.surface2, borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: context.pal.border)),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              child: TextField(
-                controller: _certCtrl, maxLines: null, expands: true,
-                style: AppTheme.monoXs.copyWith(fontSize: 11),
-                decoration: InputDecoration(
-                  hintText: '-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----',
-                  hintStyle: AppTheme.monoXs.copyWith(color: context.pal.textDim, fontSize: 11),
-                  border: InputBorder.none, isDense: false, contentPadding: EdgeInsets.zero),
-              ),
-            ),
-          ]),
-          const SizedBox(height: 16),
-          if (_ssoTestMsg != null) ...[
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: _ssoTestMsg!.startsWith('—')
-                    ? AppColors.tealSoft : AppColors.coralSoft,
-                borderRadius: BorderRadius.circular(7),
-              ),
-              child: Text(_ssoTestMsg!, style: AppTheme.bodySub.copyWith(
-                color: _ssoTestMsg!.startsWith('—') ? AppColors.teal : AppColors.coral,
-                fontSize: 12)),
-            ),
-            const SizedBox(height: 12),
-          ],
-          Row(children: [
-            _OutlineBtn(
-              label: 'Test SSO connection', saving: _ssoSaving,
-              onTap: () async {
-                setState(() { _ssoSaving = true; _ssoTestMsg = null; });
-                await Future.delayed(const Duration(seconds: 1));
-                if (mounted) {
-                  setState(() {
-                    _ssoSaving = false;
-                    _ssoTestMsg = _ssoUrlCtrl.text.isNotEmpty
-                        ? '— Connection verified — 12 users synced'
-                        : '— SSO URL is required to test the connection.';
-                  });
-                }
-              }),
-            const Spacer(),
-            _TealBtn(label: 'Save configuration', saving: false, onTap: () {}),
-          ]),
-        ]),
-      ),
-      const SizedBox(height: 16),
-      _SCard(
-        title: 'Attribute Mapping',
-        icon: Symbols.tune,
-        child: Column(children: [
-          _attrRow('Email',        'user.email',       context),
-          _attrRow('Display Name', 'user.displayName', context),
-          _attrRow('Role',         'user.role',        context),
-          _attrRow('Department',   'user.department',  context),
-        ]),
-      ),
-    ],
-  ]);
-
-  Widget _attrRow(String label, String attr, BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 6),
-    child: Row(children: [
-      SizedBox(width: 120, child: Text(label,
-          style: AppTheme.bodySm.copyWith(fontSize: 12.5))),
-      const SizedBox(width: 12),
-      Expanded(child: Container(
-        height: 34,
-        decoration: BoxDecoration(color: context.pal.surface2,
-            borderRadius: BorderRadius.circular(7), border: Border.all(color: context.pal.border)),
-        padding: const EdgeInsets.symmetric(horizontal: 10),
-        child: Center(child: Text(attr, style: AppTheme.monoXs.copyWith(
-            color: AppColors.teal, fontSize: 11))),
-      )),
-    ]),
-  );
-
-  // ── Section 1: Billing ────────────────────────────────────────────────────
-  Widget _billingSection(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start, children: [
-    // Plan card
-    Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [AppColors.teal.withValues(alpha: 0.16), AppColors.teal.withValues(alpha: 0.04)],
-          begin: Alignment.topLeft, end: Alignment.bottomRight),
-        borderRadius: BorderRadius.circular(AppColors.rLg),
-        border: Border.all(color: AppColors.teal.withValues(alpha: 0.3)),
-      ),
-      child: Row(children: [
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Icon(Symbols.workspace_premium, size: 18, color: AppColors.teal),
-            const SizedBox(width: 8),
-            Text('Enterprise Plan', style: AppTheme.pageTitle.copyWith(
-                color: Colors.white, fontSize: 18)),
-          ]),
-          const SizedBox(height: 6),
-          Text('Unlimited machines · 25 seats · Priority support · API access',
-              style: AppTheme.bodySub.copyWith(color: Colors.white60, fontSize: 12)),
-          const SizedBox(height: 16),
-          Row(children: [
-            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('SEATS USED', style: AppTheme.monoXs.copyWith(color: Colors.white38)),
-              const SizedBox(height: 4),
-              Text('${_staffList.isEmpty ? 18 : _staffList.length} / 25',
-                  style: AppTheme.bodyStrong.copyWith(color: Colors.white, fontSize: 22)),
-            ]),
-            const SizedBox(width: 32),
-            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('NEXT BILLING', style: AppTheme.monoXs.copyWith(color: Colors.white38)),
-              const SizedBox(height: 4),
-              Text('Jul 1, 2025', style: AppTheme.bodyStrong.copyWith(
-                  color: Colors.white, fontSize: 14)),
-            ]),
-          ]),
-        ])),
-        Column(mainAxisSize: MainAxisSize.min, children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: BoxDecoration(
-              color: AppColors.teal, borderRadius: BorderRadius.circular(8)),
-            child: Text('Manage plan', style: AppTheme.bodyStrong.copyWith(
-                color: const Color(0xFF06120F), fontSize: 12.5)),
-          ),
-          const SizedBox(height: 8),
-          Text('+ Add seats', style: AppTheme.bodySub.copyWith(
-              color: AppColors.teal, fontSize: 12)),
-        ]),
-      ]),
-    ),
-    const SizedBox(height: 20),
-
-    // Invoices
-    _SCard(
-      title: 'Invoice History',
-      icon: Symbols.receipt_long,
-      child: HScrollTable(minWidth: 560, child: Column(children: [
-        Container(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          decoration: BoxDecoration(border: Border(bottom: BorderSide(color: context.pal.border))),
-          child: Row(children: [
-            _MemberTh('Date',     flex: 2), _MemberTh('Description', flex: 3),
-            _MemberTh('Amount',   flex: 1), _MemberTh('Status',      flex: 1),
-            const SizedBox(width: 60),
-          ]),
-        ),
-        ...[
-          ('Jun 1, 2025',  'Enterprise Plan · June 2025',   'TSh 485,000', 'Paid'),
-          ('May 1, 2025',  'Enterprise Plan · May 2025',    'TSh 485,000', 'Paid'),
-          ('Apr 1, 2025',  'Enterprise Plan · April 2025',  'TSh 485,000', 'Paid'),
-          ('Mar 1, 2025',  'Enterprise Plan · March 2025',  'TSh 485,000', 'Paid'),
-        ].map((inv) => Container(
-          decoration: BoxDecoration(border: Border(bottom: BorderSide(color: context.pal.divider))),
-          child: Row(children: [
-            Expanded(flex: 2, child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-              child: Text(inv.$1, style: AppTheme.monoXs.copyWith(fontSize: 12)))),
-            Expanded(flex: 3, child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Text(inv.$2, style: AppTheme.bodySub.copyWith(fontSize: 12)))),
-            Expanded(flex: 1, child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Text(inv.$3, style: AppTheme.bodyStrong.copyWith(fontSize: 12.5)))),
-            Expanded(flex: 1, child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                decoration: BoxDecoration(
-                  color: AppColors.tealSoft, borderRadius: BorderRadius.circular(999)),
-                child: Text(inv.$4, style: AppTheme.bodySub.copyWith(
-                    color: AppColors.teal, fontSize: 11))))),
-            SizedBox(width: 60, child: Icon(Symbols.download, size: 16,
-                color: context.pal.textDim)),
-          ]),
-        )),
-      ])),
-    ),
-  ]);
-
-  // ── Section 2: Communication ──────────────────────────────────────────────
-  Widget _communicationSection(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start, children: [
-    _SCard(
-      title: 'Email Notifications',
-      icon: Symbols.mail_outline,
-      child: Column(children: [
-        _ToggleRow(label: 'Service ticket assigned to me',
-            sub: 'Get notified when a ticket is assigned to you',
-            value: _emailTicket, onChanged: (v) => setState(() => _emailTicket = v)),
-        _ToggleRow(label: 'Payment overdue alerts',
-            sub: 'Alerts for invoices more than 7 days overdue',
-            value: _emailPayment, onChanged: (v) => setState(() => _emailPayment = v)),
-        _ToggleRow(label: 'Warranty expiry reminders',
-            sub: '30-day and 7-day reminders for expiring warranties',
-            value: _emailWarranty, onChanged: (v) => setState(() => _emailWarranty = v)),
-        _ToggleRow(label: 'Daily digest',
-            sub: 'Summary of open tickets, overdue items and upcoming tasks',
-            value: _emailDigest, onChanged: (v) => setState(() => _emailDigest = v)),
-        if (_emailDigest) ...[
-          const SizedBox(height: 8),
-          Padding(
-            padding: const EdgeInsets.only(left: 8),
-            child: Row(children: [
-              Text('Digest time:', style: AppTheme.bodySub.copyWith(fontSize: 12)),
-              const SizedBox(width: 12),
-              SizedBox(
-                width: 200,
-                child: _SDropdown(
-                  label: '', value: _digestFreq,
-                  items: const ['Daily', 'Weekly (Monday)', 'Weekly (Friday)'],
-                  onChanged: (v) => setState(() => _digestFreq = v),
-                ),
-              ),
-            ]),
-          ),
-        ],
-      ]),
-    ),
-    const SizedBox(height: 16),
-    _SCard(
-      title: 'Push Notifications',
-      icon: Symbols.notifications_active,
-      child: Column(children: [
-        _ToggleRow(label: 'Ticket assigned',
-            sub: 'In-app + mobile push when a ticket is assigned',
-            value: _pushTicket, onChanged: (v) => setState(() => _pushTicket = v)),
-        _ToggleRow(label: 'Payment alerts',
-            sub: 'Push notifications for overdue payments',
-            value: _pushPayment, onChanged: (v) => setState(() => _pushPayment = v)),
-      ]),
-    ),
-    const SizedBox(height: 16),
-    _SCard(
-      title: 'Email Signature',
-      icon: Symbols.draw,
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('Appended to all outgoing emails from the system.',
-            style: AppTheme.bodySub.copyWith(fontSize: 12)),
-        const SizedBox(height: 10),
-        Container(
-          height: 80,
-          decoration: BoxDecoration(
-            color: context.pal.surface2, borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: context.pal.border)),
-          padding: const EdgeInsets.all(12),
-          child: Text(
-            'MedEquip Tanzania Ltd\ninfo@medequip.tz · +255 22 XXX XXXX\nDar es Salaam, Tanzania',
-            style: AppTheme.bodySm.copyWith(color: context.pal.textMute, height: 1.6)),
-        ),
-        const SizedBox(height: 10),
-        Align(alignment: Alignment.centerRight,
-          child: _OutlineBtn(label: 'Edit signature', saving: false, onTap: () {})),
-      ]),
-    ),
-  ]);
-
-  // ── Section 3: Connections ────────────────────────────────────────────────
-  Widget _connectionsSection(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start, children: [
-    _SCard(
-      title: 'API Access',
-      icon: Symbols.code,
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('Use the API key below to authenticate requests from external systems.',
-            style: AppTheme.bodySub.copyWith(fontSize: 12)),
-        const SizedBox(height: 14),
-        Container(
-          height: 42,
-          decoration: BoxDecoration(
-            color: context.pal.surface2, borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: context.pal.border)),
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: Row(children: [
-            Expanded(child: Text(
-              _apiKeyVisible ? _apiKeyReal : _apiKey,
-              style: AppTheme.monoXs.copyWith(
-                  color: _apiKeyVisible ? AppColors.teal : context.pal.textMute,
-                  fontSize: 12),
-              overflow: TextOverflow.ellipsis)),
-            GestureDetector(
-              onTap: () => setState(() => _apiKeyVisible = !_apiKeyVisible),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 6),
-                child: Icon(_apiKeyVisible ? Symbols.visibility_off : Symbols.visibility,
-                    size: 16, color: context.pal.textDim))),
-            GestureDetector(
-              onTap: () {
-                Clipboard.setData(const ClipboardData(text: _apiKeyReal));
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                  content: const Text('API key copied'),
-                  backgroundColor: AppColors.teal,
-                  behavior: SnackBarBehavior.floating,
-                  duration: const Duration(seconds: 2),
-                ));
-              },
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 6),
-                child: Icon(Symbols.content_copy, size: 16, color: context.pal.textDim))),
-          ]),
-        ),
-        const SizedBox(height: 12),
-        Row(children: [
-          Icon(Symbols.warning, size: 13, color: AppColors.amber),
-          const SizedBox(width: 6),
-          Expanded(child: Text('Keep your API key secret. Regenerate it if you suspect it has been compromised.',
-              style: AppTheme.bodySub.copyWith(color: AppColors.amber, fontSize: 11.5))),
-          const SizedBox(width: 12),
-          _OutlineBtn(label: 'Regenerate key', saving: false, onTap: () {}),
-        ]),
-      ]),
-    ),
-    const SizedBox(height: 16),
-    _SCard(
-      title: 'Webhooks',
-      icon: Symbols.webhook,
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('Receive real-time POST requests when events occur in Hypermed.',
-            style: AppTheme.bodySub.copyWith(fontSize: 12)),
-        const SizedBox(height: 14),
-        _SettingsField(label: 'Webhook URL', ctrl: TextEditingController(),
-            hint: 'https://yourapp.com/webhook/hypermed'),
-        const SizedBox(height: 12),
-        Wrap(spacing: 8, runSpacing: 6, children: [
-          'ticket.created', 'ticket.resolved', 'machine.status_changed',
-          'invoice.overdue', 'warranty.expiring',
-        ].map((ev) => Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: context.pal.surface2, borderRadius: BorderRadius.circular(5),
-            border: Border.all(color: context.pal.border)),
-          child: Text(ev, style: AppTheme.monoXs.copyWith(
-              color: context.pal.textMute, fontSize: 10.5)),
-        )).toList()),
-        const SizedBox(height: 14),
-        Row(children: [
-          _OutlineBtn(label: 'Send test', saving: false, onTap: () {}),
-          const SizedBox(width: 10),
-          _TealBtn(label: 'Save webhook', saving: false, onTap: () {}),
-        ]),
-      ]),
-    ),
-    const SizedBox(height: 16),
-    _SCard(
-      title: 'Integrations',
-      icon: Symbols.extension,
-      child: Column(children: [
-        ...const [
-          ('Slack',    'Send ticket alerts and daily digest to a Slack channel.',    Symbols.forum,     false),
-          ('Zapier',   'Connect Hypermed to 5,000+ apps via Zapier automations.',    Symbols.bolt,      false),
-          ('WhatsApp', 'Send WhatsApp notifications via the Business API.',          Symbols.chat,      false),
-          ('Power BI', 'Stream revenue and service data to Power BI dashboards.',    Symbols.bar_chart, false),
-        ].map((integ) => Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          decoration: const BoxDecoration(),
-          child: Row(children: [
-            Container(
-              width: 36, height: 36,
-              decoration: BoxDecoration(
-                color: context.pal.surface2, borderRadius: BorderRadius.circular(8)),
-              child: Icon(integ.$3, size: 18, color: context.pal.textDim),
-            ),
-            const SizedBox(width: 12),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(integ.$1, style: AppTheme.bodyStrong.copyWith(fontSize: 13)),
-              Text(integ.$2, style: AppTheme.bodySub.copyWith(fontSize: 12)),
-            ])),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: context.pal.surface2, borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: context.pal.border)),
-              child: Text('Coming soon', style: AppTheme.monoXs.copyWith(
-                  fontSize: 10.5, color: context.pal.textDim)),
-            ),
-          ]),
-        )),
-      ]),
-    ),
-  ]);
-
-  // ── Section 4: Security ───────────────────────────────────────────────────
-  Widget _securitySection(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start, children: [
-    _SCard(
-      title: 'Authentication',
-      icon: Symbols.lock,
-      child: Column(children: [
-        _ToggleRow(
-          label: 'Require 2FA for all members',
-          sub: 'Members without 2FA will be prompted on next login',
-          value: _twoFa, onChanged: (v) => setState(() => _twoFa = v)),
-        _ToggleRow(
-          label: 'SAML Single Sign-On (SSO)',
-          sub: 'Connect to your identity provider —configure in Team →SSO',
-          value: _sso, onChanged: (v) => setState(() {
-            _sso = v;
-            if (v) { _section = 1; _tab = 4; }
-          })),
-      ]),
-    ),
-    const SizedBox(height: 16),
-    _SCard(
-      title: 'Sessions & Access',
-      icon: Symbols.manage_accounts,
-      child: Column(children: [
-        _ToggleRow(
-          label: 'Session timeout (8 hours)',
-          sub: 'Auto-logout inactive sessions after 8 hours',
-          value: _session, onChanged: (v) => setState(() => _session = v)),
-        _ToggleRow(
-          label: 'Audit log',
-          sub: 'Track all member actions and data exports —view in Team →Activity',
-          value: _audit, onChanged: (v) => setState(() => _audit = v)),
-      ]),
-    ),
-    const SizedBox(height: 16),
-    _SCard(
-      title: 'Active Sessions',
-      icon: Symbols.devices,
-      child: Column(children: [
-        ...const [
-          ('Windows · Chrome 125',        'Dar es Salaam, TZ',  'Now',          true),
-          ('Android · Hypermed Mobile',   'Dar es Salaam, TZ',  '2 hrs ago',    false),
-          ('Windows · Chrome 124',        'Arusha, TZ',         '3 days ago',   false),
-        ].map((s) => Container(
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          child: Row(children: [
-            Icon(s.$4 ? Symbols.computer : Symbols.smartphone,
-                size: 20, color: s.$4 ? AppColors.teal : context.pal.textDim),
-            const SizedBox(width: 12),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(s.$1, style: AppTheme.bodySm.copyWith(
-                  fontWeight: s.$4 ? FontWeight.w600 : FontWeight.w400)),
-              Text('${s.$2} · ${s.$3}', style: AppTheme.bodySub.copyWith(fontSize: 11.5)),
-            ])),
-            if (s.$4)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: AppColors.tealSoft, borderRadius: BorderRadius.circular(999)),
-                child: Text('Current', style: AppTheme.monoXs.copyWith(
-                    color: AppColors.teal, fontSize: 10)))
-            else
-              GestureDetector(
-                onTap: () {},
-                child: Text('Revoke', style: AppTheme.bodySub.copyWith(
-                    color: AppColors.coral, fontSize: 12))),
-          ]),
-        )),
-      ]),
-    ),
-  ]);
-
   // ── Section 5: Preferences ────────────────────────────────────────────────
   Widget _preferencesSection(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -1826,62 +1210,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ],
           ),
         ),
-      ]),
-    ),
-    const SizedBox(height: 16),
-    _SCard(
-      title: 'Localisation',
-      icon: Symbols.language,
-      child: Column(children: [
-        Row(children: [
-          Expanded(child: _SDropdown(
-            label: 'Display Language', value: 'English',
-            items: const ['English', 'Swahili', 'French'],
-            onChanged: (_) {})),
-          const SizedBox(width: 14),
-          Expanded(child: _SDropdown(
-            label: 'Currency Display', value: 'TSh (TZS)',
-            items: const ['TSh (TZS)', 'USD (\$)', 'EUR (€)', 'KES (KSh)'],
-            onChanged: (_) {})),
-        ]),
-        const SizedBox(height: 14),
-        Row(children: [
-          Expanded(child: _SDropdown(
-            label: 'Date Format', value: _dateFormat,
-            items: const ['DD/MM/YYYY', 'MM/DD/YYYY', 'YYYY-MM-DD'],
-            onChanged: (v) => setState(() => _dateFormat = v))),
-          const SizedBox(width: 14),
-          Expanded(child: _SDropdown(
-            label: 'Time Format', value: '24-hour',
-            items: const ['24-hour', '12-hour (AM/PM)'],
-            onChanged: (_) {})),
-        ]),
-      ]),
-    ),
-    const SizedBox(height: 16),
-    _SCard(
-      title: 'Table Density',
-      icon: Symbols.density_medium,
-      child: Row(children: [
-        for (final opt in ['Comfortable', 'Compact', 'Dense'])
-          Expanded(child: Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: GestureDetector(
-              onTap: () {},
-              child: Container(
-                height: 42,
-                decoration: BoxDecoration(
-                  color: opt == 'Comfortable'
-                      ? AppColors.tealSoft : context.pal.surface2,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: opt == 'Comfortable'
-                      ? AppColors.teal : context.pal.border)),
-                child: Center(child: Text(opt, style: AppTheme.bodySm.copyWith(
-                  color: opt == 'Comfortable' ? AppColors.teal : context.pal.textMute,
-                  fontWeight: opt == 'Comfortable' ? FontWeight.w600 : FontWeight.w400))),
-              ),
-            ),
-          )),
       ]),
     ),
   ]);
@@ -2296,35 +1624,6 @@ class _OutlineBtn extends StatelessWidget {
 }
 
 // ── Dropdown helper ─────────────────────────────────────────────────────────
-class _SDropdown extends StatelessWidget {
-  const _SDropdown({required this.label, required this.value,
-      required this.items, required this.onChanged});
-  final String label, value;
-  final List<String> items;
-  final ValueChanged<String> onChanged;
-
-  @override
-  Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    if (label.isNotEmpty) ...[
-      Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10)),
-      const SizedBox(height: 6),
-    ],
-    Container(
-      decoration: BoxDecoration(color: context.pal.surface2,
-          borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-      height: 38,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: DropdownButtonHideUnderline(child: DropdownButton<String>(
-        value: items.contains(value) ? value : items.first,
-        isExpanded: true, dropdownColor: context.pal.surface2, style: AppTheme.bodySm,
-        icon: Icon(Symbols.expand_more, size: 16, color: context.pal.textDim),
-        items: items.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
-        onChanged: (v) { if (v != null) onChanged(v); },
-      )),
-    ),
-  ]);
-}
-
 // ── Existing shared widgets (unchanged) ─────────────────────────────────────
 class _SettingsSideItem extends StatelessWidget {
   const _SettingsSideItem({required this.icon, required this.label,
