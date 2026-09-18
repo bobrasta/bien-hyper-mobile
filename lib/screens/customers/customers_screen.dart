@@ -28,7 +28,6 @@ class _CustomersScreenState extends State<CustomersScreen> {
   bool _showLogInteraction = false;
   bool _showEditContact = false;
   bool _showScheduleFollowup = false;
-  bool _showCompose = false;
   bool _showDetail = false;
 
   List<Contact> _allContacts   = [];
@@ -110,6 +109,23 @@ class _CustomersScreenState extends State<CustomersScreen> {
     if (filtered.isEmpty) return null;
     if (_selectedIdx >= filtered.length) return filtered.first;
     return filtered[_selectedIdx];
+  }
+
+  // showDialog gives the modal the whole window as its route, not just this
+  // screen's own content pane — stacking it as a bare Stack child (the old
+  // approach) only got it this screen's own bounds, so it rendered cramped
+  // and undimmed instead of as a real full-screen overlay.
+  void _openCompose() {
+    final target = _detailContact ?? _selected;
+    if (target == null) return;
+    showDialog(
+      context: context,
+      builder: (_) => ComposeModal(
+        initialTo: target.email ?? '',
+        onClose: () => Navigator.of(context).pop(),
+        onSent:  () => Navigator.of(context).pop(),
+      ),
+    );
   }
 
   @override
@@ -262,7 +278,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
                 onLogInteraction: () => setState(() => _showLogInteraction = true),
                 onEditContact: () => setState(() => _showEditContact = true),
                 onScheduleFollowup: () => setState(() => _showScheduleFollowup = true),
-                onSendEmail: () => setState(() => _showCompose = true),
+                onSendEmail: _openCompose,
               )),
             ]);
           }
@@ -281,7 +297,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
                   onLogInteraction: () => setState(() => _showLogInteraction = true),
                   onEditContact: () => setState(() => _showEditContact = true),
                   onScheduleFollowup: () => setState(() => _showScheduleFollowup = true),
-                  onSendEmail: () => setState(() => _showCompose = true),
+                  onSendEmail: _openCompose,
                 ),
           ),
         ]);
@@ -315,12 +331,6 @@ class _CustomersScreenState extends State<CustomersScreen> {
             setState(() { _showScheduleFollowup = false; _detailContact = null; });
             _loadDetail(contact);
           },
-        ),
-      if (_showCompose && contact != null)
-        ComposeModal(
-          initialTo: (_detailContact ?? contact).email ?? '',
-          onClose: () => setState(() => _showCompose = false),
-          onSent:  () => setState(() => _showCompose = false),
         ),
     ]);  // Stack
   }

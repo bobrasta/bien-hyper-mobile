@@ -35,7 +35,6 @@ class _MachineDetailScreenState extends State<MachineDetailScreen> {
   bool _showLogService  = false;
   bool _showRaiseTicket = false;
   bool _showEditSpecs   = false;
-  bool _showCompose     = false;
 
   Machine? _machine;
   bool     _loading = true;
@@ -61,6 +60,23 @@ class _MachineDetailScreenState extends State<MachineDetailScreen> {
     } catch (e) {
       if (mounted) setState(() { _loadError = friendlyError(e); _loading = false; });
     }
+  }
+
+  // showDialog gives the modal the whole window as its route, not just this
+  // screen's own content pane — stacking it as a bare Stack child (the old
+  // approach) only got it this screen's own bounds, so it rendered cramped
+  // and undimmed instead of as a real full-screen overlay.
+  void _openCompose() {
+    final m = _machine;
+    if (m == null) return;
+    showDialog(
+      context: context,
+      builder: (_) => ComposeModal(
+        initialSubject: 'RE: ${m.model} (${m.serialNo})',
+        onClose: () => Navigator.of(context).pop(),
+        onSent:  () => Navigator.of(context).pop(),
+      ),
+    );
   }
 
   @override
@@ -154,7 +170,7 @@ class _MachineDetailScreenState extends State<MachineDetailScreen> {
                 AppButton(label: 'Edit Machine', icon: Symbols.edit,                variant: BtnVariant.normal,
                     onPressed: () => setState(() => _showEdit = true)),
                 AppButton(label: 'Send Email',   icon: Symbols.mail,                variant: BtnVariant.normal,
-                    onPressed: () => setState(() => _showCompose = true)),
+                    onPressed: _openCompose),
               ]);
 
               if (narrow) {
@@ -184,7 +200,7 @@ class _MachineDetailScreenState extends State<MachineDetailScreen> {
                       onPressed: () => setState(() => _showEdit = true)),
                   const SizedBox(height: 8),
                   AppButton(label: 'Send Email',   icon: Symbols.mail,                variant: BtnVariant.normal,
-                      onPressed: () => setState(() => _showCompose = true)),
+                      onPressed: _openCompose),
                 ]),
               ]);
             }),
@@ -242,12 +258,6 @@ class _MachineDetailScreenState extends State<MachineDetailScreen> {
           machine: m,
           onClose: () => setState(() => _showEditSpecs = false),
           onSaved: () { setState(() => _showEditSpecs = false); _load(); },
-        ),
-      if (_showCompose)
-        ComposeModal(
-          initialSubject: 'RE: ${m.model} (${m.serialNo})',
-          onClose: () => setState(() => _showCompose = false),
-          onSent:  () => setState(() => _showCompose = false),
         ),
     ]);  // Stack
   }

@@ -33,7 +33,6 @@ class _EmailScreenState extends State<EmailScreen> {
   int         _unread    = 0;
 
   // UI state
-  bool _showCompose  = false;
   int  _narrowPane   = 1; // 0=folders 1=list 2=reading
 
   // Account
@@ -168,6 +167,20 @@ class _EmailScreenState extends State<EmailScreen> {
     } catch (_) {}
   }
 
+  // showDialog gives the modal the whole window as its route, not just this
+  // screen's own content pane — stacking it as a bare Stack child (the old
+  // approach) only got it the email screen's own bounds, which is why it
+  // rendered cramped and undimmed instead of as a real full-screen overlay.
+  void _openCompose() {
+    showDialog(
+      context: context,
+      builder: (_) => ComposeModal(
+        onClose: () => Navigator.of(context).pop(),
+        onSent: () { _loadUnread(); Navigator.of(context).pop(); },
+      ),
+    );
+  }
+
   // ── Build ──────────────────────────────────────────────────────────────────
 
   @override
@@ -206,11 +219,6 @@ class _EmailScreenState extends State<EmailScreen> {
                 Text('Syncing', style: AppTheme.bodySub.copyWith(fontSize: 11)),
               ]),
             ),
-          ),
-        if (_showCompose)
-          ComposeModal(
-            onClose: () => setState(() => _showCompose = false),
-            onSent: () { _loadUnread(); setState(() => _showCompose = false); },
           ),
       ]);
     });
@@ -286,7 +294,7 @@ class _EmailScreenState extends State<EmailScreen> {
           ],
           const Spacer(),
           GestureDetector(
-            onTap: () => setState(() => _showCompose = true),
+            onTap: _openCompose,
             child: Container(
               height: 28, padding: const EdgeInsets.symmetric(horizontal: 10),
               decoration: BoxDecoration(color: AppColors.teal, borderRadius: BorderRadius.circular(7)),
@@ -318,7 +326,7 @@ class _EmailScreenState extends State<EmailScreen> {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       // Compose button
       GestureDetector(
-        onTap: () => setState(() => _showCompose = true),
+        onTap: _openCompose,
         child: Container(
           height: 38,
           decoration: BoxDecoration(

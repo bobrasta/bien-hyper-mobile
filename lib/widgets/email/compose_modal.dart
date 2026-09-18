@@ -6,8 +6,12 @@ import '../../theme/app_palette.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/api_error.dart';
 
-/// Full-screen overlay compose modal. Place inside a [Stack] at the root of
-/// the screen — it renders its own semi-transparent backdrop.
+/// Full-screen overlay compose modal — renders its own semi-transparent
+/// backdrop, so show it via `showDialog(builder: (_) => ComposeModal(...))`
+/// like every other modal in the app, not as a bare Stack child. A Stack
+/// only gives a non-Positioned child the bounds of whatever screen it's
+/// embedded in (e.g. just the email content pane, not the whole window),
+/// so the backdrop and centering broke when this was stacked directly.
 ///
 /// Pass [initialTo] to pre-fill the recipient field (e.g. from a contact card).
 class ComposeModal extends StatefulWidget {
@@ -71,10 +75,15 @@ class _ComposeModalState extends State<ComposeModal> {
   }
 
   @override
-  Widget build(BuildContext context) => Container(
+  Widget build(BuildContext context) => Material(
+    // TextField needs a Material ancestor; showDialog's route content
+    // doesn't provide one on its own, unlike being embedded directly in a
+    // screen that already sits inside the app's own Material tree.
+    type: MaterialType.transparency,
+    child: Container(
     color: const Color(0xB306070A),
-    alignment: Alignment.bottomCenter,
-    padding: const EdgeInsets.only(bottom: 40, left: 16, right: 16),
+    alignment: Alignment.center,
+    padding: const EdgeInsets.all(16),
     child: ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 620),
       child: Container(
@@ -169,7 +178,7 @@ class _ComposeModalState extends State<ComposeModal> {
         ]),
       ),
     ),
-  );
+  ));
 }
 
 class _ComposeField extends StatelessWidget {
