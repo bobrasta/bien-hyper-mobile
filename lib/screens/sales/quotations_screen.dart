@@ -1417,7 +1417,8 @@ Widget _formField(String label, TextEditingController ctrl, String hint, BuildCo
       Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10)),
       const SizedBox(height: 5),
       Container(
-        constraints: BoxConstraints(minHeight: maxLines > 1 ? 60 : 36),
+        height: maxLines > 1 ? null : 36,
+        constraints: maxLines > 1 ? const BoxConstraints(minHeight: 60) : null,
         decoration: BoxDecoration(
           color: ctx.pal.surface2,
           borderRadius: BorderRadius.circular(7),
