@@ -45,6 +45,7 @@ import '../../screens/service/service_ticket_screen.dart';
 import '../../screens/settings/settings_screen.dart';
 import '../../screens/settings/delegations_screen.dart';
 import '../../screens/settings/notification_templates_screen.dart';
+import '../../screens/settings/activity_log_screen.dart';
 import '../../screens/settings/downloads_screen.dart';
 import '../../screens/notifications/notifications_screen.dart';
 import '../../screens/staff/staff_screen.dart';
@@ -277,6 +278,7 @@ class _AppShellState extends State<AppShell> {
     'settings'  => const SettingsScreen(),
     'delegations' => const DelegationsScreen(),
     'notification_templates' => const NotificationTemplatesScreen(),
+    'activity_log' => const ActivityLogScreen(),
     'downloads' => const DownloadsScreen(),
     _ => _PlaceholderScreen(title: _activeKey),
   };

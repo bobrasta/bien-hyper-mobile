@@ -58,7 +58,7 @@ const _screenKeys = [
   'sales', 'customers', 'revenue', 'email', 'hr_approvals', 'hr_settings',
   'hr_dashboard', 'hr_directory', 'hr_recruitment', 'hr_leave_calendar',
   'hr_attendance', 'hr_payroll', 'hr_reports', 'notifications', 'delegations',
-  'notification_templates',
+  'notification_templates', 'activity_log',
 ];
 
 /// Returns the set of screen keys accessible for the current user. Primarily
