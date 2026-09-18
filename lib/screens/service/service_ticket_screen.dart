@@ -1419,11 +1419,35 @@ class _NewTicketModalState extends State<_NewTicketModal> {
   Machine?      _selectedMachine;
   bool          _loadingMachines = true;
 
+  // Installation tickets can only ever target a machine still awaiting
+  // install (mirrors ServiceTicketController::store()'s hard gate:
+  // "This machine is not awaiting installation."); Repair only makes sense
+  // once that install has actually happened. Filtering here means the
+  // dropdown can't offer a choice the backend would reject anyway.
   List<Machine> get _filteredMachines {
     if (_selectedHospital == null) return const [];
     return _allMachines.where((m) =>
-      m.hospitalId == _selectedHospital!.id ||
-      m.hospital   == _selectedHospital!.name).toList();
+      (m.hospitalId == _selectedHospital!.id || m.hospital == _selectedHospital!.name) &&
+      (_type == 'Installation'
+          ? m.status == MachineStatus.pendingInstallation
+          : m.status != MachineStatus.pendingInstallation)
+    ).toList();
+  }
+
+  Future<void> _registerNewMachine() async {
+    if (_selectedHospital == null) return;
+    final created = await showDialog<Machine>(
+      context: context,
+      builder: (_) => _RegisterMachineDialog(hospital: _selectedHospital!),
+    );
+    if (created == null || !mounted) return;
+    setState(() {
+      _allMachines = [..._allMachines, created];
+      _selectedMachine = created;
+      // A machine created this way is always pending_installation — only
+      // an Installation ticket can target it, so lock the type to match.
+      _type = 'Installation';
+    });
   }
 
   @override
@@ -1453,10 +1477,7 @@ class _NewTicketModalState extends State<_NewTicketModal> {
     setState(() {
       _selectedHospital = id == null ? null : _hospitals.firstWhere((h) => h.id == id);
       // Reset machine when hospital changes; auto-pick first if only one matches
-      final filtered = id == null
-          ? _allMachines
-          : _allMachines.where((m) =>
-              m.hospitalId == id || m.hospital == _selectedHospital!.name).toList();
+      final filtered = _filteredMachines;
       _selectedMachine = filtered.length == 1 ? filtered.first : null;
     });
   }
@@ -1586,7 +1607,9 @@ class _NewTicketModalState extends State<_NewTicketModal> {
                         hint: _selectedHospital == null
                             ? 'Select hospital first—'
                             : _filteredMachines.isEmpty
-                                ? 'No machines at this hospital'
+                                ? (_type == 'Installation'
+                                    ? 'No machines awaiting installation'
+                                    : 'No machines at this hospital')
                                 : 'Select machine—',
                         items: _filteredMachines.map((m) => DropdownMenuItem<int?>(
                           value: m.id,
@@ -1598,6 +1621,23 @@ class _NewTicketModalState extends State<_NewTicketModal> {
                               : _allMachines.firstWhere((m) => m.id == id)),
                       ),
                 ),
+                // New install (e.g. a machine that didn't arrive via a
+                // tracked Sales Order delivery) has no existing Machine
+                // row to pick — register one on the spot, pre-flagged
+                // pending_installation so it can only ever be attached to
+                // an Installation ticket.
+                if (_selectedHospital != null) ...[
+                  const SizedBox(height: 6),
+                  GestureDetector(
+                    onTap: _registerNewMachine,
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(Symbols.add_circle_outline, size: 14, color: AppColors.teal),
+                      const SizedBox(width: 6),
+                      Text('Register new machine (new install)',
+                          style: AppTheme.bodySub.copyWith(fontSize: 12, color: AppColors.teal)),
+                    ]),
+                  ),
+                ],
                 // Ward chip —shown once a machine is picked
                 if (_selectedMachine != null) ...[
                   const SizedBox(height: 8),
@@ -1627,7 +1667,16 @@ class _NewTicketModalState extends State<_NewTicketModal> {
                     child: _DropdownField(
                       value: _type,
                       items: const ['Repair', 'Installation'],
-                      onChanged: (v) => setState(() => _type = v),
+                      onChanged: (v) => setState(() {
+                        _type = v;
+                        // Eligible machines differ per type (see
+                        // _filteredMachines) — a selection valid for one
+                        // type is very unlikely to still be valid for
+                        // the other.
+                        if (!_filteredMachines.any((m) => m.id == _selectedMachine?.id)) {
+                          _selectedMachine = null;
+                        }
+                      }),
                     ),
                   )),
                   const SizedBox(width: 14),
@@ -1730,6 +1779,108 @@ class _NewTicketModalState extends State<_NewTicketModal> {
         ),
       ),
     ),
+  );
+}
+
+// ── Register a new machine for install ──────────────────────────────────────
+// For a machine that didn't arrive via a tracked Sales Order delivery (the
+// only other path that creates a pending_installation Machine row — see
+// MachineRegistrationService) — e.g. a swap or a directly-sourced unit.
+// Always creates status: pending_installation; there's no status picker
+// here on purpose, since that's the only status an Installation ticket is
+// allowed to target (ServiceTicketController::store()'s hard gate).
+class _RegisterMachineDialog extends StatefulWidget {
+  const _RegisterMachineDialog({required this.hospital});
+  final Hospital hospital;
+
+  @override
+  State<_RegisterMachineDialog> createState() => _RegisterMachineDialogState();
+}
+
+class _RegisterMachineDialogState extends State<_RegisterMachineDialog> {
+  final _modelCtrl = TextEditingController();
+  final _serialCtrl = TextEditingController();
+  final _wardCtrl = TextEditingController();
+  String _type = 'Hematology Analyzer';
+  bool _saving = false;
+  String? _error;
+
+  static const _types = [
+    'Hematology Analyzer', 'Ultrasound Unit', 'X-Ray Machine', 'Ventilator',
+    'ECG Machine', 'Autoclave', 'Patient Monitor', 'Defibrillator',
+  ];
+
+  @override
+  void dispose() {
+    _modelCtrl.dispose();
+    _serialCtrl.dispose();
+    _wardCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    if (_saving) return;
+    if (_modelCtrl.text.trim().isEmpty || _serialCtrl.text.trim().isEmpty) {
+      setState(() => _error = 'Model name and serial number are required.');
+      return;
+    }
+    setState(() { _saving = true; _error = null; });
+    try {
+      final machine = await MachineService.instance.create({
+        'model': _modelCtrl.text.trim(),
+        'serial_no': _serialCtrl.text.trim(),
+        'type': _type,
+        'hospital_id': widget.hospital.id,
+        'ward': _wardCtrl.text.trim(),
+        'status': 'pending_installation',
+        'install_date': DateTime.now().toIso8601String().substring(0, 10),
+        'warranty_expiry': DateTime.now()
+            .add(const Duration(days: 365 * 2))
+            .toIso8601String()
+            .substring(0, 10),
+        'revenue_per_month': 0,
+      });
+      if (mounted) Navigator.of(context).pop(machine);
+    } catch (e) {
+      if (mounted) setState(() { _saving = false; _error = friendlyError(e); });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    backgroundColor: context.pal.surface1,
+    title: Text('Register New Machine', style: AppTheme.cardTitle),
+    content: SizedBox(width: 380, child: SingleChildScrollView(child: Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('${widget.hospital.name} · not yet installed', style: AppTheme.bodySub.copyWith(fontSize: 12)),
+        const SizedBox(height: 14),
+        if (_error != null) ...[
+          Text(_error!, style: TextStyle(color: AppColors.coral, fontSize: 12)),
+          const SizedBox(height: 10),
+        ],
+        AppTextField(label: 'Model / Equipment Name', controller: _modelCtrl, hintText: 'e.g. Sysmex XN-1000'),
+        const SizedBox(height: 12),
+        AppTextField(label: 'Serial Number', controller: _serialCtrl, hintText: 'e.g. BC68-0001'),
+        const SizedBox(height: 12),
+        _ModalField(
+          label: 'Equipment Type',
+          child: _DropdownField(value: _type, items: _types, onChanged: (v) => setState(() => _type = v)),
+        ),
+        const SizedBox(height: 12),
+        AppTextField(label: 'Ward', controller: _wardCtrl, hintText: 'e.g. Laboratory'),
+      ],
+    ))),
+    actions: [
+      TextButton(onPressed: _saving ? null : () => Navigator.of(context).pop(), child: const Text('Cancel')),
+      FilledButton(
+        onPressed: _saving ? null : _save,
+        child: _saving
+            ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+            : const Text('Register'),
+      ),
+    ],
   );
 }
 
