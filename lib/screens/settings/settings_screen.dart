@@ -309,7 +309,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         .toList();
   }
 
-  static const _memberTabs = ['Members', 'Pending', 'Roles', 'Activity'];
+  static const _memberTabs = ['Members', 'Roles', 'Activity'];
 
   // ── Build ─────────────────────────────────────────────────────────────────
   @override
@@ -572,9 +572,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     // Tab content
     switch (_tab) {
       0 => _membersTab(context),
-      1 => _pendingTab(context),
-      2 => _rolesTab(context),
-      3 => _activityTab(context),
+      1 => _rolesTab(context),
+      2 => _activityTab(context),
       _ => const SizedBox.shrink(),
     },
   ]);
@@ -783,105 +782,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       ],
     ));
-  }
-
-  // ── Tab 1: Pending ────────────────────────────────────────────────────────
-  Widget _pendingTab(BuildContext context) {
-    const pending = <_PendingInvite>[];
-
-    return Column(children: [
-      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-        Text('${pending.length} pending invitation${pending.length == 1 ? '' : 's'}',
-            style: AppTheme.bodySub),
-        _OutlineBtn(label: 'Resend all', saving: false, onTap: () {}),
-      ]),
-      const SizedBox(height: 12),
-      Container(
-        decoration: BoxDecoration(color: context.pal.surface1,
-            borderRadius: BorderRadius.circular(AppColors.rLg),
-            border: Border.all(color: context.pal.border)),
-        child: Column(children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-            decoration: BoxDecoration(border: Border(bottom: BorderSide(color: context.pal.border))),
-            child: Row(children: [
-              _PendTh('Email',    flex: 3), _PendTh('Role', flex: 1),
-              _PendTh('Zone',     flex: 1), _PendTh('Sent',  flex: 1),
-              const SizedBox(width: 120),
-            ]),
-          ),
-          ...pending.asMap().entries.map((e) {
-            final inv = e.value;
-            final isLast = e.key == pending.length - 1;
-            return Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              decoration: isLast ? null : BoxDecoration(
-                  border: Border(bottom: BorderSide(color: context.pal.divider))),
-              child: Row(children: [
-                Expanded(flex: 3, child: Row(children: [
-                  Container(
-                    width: 32, height: 32,
-                    decoration: BoxDecoration(
-                      color: AppColors.amberSoft, borderRadius: BorderRadius.circular(8)),
-                    child: Icon(Symbols.mail_outline, size: 15, color: AppColors.amber),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(inv.email, style: AppTheme.bodySm, overflow: TextOverflow.ellipsis),
-                    Row(children: [
-                      Container(
-                        margin: const EdgeInsets.only(top: 2),
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                        decoration: BoxDecoration(
-                          color: AppColors.amberSoft, borderRadius: BorderRadius.circular(999)),
-                        child: Text('Pending', style: AppTheme.monoXs.copyWith(
-                            color: AppColors.amber, fontSize: 9.5)),
-                      ),
-                    ]),
-                  ])),
-                ])),
-                Expanded(flex: 1, child: Text(inv.role, style: AppTheme.bodySub.copyWith(fontSize: 12))),
-                Expanded(flex: 1, child: Text(inv.zone, style: AppTheme.bodySub.copyWith(fontSize: 12))),
-                Expanded(flex: 1, child: Text(inv.sent, style: AppTheme.monoXs.copyWith(
-                    color: context.pal.textDim))),
-                SizedBox(width: 120, child: Row(children: [
-                  GestureDetector(
-                    onTap: () {},
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: context.pal.border),
-                        borderRadius: BorderRadius.circular(6)),
-                      child: Text('Resend', style: AppTheme.bodySm.copyWith(fontSize: 11.5)),
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  GestureDetector(
-                    onTap: () {},
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                      decoration: BoxDecoration(
-                        color: AppColors.coralSoft, borderRadius: BorderRadius.circular(6)),
-                      child: Text('Cancel', style: AppTheme.bodySm.copyWith(
-                          color: AppColors.coral, fontSize: 11.5)),
-                    ),
-                  ),
-                ])),
-              ]),
-            );
-          }),
-          if (pending.isEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 32),
-              child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Symbols.mark_email_read, size: 32, color: context.pal.textDim),
-                const SizedBox(height: 8),
-                Text('No pending invitations', style: AppTheme.bodySub),
-              ])),
-            ),
-        ]),
-      ),
-    ]);
   }
 
   // ── Tab 2: Roles ──────────────────────────────────────────────────────────
@@ -1217,10 +1117,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 }
 
 // ── Data classes ────────────────────────────────────────────────────────────
-class _PendingInvite {
-  const _PendingInvite(this.email, this.role, this.zone, this.sent);
-  final String email, role, zone, sent;
-}
 
 class _EditMemberRoleDialog extends StatefulWidget {
   const _EditMemberRoleDialog({required this.member, required this.roleNames, required this.onSave});
@@ -1660,15 +1556,6 @@ class _MemberTh extends StatelessWidget {
     child: Text(label.toUpperCase(),
         style: AppTheme.monoXs.copyWith(fontWeight: FontWeight.w500)),
   ));
-}
-
-class _PendTh extends StatelessWidget {
-  const _PendTh(this.label, {required this.flex});
-  final String label; final int flex;
-
-  @override
-  Widget build(BuildContext context) => Expanded(flex: flex, child: Text(label.toUpperCase(),
-      style: AppTheme.monoXs.copyWith(fontWeight: FontWeight.w500)));
 }
 
 class _MemberRow extends StatelessWidget {
