@@ -1236,7 +1236,7 @@ class _QuotationBuilderScreenState extends State<QuotationBuilderScreen> {
 
   Widget _totalsRow(BuildContext context, String label, String value, {Color? color, bool big = false}) => Padding(
     padding: const EdgeInsets.symmetric(vertical: 3),
-    child: Row(crossAxisAlignment: CrossAxisAlignment.baseline, textBaseline: TextBaseline.alphabetic, children: [
+    child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
       Text(label, style: big
           ? AppTheme.labelCaps.copyWith(fontSize: 10.5)
           : AppTheme.bodySub.copyWith(fontSize: 11.5)),
