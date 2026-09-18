@@ -186,7 +186,7 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
           Row(children: [
             Text('STAGE', style: AppTheme.labelCaps.copyWith(fontSize: 11)),
             const SizedBox(width: 9),
-            Expanded(child: Container(height: 1, color: context.pal.divider)),
+            Expanded(child: Container(width: double.infinity, height: 1, color: context.pal.divider)),
             if (lead.isDemoOverdue)
               Text('demo overdue', style: AppTheme.bodySub.copyWith(fontSize: 11, color: AppColors.amber)),
           ]),
@@ -209,7 +209,7 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
                       border: Border.all(color: reached ? AppColors.violet : context.pal.border),
                     )),
                     if (idx < _stageFlow.length - 1)
-                      Expanded(child: Container(height: 2, color: currentIdx > idx ? AppColors.violet : context.pal.border)),
+                      Expanded(child: Container(width: double.infinity, height: 2, color: currentIdx > idx ? AppColors.violet : context.pal.border)),
                   ]),
                   const SizedBox(height: 5),
                   Text(s.label, style: AppTheme.bodySub.copyWith(fontSize: 10, color: isCurrent ? context.pal.text : context.pal.textMute), maxLines: 1, overflow: TextOverflow.ellipsis),

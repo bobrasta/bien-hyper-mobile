@@ -265,7 +265,7 @@ class _QuotationTable extends StatelessWidget {
             ? Center(child: Text('No quotations found', style: AppTheme.bodySub))
             : ListView.separated(
                 itemCount: items.length,
-                separatorBuilder: (_, _) => Container(height: 1, color: context.pal.divider),
+                separatorBuilder: (_, _) => Container(width: double.infinity, height: 1, color: context.pal.divider),
                 itemBuilder: (_, i) {
                   final qt = items[i];
                   final color = _statusColor(qt.status);
@@ -598,7 +598,7 @@ class _QuotationDetailScreenState extends State<QuotationDetailScreen> {
                 const SizedBox(width: 8),
                 SizedBox(width: 96, child: Text('TOTAL', textAlign: TextAlign.right, style: AppTheme.monoXs.copyWith(fontSize: 9, color: context.pal.textMute))),
               ]),
-              Padding(padding: const EdgeInsets.symmetric(vertical: 8), child: Container(height: 1, color: context.pal.divider)),
+              Padding(padding: const EdgeInsets.symmetric(vertical: 8), child: Container(width: double.infinity, height: 1, color: context.pal.divider)),
               ...qt.items.map((item) => Padding(
                 padding: const EdgeInsets.only(bottom: 10),
                 child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
@@ -650,7 +650,7 @@ class _QuotationDetailScreenState extends State<QuotationDetailScreen> {
               border: Border.all(color: reached ? color : context.pal.border, width: 1.5),
             )),
             if (e.key < stages.length - 1)
-              Expanded(child: Container(height: 2, color: (currentIdx >= 0 && e.key < currentIdx) ? color : context.pal.border)),
+              Expanded(child: Container(width: double.infinity, height: 2, color: (currentIdx >= 0 && e.key < currentIdx) ? color : context.pal.border)),
           ]),
           const SizedBox(height: 5),
           Text(label(e.value), style: AppTheme.bodySub.copyWith(fontSize: 10), maxLines: 1, overflow: TextOverflow.ellipsis),
@@ -1103,7 +1103,7 @@ class _QuotationBuilderScreenState extends State<QuotationBuilderScreen> {
                 SizedBox(width: 96, child: Text('LINE TOTAL', textAlign: TextAlign.right, style: AppTheme.monoXs.copyWith(fontSize: 9, color: context.pal.textMute))),
                 const SizedBox(width: 22),
               ]),
-              Padding(padding: const EdgeInsets.symmetric(vertical: 9), child: Container(height: 1, color: context.pal.divider)),
+              Padding(padding: const EdgeInsets.symmetric(vertical: 9), child: Container(width: double.infinity, height: 1, color: context.pal.divider)),
               ..._lines.asMap().entries.map((e) => _LineItemTableRow(
                 entry: e.value,
                 invItems: _invItems,
@@ -1207,7 +1207,7 @@ class _QuotationBuilderScreenState extends State<QuotationBuilderScreen> {
           const SizedBox(height: 10),
           _totalsRow(context, 'Subtotal', tshFromDouble(_subtotal.toDouble())),
           _totalsRow(context, 'Discount', '- ${tshFromDouble(_discountAmount.toDouble())}', color: AppColors.amber),
-          Padding(padding: const EdgeInsets.symmetric(vertical: 6), child: Container(height: 1, color: context.pal.divider)),
+          Padding(padding: const EdgeInsets.symmetric(vertical: 6), child: Container(width: double.infinity, height: 1, color: context.pal.divider)),
           _totalsRow(context, 'TOTAL', tshFromDouble((_subtotal - _discountAmount).toDouble()), big: true),
         ]),
       ),
@@ -1241,7 +1241,7 @@ class _QuotationBuilderScreenState extends State<QuotationBuilderScreen> {
           ? AppTheme.labelCaps.copyWith(fontSize: 10.5)
           : AppTheme.bodySub.copyWith(fontSize: 11.5)),
       const SizedBox(width: 8),
-      Expanded(child: Container(height: 1, color: context.pal.divider)),
+      Expanded(child: Container(width: double.infinity, height: 1, color: context.pal.divider)),
       const SizedBox(width: 8),
       Text(value, style: (big ? AppTheme.kpiValue.copyWith(fontSize: 18) : AppTheme.monoSm.copyWith(fontSize: 12.5))
           .copyWith(color: color ?? context.pal.text)),

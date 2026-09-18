@@ -351,7 +351,7 @@ class _KanbanCard extends StatelessWidget {
           const SizedBox(height: 8),
           Text(tshFromDouble(lead.dealValue), style: AppTheme.kpiValue.copyWith(fontSize: 16, color: dotColor)),
           const SizedBox(height: 8),
-          Container(height: 1, color: context.pal.divider),
+          Container(width: double.infinity, height: 1, color: context.pal.divider),
           const SizedBox(height: 7),
           Row(children: [
             Icon(_stalled ? Symbols.warning : Symbols.check_circle, size: 12, color: _stalled ? AppColors.amber : AppColors.green),

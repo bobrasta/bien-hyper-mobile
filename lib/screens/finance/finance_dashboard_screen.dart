@@ -293,7 +293,7 @@ class _FinanceDashboardScreenState extends State<FinanceDashboardScreen> {
     const SizedBox(width: 8),
     Text(title.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10.5)),
     const SizedBox(width: 8),
-    Expanded(child: Container(height: 1, color: context.pal.divider)),
+    Expanded(child: Container(width: double.infinity, height: 1, color: context.pal.divider)),
     if (trailing != null) ...[const SizedBox(width: 8), trailing],
   ]);
 

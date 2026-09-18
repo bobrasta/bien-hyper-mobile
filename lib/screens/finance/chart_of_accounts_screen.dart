@@ -370,7 +370,7 @@ class _ChartOfAccountsScreenState extends State<ChartOfAccountsScreen> with Sing
         const SizedBox(width: 8),
         Text('ACCOUNT LEDGER', style: AppTheme.labelCaps.copyWith(fontSize: 10.5)),
         const SizedBox(width: 8),
-        Expanded(child: Container(height: 1, color: context.pal.divider)),
+        Expanded(child: Container(width: double.infinity, height: 1, color: context.pal.divider)),
       ]),
       const SizedBox(height: 9),
       Container(

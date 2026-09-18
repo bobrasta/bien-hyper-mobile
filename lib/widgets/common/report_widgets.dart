@@ -120,14 +120,14 @@ class ReportStageBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final entries = byStage.entries.where((e) => e.value > 0).toList();
     if (entries.isEmpty) {
-      return ClipRRect(borderRadius: BorderRadius.circular(4), child: Container(height: 7, color: context.pal.surface3));
+      return ClipRRect(borderRadius: BorderRadius.circular(4), child: Container(width: double.infinity, height: 7, color: context.pal.surface3));
     }
     final palette = _palette();
     return ClipRRect(
       borderRadius: BorderRadius.circular(4),
       child: Row(children: [
         for (var i = 0; i < entries.length; i++)
-          Expanded(flex: entries[i].value, child: Container(height: 7, color: palette[i % palette.length])),
+          Expanded(flex: entries[i].value, child: Container(width: double.infinity, height: 7, color: palette[i % palette.length])),
       ]),
     );
   }

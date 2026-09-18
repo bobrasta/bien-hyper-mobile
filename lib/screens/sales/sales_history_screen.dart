@@ -554,7 +554,7 @@ class _InvoiceDetailPanel extends StatelessWidget {
             ),
           ),
 
-          Container(height: 1, color: context.pal.divider),
+          Container(width: double.infinity, height: 1, color: context.pal.divider),
           Padding(
             padding: const EdgeInsets.all(14),
             child: Row(children: [

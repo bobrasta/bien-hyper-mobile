@@ -84,7 +84,7 @@ class _HrLeaveCalendarScreenState extends State<HrLeaveCalendarScreen> {
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           _header(context),
           const SizedBox(height: 4),
-          Container(height: 1, color: context.pal.divider),
+          Container(width: double.infinity, height: 1, color: context.pal.divider),
           const SizedBox(height: 16),
           Expanded(
             child: _loading
@@ -294,7 +294,7 @@ class _HrLeaveCalendarScreenState extends State<HrLeaveCalendarScreen> {
     Text(title.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10.5)),
     if (count != null) ...[const SizedBox(width: 6), Text(count, style: AppTheme.monoXs.copyWith(fontSize: 11, color: color))],
     const SizedBox(width: 8),
-    Expanded(child: Builder(builder: (context) => Container(height: 1, color: context.pal.divider))),
+    Expanded(child: Builder(builder: (context) => Container(width: double.infinity, height: 1, color: context.pal.divider))),
   ]);
 
   Widget _detailCard(LeaveCalendarEntry e) => Container(

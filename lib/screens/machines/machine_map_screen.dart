@@ -687,7 +687,7 @@ class _MachineMapScreenState extends State<MachineMapScreen> {
             }),
 
             const SizedBox(height: 10),
-            Container(height: 1, color: context.pal.border),
+            Container(width: double.infinity, height: 1, color: context.pal.border),
 
             Padding(
               padding: const EdgeInsets.fromLTRB(14, 10, 14, 6),

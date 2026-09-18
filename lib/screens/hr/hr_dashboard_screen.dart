@@ -104,7 +104,7 @@ class _HrDashboardScreenState extends State<HrDashboardScreen> {
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             _header(context),
             const SizedBox(height: 4),
-            Container(height: 1, color: context.pal.divider),
+            Container(width: double.infinity, height: 1, color: context.pal.divider),
             const SizedBox(height: 18),
             _tileGrid(wide),
             const SizedBox(height: 18),
@@ -305,7 +305,7 @@ class _HrDashboardScreenState extends State<HrDashboardScreen> {
           );
         }),
         const SizedBox(height: 13),
-        Container(height: 1, color: context.pal.divider),
+        Container(width: double.infinity, height: 1, color: context.pal.divider),
         const SizedBox(height: 12),
         Wrap(spacing: 14, runSpacing: 8, children: [
           _legendDot(const Color(0xFF17301F), 'Present'),
@@ -346,8 +346,8 @@ class _HrDashboardScreenState extends State<HrDashboardScreen> {
                   Expanded(child: ClipRRect(
                     borderRadius: BorderRadius.circular(6),
                     child: Stack(children: [
-                      Container(height: 22, color: context.pal.surface3),
-                      FractionallySizedBox(widthFactor: pct, child: Container(height: 22, color: AppColors.violet)),
+                      Container(width: double.infinity, height: 22, color: context.pal.surface3),
+                      FractionallySizedBox(widthFactor: pct, child: Container(width: double.infinity, height: 22, color: AppColors.violet)),
                     ]),
                   )),
                   const SizedBox(width: 10),
@@ -425,7 +425,7 @@ class _RailSection extends StatelessWidget {
       const SizedBox(width: 8),
       Text(title.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10.5)),
       const SizedBox(width: 8),
-      Expanded(child: Container(height: 1, color: context.pal.divider)),
+      Expanded(child: Container(width: double.infinity, height: 1, color: context.pal.divider)),
       if (trailingLabel != null) ...[
         const SizedBox(width: 8),
         Text(trailingLabel!, style: AppTheme.monoXs.copyWith(fontSize: 10.5)),

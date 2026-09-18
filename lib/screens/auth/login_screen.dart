@@ -204,7 +204,7 @@ class _LoginScreenState extends State<LoginScreen>
               const SizedBox(height: 40),
 
               // Divider + credit
-              Container(height: 1, color: context.pal.divider),
+              Container(width: double.infinity, height: 1, color: context.pal.divider),
               const SizedBox(height: 16),
               Center(
                 child: Column(children: [

@@ -253,7 +253,7 @@ class _OrderTable extends StatelessWidget {
             ? Center(child: Text('No sales orders found', style: AppTheme.bodySub))
             : ListView.separated(
                 itemCount: items.length,
-                separatorBuilder: (_, _) => Container(height: 1, color: context.pal.divider),
+                separatorBuilder: (_, _) => Container(width: double.infinity, height: 1, color: context.pal.divider),
                 itemBuilder: (_, i) {
                   final so = items[i];
                   final color = _statusColor(so.status);

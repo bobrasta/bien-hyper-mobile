@@ -122,7 +122,7 @@ class _TeamPerformanceScreenState extends State<TeamPerformanceScreen> {
           const SizedBox(width: 8),
           Text('REVENUE — ACTUAL', style: AppTheme.labelCaps.copyWith(fontSize: 10.5)),
           const SizedBox(width: 8),
-          Expanded(child: Container(height: 1, color: context.pal.divider)),
+          Expanded(child: Container(width: double.infinity, height: 1, color: context.pal.divider)),
         ]),
         const SizedBox(height: 14),
         SizedBox(height: 130, child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: d.revenueByMonth.map((m) => Expanded(
@@ -138,7 +138,7 @@ class _TeamPerformanceScreenState extends State<TeamPerformanceScreen> {
           ]),
         )).toList())),
         const SizedBox(height: 10),
-        Container(height: 1, color: context.pal.divider),
+        Container(width: double.infinity, height: 1, color: context.pal.divider),
         const SizedBox(height: 9),
         Row(children: [
           Text('YTD ${tshFromDouble(d.ytdActual.toDouble())}', style: AppTheme.monoXs.copyWith(fontSize: 11, color: context.pal.textMute)),
@@ -156,7 +156,7 @@ class _TeamPerformanceScreenState extends State<TeamPerformanceScreen> {
         const SizedBox(width: 8),
         Text('REVENUE BY HOSPITAL', style: AppTheme.labelCaps.copyWith(fontSize: 10.5)),
         const SizedBox(width: 8),
-        Expanded(child: Container(height: 1, color: context.pal.divider)),
+        Expanded(child: Container(width: double.infinity, height: 1, color: context.pal.divider)),
         Text('top ${d.revenueByHospital.length}', style: AppTheme.monoXs.copyWith(fontSize: 10, color: context.pal.textMute)),
       ]),
       const SizedBox(height: 12),
@@ -192,7 +192,7 @@ class _TeamPerformanceScreenState extends State<TeamPerformanceScreen> {
           Text('commission owed ${tshFromDouble(d.commissionOwed.toDouble())}', style: AppTheme.monoXs.copyWith(fontSize: 10, color: AppColors.violet)),
         ]),
       ),
-      Container(height: 1, color: context.pal.divider),
+      Container(width: double.infinity, height: 1, color: context.pal.divider),
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
         child: Row(children: [

@@ -194,7 +194,7 @@ class _SalesDashboardScreenState extends State<SalesDashboardScreen> {
     const SizedBox(width: 8),
     Text(title.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10.5)),
     const SizedBox(width: 8),
-    Expanded(child: Container(height: 1, color: context.pal.divider)),
+    Expanded(child: Container(width: double.infinity, height: 1, color: context.pal.divider)),
     if (trailing != null) ...[const SizedBox(width: 8), trailing],
   ]);
 
@@ -239,7 +239,7 @@ class _SalesDashboardScreenState extends State<SalesDashboardScreen> {
               );
             }),
           ],
-          Container(height: 1, color: context.pal.divider),
+          Container(width: double.infinity, height: 1, color: context.pal.divider),
           const SizedBox(height: 13),
           Row(children: [
             _pipelineStat('Weighted value', tshFromDouble(weighted), context.pal.text),
@@ -274,7 +274,7 @@ class _SalesDashboardScreenState extends State<SalesDashboardScreen> {
             : ListView.separated(
                 padding: EdgeInsets.zero,
                 itemCount: items.length,
-                separatorBuilder: (_, _) => Container(height: 1, color: context.pal.divider),
+                separatorBuilder: (_, _) => Container(width: double.infinity, height: 1, color: context.pal.divider),
                 itemBuilder: (_, i) {
                   final it = items[i];
                   return Container(

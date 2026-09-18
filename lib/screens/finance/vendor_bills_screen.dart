@@ -207,7 +207,7 @@ class _VendorBillsScreenState extends State<VendorBillsScreen> {
           ]),
           const SizedBox(height: 16),
           if (agingTotal > 0) ClipRRect(borderRadius: BorderRadius.circular(4), child: Row(children: buckets.entries.map((e) =>
-              Expanded(flex: (e.value == 0 ? 1 : e.value), child: Container(height: 8, color: e.value == 0 ? context.pal.surface3 : bucketColors[e.key])),
+              Expanded(flex: (e.value == 0 ? 1 : e.value), child: Container(width: double.infinity, height: 8, color: e.value == 0 ? context.pal.surface3 : bucketColors[e.key])),
           ).toList())),
           const SizedBox(height: 11),
           Wrap(spacing: 20, runSpacing: 6, children: buckets.entries.map((e) => Row(mainAxisSize: MainAxisSize.min, children: [
@@ -287,7 +287,7 @@ class _VendorBillsScreenState extends State<VendorBillsScreen> {
     const SizedBox(width: 8),
     Text(title.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10.5)),
     const SizedBox(width: 8),
-    Expanded(child: Container(height: 1, color: context.pal.divider)),
+    Expanded(child: Container(width: double.infinity, height: 1, color: context.pal.divider)),
   ]);
 
   Widget _rail(BuildContext context) {
@@ -311,7 +311,7 @@ class _VendorBillsScreenState extends State<VendorBillsScreen> {
             Text('${due.length} bill${due.length == 1 ? '' : 's'} due within 7 days', style: AppTheme.bodySub.copyWith(fontSize: 11)),
           ]),
           const SizedBox(height: 10),
-          Container(height: 1, color: context.pal.divider),
+          Container(width: double.infinity, height: 1, color: context.pal.divider),
           const SizedBox(height: 10),
           if (due.isEmpty) Text('Nothing due within a week.', style: AppTheme.bodySub.copyWith(fontSize: 12))
           else ...due.map((b) => Padding(

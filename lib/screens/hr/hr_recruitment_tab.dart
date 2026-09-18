@@ -86,7 +86,7 @@ class _HrRecruitmentTabState extends State<HrRecruitmentTab> {
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           _header(openCount),
           const SizedBox(height: 4),
-          Container(height: 1, color: context.pal.divider),
+          Container(width: double.infinity, height: 1, color: context.pal.divider),
           const SizedBox(height: 18),
           _vacancyRow(),
           const SizedBox(height: 18),
@@ -296,7 +296,7 @@ class _HrRecruitmentTabState extends State<HrRecruitmentTab> {
           ],
           if (nextInterview != null) ...[
             const SizedBox(height: 8),
-            Container(height: 1, color: context.pal.divider),
+            Container(width: double.infinity, height: 1, color: context.pal.divider),
             const SizedBox(height: 7),
             Row(children: [
               Icon(Symbols.calendar_month, size: 12, color: AppColors.amber),
@@ -339,7 +339,7 @@ class _HrRecruitmentTabState extends State<HrRecruitmentTab> {
     Text(title.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10.5)),
     if (count != null) ...[const SizedBox(width: 6), Text(count, style: AppTheme.monoXs.copyWith(fontSize: 11))],
     const SizedBox(width: 8),
-    Expanded(child: Container(height: 1, color: context.pal.divider)),
+    Expanded(child: Container(width: double.infinity, height: 1, color: context.pal.divider)),
   ]);
 
   Widget _interviewsCard() {
@@ -436,7 +436,7 @@ class _HrRecruitmentTabState extends State<HrRecruitmentTab> {
                     const SizedBox(height: 4),
                     ClipRRect(borderRadius: BorderRadius.circular(3), child: FractionallySizedBox(
                       widthFactor: pct, alignment: Alignment.centerLeft,
-                      child: Container(height: 6, color: HrCategory.recruitment.color),
+                      child: Container(width: double.infinity, height: 6, color: HrCategory.recruitment.color),
                     )),
                   ]),
                 );

@@ -463,8 +463,8 @@ class _ReconciliationDetailState extends State<_ReconciliationDetail> {
               ]),
               const SizedBox(height: 15),
               ClipRRect(borderRadius: BorderRadius.circular(4), child: Row(children: [
-                Expanded(flex: matched == 0 ? 1 : matched, child: Container(height: 8, color: matched == 0 ? context.pal.surface3 : AppColors.green)),
-                if (unmatched > 0) Expanded(flex: unmatched, child: Container(height: 8, color: AppColors.coral)),
+                Expanded(flex: matched == 0 ? 1 : matched, child: Container(width: double.infinity, height: 8, color: matched == 0 ? context.pal.surface3 : AppColors.green)),
+                if (unmatched > 0) Expanded(flex: unmatched, child: Container(width: double.infinity, height: 8, color: AppColors.coral)),
               ])),
               const SizedBox(height: 9),
               Text('$matched matched · $unmatched unmatched · ${(matchedPct * 100).toStringAsFixed(0)}% complete', style: AppTheme.bodySub.copyWith(fontSize: 11)),

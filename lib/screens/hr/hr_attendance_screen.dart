@@ -117,7 +117,7 @@ class _HrAttendanceScreenState extends State<HrAttendanceScreen> {
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           _header(unmarkedCount),
           const SizedBox(height: 4),
-          Container(height: 1, color: context.pal.divider),
+          Container(width: double.infinity, height: 1, color: context.pal.divider),
           const SizedBox(height: 16),
           Expanded(
             child: _loading
@@ -225,7 +225,7 @@ class _HrAttendanceScreenState extends State<HrAttendanceScreen> {
       const SizedBox(width: 8),
       Text('MARK TODAY', style: AppTheme.labelCaps.copyWith(fontSize: 10.5)),
       const SizedBox(width: 8),
-      Expanded(child: Container(height: 1, color: context.pal.divider)),
+      Expanded(child: Container(width: double.infinity, height: 1, color: context.pal.divider)),
       Text('Click a state to set it', style: AppTheme.monoXs.copyWith(fontSize: 10.5)),
     ]),
     const SizedBox(height: 9),
@@ -309,7 +309,7 @@ class _HrAttendanceScreenState extends State<HrAttendanceScreen> {
         const SizedBox(width: 8),
         Text('${_monthNames[_selectedDate.month].toUpperCase()} ${_selectedDate.year}', style: AppTheme.labelCaps.copyWith(fontSize: 10.5)),
         const SizedBox(width: 8),
-        Expanded(child: Container(height: 1, color: context.pal.divider)),
+        Expanded(child: Container(width: double.infinity, height: 1, color: context.pal.divider)),
         Text('$markedDays marked days', style: AppTheme.monoXs.copyWith(fontSize: 10.5)),
       ]),
       const SizedBox(height: 9),
@@ -337,7 +337,7 @@ class _HrAttendanceScreenState extends State<HrAttendanceScreen> {
             );
           }),
           const SizedBox(height: 5),
-          Container(height: 1, color: context.pal.divider),
+          Container(width: double.infinity, height: 1, color: context.pal.divider),
           const SizedBox(height: 12),
           Wrap(spacing: 14, runSpacing: 6, children: [
             _legendDot(AppColors.green, 'Present'), _legendDot(AppColors.amber, 'Late'),

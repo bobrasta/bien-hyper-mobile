@@ -1061,7 +1061,7 @@ class _TechnicianDashboardScreenState extends State<TechnicianDashboardScreen> {
         children: [
           for (final t in open) ...[
             _myTaskRow(context, t),
-            if (t != open.last) Container(height: 1, color: context.pal.divider),
+            if (t != open.last) Container(width: double.infinity, height: 1, color: context.pal.divider),
           ],
         ],
       ),
@@ -1185,7 +1185,7 @@ class _TechnicianDashboardScreenState extends State<TechnicianDashboardScreen> {
             ],
           ),
           const SizedBox(height: 16),
-          Container(height: 1, color: context.pal.divider),
+          Container(width: double.infinity, height: 1, color: context.pal.divider),
           const SizedBox(height: 14),
           _profileField(context, 'NSSF NO.', me?.nssfNumber ?? '—'),
           _profileField(context, 'TIN', me?.tinNumber ?? '—'),
@@ -1291,7 +1291,7 @@ class _TechnicianDashboardScreenState extends State<TechnicianDashboardScreen> {
             ],
           ),
           const SizedBox(height: 14),
-          Container(height: 1, color: context.pal.divider),
+          Container(width: double.infinity, height: 1, color: context.pal.divider),
           const SizedBox(height: 12),
           Row(
             children: [
@@ -1405,7 +1405,7 @@ class _TechnicianDashboardScreenState extends State<TechnicianDashboardScreen> {
                       SizedBox(width: 110, child: _ColHeader('OUTCOME')),
                     ],
                   ),
-                  Container(height: 1, color: context.pal.divider),
+                  Container(width: double.infinity, height: 1, color: context.pal.divider),
                   ...filtered.map((t) => _historyRow(context, t)),
                 ],
               ),
@@ -1641,7 +1641,7 @@ class _TechnicianDashboardScreenState extends State<TechnicianDashboardScreen> {
           : ListView.separated(
               itemCount: upcoming.length,
               separatorBuilder: (_, _) =>
-                  Container(height: 1, color: context.pal.divider),
+                  Container(width: double.infinity, height: 1, color: context.pal.divider),
               itemBuilder: (_, i) {
                 final t = upcoming[i];
                 final created = _parseCreated(t);
@@ -2221,7 +2221,7 @@ class _AttendanceMonthRow extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 10),
-        Container(height: 1, color: context.pal.divider),
+        Container(width: double.infinity, height: 1, color: context.pal.divider),
         const SizedBox(height: 10),
         Text(
           'Avg clock-in $avgClockIn · overtime ${overtimeTotal.toStringAsFixed(1)}h',

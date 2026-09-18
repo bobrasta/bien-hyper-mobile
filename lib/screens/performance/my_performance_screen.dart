@@ -150,7 +150,7 @@ class _MyPerformanceScreenState extends State<MyPerformanceScreen> {
         const SizedBox(width: 8),
         Text('MY LEADS BY STAGE', style: AppTheme.labelCaps.copyWith(fontSize: 10.5)),
         const SizedBox(width: 8),
-        Expanded(child: Container(height: 1, color: context.pal.divider)),
+        Expanded(child: Container(width: double.infinity, height: 1, color: context.pal.divider)),
         Text(tshFromDouble(s.pipelineValue.toDouble()), style: AppTheme.monoXs.copyWith(fontSize: 11)),
       ]),
       const SizedBox(height: 14),
@@ -198,7 +198,7 @@ class _MyPerformanceScreenState extends State<MyPerformanceScreen> {
           ]),
         )).toList())),
         const SizedBox(height: 10),
-        Container(height: 1, color: context.pal.divider),
+        Container(width: double.infinity, height: 1, color: context.pal.divider),
         const SizedBox(height: 9),
         Row(children: [
           Container(width: 7, height: 7, color: AppColors.amber), const SizedBox(width: 5),

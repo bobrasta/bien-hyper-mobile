@@ -199,7 +199,7 @@ class _HrPayrollScreenState extends State<HrPayrollScreen> {
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           _header(),
           const SizedBox(height: 4),
-          Container(height: 1, color: context.pal.divider),
+          Container(width: double.infinity, height: 1, color: context.pal.divider),
           const SizedBox(height: 16),
           Expanded(child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             SizedBox(width: 250, child: _runsList()),
@@ -309,7 +309,7 @@ class _HrPayrollScreenState extends State<HrPayrollScreen> {
         const SizedBox(width: 6),
         Text('${run.items.length}', style: AppTheme.monoXs.copyWith(fontSize: 11)),
         const SizedBox(width: 8),
-        Expanded(child: Container(height: 1, color: context.pal.divider)),
+        Expanded(child: Container(width: double.infinity, height: 1, color: context.pal.divider)),
         Text('Figures in thousands TZS', style: AppTheme.monoXs.copyWith(fontSize: 10.5)),
         if (run.status == 'draft') ...[
           const SizedBox(width: 10),
@@ -459,7 +459,7 @@ class _HrPayrollScreenState extends State<HrPayrollScreen> {
         const SizedBox(width: 8),
         Text('STATUTORY REMITTANCE', style: AppTheme.labelCaps.copyWith(fontSize: 10.5)),
         const SizedBox(width: 8),
-        Expanded(child: Container(height: 1, color: context.pal.divider)),
+        Expanded(child: Container(width: double.infinity, height: 1, color: context.pal.divider)),
       ]),
       const SizedBox(height: 9),
       Container(
@@ -472,7 +472,7 @@ class _HrPayrollScreenState extends State<HrPayrollScreen> {
             child: Row(children: [
               SizedBox(width: 52, child: Text(r.$1, style: AppTheme.monoXs.copyWith(fontSize: 11.5))),
               Expanded(child: ClipRRect(borderRadius: BorderRadius.circular(4), child: FractionallySizedBox(
-                widthFactor: pct, alignment: Alignment.centerLeft, child: Container(height: 7, color: r.$3),
+                widthFactor: pct, alignment: Alignment.centerLeft, child: Container(width: double.infinity, height: 7, color: r.$3),
               ))),
               const SizedBox(width: 10),
               SizedBox(width: 60, child: Text('${_thousands(r.$2)}k', textAlign: TextAlign.right, style: AppTheme.monoXs.copyWith(fontSize: 11.5, color: context.pal.text))),

@@ -185,8 +185,8 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
                 ]),
                 const SizedBox(height: 15),
                 ClipRRect(borderRadius: BorderRadius.circular(4), child: Row(children: [
-                  Expanded(flex: collected == 0 ? 1 : collected, child: Container(height: 8, color: collected == 0 ? context.pal.surface3 : AppColors.green)),
-                  if (outstanding > 0) Expanded(flex: outstanding, child: Container(height: 8, color: AppColors.amber)),
+                  Expanded(flex: collected == 0 ? 1 : collected, child: Container(width: double.infinity, height: 8, color: collected == 0 ? context.pal.surface3 : AppColors.green)),
+                  if (outstanding > 0) Expanded(flex: outstanding, child: Container(width: double.infinity, height: 8, color: AppColors.amber)),
                 ])),
               ]),
             )),
@@ -338,7 +338,7 @@ class _InvoiceTable extends StatelessWidget {
             ? Center(child: Text('No invoices found', style: AppTheme.bodySub))
             : ListView.separated(
                 itemCount: items.length,
-                separatorBuilder: (_, _) => Container(height: 1, color: context.pal.divider),
+                separatorBuilder: (_, _) => Container(width: double.infinity, height: 1, color: context.pal.divider),
                 itemBuilder: (_, i) {
                   final inv = items[i];
                   final color = _statusColor(inv.status);
