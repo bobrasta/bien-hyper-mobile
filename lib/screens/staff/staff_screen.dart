@@ -11,6 +11,7 @@ import '../../theme/app_theme.dart';
 import '../../utils/api_error.dart';
 import '../../utils/csv_export.dart';
 import '../../widgets/common/app_button.dart';
+import '../../widgets/common/app_dropdown.dart';
 import '../../widgets/common/avatar_widget.dart';
 import '../../theme/app_palette.dart';
 
@@ -1756,37 +1757,25 @@ class _NewTaskDialogState extends State<_NewTaskDialog> {
     ),
   );
 
+  // ~200 staff — client-side combobox per Section 4 of
+  // hypermed_claude_code_prompt.md, searchable by name/role/zone, not just
+  // name (replaces the plain DropdownButton "New Task > Assign to" field).
   Widget _memberDrop() {
-    final names   = widget.teamMembers.map((m) => m.name).toList();
-    final current = _assignee?.name ?? names.first;
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Text('ASSIGN TO', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
       const SizedBox(height: 6),
-      Container(
-        decoration: BoxDecoration(color: context.pal.surface2,
-            borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-        height: 38,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        child: DropdownButtonHideUnderline(child: DropdownButton<String>(
-          value: names.contains(current) ? current : names.first,
-          isExpanded: true, dropdownColor: context.pal.surface2, style: AppTheme.bodySm,
-          icon: Icon(Symbols.expand_more, size: 16, color: context.pal.textDim),
-          items: widget.teamMembers.map((m) => DropdownMenuItem(
-            value: m.name,
-            child: Row(children: [
-              AvatarWidget(initials: m.initials, size: 18, variant: m.variant),
-              const SizedBox(width: 8),
-              Expanded(child: Text(m.name, overflow: TextOverflow.ellipsis)),
-              Text(m.role,
-                  style: AppTheme.monoXs.copyWith(fontSize: 9, color: context.pal.textDim)),
-            ]),
-          )).toList(),
-          onChanged: (v) {
-            if (v == null) return;
-            final m = widget.teamMembers.firstWhere((m) => m.name == v);
-            _onAssigneeChanged(m);
-          },
-        )),
+      AppSearchableSelectField<String>(
+        selectedLabel: _assignee?.name,
+        items: widget.teamMembers.map((m) => AppSelectItem(
+          value: m.id,
+          label: '${m.name} — ${m.role}${m.zone.isNotEmpty ? ' — ${m.zone}' : ''}',
+          leading: AvatarWidget(initials: m.initials, size: 18, variant: m.variant),
+        )).toList(),
+        onSelected: (item) {
+          if (item == null) return;
+          final m = widget.teamMembers.firstWhere((m) => m.id == item.value);
+          _onAssigneeChanged(m);
+        },
       ),
     ]);
   }
