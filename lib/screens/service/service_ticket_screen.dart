@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../main.dart' show allowedScreenKeys, hasCtoApprovalAuthority, hasDirectorAuthority, hasServiceTicketResolveAuthority, userRoleNotifier, userIdNotifier;
-import '../../models/hospital.dart';
 import '../../utils/csv_export.dart';
 import '../../models/inventory_item.dart';
 import '../../models/machine.dart';
@@ -27,6 +26,7 @@ import '../../theme/app_theme.dart';
 import '../../utils/api_error.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/common/app_button.dart';
+import '../../widgets/common/app_dropdown.dart';
 import '../../widgets/common/app_text_field.dart';
 import '../../widgets/common/avatar_widget.dart';
 import '../../widgets/common/error_view.dart';
@@ -1409,10 +1409,10 @@ class _NewTicketModalState extends State<_NewTicketModal> {
   StaffMember?      _selectedTech;
   bool              _loadingStaff = true;
 
-  // Hospitals
-  List<Hospital> _hospitals        = [];
-  Hospital?      _selectedHospital;
-  bool           _loadingHospitals = true;
+  // Hospital — server-side searchable combobox (Section 4 of
+  // hypermed_claude_code_prompt.md), no full-list preload any more.
+  int?    _selectedHospitalId;
+  String? _selectedHospitalName;
 
   // Machines (all loaded once; filtered by selected hospital)
   List<Machine> _allMachines     = [];
@@ -1425,9 +1425,9 @@ class _NewTicketModalState extends State<_NewTicketModal> {
   // once that install has actually happened. Filtering here means the
   // dropdown can't offer a choice the backend would reject anyway.
   List<Machine> get _filteredMachines {
-    if (_selectedHospital == null) return const [];
+    if (_selectedHospitalId == null) return const [];
     return _allMachines.where((m) =>
-      (m.hospitalId == _selectedHospital!.id || m.hospital == _selectedHospital!.name) &&
+      (m.hospitalId == _selectedHospitalId || m.hospital == _selectedHospitalName) &&
       (_type == 'Installation'
           ? m.status == MachineStatus.pendingInstallation
           : m.status != MachineStatus.pendingInstallation)
@@ -1435,10 +1435,14 @@ class _NewTicketModalState extends State<_NewTicketModal> {
   }
 
   Future<void> _registerNewMachine() async {
-    if (_selectedHospital == null) return;
+    if (_selectedHospitalId == null) return;
     final created = await showDialog<Machine>(
       context: context,
-      builder: (_) => _RegisterMachineDialog(hospital: _selectedHospital!),
+      builder: (_) => _RegisterMachineDialog(
+        hospitalId: _selectedHospitalId!,
+        hospitalName: _selectedHospitalName ?? '',
+        existingModels: _allMachines.map((m) => m.model).toSet().toList(),
+      ),
     );
     if (created == null || !mounted) return;
     setState(() {
@@ -1459,12 +1463,6 @@ class _NewTicketModalState extends State<_NewTicketModal> {
     }).catchError((_) {
       if (mounted) setState(() => _loadingStaff = false);
     });
-    HospitalService.instance.list().then((list) {
-      if (!mounted) return;
-      setState(() { _hospitals = list; _loadingHospitals = false; });
-    }).catchError((_) {
-      if (mounted) setState(() => _loadingHospitals = false);
-    });
     MachineService.instance.list().then((list) {
       if (!mounted) return;
       setState(() { _allMachines = list; _loadingMachines = false; });
@@ -1473,9 +1471,10 @@ class _NewTicketModalState extends State<_NewTicketModal> {
     });
   }
 
-  void _onHospitalChanged(int? id) {
+  void _onHospitalSelected(AppSelectItem<int>? item) {
     setState(() {
-      _selectedHospital = id == null ? null : _hospitals.firstWhere((h) => h.id == id);
+      _selectedHospitalId = item?.value;
+      _selectedHospitalName = item?.label;
       // Reset machine when hospital changes; auto-pick first if only one matches
       final filtered = _filteredMachines;
       _selectedMachine = filtered.length == 1 ? filtered.first : null;
@@ -1520,28 +1519,6 @@ class _NewTicketModalState extends State<_NewTicketModal> {
         child: CircularProgressIndicator(strokeWidth: 2))),
   );
 
-  Widget _dropdown<T>({
-    required T? value,
-    required String hint,
-    required List<DropdownMenuItem<T>> items,
-    required ValueChanged<T?> onChanged,
-  }) => Container(
-    decoration: BoxDecoration(color: context.pal.surface2,
-        borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-    height: 38,
-    padding: const EdgeInsets.symmetric(horizontal: 12),
-    child: DropdownButtonHideUnderline(child: DropdownButton<T>(
-      value: value,
-      hint: Text(hint, style: AppTheme.bodySm.copyWith(color: context.pal.textDim)),
-      isExpanded: true,
-      dropdownColor: context.pal.surface2,
-      style: AppTheme.bodySm,
-      icon: Icon(Symbols.expand_more, size: 16, color: context.pal.textDim),
-      items: items,
-      onChanged: onChanged,
-    )),
-  );
-
   @override
   Widget build(BuildContext context) => GestureDetector(
     onTap: widget.onClose,
@@ -1577,23 +1554,20 @@ class _NewTicketModalState extends State<_NewTicketModal> {
             Flexible(child: SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
               child: Column(children: [
-                // 1. Hospital
+                // 1. Hospital — server-side searchable combobox (Section 4:
+                // hypermed_claude_code_prompt.md), never preloads the full
+                // directory.
                 _ModalField(
                   label: 'Hospital',
-                  child: _loadingHospitals
-                    ? _spinner()
-                    : _dropdown<int?>(
-                        value: _selectedHospital?.id,
-                        hint: 'Select hospital…',
-                        items: [
-                          DropdownMenuItem<int?>(value: null,
-                            child: Text('All hospitals',
-                                style: AppTheme.bodySm.copyWith(color: context.pal.textDim))),
-                          ..._hospitals.map((h) =>
-                              DropdownMenuItem<int?>(value: h.id, child: Text(h.name))),
-                        ],
-                        onChanged: _onHospitalChanged,
-                      ),
+                  child: AppSearchableSelectField<int>(
+                    hint: 'Search hospitals…',
+                    selectedLabel: _selectedHospitalName,
+                    asyncSearch: (q) async {
+                      final results = await HospitalService.instance.search(q);
+                      return results.map((h) => AppSelectItem(value: h.id, label: h.name)).toList();
+                    },
+                    onSelected: _onHospitalSelected,
+                  ),
                 ),
                 const SizedBox(height: 14),
                 // 2. Machine —filtered by selected hospital
@@ -1601,24 +1575,21 @@ class _NewTicketModalState extends State<_NewTicketModal> {
                   label: 'Machine',
                   child: _loadingMachines
                     ? _spinner()
-                    : _dropdown<int?>(
-                        value: _filteredMachines.any((m) => m.id == _selectedMachine?.id)
-                            ? _selectedMachine?.id : null,
-                        hint: _selectedHospital == null
-                            ? 'Select hospital first—'
+                    : AppSearchableSelectField<int>(
+                        hint: _selectedHospitalId == null
+                            ? 'Select hospital first…'
                             : _filteredMachines.isEmpty
                                 ? (_type == 'Installation'
                                     ? 'No machines awaiting installation'
                                     : 'No machines at this hospital')
-                                : 'Select machine—',
-                        items: _filteredMachines.map((m) => DropdownMenuItem<int?>(
-                          value: m.id,
-                          child: Text('${m.model} · ${m.serialNo}',
-                              overflow: TextOverflow.ellipsis),
-                        )).toList(),
-                        onChanged: (id) => setState(() =>
-                          _selectedMachine = id == null ? null
-                              : _allMachines.firstWhere((m) => m.id == id)),
+                                : 'Search machines…',
+                        selectedLabel: _selectedMachine == null
+                            ? null : '${_selectedMachine!.model} · ${_selectedMachine!.serialNo}',
+                        items: _filteredMachines.map((m) => AppSelectItem(
+                          value: m.id, label: '${m.model} · ${m.serialNo}')).toList(),
+                        onSelected: (item) => setState(() =>
+                          _selectedMachine = item == null ? null
+                              : _allMachines.firstWhere((m) => m.id == item.value)),
                       ),
                 ),
                 // New install (e.g. a machine that didn't arrive via a
@@ -1626,7 +1597,7 @@ class _NewTicketModalState extends State<_NewTicketModal> {
                 // row to pick — register one on the spot, pre-flagged
                 // pending_installation so it can only ever be attached to
                 // an Installation ticket.
-                if (_selectedHospital != null) ...[
+                if (_selectedHospitalId != null) ...[
                   const SizedBox(height: 6),
                   GestureDetector(
                     onTap: _registerNewMachine,
@@ -1708,19 +1679,18 @@ class _NewTicketModalState extends State<_NewTicketModal> {
                       )
                     : _loadingStaff
                       ? _spinner()
-                      : _dropdown<int?>(
-                          value: _selectedTech?.id,
+                      // ~200 staff — client-side per Section 4, but must
+                      // search name + role + location, not just name.
+                      : AppSearchableSelectField<int>(
                           hint: 'Unassigned',
-                          items: [
-                            DropdownMenuItem<int?>(value: null,
-                              child: Text('Unassigned',
-                                  style: AppTheme.bodySm.copyWith(color: context.pal.textDim))),
-                            ..._staff.map((s) =>
-                                DropdownMenuItem<int?>(value: s.id, child: Text(s.name))),
-                          ],
-                          onChanged: (id) => setState(() =>
-                            _selectedTech = id == null ? null
-                                : _staff.firstWhere((s) => s.id == id)),
+                          selectedLabel: _selectedTech?.name,
+                          items: _staff.map((s) => AppSelectItem(
+                            value: s.id,
+                            label: [s.name, s.role, s.zone].where((v) => v != null && v.isNotEmpty).join(' — '),
+                          )).toList(),
+                          onSelected: (item) => setState(() =>
+                            _selectedTech = item == null ? null
+                                : _staff.firstWhere((s) => s.id == item.value)),
                         ),
                 ),
                 const SizedBox(height: 14),
@@ -1790,15 +1760,17 @@ class _NewTicketModalState extends State<_NewTicketModal> {
 // here on purpose, since that's the only status an Installation ticket is
 // allowed to target (ServiceTicketController::store()'s hard gate).
 class _RegisterMachineDialog extends StatefulWidget {
-  const _RegisterMachineDialog({required this.hospital});
-  final Hospital hospital;
+  const _RegisterMachineDialog({required this.hospitalId, required this.hospitalName, this.existingModels = const []});
+  final int hospitalId;
+  final String hospitalName;
+  final List<String> existingModels;
 
   @override
   State<_RegisterMachineDialog> createState() => _RegisterMachineDialogState();
 }
 
 class _RegisterMachineDialogState extends State<_RegisterMachineDialog> {
-  final _modelCtrl = TextEditingController();
+  String? _model;
   final _serialCtrl = TextEditingController();
   final _wardCtrl = TextEditingController();
   String _type = 'Hematology Analyzer';
@@ -1812,7 +1784,6 @@ class _RegisterMachineDialogState extends State<_RegisterMachineDialog> {
 
   @override
   void dispose() {
-    _modelCtrl.dispose();
     _serialCtrl.dispose();
     _wardCtrl.dispose();
     super.dispose();
@@ -1820,17 +1791,17 @@ class _RegisterMachineDialogState extends State<_RegisterMachineDialog> {
 
   Future<void> _save() async {
     if (_saving) return;
-    if (_modelCtrl.text.trim().isEmpty || _serialCtrl.text.trim().isEmpty) {
+    if ((_model ?? '').trim().isEmpty || _serialCtrl.text.trim().isEmpty) {
       setState(() => _error = 'Model name and serial number are required.');
       return;
     }
     setState(() { _saving = true; _error = null; });
     try {
       final machine = await MachineService.instance.create({
-        'model': _modelCtrl.text.trim(),
+        'model': _model!.trim(),
         'serial_no': _serialCtrl.text.trim(),
         'type': _type,
-        'hospital_id': widget.hospital.id,
+        'hospital_id': widget.hospitalId,
         'ward': _wardCtrl.text.trim(),
         'status': 'pending_installation',
         'install_date': DateTime.now().toIso8601String().substring(0, 10),
@@ -1854,13 +1825,22 @@ class _RegisterMachineDialogState extends State<_RegisterMachineDialog> {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('${widget.hospital.name} · not yet installed', style: AppTheme.bodySub.copyWith(fontSize: 12)),
+        Text('${widget.hospitalName} · not yet installed', style: AppTheme.bodySub.copyWith(fontSize: 12)),
         const SizedBox(height: 14),
         if (_error != null) ...[
           Text(_error!, style: TextStyle(color: AppColors.coral, fontSize: 12)),
           const SizedBox(height: 10),
         ],
-        AppTextField(label: 'Model / Equipment Name', controller: _modelCtrl, hintText: 'e.g. Sysmex XN-1000'),
+        AppSearchableSelectField<String>(
+          label: 'Model / Equipment Name',
+          hint: 'e.g. Sysmex XN-1000',
+          selectedLabel: _model,
+          items: widget.existingModels.map((m) => AppSelectItem(value: m, label: m)).toList(),
+          onSelected: (item) => setState(() => _model = item?.value),
+          onTextChanged: (text) => _model = text,
+          createNewLabel: (q) => 'Use "$q" as a new model',
+          onCreateNew: (text) => setState(() => _model = text),
+        ),
         const SizedBox(height: 12),
         AppTextField(label: 'Serial Number', controller: _serialCtrl, hintText: 'e.g. BC68-0001'),
         const SizedBox(height: 12),
@@ -2813,33 +2793,17 @@ class _EditTicketDialogState extends State<_EditTicketDialog> {
                     child: CircularProgressIndicator(strokeWidth: 2))),
               )
             : Builder(builder: (context) {
-                final seen   = <int>{};
-                final items  = _staff.where((s) => seen.add(s.id)).toList();
-                final techId = items.any((s) => s.id == _selectedTech?.id)
-                    ? _selectedTech?.id : null;
-                return Container(
-                  decoration: BoxDecoration(color: context.pal.surface2,
-                      borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-                  height: 38,
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: DropdownButtonHideUnderline(child: DropdownButton<int?>(
-                    value: techId,
-                    hint: Text('Unassigned', style: AppTheme.bodySm.copyWith(color: context.pal.textDim)),
-                    isExpanded: true,
-                    dropdownColor: context.pal.surface2,
-                    style: AppTheme.bodySm,
-                    icon: Icon(Symbols.expand_more, size: 16, color: context.pal.textDim),
-                    items: [
-                      DropdownMenuItem<int?>(
-                        value: null,
-                        child: Text('Unassigned',
-                            style: AppTheme.bodySm.copyWith(color: context.pal.textDim)),
-                      ),
-                      ...items.map((s) => DropdownMenuItem<int?>(value: s.id, child: Text(s.name))),
-                    ],
-                    onChanged: (id) => setState(() =>
-                      _selectedTech = id == null ? null : items.firstWhere((s) => s.id == id)),
-                  )),
+                final seen  = <int>{};
+                final items = _staff.where((s) => seen.add(s.id)).toList();
+                return AppSearchableSelectField<int>(
+                  hint: 'Unassigned',
+                  selectedLabel: _selectedTech?.name,
+                  items: items.map((s) => AppSelectItem(
+                    value: s.id,
+                    label: [s.name, s.role, s.zone].where((v) => v != null && v.isNotEmpty).join(' — '),
+                  )).toList(),
+                  onSelected: (item) => setState(() =>
+                    _selectedTech = item == null ? null : items.firstWhere((s) => s.id == item.value)),
                 );
               }),
         ]),
