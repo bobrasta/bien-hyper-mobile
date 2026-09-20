@@ -151,10 +151,10 @@ class _ApprovalsScreenState extends State<ApprovalsScreen> with SingleTickerProv
   }
 
   Future<void> _rejectPerDiemTeamLead(PerDiemRequest r) async {
-    final reason = await showDialog<String>(context: context, builder: (_) => _RejectReasonDialog());
+    final reason = await showDialog<String>(context: context, builder: (_) => const _RejectReasonDialog(minLength: 10));
     if (reason == null) return;
     try {
-      await PerDiemService.instance.rejectTeamLead(r.id, reason: reason.isEmpty ? null : reason);
+      await PerDiemService.instance.rejectTeamLead(r.id, reason: reason);
       if (mounted) { showSuccessToast(context, 'Rejected.'); _load(); }
     } catch (e) {
       if (mounted) showErrorToast(context, e);
@@ -171,10 +171,10 @@ class _ApprovalsScreenState extends State<ApprovalsScreen> with SingleTickerProv
   }
 
   Future<void> _rejectPerDiem(PerDiemRequest r) async {
-    final reason = await showDialog<String>(context: context, builder: (_) => _RejectReasonDialog());
+    final reason = await showDialog<String>(context: context, builder: (_) => const _RejectReasonDialog(minLength: 10));
     if (reason == null) return;
     try {
-      await PerDiemService.instance.reject(r.id, reason: reason.isEmpty ? null : reason);
+      await PerDiemService.instance.reject(r.id, reason: reason);
       if (mounted) { showSuccessToast(context, 'Rejected.'); _load(); }
     } catch (e) {
       if (mounted) showErrorToast(context, e);
@@ -400,27 +400,54 @@ class _ApprovalsScreenState extends State<ApprovalsScreen> with SingleTickerProv
 }
 
 class _RejectReasonDialog extends StatefulWidget {
+  // 0 (default) keeps every existing reject flow exactly as it was —
+  // optional reason. Per-diem's two reject actions pass 10 (matching
+  // PerDiemController's own required|min:10 validation) since the backend
+  // rejects an under-length reason anyway; better to catch it here than
+  // round-trip a 422.
+  const _RejectReasonDialog({this.minLength = 0});
+  final int minLength;
+
   @override
   State<_RejectReasonDialog> createState() => _RejectReasonDialogState();
 }
 
 class _RejectReasonDialogState extends State<_RejectReasonDialog> {
   final _ctrl = TextEditingController();
+  String? _error;
 
   @override
   void dispose() { _ctrl.dispose(); super.dispose(); }
+
+  void _submit() {
+    final text = _ctrl.text.trim();
+    if (widget.minLength > 0 && text.length < widget.minLength) {
+      setState(() => _error = 'Reason must be at least ${widget.minLength} characters.');
+      return;
+    }
+    Navigator.of(context).pop(text);
+  }
 
   @override
   Widget build(BuildContext context) => AlertDialog(
     backgroundColor: context.pal.surface1,
     title: Text('Reject Request', style: AppTheme.bodyStrong),
-    content: TextField(
-      controller: _ctrl, maxLines: 3, style: AppTheme.bodySm,
-      decoration: InputDecoration(hintText: 'Reason (optional)', hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim)),
-    ),
+    content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+      TextField(
+        controller: _ctrl, maxLines: 3, style: AppTheme.bodySm,
+        decoration: InputDecoration(
+          hintText: widget.minLength > 0 ? 'Reason (required)' : 'Reason (optional)',
+          hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
+        ),
+      ),
+      if (_error != null) ...[
+        const SizedBox(height: 6),
+        Text(_error!, style: TextStyle(color: AppColors.coral, fontSize: 12)),
+      ],
+    ]),
     actions: [
       TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancel')),
-      TextButton(onPressed: () => Navigator.of(context).pop(_ctrl.text.trim()), child: Text('Reject', style: TextStyle(color: AppColors.coral))),
+      TextButton(onPressed: _submit, child: Text('Reject', style: TextStyle(color: AppColors.coral))),
     ],
   );
 }

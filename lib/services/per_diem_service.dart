@@ -24,7 +24,11 @@ class PerDiemService {
     return PerDiemRequest.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
   }
 
-  Future<PerDiemRequest> rejectTeamLead(int id, {String? reason}) async {
+  // rejection_reason is required server-side (min 10 chars) — no self-
+  // approval and no un-reasoned rejection are both enforced in
+  // PerDiemController now, so this is never optional in practice despite
+  // the nullable type (callers must prompt before calling).
+  Future<PerDiemRequest> rejectTeamLead(int id, {required String reason}) async {
     final res = await _dio.post('/per-diem-requests/$id/reject-team-lead', data: {'rejection_reason': reason});
     return PerDiemRequest.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
   }
@@ -34,13 +38,13 @@ class PerDiemService {
     return PerDiemRequest.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
   }
 
-  Future<PerDiemRequest> reject(int id, {String? reason}) async {
+  Future<PerDiemRequest> reject(int id, {required String reason}) async {
     final res = await _dio.post('/per-diem-requests/$id/reject', data: {'rejection_reason': reason});
     return PerDiemRequest.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
   }
 
-  Future<PerDiemRequest> cancel(int id) async {
-    final res = await _dio.post('/per-diem-requests/$id/cancel');
+  Future<PerDiemRequest> cancel(int id, {required String reason}) async {
+    final res = await _dio.post('/per-diem-requests/$id/cancel', data: {'cancellation_reason': reason});
     return PerDiemRequest.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
   }
 

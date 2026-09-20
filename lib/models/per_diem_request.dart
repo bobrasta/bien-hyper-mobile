@@ -109,6 +109,9 @@ class PerDiemRequest {
   final String?         paymentReference;
   final String?         paidByName;
   final String?         paidAt;
+  final String?         cancelledByName;
+  final String?         cancelledAt;
+  final String?         cancellationReason;
   final String?         createdAt;
   final List<PerDiemLine> lines;
 
@@ -140,6 +143,9 @@ class PerDiemRequest {
     this.paymentReference,
     this.paidByName,
     this.paidAt,
+    this.cancelledByName,
+    this.cancelledAt,
+    this.cancellationReason,
     this.createdAt,
     this.lines = const [],
   });
@@ -172,6 +178,9 @@ class PerDiemRequest {
     paymentReference:        j['payment_reference'] as String?,
     paidByName:              j['paid_by_name'] as String?,
     paidAt:                  j['paid_at'] as String?,
+    cancelledByName:         j['cancelled_by_name'] as String?,
+    cancelledAt:             j['cancelled_at'] as String?,
+    cancellationReason:      j['cancellation_reason'] as String?,
     createdAt:               j['created_at'] as String?,
     lines: (j['lines'] as List<dynamic>? ?? [])
         .map((l) => PerDiemLine.fromJson(l as Map<String, dynamic>)).toList(),
