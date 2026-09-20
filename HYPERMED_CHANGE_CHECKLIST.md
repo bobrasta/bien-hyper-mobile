@@ -4,10 +4,11 @@ Tracking implementation of `hypermed_claude_code_prompt.md` (14-section spec cov
 
 **Audit completed 2026-09-20** by direct code inspection (the original 4 parallel research agents all hit a session rate limit and were abandoned partway through — findings below are from reading the actual current code directly, not from their partial output). Every verdict below cites the real file/behavior found, not a guess.
 
-## 🚩 Two real bugs found during the audit, not just missing features
+## ✅ Two real bugs found during the audit — FIXED 2026-09-20
 
-- **Self-approval is currently possible.** `PerDiemController`'s `approveTeamLead()`/`approve()`/`reject()`/`rejectTeamLead()` check only role authority (`hasTeamLeadAuthority()`/`hasCtoApprovalAuthority()`), never whether the actor is also the request's own `user_id`. A team_leader or CTO who submits their own per-diem request can currently approve it themselves. `markPaid()` has a *partial* self-check but only against `payment_initiated_by`, not the original requester.
-- **Rejection reason is optional, not required.** `rejectTeamLead()`/`reject()` both validate `rejection_reason` as `nullable`. `cancel()` doesn't accept a reason field at all.
+- **Self-approval was possible — now blocked.** New `abortIfSelfActioning()` guard added to `approveTeamLead()`/`rejectTeamLead()`/`approve()`/`reject()`/`initiatePayment()`/`markPaid()` in `PerDiemController` — 403s if the actor is the request's own `user_id`. `cancel()` deliberately excluded (cancelling your own not-yet-approved request is ordinary self-service, not self-approval). Verified via tinker: same-user approve → 403, different approver → 200.
+- **Rejection/cancellation reason was optional — now required.** `rejection_reason`/`cancellation_reason` are `required|string|min:10` across `rejectTeamLead()`, `reject()`, and the rewritten `cancel()` (which now also persists `cancelled_by`/`cancelled_at`/`cancellation_reason`, mirroring the `paid_by`/`paid_at` pattern). All three layers updated together: hypermed-api (`1af9126`, deployed to production — Railway deploy `c9ac62bf` **SUCCESS**), Flutter (`1484de8` — shared `_RejectReasonDialog` gets an opt-in `minLength` param, other reject flows unaffected), hypermed-web (`d5e9369` — reject modal textarea gets `required minlength="10"`).
+- Scope note: the broader "CTO can cancel after full approval" gap (Section 9) and full mandatory-reason UX across all reject/cancel flows are still open — this fix closed the two integrity gaps, not the full spec sections they sit under.
 
 ## Foundation
 
@@ -27,9 +28,9 @@ Tracking implementation of `hypermed_claude_code_prompt.md` (14-section spec cov
 ## Travel plans / approvals / notifications
 
 - [ ] **Section 8 — CTO day-by-day travel plan editing** — PARTIALLY DONE. The day-by-day data model already exists and is used at creation time: `PerDiemLine` (region/district/site_name/activity/labor_cost/per_diem_cost/transport_fare), summed server-side into the request total in `PerDiemController::store()`. What's missing: no edit/update route for an existing request at all (only approve/reject/pay/cancel exist in `routes/api.php`), no revision-history model, no technician edit-grant mechanism, no payment-adjustment concept for after "Money is Out".
-- [ ] **Section 9 — Mandatory reason on rejection/cancellation** — NOT STARTED (see bug flagged above). Also: the spec's "CTO can cancel even after approval" case has no code path at all today — `cancel()` only allows `pending_team_lead`/`pending_cto` statuses, full stop, regardless of who's asking.
+- [ ] **Section 9 — Mandatory reason on rejection/cancellation** — PARTIALLY DONE. Per-diem's reject/cancel reasons are now required (min:10) end-to-end — see fix above. Still missing: the spec's "CTO can cancel even after approval" case has no code path at all today — `cancel()` only allows `pending_team_lead`/`pending_cto` statuses, full stop, regardless of who's asking; and mandatory reasons haven't been extended to other reject/cancel flows in the app (stock-out, expense, PO) beyond per-diem.
 - [ ] **Section 11 — Stage-by-stage notifications (in-app + email)** — MOSTLY DONE for in-app, further along than any other section. `PerDiemController` already fires a notification at nearly every transition (submit → team lead, team-lead-approve → CTO, CTO-approve → finance, payment-initiated → Director, paid → requester, plus both rejection paths → requester), and `NotificationTemplateService` + the "Notification Wording" settings page already cover all of these per-diem templates. Confirmed gaps: (1) no requester-facing notification specifically when payment is initiated (stage 4, "awaiting Director") — only the Director is notified at that point; (2) no email channel at all for this flow, only in-app; (3) not architecturally centralized — each notification is hand-called per controller action, not event/listener-driven as the spec asks.
-- [ ] **Section 1 — Approvals: own requests only, no self-approval** — PARTIALLY DONE / bug found (see flagged above). `PerDiemController::index()` correctly scopes to `user_id = $user->id` for anyone without team-lead or accountant authority — so a plain technician's own view is already correct. But anyone who *does* hold that authority sees every request unfiltered, including their own, with no self-approval block anywhere.
+- [ ] **Section 1 — Approvals: own requests only, no self-approval** — PARTIALLY DONE. `PerDiemController::index()` correctly scopes to `user_id = $user->id` for anyone without team-lead or accountant authority — so a plain technician's own view is already correct. No-self-approval is now enforced for per-diem (see fix above). Still missing: the "self-view" list UI for technicians (Section 7 territory) and the equivalent no-self-approval guard hasn't been audited/applied to the other approval chains (stock-out, expense, PO) yet.
 
 ## Self-service / UI
 
@@ -46,7 +47,7 @@ Tracking implementation of `hypermed_claude_code_prompt.md` (14-section spec cov
 
 ## Suggested next step
 
-Given the audit, the two flagged bugs (self-approval, optional rejection reason) are small, high-value, and self-contained — worth doing first regardless of build order, since they're real gaps in money-approval integrity today, not just missing spec features. After that, the spec's own suggested build order (Section 4 → 3 → 13/12 → 6 → 8/9/11 → the rest) still holds.
+The two flagged bugs (self-approval, optional rejection reason) are fixed and deployed as of 2026-09-20. Next: the spec's own suggested build order — Section 4 (searchable select) → 3 (file upload) → 13/12 (machine lifecycle/costs) → 6 (installation tickets) → 8/9/11 (travel plans/reasons/notifications) → the rest.
 
 ## Assumptions carried from the spec (confirm before building the section they affect)
 
