@@ -12,12 +12,16 @@ import '../../theme/app_palette.dart';
 // hypermed_claude_code_prompt.md Section 4). Deliberately not fuzzy.
 String normalizeForSearch(String s) => s.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
 
-/// One option in an [AppSelectField] or [AppMultiSelectField].
+/// One option in an [AppSelectField], [AppMultiSelectField] or
+/// [AppSearchableSelectField].
 class AppSelectItem<T> {
-  const AppSelectItem({required this.value, required this.label, this.leading});
+  const AppSelectItem({required this.value, required this.label, this.leading, this.trailing});
   final T value;
   final String label;
   final Widget? leading;
+  /// Extra info shown at the row's end (e.g. a stock-count badge) —
+  /// [AppSearchableSelectField] only; ignored elsewhere.
+  final Widget? trailing;
 }
 
 // Shared chrome: bordered trigger box with a label above it and a chevron
@@ -141,11 +145,12 @@ class _DropdownShellState extends State<_DropdownShell> {
   );
 }
 
-Widget _panelRow(BuildContext context, {required Widget leading, required Widget label, required bool selected, required VoidCallback onTap}) {
+Widget _panelRow(BuildContext context, {required Widget leading, required Widget label, required bool selected, required VoidCallback onTap, Widget? trailing}) {
   return _HoverRow(onTap: onTap, selected: selected, child: Row(children: [
     leading,
     const SizedBox(width: 9),
     Expanded(child: label),
+    if (trailing != null) ...[const SizedBox(width: 8), trailing],
   ]));
 }
 
@@ -544,7 +549,8 @@ class _AppSearchableSelectFieldState<T> extends State<AppSearchableSelectField<T
         for (var i = 0; i < _results.length; i++)
           _panelRow(ctx,
             leading: _results[i].leading ?? const SizedBox(width: 16),
-            label: Text(_results[i].label, style: AppTheme.bodySm.copyWith(fontSize: 12.5)),
+            label: Text(_results[i].label, style: AppTheme.bodySm.copyWith(fontSize: 12.5), overflow: TextOverflow.ellipsis),
+            trailing: _results[i].trailing,
             selected: i == _highlight,
             onTap: () => _pick(_results[i]),
           ),

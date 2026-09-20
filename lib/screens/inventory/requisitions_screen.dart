@@ -10,6 +10,7 @@ import '../../theme/app_theme.dart';
 import '../../utils/api_error.dart';
 import '../../utils/format.dart';
 import '../../widgets/common/app_button.dart';
+import '../../widgets/common/app_dropdown.dart';
 import '../../widgets/common/error_view.dart';
 import '../../widgets/common/shimmer_box.dart';
 
@@ -547,21 +548,18 @@ class _LineItemRow extends StatelessWidget {
       border: Border.all(color: context.pal.border),
     ),
     child: Row(children: [
-      // Item dropdown
-      Expanded(flex: 3, child: DropdownButtonHideUnderline(child: DropdownButton<int>(
-        value: (line['item'] as InventoryItem).id, isExpanded: true,
-        dropdownColor: context.pal.surface2, style: AppTheme.bodySm,
-        icon: Icon(Symbols.expand_more, size: 14, color: context.pal.textDim),
-        items: availableItems.map((i) => DropdownMenuItem(
-          value: i.id,
-          child: Text('${i.sku} · ${i.name}', overflow: TextOverflow.ellipsis),
-        )).toList(),
-        onChanged: (v) {
-          if (v == null) return;
-          final item = availableItems.firstWhere((i) => i.id == v);
-          onItemChanged(item);
+      // Item picker — inventory catalog can run to hundreds/thousands of
+      // SKUs, client-side combobox per Section 4 of
+      // hypermed_claude_code_prompt.md.
+      Expanded(flex: 3, child: AppSearchableSelectField<int>(
+        selectedLabel: '${(line['item'] as InventoryItem).sku} · ${(line['item'] as InventoryItem).name}',
+        items: availableItems.map((i) => AppSelectItem(
+          value: i.id, label: '${i.sku} · ${i.name}')).toList(),
+        onSelected: (item) {
+          if (item == null) return;
+          onItemChanged(availableItems.firstWhere((i) => i.id == item.value));
         },
-      ))),
+      )),
       const SizedBox(width: 8),
       // Qty
       SizedBox(width: 60, child: TextField(

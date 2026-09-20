@@ -13,6 +13,7 @@ import '../../theme/app_theme.dart';
 import '../../utils/api_error.dart';
 import '../../utils/format.dart';
 import '../../widgets/common/app_button.dart';
+import '../../widgets/common/app_dropdown.dart';
 import '../../widgets/common/error_view.dart';
 import '../../widgets/common/shimmer_box.dart';
 
@@ -316,26 +317,20 @@ class _RecordMovementModalState extends State<_RecordMovementModal> {
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                // Item picker
+                // Item picker — inventory catalog can run to
+                // hundreds/thousands of SKUs, client-side combobox per
+                // Section 4 of hypermed_claude_code_prompt.md.
                 Text('ITEM', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
                 const SizedBox(height: 6),
-                Container(
-                  decoration: BoxDecoration(color: context.pal.surface2,
-                      borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-                  height: 38,
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: DropdownButtonHideUnderline(child: DropdownButton<int?>(
-                    value: _selectedItemId, isExpanded: true,
-                    dropdownColor: context.pal.surface2, style: AppTheme.bodySm,
-                    hint: Text('Select item…', style: AppTheme.bodySm.copyWith(color: context.pal.textDim)),
-                    icon: Icon(Symbols.expand_more, size: 16, color: context.pal.textDim),
-                    items: _items.map((item) => DropdownMenuItem(
-                      value: item.id,
-                      child: Text('${item.sku} · ${item.name}',
-                          overflow: TextOverflow.ellipsis),
-                    )).toList(),
-                    onChanged: (v) => setState(() => _selectedItemId = v),
-                  )),
+                AppSearchableSelectField<int>(
+                  hint: 'Select item…',
+                  selectedLabel: () {
+                    final i = _items.where((i) => i.id == _selectedItemId).firstOrNull;
+                    return i == null ? null : '${i.sku} · ${i.name}';
+                  }(),
+                  items: _items.map((item) => AppSelectItem(
+                    value: item.id, label: '${item.sku} · ${item.name}')).toList(),
+                  onSelected: (item) => setState(() => _selectedItemId = item?.value),
                 ),
                 const SizedBox(height: 12),
                 // Location picker

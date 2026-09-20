@@ -2412,41 +2412,29 @@ class _AddPartDialogState extends State<_AddPartDialog> {
                   child: const Center(child: SizedBox(width: 14, height: 14,
                       child: CircularProgressIndicator(strokeWidth: 2))),
                 )
-              : Container(
-                  decoration: BoxDecoration(color: context.pal.surface2,
-                      borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-                  height: 38,
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: DropdownButtonHideUnderline(child: DropdownButton<int?>(
-                    value: _selectedId,
-                    hint: Text('Select from inventory…',
-                        style: AppTheme.bodySm.copyWith(color: context.pal.textDim)),
-                    isExpanded: true,
-                    dropdownColor: context.pal.surface2,
-                    style: AppTheme.bodySm,
-                    icon: Icon(Symbols.expand_more, size: 16, color: context.pal.textDim),
-                    items: _parts.map((p) => DropdownMenuItem<int?>(
-                      value: p.id,
-                      child: Row(children: [
-                        Expanded(child: Text(p.name, overflow: TextOverflow.ellipsis)),
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                          decoration: BoxDecoration(
-                            color: p.isLowStock
-                                ? AppColors.amber.withValues(alpha: 0.15)
-                                : AppColors.tealSoft,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text('${p.stockQty} in stock',
-                            style: AppTheme.monoXs.copyWith(
-                              fontSize: 9.5,
-                              color: p.isLowStock ? AppColors.amber : AppColors.teal)),
-                        ),
-                      ]),
-                    )).toList(),
-                    onChanged: _onPartSelected,
-                  )),
+              // Spare-parts catalog can run to hundreds of SKUs — client-side
+              // combobox per Section 4 of hypermed_claude_code_prompt.md.
+              : AppSearchableSelectField<int>(
+                  hint: 'Select from inventory…',
+                  selectedLabel: selectedPart?.name,
+                  items: _parts.map((p) => AppSelectItem(
+                    value: p.id,
+                    label: p.name,
+                    trailing: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: p.isLowStock
+                            ? AppColors.amber.withValues(alpha: 0.15)
+                            : AppColors.tealSoft,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text('${p.stockQty} in stock',
+                        style: AppTheme.monoXs.copyWith(
+                          fontSize: 9.5,
+                          color: p.isLowStock ? AppColors.amber : AppColors.teal)),
+                    ),
+                  )).toList(),
+                  onSelected: (item) => _onPartSelected(item?.value),
                 ),
             const SizedBox(height: 6),
             if (!_showQuickAdd)
@@ -2538,25 +2526,12 @@ class _AddPartDialogState extends State<_AddPartDialog> {
                       child: const Center(child: SizedBox(width: 14, height: 14,
                           child: CircularProgressIndicator(strokeWidth: 2))),
                     )
-                  : Container(
-                      decoration: BoxDecoration(color: context.pal.surface2,
-                          borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-                      height: 38,
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      child: DropdownButtonHideUnderline(child: DropdownButton<int?>(
-                        value: _selectedMachineId,
-                        hint: Text('Which machine model was it taken from—',
-                            style: AppTheme.bodySm.copyWith(color: context.pal.textDim)),
-                        isExpanded: true,
-                        dropdownColor: context.pal.surface2,
-                        style: AppTheme.bodySm,
-                        icon: Icon(Symbols.expand_more, size: 16, color: context.pal.textDim),
-                        items: _machines.map((m) => DropdownMenuItem<int?>(
-                          value: m.id,
-                          child: Text(m.name, overflow: TextOverflow.ellipsis),
-                        )).toList(),
-                        onChanged: _onMachineSelected,
-                      )),
+                  : AppSearchableSelectField<int>(
+                      hint: 'Which machine model was it taken from…',
+                      selectedLabel: _selectedMachineId == null
+                          ? null : _machines.where((m) => m.id == _selectedMachineId).firstOrNull?.name,
+                      items: _machines.map((m) => AppSelectItem(value: m.id, label: m.name)).toList(),
+                      onSelected: (item) => _onMachineSelected(item?.value),
                     ),
               ]),
 
