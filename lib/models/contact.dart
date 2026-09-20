@@ -7,6 +7,7 @@ class Contact {
   final String? email;
   final String? phone;
   final String? whatsapp;
+  final int?    hospitalId;
   final String hospitalName;
   final String? lastContactedAt;
   final String? nextFollowupAt;
@@ -22,6 +23,7 @@ class Contact {
     this.email,
     this.phone,
     this.whatsapp,
+    this.hospitalId,
     required this.hospitalName,
     this.lastContactedAt,
     this.nextFollowupAt,
@@ -38,6 +40,7 @@ class Contact {
     email:           j['email']       as String?,
     phone:           j['phone']       as String?,
     whatsapp:        j['whatsapp']    as String?,
+    hospitalId:      (j['hospital_id'] as num?)?.toInt(),
     hospitalName:    j['hospital'] is Map
         ? (j['hospital'] as Map)['name'] as String? ?? j['hospital_name'] as String? ?? '—'
         : j['hospital_name'] as String? ?? j['hospital'] as String? ?? '—',

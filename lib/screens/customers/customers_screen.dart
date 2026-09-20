@@ -9,6 +9,7 @@ import '../../widgets/common/error_view.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common/app_button.dart';
+import '../../widgets/common/app_dropdown.dart';
 import '../../widgets/common/avatar_widget.dart';
 import '../../widgets/email/compose_modal.dart';
 import '../../theme/app_palette.dart';
@@ -31,7 +32,6 @@ class _CustomersScreenState extends State<CustomersScreen> {
   bool _showDetail = false;
 
   List<Contact> _allContacts   = [];
-  List<String>  _hospitalNames = [];
   bool          _loading       = true;
   String?       _error;
   int           _showCount     = 25;
@@ -49,15 +49,10 @@ class _CustomersScreenState extends State<CustomersScreen> {
   Future<void> _load() async {
     setState(() { _loading = true; _error = null; });
     try {
-      final results = await Future.wait([
-        ContactService.instance.list(),
-        HospitalService.instance.list(),
-      ]);
+      final contacts = await ContactService.instance.list();
       if (mounted) {
-        final contacts = results[0] as List<Contact>;
         setState(() {
           _allContacts   = contacts;
-          _hospitalNames = (results[1] as List).map((h) => (h as dynamic).name as String).toList();
           _loading       = false;
           _detailContact = null;
         });
@@ -306,7 +301,6 @@ class _CustomersScreenState extends State<CustomersScreen> {
       // Dialogs
       if (_showAddContact)
         _AddContactDialog(
-          hospitalNames: _hospitalNames,
           onClose: () => setState(() => _showAddContact = false),
           onSaved: () { setState(() => _showAddContact = false); _load(); },
         ),
@@ -319,7 +313,6 @@ class _CustomersScreenState extends State<CustomersScreen> {
       if (_showEditContact && contact != null)
         _EditContactDialog(
           contact: contact,
-          hospitalNames: _hospitalNames,
           onClose: () => setState(() => _showEditContact = false),
           onSaved: () { setState(() => _showEditContact = false); _load(); },
         ),
@@ -701,10 +694,9 @@ class _DetailRow extends StatelessWidget {
 
 // ── Add Contact Dialog ──────────────────────────────────────────────────────
 class _AddContactDialog extends StatefulWidget {
-  const _AddContactDialog({required this.onClose, required this.hospitalNames, this.onSaved});
+  const _AddContactDialog({required this.onClose, this.onSaved});
   final VoidCallback  onClose;
   final VoidCallback? onSaved;
-  final List<String>  hospitalNames;
   @override
   State<_AddContactDialog> createState() => _AddContactDialogState();
 }
@@ -715,14 +707,9 @@ class _AddContactDialogState extends State<_AddContactDialog> {
   final _titleCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
-  String _hospital = '';
+  int?    _hospitalId;
+  String? _hospitalName;
   bool   _saving   = false;
-
-  @override
-  void initState() {
-    super.initState();
-    if (widget.hospitalNames.isNotEmpty) _hospital = widget.hospitalNames.first;
-  }
 
   @override
   void dispose() {
@@ -732,16 +719,16 @@ class _AddContactDialogState extends State<_AddContactDialog> {
   }
 
   Future<void> _save() async {
-    if (_saving || _firstCtrl.text.trim().isEmpty) return;
+    if (_saving || _firstCtrl.text.trim().isEmpty || _hospitalId == null) return;
     setState(() => _saving = true);
     try {
       await ContactService.instance.create({
-        'first_name':    _firstCtrl.text.trim(),
-        'last_name':     _lastCtrl.text.trim(),
-        'job_title':     _titleCtrl.text.trim(),
-        'hospital_name': _hospital,
-        'email':         _emailCtrl.text.trim(),
-        'phone':         _phoneCtrl.text.trim(),
+        'first_name':  _firstCtrl.text.trim(),
+        'last_name':   _lastCtrl.text.trim(),
+        'job_title':   _titleCtrl.text.trim(),
+        'hospital_id': _hospitalId,
+        'email':       _emailCtrl.text.trim(),
+        'phone':       _phoneCtrl.text.trim(),
       });
       if (mounted) showSuccessToast(context, 'Contact created');
       widget.onSaved?.call();
@@ -752,9 +739,6 @@ class _AddContactDialogState extends State<_AddContactDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final hospitals = widget.hospitalNames;
-    final effectiveHospital = hospitals.contains(_hospital) && hospitals.isNotEmpty
-        ? _hospital : (hospitals.isNotEmpty ? hospitals.first : '');
     return _ModalShell(
     onClose: widget.onClose,
     onSave: _save,
@@ -771,12 +755,22 @@ class _AddContactDialogState extends State<_AddContactDialog> {
       const SizedBox(height: 14),
       _CField('Job Title', _titleCtrl, 'e.g. Head of Procurement'),
       const SizedBox(height: 14),
-      if (hospitals.isNotEmpty) _CDropdown(
-        label: 'Hospital',
-        value: effectiveHospital,
-        items: hospitals,
-        onChanged: (v) => setState(() => _hospital = v),
-      ),
+      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('HOSPITAL', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+        const SizedBox(height: 6),
+        AppSearchableSelectField<int>(
+          hint: 'Search hospitals…',
+          selectedLabel: _hospitalName,
+          asyncSearch: (q) async {
+            final results = await HospitalService.instance.search(q);
+            return results.map((h) => AppSelectItem(value: h.id, label: h.name)).toList();
+          },
+          onSelected: (item) => setState(() {
+            _hospitalId = item?.value;
+            _hospitalName = item?.label;
+          }),
+        ),
+      ]),
       const SizedBox(height: 14),
       Row(children: [
         Expanded(child: _CField('Email', _emailCtrl, 'name@hospital.go.tz')),
@@ -1144,11 +1138,10 @@ class _CDropdown extends StatelessWidget {
 
 // ── Edit Contact Dialog ─────────────────────────────────────────────────────
 class _EditContactDialog extends StatefulWidget {
-  const _EditContactDialog({required this.contact, required this.onClose, required this.hospitalNames, this.onSaved});
+  const _EditContactDialog({required this.contact, required this.onClose, this.onSaved});
   final Contact      contact;
   final VoidCallback onClose;
   final VoidCallback? onSaved;
-  final List<String>  hospitalNames;
   @override
   State<_EditContactDialog> createState() => _EditContactDialogState();
 }
@@ -1159,7 +1152,8 @@ class _EditContactDialogState extends State<_EditContactDialog> {
   late final _titleCtrl = TextEditingController(text: widget.contact.jobTitle ?? '');
   late final _emailCtrl = TextEditingController(text: widget.contact.email ?? '');
   late final _phoneCtrl = TextEditingController(text: widget.contact.phone ?? '');
-  late String _hospital = widget.contact.hospitalName;
+  late int?    _hospitalId   = widget.contact.hospitalId;
+  late String? _hospitalName = widget.contact.hospitalName;
   bool        _saving   = false;
 
   @override
@@ -1174,12 +1168,12 @@ class _EditContactDialogState extends State<_EditContactDialog> {
     setState(() => _saving = true);
     try {
       await ContactService.instance.update(widget.contact.id, {
-        'first_name':    _firstCtrl.text.trim(),
-        'last_name':     _lastCtrl.text.trim(),
-        'job_title':     _titleCtrl.text.trim(),
-        'hospital_name': _hospital,
-        'email':         _emailCtrl.text.trim(),
-        'phone':         _phoneCtrl.text.trim(),
+        'first_name':  _firstCtrl.text.trim(),
+        'last_name':   _lastCtrl.text.trim(),
+        'job_title':   _titleCtrl.text.trim(),
+        if (_hospitalId != null) 'hospital_id': _hospitalId,
+        'email':       _emailCtrl.text.trim(),
+        'phone':       _phoneCtrl.text.trim(),
       });
       if (mounted) showSuccessToast(context, 'Contact updated');
       widget.onSaved?.call();
@@ -1190,10 +1184,6 @@ class _EditContactDialogState extends State<_EditContactDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final hospitals = widget.hospitalNames;
-    final effectiveHospital = hospitals.contains(_hospital) ? _hospital
-        : (hospitals.isNotEmpty ? hospitals.first : _hospital);
-
     return _ModalShell(
       onClose: widget.onClose,
       onSave: _save,
@@ -1210,12 +1200,22 @@ class _EditContactDialogState extends State<_EditContactDialog> {
         const SizedBox(height: 14),
         _CField('Job Title', _titleCtrl, ''),
         const SizedBox(height: 14),
-        if (hospitals.isNotEmpty) _CDropdown(
-          label: 'Hospital',
-          value: effectiveHospital,
-          items: hospitals,
-          onChanged: (v) => setState(() => _hospital = v),
-        ),
+        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('HOSPITAL', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+          const SizedBox(height: 6),
+          AppSearchableSelectField<int>(
+            hint: 'Search hospitals…',
+            selectedLabel: _hospitalName,
+            asyncSearch: (q) async {
+              final results = await HospitalService.instance.search(q);
+              return results.map((h) => AppSelectItem(value: h.id, label: h.name)).toList();
+            },
+            onSelected: (item) => setState(() {
+              _hospitalId = item?.value;
+              _hospitalName = item?.label;
+            }),
+          ),
+        ]),
         const SizedBox(height: 14),
         Row(children: [
           Expanded(child: _CField('Email', _emailCtrl, '')),
