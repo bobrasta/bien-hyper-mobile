@@ -1,6 +1,5 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
-import '../../models/hospital.dart';
 import '../../models/machine.dart';
 import '../../services/hospital_service.dart';
 import '../../services/machine_service.dart';
@@ -10,6 +9,7 @@ import '../../utils/api_error.dart';
 import '../../utils/responsive.dart';
 import '../../utils/zones.dart';
 import '../../widgets/common/app_button.dart';
+import '../../widgets/common/app_dropdown.dart';
 import '../../widgets/common/error_view.dart';
 import '../../widgets/common/shimmer_box.dart';
 import '../../widgets/common/status_badge.dart';
@@ -40,7 +40,6 @@ class _MachineListScreenState extends State<MachineListScreen> {
   bool _mapView = false;
 
   List<Machine> _machines = [];
-  List<Hospital> _allHospitals = [];
   List<String> _allTypes = [];
   List<String> _allModels = [];
   bool _loading = true;
@@ -54,15 +53,7 @@ class _MachineListScreenState extends State<MachineListScreen> {
   void initState() {
     super.initState();
     _mapView = widget.initialMapView;
-    _loadHospitals();
     _load();
-  }
-
-  Future<void> _loadHospitals() async {
-    try {
-      final list = await HospitalService.instance.list();
-      if (mounted) setState(() => _allHospitals = list);
-    } catch (_) {}
   }
 
   Future<void> _load() async {
@@ -126,16 +117,6 @@ class _MachineListScreenState extends State<MachineListScreen> {
     _load();
   }
 
-  void _setHospitalFilter(String? name) {
-    final h = name == null ? null : _allHospitals.where((h) => h.name == name).firstOrNull;
-    setState(() {
-      _hospitalFilter = name;
-      _hospitalId = h?.id;
-      _showCount = _pageSize;
-    });
-    _load();
-  }
-
   void _setTypeFilter(String? type) {
     setState(() {
       _typeFilter = type;
@@ -164,10 +145,6 @@ class _MachineListScreenState extends State<MachineListScreen> {
       ? _machines.length
       : _machines.where((m) => m.status == s).length;
 
-  List<String> get _hospitals => _allHospitals.isNotEmpty
-      ? _allHospitals.map((h) => h.name).toList()
-      : _machines.map((m) => m.hospital).toSet().toList()..sort();
-
   List<String> get _types => _allTypes.isNotEmpty
       ? _allTypes
       : _machines.map((m) => m.type).toSet().toList()..sort();
@@ -189,6 +166,25 @@ class _MachineListScreenState extends State<MachineListScreen> {
           _PickerDialog(title: title, options: options, current: current),
     );
     if (picked != null) onPick(picked.isEmpty ? null : picked);
+  }
+
+  // Section 4 (hypermed_claude_code_prompt.md): the hospital directory is
+  // modeled to grow into the thousands, so its filter can't reuse
+  // _pickFilter/_PickerDialog's plain-list-of-all-options pattern — that's
+  // exactly the "overflows the page by thousands of pixels" bug the spec
+  // flags. This uses the server-side searchable combobox instead.
+  Future<void> _pickHospitalFilterSearchable(BuildContext context) async {
+    final result = await showDialog<Object?>(
+      context: context,
+      builder: (_) => _HospitalFilterPickerDialog(currentName: _hospitalFilter),
+    );
+    if (result is _ClearHospitalFilter) {
+      setState(() { _hospitalFilter = null; _hospitalId = null; _showCount = _pageSize; });
+      _load();
+    } else if (result is AppSelectItem<int>) {
+      setState(() { _hospitalFilter = result.label; _hospitalId = result.value; _showCount = _pageSize; });
+      _load();
+    }
   }
 
   List<Machine> get _filtered {
@@ -496,13 +492,7 @@ class _MachineListScreenState extends State<MachineListScreen> {
                                     label: 'Hospital',
                                     value: _hospitalFilter ?? 'All',
                                     active: _hospitalFilter != null,
-                                    onTap: () => _pickFilter(
-                                      context,
-                                      'Hospital',
-                                      _hospitals,
-                                      _hospitalFilter,
-                                      _setHospitalFilter,
-                                    ),
+                                    onTap: () => _pickHospitalFilterSearchable(context),
                                   ),
                                   _FilterChip(
                                     icon: Symbols.category,
@@ -569,16 +559,7 @@ class _MachineListScreenState extends State<MachineListScreen> {
                               label: 'Hospital',
                               value: _hospitalFilter ?? 'All',
                               active: _hospitalFilter != null,
-                              onTap: () => _pickFilter(
-                                context,
-                                'Hospital',
-                                _hospitals,
-                                _hospitalFilter,
-                                (v) => setState(() {
-                                  _hospitalFilter = v;
-                                  _showCount = _pageSize;
-                                }),
-                              ),
+                              onTap: () => _pickHospitalFilterSearchable(context),
                             ),
                             const SizedBox(width: 10),
                             _FilterChip(
@@ -774,6 +755,7 @@ class _MachineListScreenState extends State<MachineListScreen> {
         // Add Machine dialog
         if (_showAdd)
           _AddMachineDialog(
+            existingModels: _allModels,
             onClose: () => setState(() => _showAdd = false),
             onSaved: () {
               setState(() => _showAdd = false);
@@ -1269,26 +1251,28 @@ class _MachineRow extends StatelessWidget {
 // ── Add Machine Dialog ─────────────────────────────────────────────────────────
 
 class _AddMachineDialog extends StatefulWidget {
-  const _AddMachineDialog({required this.onClose, this.onSaved});
+  const _AddMachineDialog({required this.onClose, this.onSaved, this.existingModels = const []});
   final VoidCallback onClose;
   final VoidCallback? onSaved;
+  /// Known models, already loaded by the parent screen — backs the model
+  /// combobox's client-side search + normalization + "Create new" offer.
+  final List<String> existingModels;
 
   @override
   State<_AddMachineDialog> createState() => _AddMachineDialogState();
 }
 
 class _AddMachineDialogState extends State<_AddMachineDialog> {
-  final _modelCtrl = TextEditingController();
   final _serialCtrl = TextEditingController();
   final _wardCtrl = TextEditingController();
+  String? _model;
   String _type = 'Hematology Analyzer';
   String _status = 'Operational';
   bool _saving = false;
   String? _error;
 
-  List<Hospital> _hospitals = [];
-  Hospital? _selectedHospital;
-  bool _loadingHospitals = true;
+  int? _selectedHospitalId;
+  String? _selectedHospitalName;
 
   static const _statusApiValue = {
     'Operational': 'operational',
@@ -1298,29 +1282,7 @@ class _AddMachineDialogState extends State<_AddMachineDialog> {
   };
 
   @override
-  void initState() {
-    super.initState();
-    _loadHospitals();
-  }
-
-  Future<void> _loadHospitals() async {
-    try {
-      final list = await HospitalService.instance.list();
-      if (mounted) {
-        setState(() {
-          _hospitals = list;
-          _selectedHospital = list.isNotEmpty ? list.first : null;
-          _loadingHospitals = false;
-        });
-      }
-    } catch (_) {
-      if (mounted) setState(() => _loadingHospitals = false);
-    }
-  }
-
-  @override
   void dispose() {
-    _modelCtrl.dispose();
     _serialCtrl.dispose();
     _wardCtrl.dispose();
     super.dispose();
@@ -1328,11 +1290,11 @@ class _AddMachineDialogState extends State<_AddMachineDialog> {
 
   Future<void> _save() async {
     if (_saving) return;
-    if (_modelCtrl.text.trim().isEmpty || _serialCtrl.text.trim().isEmpty) {
+    if ((_model ?? '').trim().isEmpty || _serialCtrl.text.trim().isEmpty) {
       setState(() => _error = 'Model name and serial number are required.');
       return;
     }
-    if (_selectedHospital == null) {
+    if (_selectedHospitalId == null) {
       setState(() => _error = 'Please select a hospital.');
       return;
     }
@@ -1342,10 +1304,10 @@ class _AddMachineDialogState extends State<_AddMachineDialog> {
     });
     try {
       await MachineService.instance.create({
-        'model': _modelCtrl.text.trim(),
+        'model': _model!.trim(),
         'serial_no': _serialCtrl.text.trim(),
         'type': _type,
-        'hospital_id': _selectedHospital!.id,
+        'hospital_id': _selectedHospitalId,
         'ward': _wardCtrl.text.trim(),
         'status': _statusApiValue[_status] ?? 'operational',
         'install_date': DateTime.now().toIso8601String().substring(0, 10),
@@ -1444,10 +1406,17 @@ class _AddMachineDialogState extends State<_AddMachineDialog> {
                             Row(
                               children: [
                                 Expanded(
-                                  child: _DField(
-                                    'Model / Name',
-                                    _modelCtrl,
-                                    'e.g. Mindray BC-6800 Plus',
+                                  child: AppSearchableSelectField<String>(
+                                    label: 'Model / Name',
+                                    hint: 'e.g. Mindray BC-6800 Plus',
+                                    selectedLabel: _model,
+                                    items: widget.existingModels
+                                        .map((m) => AppSelectItem(value: m, label: m))
+                                        .toList(),
+                                    onSelected: (item) => setState(() => _model = item?.value),
+                                    onTextChanged: (text) => _model = text,
+                                    createNewLabel: (q) => 'Use "$q" as a new model',
+                                    onCreateNew: (text) => setState(() => _model = text),
                                   ),
                                 ),
                                 const SizedBox(width: 14),
@@ -1498,26 +1467,19 @@ class _AddMachineDialogState extends State<_AddMachineDialog> {
                               ],
                             ),
                             const SizedBox(height: 14),
-                            if (_loadingHospitals)
-                              _dLoadingField('Hospital')
-                            else if (_hospitals.isEmpty)
-                              _DField(
-                                'Hospital',
-                                TextEditingController(text: ''),
-                                'Hospital name',
-                              )
-                            else
-                              _DDropdown(
-                                label: 'Hospital',
-                                value:
-                                    _selectedHospital?.name ??
-                                    _hospitals.first.name,
-                                items: _hospitals.map((h) => h.name).toList(),
-                                onChanged: (v) => setState(
-                                  () => _selectedHospital = _hospitals
-                                      .firstWhere((h) => h.name == v),
-                                ),
-                              ),
+                            AppSearchableSelectField<int>(
+                              label: 'Hospital',
+                              hint: 'Search hospitals…',
+                              selectedLabel: _selectedHospitalName,
+                              asyncSearch: (q) async {
+                                final results = await HospitalService.instance.search(q);
+                                return results.map((h) => AppSelectItem(value: h.id, label: h.name)).toList();
+                              },
+                              onSelected: (item) => setState(() {
+                                _selectedHospitalId = item?.value;
+                                _selectedHospitalName = item?.label;
+                              }),
+                            ),
                             const SizedBox(height: 14),
                             _DField(
                               'Ward / Location',
@@ -1620,34 +1582,6 @@ class _AddMachineDialogState extends State<_AddMachineDialog> {
   } // build
 } // _AddMachineDialogState
 
-Widget _dLoadingField(String label) => Builder(
-  builder: (context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Text(
-        label.toUpperCase(),
-        style: AppTheme.labelCaps.copyWith(fontSize: 10),
-      ),
-      const SizedBox(height: 6),
-      Container(
-        height: 38,
-        decoration: BoxDecoration(
-          color: context.pal.surface2,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: context.pal.border),
-        ),
-        child: const Center(
-          child: SizedBox(
-            width: 14,
-            height: 14,
-            child: CircularProgressIndicator(strokeWidth: 2),
-          ),
-        ),
-      ),
-    ],
-  ),
-);
-
 class _DField extends StatelessWidget {
   const _DField(this.label, this.ctrl, this.hint);
   final String label, hint;
@@ -1741,6 +1675,51 @@ class _DDropdown extends StatelessWidget {
 }
 
 // ── Filter picker dialog ───────────────────────────────────────────────────────
+
+class _ClearHospitalFilter {
+  const _ClearHospitalFilter();
+}
+
+class _HospitalFilterPickerDialog extends StatelessWidget {
+  const _HospitalFilterPickerDialog({this.currentName});
+  final String? currentName;
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    backgroundColor: context.pal.surface1,
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    title: Text('Filter by Hospital', style: AppTheme.bodyStrong),
+    content: SizedBox(
+      width: 320,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ListTile(
+            title: Text('All', style: AppTheme.bodySm),
+            trailing: currentName == null
+                ? Icon(Symbols.check, size: 16, color: AppColors.teal)
+                : null,
+            onTap: () => Navigator.pop(context, const _ClearHospitalFilter()),
+            dense: true,
+          ),
+          const SizedBox(height: 8),
+          AppSearchableSelectField<int>(
+            hint: 'Search hospitals…',
+            selectedLabel: currentName,
+            asyncSearch: (q) async {
+              final results = await HospitalService.instance.search(q);
+              return results.map((h) => AppSelectItem(value: h.id, label: h.name)).toList();
+            },
+            onSelected: (item) {
+              if (item != null) Navigator.pop(context, item);
+            },
+          ),
+        ],
+      ),
+    ),
+  );
+}
 
 class _PickerDialog extends StatelessWidget {
   const _PickerDialog({

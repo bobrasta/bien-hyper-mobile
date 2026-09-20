@@ -1,8 +1,16 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show LogicalKeyboardKey, KeyDownEvent;
 import 'package:material_symbols_icons/symbols.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_palette.dart';
+
+// Case/whitespace/hyphen/punctuation-insensitive match key — "xray",
+// "x-ray" and "X Ray" all normalize the same way. Used as the default
+// client-side filter and by the machine-model combobox specifically (see
+// hypermed_claude_code_prompt.md Section 4). Deliberately not fuzzy.
+String normalizeForSearch(String s) => s.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
 
 /// One option in an [AppSelectField] or [AppMultiSelectField].
 class AppSelectItem<T> {
@@ -268,6 +276,344 @@ class _AppMultiSelectFieldState<T> extends State<AppMultiSelectField<T>> {
           );
         }).toList(),
       )),
+    );
+  }
+}
+
+/// Searchable select (combobox) — click and type, options filter live, pick
+/// one; selected value shown with a clear (x) button. Two modes:
+/// - Client-side: pass [items]; filtered locally by [normalizeForSearch].
+/// - Server-side: pass [asyncSearch]; debounced, shows loading/"no results".
+/// Never both empty — one of the two must be provided.
+/// Per hypermed_claude_code_prompt.md Section 4: use this everywhere a user
+/// picks from a long or growing list (hospitals, staff, machine models…).
+class AppSearchableSelectField<T> extends StatefulWidget {
+  const AppSearchableSelectField({
+    super.key,
+    this.label,
+    this.selectedLabel,
+    this.items,
+    this.asyncSearch,
+    required this.onSelected,
+    this.hint = 'Type to search…',
+    this.width,
+    this.createNewLabel,
+    this.onCreateNew,
+    this.onTextChanged,
+  }) : assert(items != null || asyncSearch != null, 'Provide items or asyncSearch');
+
+  final String? label;
+  /// Display text for the currently selected value (shown when the field
+  /// isn't focused/being typed into). Null/empty shows [hint].
+  final String? selectedLabel;
+  /// Client-side candidate pool. Filtered locally as the user types.
+  final List<AppSelectItem<T>>? items;
+  /// Server-side search — called (debounced) with the typed query.
+  final Future<List<AppSelectItem<T>>> Function(String query)? asyncSearch;
+  /// Fires with the picked item, or null when the field is cleared via (x).
+  final ValueChanged<AppSelectItem<T>?> onSelected;
+  final String hint;
+  final double? width;
+  /// When set alongside [onCreateNew], an extra row offers creating a new
+  /// entry from the typed text if nothing matches (e.g. machine models).
+  final String Function(String query)? createNewLabel;
+  final ValueChanged<String>? onCreateNew;
+  /// Fires on every keystroke with the raw typed text — for genuinely
+  /// free-text fields (like machine model) where the caller wants to fall
+  /// back to whatever's typed even if the user never explicitly picks a
+  /// suggestion or the "Create new" row.
+  final ValueChanged<String>? onTextChanged;
+
+  @override
+  State<AppSearchableSelectField<T>> createState() => _AppSearchableSelectFieldState<T>();
+}
+
+class _AppSearchableSelectFieldState<T> extends State<AppSearchableSelectField<T>> {
+  final _link = LayerLink();
+  final _triggerKey = GlobalKey();
+  final _controller = TextEditingController();
+  final _focusNode = FocusNode();
+  OverlayEntry? _entry;
+  Timer? _debounce;
+  bool _open = false;
+  bool _loading = false;
+  String _query = '';
+  List<AppSelectItem<T>> _results = const [];
+  int _highlight = -1;
+
+  bool get _isAsync => widget.asyncSearch != null;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.text = widget.selectedLabel ?? '';
+    _focusNode.addListener(_onFocusChange);
+    if (!_isAsync) _results = widget.items ?? const [];
+  }
+
+  @override
+  void didUpdateWidget(covariant AppSearchableSelectField<T> oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!_focusNode.hasFocus && widget.selectedLabel != oldWidget.selectedLabel) {
+      _controller.text = widget.selectedLabel ?? '';
+    }
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _entry?.remove();
+    _focusNode.removeListener(_onFocusChange);
+    _focusNode.dispose();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _onFocusChange() {
+    if (_focusNode.hasFocus) {
+      _controller.selection = TextSelection(baseOffset: 0, extentOffset: _controller.text.length);
+      _runQuery(_controller.text);
+      _openPanel();
+    } else {
+      // Revert to the committed selection's label if the user clicked away
+      // without picking anything (mirrors a native combobox).
+      _controller.text = widget.selectedLabel ?? '';
+      _closePanel();
+    }
+  }
+
+  void _onChanged(String text) {
+    widget.onTextChanged?.call(text);
+    setState(() { _query = text; _highlight = -1; });
+    if (_isAsync) {
+      _debounce?.cancel();
+      _debounce = Timer(const Duration(milliseconds: 300), () => _runQuery(text));
+    } else {
+      _runQuery(text);
+    }
+    _entry?.markNeedsBuild();
+  }
+
+  Future<void> _runQuery(String query) async {
+    if (_isAsync) {
+      if (query.trim().isEmpty) {
+        setState(() { _results = const []; _loading = false; });
+        _entry?.markNeedsBuild();
+        return;
+      }
+      setState(() => _loading = true);
+      _entry?.markNeedsBuild();
+      final results = await widget.asyncSearch!(query.trim());
+      if (!mounted) return;
+      setState(() { _results = results; _loading = false; });
+      _entry?.markNeedsBuild();
+    } else {
+      final key = normalizeForSearch(query);
+      final all = widget.items ?? const [];
+      setState(() => _results = key.isEmpty
+          ? all
+          : all.where((i) => normalizeForSearch(i.label).contains(key)).toList());
+      _entry?.markNeedsBuild();
+    }
+  }
+
+  bool get _showCreateNew =>
+      widget.onCreateNew != null &&
+      _query.trim().isNotEmpty &&
+      !_loading &&
+      !_results.any((i) => normalizeForSearch(i.label) == normalizeForSearch(_query));
+
+  int get _rowCount => _results.length + (_showCreateNew ? 1 : 0);
+
+  void _selectIndex(int index) {
+    if (index < 0 || index >= _rowCount) return;
+    if (index < _results.length) {
+      _pick(_results[index]);
+    } else {
+      _createNew();
+    }
+  }
+
+  void _pick(AppSelectItem<T> item) {
+    widget.onSelected(item);
+    _controller.text = item.label;
+    _focusNode.unfocus();
+  }
+
+  void _createNew() {
+    widget.onCreateNew?.call(_query.trim());
+    _focusNode.unfocus();
+  }
+
+  void _clear() {
+    widget.onSelected(null);
+    _controller.clear();
+    setState(() { _query = ''; _highlight = -1; });
+    _runQuery('');
+  }
+
+  KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+      if (_rowCount > 0) {
+        setState(() => _highlight = (_highlight + 1) % _rowCount);
+        _entry?.markNeedsBuild();
+      }
+      return KeyEventResult.handled;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+      if (_rowCount > 0) {
+        setState(() => _highlight = (_highlight - 1 + _rowCount) % _rowCount);
+        _entry?.markNeedsBuild();
+      }
+      return KeyEventResult.handled;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.enter || event.logicalKey == LogicalKeyboardKey.numpadEnter) {
+      if (_highlight >= 0) {
+        _selectIndex(_highlight);
+        return KeyEventResult.handled;
+      }
+      return KeyEventResult.ignored;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.escape) {
+      _focusNode.unfocus();
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
+  void _openPanel() {
+    if (_open) { _entry?.markNeedsBuild(); return; }
+    final box = _triggerKey.currentContext?.findRenderObject() as RenderBox?;
+    final width = box?.size.width ?? widget.width ?? 220;
+    _entry = OverlayEntry(builder: (ctx) => Stack(children: [
+      Positioned.fill(child: GestureDetector(behavior: HitTestBehavior.opaque, onTap: () => _focusNode.unfocus())),
+      CompositedTransformFollower(
+        link: _link,
+        showWhenUnlinked: false,
+        offset: Offset(0, (box?.size.height ?? 40) + 6),
+        child: Material(
+          color: Colors.transparent,
+          child: Align(
+            alignment: Alignment.topLeft,
+            child: SizedBox(width: width, child: _buildPanel(ctx)),
+          ),
+        ),
+      ),
+    ]));
+    Overlay.of(context).insert(_entry!);
+    setState(() => _open = true);
+  }
+
+  void _closePanel() {
+    _entry?.remove();
+    _entry = null;
+    if (mounted) setState(() => _open = false);
+  }
+
+  Widget _buildPanel(BuildContext ctx) {
+    return Container(
+      constraints: const BoxConstraints(maxHeight: 320),
+      decoration: BoxDecoration(
+        color: ctx.pal.surface1,
+        border: Border.all(color: ctx.pal.borderStrong),
+        boxShadow: const [BoxShadow(color: Color(0x40000000), blurRadius: 24, offset: Offset(0, 10))],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: _panelBody(ctx),
+    );
+  }
+
+  Widget _panelBody(BuildContext ctx) {
+    if (_isAsync && _query.trim().isEmpty) {
+      return _panelMessage(ctx, 'Type to search…');
+    }
+    if (_loading) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 18),
+        child: Center(child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))),
+      );
+    }
+    if (_results.isEmpty && !_showCreateNew) {
+      return _panelMessage(ctx, 'No results');
+    }
+    return ListView(
+      shrinkWrap: true,
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      children: [
+        for (var i = 0; i < _results.length; i++)
+          _panelRow(ctx,
+            leading: _results[i].leading ?? const SizedBox(width: 16),
+            label: Text(_results[i].label, style: AppTheme.bodySm.copyWith(fontSize: 12.5)),
+            selected: i == _highlight,
+            onTap: () => _pick(_results[i]),
+          ),
+        if (_showCreateNew)
+          _panelRow(ctx,
+            leading: Icon(Symbols.add, size: 16, color: AppColors.blue),
+            label: Text(
+              widget.createNewLabel?.call(_query.trim()) ?? 'Create new: "${_query.trim()}"',
+              style: AppTheme.bodySm.copyWith(fontSize: 12.5, color: AppColors.blue),
+            ),
+            selected: _results.length == _highlight,
+            onTap: _createNew,
+          ),
+      ],
+    );
+  }
+
+  Widget _panelMessage(BuildContext ctx, String text) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 12),
+    child: Text(text, style: AppTheme.bodySm.copyWith(fontSize: 12.5, color: ctx.pal.textDim)),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final hasValue = (widget.selectedLabel ?? '').isNotEmpty;
+    return CompositedTransformTarget(
+      link: _link,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        if (widget.label != null) ...[
+          Text(widget.label!.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+          const SizedBox(height: 6),
+        ],
+        Container(
+          key: _triggerKey,
+          height: 38, width: widget.width,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: context.pal.surface2,
+            border: Border.all(color: _focusNode.hasFocus ? AppColors.blue.withValues(alpha: 0.55) : context.pal.border),
+          ),
+          child: Row(children: [
+            Icon(Symbols.search, size: 16, color: context.pal.textDim),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Focus(
+                onKeyEvent: _handleKey,
+                child: TextField(
+                  controller: _controller,
+                  focusNode: _focusNode,
+                  onChanged: _onChanged,
+                  onSubmitted: (_) { if (_highlight >= 0) _selectIndex(_highlight); },
+                  style: AppTheme.bodySm.copyWith(fontSize: 12.5),
+                  decoration: InputDecoration(
+                    isDense: true,
+                    border: InputBorder.none,
+                    hintText: widget.hint,
+                    hintStyle: AppTheme.bodySm.copyWith(fontSize: 12.5, color: context.pal.textDim),
+                  ),
+                ),
+              ),
+            ),
+            if (hasValue && !_focusNode.hasFocus)
+              GestureDetector(
+                onTap: _clear,
+                child: Icon(Symbols.close, size: 15, color: context.pal.textDim),
+              ),
+          ]),
+        ),
+      ]),
     );
   }
 }
