@@ -21,6 +21,7 @@ import '../../utils/format.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/common/app_button.dart';
 import '../../widgets/common/app_card.dart';
+import '../../widgets/common/app_dropdown.dart';
 import '../../widgets/common/avatar_widget.dart';
 import '../../widgets/common/kpi_card.dart';
 import '../../widgets/common/shimmer_box.dart';
@@ -2337,41 +2338,25 @@ class _QuickAddPartDialogState extends State<_QuickAddPartDialog> {
               child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
             )
           else
-            Container(
-              decoration: BoxDecoration(
-                color: context.pal.surface2,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: context.pal.border),
-              ),
-              height: 38,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<int>(
-                  value: _selectedId,
-                  hint: Text(
-                    'Select part…',
-                    style: AppTheme.bodySm.copyWith(color: context.pal.textDim),
-                  ),
-                  isExpanded: true,
-                  style: AppTheme.bodySm,
-                  items: _parts
-                      .map<DropdownMenuItem<int>>(
-                        (p) => DropdownMenuItem(
-                          value: p.id as int,
-                          child: Text(
-                            p.name as String,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (id) => setState(() {
-                    _selectedId = id;
-                    final p = _parts.firstWhere((p) => p.id == id);
-                    _costCtrl.text = (p.unitCost as num).toInt().toString();
-                  }),
-                ),
-              ),
+            // Spare-parts catalog can run to hundreds of SKUs — client-side
+            // combobox per Section 4 of hypermed_claude_code_prompt.md.
+            AppSearchableSelectField<int>(
+              hint: 'Select part…',
+              selectedLabel: _selectedId == null
+                  ? null
+                  : (_parts.firstWhere((p) => p.id == _selectedId).name as String),
+              items: _parts
+                  .map<AppSelectItem<int>>(
+                    (p) => AppSelectItem(value: p.id as int, label: p.name as String),
+                  )
+                  .toList(),
+              onSelected: (item) => setState(() {
+                _selectedId = item?.value;
+                if (item != null) {
+                  final p = _parts.firstWhere((p) => p.id == item.value);
+                  _costCtrl.text = (p.unitCost as num).toInt().toString();
+                }
+              }),
             ),
           const SizedBox(height: 10),
           Row(

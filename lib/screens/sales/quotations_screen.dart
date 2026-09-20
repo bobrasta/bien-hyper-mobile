@@ -16,6 +16,7 @@ import '../../utils/api_error.dart';
 import '../../utils/format.dart';
 import '../../utils/pdf_download.dart';
 import '../../utils/whatsapp_share.dart';
+import '../../widgets/common/app_dropdown.dart';
 import '../../widgets/common/error_view.dart';
 
 // ── Status colours ─────────────────────────────────────────────────────────────
@@ -1372,6 +1373,8 @@ class _LineItemTableRow extends StatelessWidget {
   );
 }
 
+// Inventory catalog can run to hundreds/thousands of SKUs — client-side
+// combobox per Section 4 of hypermed_claude_code_prompt.md.
 class _InvItemPicker extends StatelessWidget {
   const _InvItemPicker({required this.items, required this.selected, required this.onSelected});
   final List<InventoryItem> items;
@@ -1379,33 +1382,12 @@ class _InvItemPicker extends StatelessWidget {
   final ValueChanged<InventoryItem?> onSelected;
 
   @override
-  Widget build(BuildContext context) => Container(
-    height: 34,
-    padding: const EdgeInsets.symmetric(horizontal: 10),
-    decoration: BoxDecoration(
-      color: context.pal.surface1,
-      borderRadius: BorderRadius.circular(6),
-      border: Border.all(color: context.pal.border),
-    ),
-    child: DropdownButtonHideUnderline(
-      child: DropdownButton<InventoryItem?>(
-        value: selected,
-        isExpanded: true,
-        hint: Text('Link inventory item (optional)', style: AppTheme.bodySub.copyWith(fontSize: 11)),
-        dropdownColor: context.pal.surface2,
-        style: AppTheme.bodySm.copyWith(fontSize: 12),
-        icon: Icon(Symbols.expand_more, size: 14, color: context.pal.textDim),
-        items: [
-          const DropdownMenuItem<InventoryItem?>(value: null, child: Text('— None —')),
-          ...items.map((item) => DropdownMenuItem<InventoryItem?>(
-            value: item,
-            child: Text('${item.sku} · ${item.name}',
-                overflow: TextOverflow.ellipsis),
-          )),
-        ],
-        onChanged: onSelected,
-      ),
-    ),
+  Widget build(BuildContext context) => AppSearchableSelectField<InventoryItem>(
+    hint: 'Link inventory item (optional)',
+    selectedLabel: selected == null ? null : '${selected!.sku} · ${selected!.name}',
+    items: items.map((item) => AppSelectItem(
+      value: item, label: '${item.sku} · ${item.name}')).toList(),
+    onSelected: (item) => onSelected(item?.value),
   );
 }
 
