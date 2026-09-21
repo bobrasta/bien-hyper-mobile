@@ -224,6 +224,15 @@ class _ServiceTicketScreenState extends State<ServiceTicketScreen> {
       list = list.where((t) => t.assignedToId != null && t.assignedToId == userIdNotifier.value).toList();
     } else if (_filter != null) {
       list = list.where((t) => t.status == _filter).toList();
+      // Section 10: "the Open, In Progress and Resolved tabs sort newest
+      // first within their own status" — a simpler rule than "All"'s
+      // priority-then-newest, so re-sort rather than inherit fetch order
+      // (Overdue isn't in that list — it keeps the priority ordering the
+      // backend already applied, since it's still "active" work).
+      if (_filter != TicketStatus.overdue) {
+        list = [...list]..sort((a, b) =>
+            (DateTime.tryParse(b.createdAt) ?? DateTime(0)).compareTo(DateTime.tryParse(a.createdAt) ?? DateTime(0)));
+      }
     }
     if (_technicianFilter != null) {
       list = list.where((t) => t.assignedToId == _technicianFilter).toList();
