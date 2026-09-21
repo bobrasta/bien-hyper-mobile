@@ -32,6 +32,8 @@ import '../../screens/machines/machine_detail_screen.dart';
 import '../../screens/machines/machine_list_screen.dart';
 import '../../screens/reports/reports_screen.dart';
 import '../../screens/revenue/revenue_screen.dart';
+import '../../screens/self_service/my_service_reports_screen.dart';
+import '../../screens/self_service/my_travel_plans_screen.dart';
 import '../../screens/sales/sales_screen.dart';
 import '../../screens/sales/invoices_screen.dart';
 import '../../screens/sales/quotations_screen.dart';
@@ -263,6 +265,8 @@ class _AppShellState extends State<AppShell> {
     'customers' => const CustomersScreen(),
     'staff'          => StaffScreen(initialTaskId: _pendingEntityId),
     'my_leave'       => const MyLeaveScreen(),
+    'my_service_reports' => MyServiceReportsScreen(onOpenTicket: (id) => _navigateToEntity('service', entityId: id)),
+    'my_travel_plans'    => MyTravelPlansScreen(onOpenTicket: (id) => _navigateToEntity('service', entityId: id)),
     'hr_approvals'   => HrApprovalScreen(initialTabIndex: _pendingTabIndex),
     'hr_settings'    => const HrSettingsScreen(),
     'hr_dashboard'   => const HrDashboardScreen(),

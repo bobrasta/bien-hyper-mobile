@@ -82,7 +82,7 @@ Set<String>? _legacyAllowedScreenKeys(String role) => switch (role) {
   'cto'            => {'dashboard', 'approvals', 'machines', 'detail', 'hospitals', 'service', 'inventory', 'finance', 'staff', 'my_leave', 'reports', 'settings', 'notifications'},
   // No 'staff' or 'inventory' — a technician does the repair work, not
   // staff task assignment or stock management.
-  'technician'     => {'dashboard', 'machines', 'detail', 'hospitals', 'service', 'my_leave', 'reports', 'settings', 'notifications'},
+  'technician'     => {'dashboard', 'machines', 'detail', 'hospitals', 'service', 'my_leave', 'my_service_reports', 'my_travel_plans', 'reports', 'settings', 'notifications'},
   'team_leader'    => {'dashboard', 'approvals', 'machines', 'detail', 'hospitals', 'service', 'staff', 'my_leave', 'reports', 'settings', 'notifications'},
   'sales_manager' || 'sales' => {'dashboard', 'machines', 'detail', 'sales', 'customers', 'revenue', 'email', 'staff', 'my_leave', 'reports', 'settings', 'notifications'},
   'finance_manager' || 'finance' => {'dashboard', 'revenue', 'finance', 'staff', 'my_leave', 'reports', 'settings', 'notifications'},

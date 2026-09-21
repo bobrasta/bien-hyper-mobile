@@ -33,6 +33,12 @@ const _operations = [
   // not an HR-department tool, so it doesn't belong under the HR section
   // header even though HR also manages the approvals for it separately.
   NavDestination(icon: Symbols.event,                   label: 'My Leave',   key: 'my_leave'),
+  // Section 7: technician self-service — own service/installation reports
+  // and own per-diem/travel-plan submissions. Distinct from the universal
+  // 'reports' (company-wide analytics) and 'approvals' (other people's
+  // requests) keys.
+  NavDestination(icon: Symbols.summarize,               label: 'My Reports', key: 'my_service_reports'),
+  NavDestination(icon: Symbols.flight_takeoff,          label: 'My Travel Plans', key: 'my_travel_plans'),
 ];
 const _business = [
   NavDestination(icon: Symbols.payments,                label: 'Revenue',    key: 'revenue'),

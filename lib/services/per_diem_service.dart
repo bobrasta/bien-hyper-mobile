@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import '../models/per_diem_request.dart';
 import 'api_client.dart';
 
@@ -12,6 +13,17 @@ class PerDiemService {
     });
     final (data, _) = ApiClient.unwrapList(res);
     return data.map((j) => PerDiemRequest.fromJson(j as Map<String, dynamic>)).toList();
+  }
+
+  Future<PerDiemRequest> show(int id) async {
+    final res = await _dio.get('/per-diem-requests/$id');
+    return PerDiemRequest.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+  }
+
+  // Section 7: "can open details and download the plan as a PDF."
+  Future<List<int>> pdfBytes(int id) async {
+    final res = await _dio.get<List<int>>('/per-diem-requests/$id/pdf', options: Options(responseType: ResponseType.bytes));
+    return res.data!;
   }
 
   Future<PerDiemRequest> create(Map<String, dynamic> data) async {
