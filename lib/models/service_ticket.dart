@@ -34,6 +34,36 @@ class TicketAttachment {
   );
 }
 
+// Section 6 of hypermed_claude_code_prompt.md, generalized to every ticket
+// type: one line in a ticket's machine list. status is 'pending' or 'done'
+// — for an Installation ticket 'done' means the full Section 13 handover;
+// for every other type it's just "this unit's work here is complete."
+class TicketMachine {
+  final int     id;
+  final String  serialNo;
+  final String  model;
+  final String  status;
+  final String? completedAt;
+
+  const TicketMachine({
+    required this.id,
+    required this.serialNo,
+    required this.model,
+    required this.status,
+    this.completedAt,
+  });
+
+  bool get isDone => status == 'done';
+
+  factory TicketMachine.fromJson(Map<String, dynamic> j) => TicketMachine(
+    id:          (j['id'] as num).toInt(),
+    serialNo:    j['serial_no'] as String? ?? '—',
+    model:       j['model'] as String? ?? '—',
+    status:      j['status'] as String? ?? 'pending',
+    completedAt: j['completed_at'] as String?,
+  );
+}
+
 enum TicketStatus { open, inProgress, resolved, overdue }
 
 extension TicketStatusX on TicketStatus {
@@ -102,6 +132,15 @@ class ServiceTicket {
   final String?   billingDecidedByName;
   final String?   billingOverrideReason;
   final int?      invoiceId;
+  // Section 6, generalized to every ticket type — null on a payload that
+  // never loaded the relation (list rows still eager-load it; see
+  // ServiceTicketController::index()), not on a ticket with zero machines
+  // (a ticket always has at least one, backend-enforced).
+  final List<TicketMachine>? machines;
+  final int?                 machineCount;
+  final int?                 pendingMachineCount;
+
+  bool get isMultiMachine => (machineCount ?? 1) > 1;
 
   const ServiceTicket({
     required this.dbId,
@@ -135,6 +174,9 @@ class ServiceTicket {
     this.billingDecidedByName,
     this.billingOverrideReason,
     this.invoiceId,
+    this.machines,
+    this.machineCount,
+    this.pendingMachineCount,
   });
 
   factory ServiceTicket.fromJson(Map<String, dynamic> j) {
@@ -202,6 +244,10 @@ class ServiceTicket {
       billingDecidedByName:  _str(j['billing_decided_by_name']),
       billingOverrideReason: _str(j['billing_override_reason']),
       invoiceId:             j['invoice_id'] is num ? (j['invoice_id'] as num).toInt() : null,
+      machines: (j['machines'] as List?)
+          ?.map((m) => TicketMachine.fromJson(m as Map<String, dynamic>)).toList(),
+      machineCount:        j['machine_count'] is num ? (j['machine_count'] as num).toInt() : null,
+      pendingMachineCount: j['pending_machine_count'] is num ? (j['pending_machine_count'] as num).toInt() : null,
     );
   }
 }

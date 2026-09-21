@@ -59,6 +59,39 @@ class TicketService {
           'resolution_notes': resolutionNotes,
       });
 
+  // Section 6, generalized to every ticket type: "machines can be added
+  // later while the ticket is open."
+  Future<ServiceTicket> addMachine(int ticketId, int machineId) async {
+    final res = await _dio.post('/tickets/$ticketId/machines', data: {'machine_id': machineId});
+    return ServiceTicket.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+  }
+
+  // Soft-removes with a required reason — "delivery delayed" is the spec's
+  // own example. Refuses to drop the last machine on the ticket server-side.
+  Future<ServiceTicket> removeMachine(int ticketId, int machineId, String reason) async {
+    final res = await _dio.delete('/tickets/$ticketId/machines/$machineId', data: {'reason': reason});
+    return ServiceTicket.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+  }
+
+  // Per-machine completion. For an Installation ticket this IS the Section
+  // 13 handover (serial/ward/install date/warranty confirmed here); for
+  // every other type it just marks that unit's work on this ticket done —
+  // pass no fields.
+  Future<ServiceTicket> completeMachine(int ticketId, int machineId, {
+    String? serialNo,
+    String? ward,
+    String? installDate,
+    String? warrantyExpiry,
+  }) async {
+    final res = await _dio.post('/tickets/$ticketId/machines/$machineId/complete', data: {
+      'serial_no':       ?serialNo,
+      'ward':            ?ward,
+      'install_date':    ?installDate,
+      'warranty_expiry': ?warrantyExpiry,
+    });
+    return ServiceTicket.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+  }
+
   Future<ServiceTicket> overrideBilling(int id, {required String billingStatus, required String reason}) async {
     final res = await _dio.post('/tickets/$id/override-billing', data: {
       'billing_status': billingStatus,

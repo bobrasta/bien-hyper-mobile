@@ -740,13 +740,25 @@ class _TicketListRow extends StatelessWidget {
           Text(ticket.id, style: AppTheme.monoXs.copyWith(
               color: AppColors.teal, fontWeight: FontWeight.w700, fontSize: 12)),
           const SizedBox(width: 8),
-          Expanded(child: Text(ticket.machineName,
+          // Section 6: "Installation, N machines" for a multi-machine
+          // ticket (generalized to every type) — the single machine name
+          // otherwise.
+          Expanded(child: Text(
+              ticket.isMultiMachine ? '${ticket.machineCount} machines' : ticket.machineName,
               style: AppTheme.bodyStrong.copyWith(fontSize: 12.5),
               overflow: TextOverflow.ellipsis)),
+          if (ticket.isMultiMachine && (ticket.pendingMachineCount ?? 0) > 0) ...[
+            _PendingCountChip(count: ticket.pendingMachineCount!),
+            const SizedBox(width: 6),
+          ],
           StatusBadge.ticket(ticket.status),
         ]),
         const SizedBox(height: 3),
-        Text(ticket.machineType, style: AppTheme.bodySub.copyWith(fontSize: 11.5)),
+        Text(
+            ticket.isMultiMachine
+                ? (ticket.type == 'installation' ? 'Installation' : ticket.machineType)
+                : ticket.machineType,
+            style: AppTheme.bodySub.copyWith(fontSize: 11.5)),
         const SizedBox(height: 4),
         Row(children: [
           const SizedBox(width: 4),
@@ -764,6 +776,62 @@ class _TicketListRow extends StatelessWidget {
         ]),
       ]),
     ),
+  );
+}
+
+// Section 6: "Ticket list and detail show 'Installation, N machines' with
+// an expandable list, and a Pending count."
+class _MachineListExpander extends StatefulWidget {
+  const _MachineListExpander({required this.machines});
+  final List<TicketMachine> machines;
+
+  @override
+  State<_MachineListExpander> createState() => _MachineListExpanderState();
+}
+
+class _MachineListExpanderState extends State<_MachineListExpander> {
+  bool _open = false;
+
+  @override
+  Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    GestureDetector(
+      onTap: () => setState(() => _open = !_open),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(_open ? Symbols.expand_less : Symbols.expand_more, size: 16, color: context.pal.textDim),
+        const SizedBox(width: 4),
+        Text(_open ? 'Hide machine list' : 'Show machine list',
+            style: AppTheme.bodySub.copyWith(fontSize: 12, color: AppColors.teal)),
+      ]),
+    ),
+    if (_open) ...[
+      const SizedBox(height: 8),
+      ...widget.machines.map((m) => Padding(
+        padding: const EdgeInsets.only(bottom: 6),
+        child: Row(children: [
+          Icon(m.isDone ? Symbols.check_circle : Symbols.pending, size: 14,
+              color: m.isDone ? AppColors.teal : AppColors.amber),
+          const SizedBox(width: 8),
+          Expanded(child: Text('${m.model} · ${m.serialNo}',
+              style: AppTheme.bodySm.copyWith(fontSize: 12.5), overflow: TextOverflow.ellipsis)),
+          Text(m.isDone ? 'Done' : 'Pending',
+              style: AppTheme.bodySub.copyWith(fontSize: 11, color: m.isDone ? AppColors.teal : AppColors.amber)),
+        ]),
+      )),
+    ],
+  ]);
+}
+
+// Section 6: how many of a multi-machine ticket's lines are still pending —
+// shown on the list row and in the detail header.
+class _PendingCountChip extends StatelessWidget {
+  const _PendingCountChip({required this.count});
+  final int count;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+    decoration: BoxDecoration(color: AppColors.amberSoft, borderRadius: BorderRadius.circular(999)),
+    child: Text('$count pending', style: AppTheme.monoXs.copyWith(fontSize: 10, color: AppColors.amber)),
   );
 }
 
@@ -850,11 +918,27 @@ class _TicketDetailPanel extends StatelessWidget {
                 color: AppColors.teal, fontWeight: FontWeight.w700, fontSize: 13)),
             const SizedBox(width: 10),
             StatusBadge.ticket(ticket.status, large: true),
+            if (ticket.isMultiMachine && (ticket.pendingMachineCount ?? 0) > 0) ...[
+              const SizedBox(width: 8),
+              _PendingCountChip(count: ticket.pendingMachineCount!),
+            ],
           ]),
           const SizedBox(height: 6),
-          Text(ticket.machineName, style: AppTheme.pageTitle.copyWith(fontSize: 20)),
+          Text(
+              ticket.isMultiMachine
+                  ? '${ticket.machineCount} machines'
+                  : ticket.machineName,
+              style: AppTheme.pageTitle.copyWith(fontSize: 20)),
           const SizedBox(height: 3),
-          Text('${ticket.machineType} · ${ticket.hospital}', style: AppTheme.bodySub),
+          Text(
+              ticket.isMultiMachine
+                  ? (ticket.type == 'installation' ? 'Installation · ${ticket.hospital}' : '${ticket.machineType} · ${ticket.hospital}')
+                  : '${ticket.machineType} · ${ticket.hospital}',
+              style: AppTheme.bodySub),
+          if (ticket.isMultiMachine && ticket.machines != null) ...[
+            const SizedBox(height: 10),
+            _MachineListExpander(machines: ticket.machines!),
+          ],
         ])),
         if (canAct)
           AppButton(label: 'Edit', icon: Symbols.edit, variant: BtnVariant.ghost, onPressed: onEdit),
@@ -1427,23 +1511,32 @@ class _NewTicketModalState extends State<_NewTicketModal> {
 
   // Machines (all loaded once; filtered by selected hospital)
   List<Machine> _allMachines     = [];
-  Machine?      _selectedMachine;
+  // Section 6, generalized to every ticket type per direct instruction: a
+  // ticket can cover more than one machine, added one at a time via the
+  // searchable picker below plus an "Add another machine" affordance.
+  final List<Machine> _selectedMachines = [];
   bool          _loadingMachines = true;
 
   // Installation tickets can only ever target a machine still awaiting
   // install (mirrors ServiceTicketController::store()'s hard gate:
-  // "This machine is not awaiting installation."); Repair only makes sense
-  // once that install has actually happened. Filtering here means the
-  // dropdown can't offer a choice the backend would reject anyway.
+  // "This machine is not awaiting installation."); every other type only
+  // makes sense once that install has actually happened. Filtering here
+  // means the dropdown can't offer a choice the backend would reject
+  // anyway. Already-added machines are excluded so the same one can't be
+  // picked twice.
   List<Machine> get _filteredMachines {
     if (_selectedHospitalId == null) return const [];
     return _allMachines.where((m) =>
       (m.hospitalId == _selectedHospitalId || m.hospital == _selectedHospitalName) &&
       (_type == 'Installation'
           ? m.status == MachineStatus.pendingInstallation
-          : m.status != MachineStatus.pendingInstallation)
+          : m.status != MachineStatus.pendingInstallation) &&
+      !_selectedMachines.any((s) => s.id == m.id)
     ).toList();
   }
+
+  void _addMachine(Machine m) => setState(() => _selectedMachines.add(m));
+  void _removeMachine(Machine m) => setState(() => _selectedMachines.removeWhere((s) => s.id == m.id));
 
   Future<void> _registerNewMachine() async {
     if (_selectedHospitalId == null) return;
@@ -1458,7 +1551,7 @@ class _NewTicketModalState extends State<_NewTicketModal> {
     if (created == null || !mounted) return;
     setState(() {
       _allMachines = [..._allMachines, created];
-      _selectedMachine = created;
+      _selectedMachines.add(created);
       // A machine created this way is always pending_installation — only
       // an Installation ticket can target it, so lock the type to match.
       _type = 'Installation';
@@ -1486,9 +1579,9 @@ class _NewTicketModalState extends State<_NewTicketModal> {
     setState(() {
       _selectedHospitalId = item?.value;
       _selectedHospitalName = item?.label;
-      // Reset machine when hospital changes; auto-pick first if only one matches
-      final filtered = _filteredMachines;
-      _selectedMachine = filtered.length == 1 ? filtered.first : null;
+      // A machine picked for the previous hospital is never valid for the
+      // new one — clear the list rather than leave stale, mismatched rows.
+      _selectedMachines.clear();
     });
   }
 
@@ -1497,23 +1590,26 @@ class _NewTicketModalState extends State<_NewTicketModal> {
 
   Future<void> _save() async {
     if (_saving) return;
-    if (_selectedMachine == null) {
-      setState(() => _error = 'Please select a machine.');
+    if (_selectedMachines.isEmpty) {
+      setState(() => _error = 'Please add at least one machine.');
       return;
     }
     setState(() { _saving = true; _error = null; });
     try {
+      final first = _selectedMachines.first;
       await TicketService.instance.create({
         'type':         _type.toLowerCase(),
         'priority':     _priority.toLowerCase(),
         'description':  _descCtrl.text.trim(),
         'status':       'open',
-        'machine_id':   _selectedMachine!.id,
-        'machine_name': _selectedMachine!.model,
-        'machine_type': _selectedMachine!.type,
-        if (_selectedMachine!.hospitalId != null)
-          'hospital_id': _selectedMachine!.hospitalId,
-        'ward':         _selectedMachine!.ward,
+        // machine_ids (Section 6) — machine_id/machine_name/machine_type
+        // kept alongside for whatever still reads the singular shape.
+        'machine_ids':  _selectedMachines.map((m) => m.id).toList(),
+        'machine_id':   first.id,
+        'machine_name': first.model,
+        'machine_type': first.type,
+        if (first.hospitalId != null) 'hospital_id': first.hospitalId,
+        'ward':         first.ward,
         if (_selectedTech != null) 'assigned_to': _selectedTech!.id,
       });
       widget.onSaved?.call();
@@ -1581,26 +1677,33 @@ class _NewTicketModalState extends State<_NewTicketModal> {
                   ),
                 ),
                 const SizedBox(height: 14),
-                // 2. Machine —filtered by selected hospital
+                // 2. Machines — Section 6, generalized to every ticket type:
+                // add one or more, one at a time, from the selected
+                // hospital's eligible machines.
                 _ModalField(
-                  label: 'Machine',
+                  label: _selectedMachines.length > 1 ? 'Add Another Machine' : 'Machine',
                   child: _loadingMachines
                     ? _spinner()
                     : AppSearchableSelectField<int>(
+                        // A fresh instance after every add, so the field
+                        // goes back to empty instead of showing the last
+                        // pick (which now lives in the list below).
+                        key: ValueKey('machine_picker_${_selectedMachines.length}'),
                         hint: _selectedHospitalId == null
                             ? 'Select hospital first…'
                             : _filteredMachines.isEmpty
-                                ? (_type == 'Installation'
-                                    ? 'No machines awaiting installation'
-                                    : 'No machines at this hospital')
+                                ? (_selectedMachines.isNotEmpty
+                                    ? 'No more machines available'
+                                    : _type == 'Installation'
+                                        ? 'No machines awaiting installation'
+                                        : 'No machines at this hospital')
                                 : 'Search machines…',
-                        selectedLabel: _selectedMachine == null
-                            ? null : '${_selectedMachine!.model} · ${_selectedMachine!.serialNo}',
                         items: _filteredMachines.map((m) => AppSelectItem(
                           value: m.id, label: '${m.model} · ${m.serialNo}')).toList(),
-                        onSelected: (item) => setState(() =>
-                          _selectedMachine = item == null ? null
-                              : _allMachines.firstWhere((m) => m.id == item.value)),
+                        onSelected: (item) {
+                          if (item == null) return;
+                          _addMachine(_allMachines.firstWhere((m) => m.id == item.value));
+                        },
                       ),
                 ),
                 // New install (e.g. a machine that didn't arrive via a
@@ -1620,26 +1723,33 @@ class _NewTicketModalState extends State<_NewTicketModal> {
                     ]),
                   ),
                 ],
-                // Ward chip —shown once a machine is picked
-                if (_selectedMachine != null) ...[
+                // Added machines — each with its ward and a remove (x).
+                if (_selectedMachines.isNotEmpty) ...[
                   const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: AppColors.tealSoft,
-                      borderRadius: BorderRadius.circular(7),
-                      border: Border.all(color: AppColors.teal.withValues(alpha: 0.2)),
+                  ..._selectedMachines.map((m) => Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: AppColors.tealSoft,
+                        borderRadius: BorderRadius.circular(7),
+                        border: Border.all(color: AppColors.teal.withValues(alpha: 0.2)),
+                      ),
+                      child: Row(children: [
+                        Icon(Symbols.precision_manufacturing, size: 13, color: AppColors.teal),
+                        const SizedBox(width: 7),
+                        Expanded(child: Text(
+                          '${m.model} · ${m.serialNo} — Ward: ${m.ward}',
+                          style: AppTheme.bodySm.copyWith(color: context.pal.text, fontSize: 12),
+                          overflow: TextOverflow.ellipsis,
+                        )),
+                        GestureDetector(
+                          onTap: () => _removeMachine(m),
+                          child: Icon(Symbols.close, size: 15, color: context.pal.textDim),
+                        ),
+                      ]),
                     ),
-                    child: Row(children: [
-                      Icon(Symbols.location_on, size: 13, color: AppColors.teal),
-                      const SizedBox(width: 7),
-                      Expanded(child: Text(
-                        'Ward: ${_selectedMachine!.ward}',
-                        style: AppTheme.bodySm.copyWith(color: context.pal.text, fontSize: 12),
-                        overflow: TextOverflow.ellipsis,
-                      )),
-                    ]),
-                  ),
+                  )),
                 ],
                 const SizedBox(height: 14),
                 // 3. Ticket type + Priority
@@ -1651,13 +1761,14 @@ class _NewTicketModalState extends State<_NewTicketModal> {
                       items: const ['Repair', 'Installation'],
                       onChanged: (v) => setState(() {
                         _type = v;
-                        // Eligible machines differ per type (see
-                        // _filteredMachines) — a selection valid for one
-                        // type is very unlikely to still be valid for
-                        // the other.
-                        if (!_filteredMachines.any((m) => m.id == _selectedMachine?.id)) {
-                          _selectedMachine = null;
-                        }
+                        // Eligible machines differ per type — a machine
+                        // valid for one is very unlikely to still be valid
+                        // for the other, so drop anything that no longer
+                        // qualifies rather than leave a stale, now-invalid
+                        // selection in the list.
+                        _selectedMachines.removeWhere((m) => _type == 'Installation'
+                            ? m.status != MachineStatus.pendingInstallation
+                            : m.status == MachineStatus.pendingInstallation);
                       }),
                     ),
                   )),
@@ -2094,9 +2205,43 @@ class _ResolveDialogState extends State<_ResolveDialog> {
   String? _uploadError;
   late List<TicketAttachment> _reportFiles =
       widget.existingAttachments.where((a) => a.isServiceReport).toList();
+  // Section 6: kept live, not the snapshot the dialog opened with — each
+  // per-machine completion below replaces this with the fresh copy the API
+  // returns, so the remaining-pending list updates without closing/
+  // reopening the dialog ("the technician can save progress").
+  late ServiceTicket _ticket = widget.ticket;
+  int? _completingMachineId;
+
+  bool get _isInstallation => _ticket.type == 'installation';
+  bool get _hasPendingMachines => (_ticket.pendingMachineCount ?? 0) > 0;
+  // Section 6: "the API refuses to resolve the ticket while any machine is
+  // Pending" — but only for a multi-machine Installation ticket; every
+  // other case auto-completes on resolve server-side, so the button isn't
+  // blocked for those (matches ServiceTicketController::resolve()).
+  bool get _blockedByPendingMachines => _isInstallation && _ticket.isMultiMachine && _hasPendingMachines;
 
   bool get _canSubmit =>
-      !_saving && !_uploading && _notesCtrl.text.trim().isNotEmpty && _reportFiles.isNotEmpty;
+      !_saving && !_uploading && _notesCtrl.text.trim().isNotEmpty && _reportFiles.isNotEmpty && !_blockedByPendingMachines;
+
+  Future<void> _completeMachine(TicketMachine m) async {
+    if (_isInstallation) {
+      final updated = await showDialog<ServiceTicket>(
+        context: context,
+        builder: (_) => _CompleteMachineDialog(ticketId: _ticket.dbId, machine: m),
+      );
+      if (updated != null && mounted) setState(() => _ticket = updated);
+      return;
+    }
+    setState(() => _completingMachineId = m.id);
+    try {
+      final updated = await TicketService.instance.completeMachine(_ticket.dbId, m.id);
+      if (mounted) setState(() => _ticket = updated);
+    } catch (e) {
+      if (mounted) setState(() => _uploadError = friendlyError(e));
+    } finally {
+      if (mounted) setState(() => _completingMachineId = null);
+    }
+  }
 
   @override
   void dispose() { _notesCtrl.dispose(); super.dispose(); }
@@ -2156,6 +2301,49 @@ class _ResolveDialogState extends State<_ResolveDialog> {
       content: SizedBox(
         width: 460,
         child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          // Section 6, generalized to every ticket type: a plain list, not
+          // a step wizard (Section 0 rule 11) — each machine completes
+          // independently, so progress persists even if the dialog is
+          // closed and reopened.
+          if (_ticket.isMultiMachine && _ticket.machines != null) ...[
+            Text(_isInstallation ? 'MACHINES TO HAND OVER' : 'MACHINES ON THIS TICKET',
+                style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+            const SizedBox(height: 8),
+            ..._ticket.machines!.map((m) => Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                decoration: BoxDecoration(
+                  color: context.pal.surface2,
+                  borderRadius: BorderRadius.circular(7),
+                  border: Border.all(color: context.pal.border),
+                ),
+                child: Row(children: [
+                  Icon(m.isDone ? Symbols.check_circle : Symbols.pending, size: 15,
+                      color: m.isDone ? AppColors.teal : AppColors.amber),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text('${m.model} · ${m.serialNo}',
+                      style: AppTheme.bodySm.copyWith(fontSize: 12.5), overflow: TextOverflow.ellipsis)),
+                  if (m.isDone)
+                    Text('Done', style: AppTheme.bodySub.copyWith(fontSize: 11.5, color: AppColors.teal))
+                  else if (_completingMachineId == m.id)
+                    const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                  else
+                    GestureDetector(
+                      onTap: () => _completeMachine(m),
+                      child: Text(_isInstallation ? 'Hand over' : 'Mark done',
+                          style: AppTheme.bodySub.copyWith(fontSize: 11.5, color: AppColors.teal, fontWeight: FontWeight.w600)),
+                    ),
+                ]),
+              ),
+            )),
+            if (_blockedByPendingMachines) ...[
+              const SizedBox(height: 4),
+              Text('Every machine must be handed over before this ticket can be resolved.',
+                  style: AppTheme.bodySub.copyWith(fontSize: 11.5, color: AppColors.coral)),
+            ],
+            const SizedBox(height: 16),
+          ],
           Text('Describe what was done to resolve this ticket. '
                'This will be included in service reports.',
             style: AppTheme.bodySub.copyWith(fontSize: 12.5)),
@@ -2237,6 +2425,79 @@ class _ResolveDialogState extends State<_ResolveDialog> {
         ),
       ],
     );
+}
+
+// ── Per-machine handover (Section 6's Installation wizard step 1) ──────────
+// "For each machine on the ticket: confirm serial number, ward or location,
+// installation date and warranty start. Each machine gets its own handover
+// (section 13)." Section 13's own permission line ("Handover by technician
+// or CTO") is why this is reachable by whoever can resolve the ticket, not
+// gated to a separate approver — see ServiceTicketController::completeMachine().
+class _CompleteMachineDialog extends StatefulWidget {
+  const _CompleteMachineDialog({required this.ticketId, required this.machine});
+  final int ticketId;
+  final TicketMachine machine;
+
+  @override
+  State<_CompleteMachineDialog> createState() => _CompleteMachineDialogState();
+}
+
+class _CompleteMachineDialogState extends State<_CompleteMachineDialog> {
+  late final _serialCtrl = TextEditingController(text: widget.machine.serialNo);
+  final _wardCtrl = TextEditingController();
+  final _warrantyCtrl = TextEditingController();
+  bool _saving = false;
+  String? _error;
+
+  @override
+  void dispose() { _serialCtrl.dispose(); _wardCtrl.dispose(); _warrantyCtrl.dispose(); super.dispose(); }
+
+  Future<void> _confirm() async {
+    if (_saving) return;
+    setState(() { _saving = true; _error = null; });
+    try {
+      final updated = await TicketService.instance.completeMachine(
+        widget.ticketId, widget.machine.id,
+        serialNo: _serialCtrl.text.trim().isEmpty ? null : _serialCtrl.text.trim(),
+        ward: _wardCtrl.text.trim().isEmpty ? null : _wardCtrl.text.trim(),
+        warrantyExpiry: _warrantyCtrl.text.trim().isEmpty ? null : _warrantyCtrl.text.trim(),
+      );
+      if (mounted) Navigator.of(context).pop(updated);
+    } catch (e) {
+      if (mounted) setState(() { _saving = false; _error = friendlyError(e); });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    backgroundColor: context.pal.surface1,
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+    title: Row(children: [
+      Icon(Symbols.local_shipping, size: 18, color: AppColors.teal),
+      const SizedBox(width: 10),
+      Expanded(child: Text('Hand Over — ${widget.machine.model}', overflow: TextOverflow.ellipsis, style: AppTheme.bodyStrong)),
+    ]),
+    content: SizedBox(width: 380, child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+      AppTextField(label: 'Serial Number', controller: _serialCtrl, hintText: widget.machine.serialNo),
+      const SizedBox(height: 12),
+      AppTextField(label: 'Ward / Location', controller: _wardCtrl, hintText: 'e.g. ICU'),
+      const SizedBox(height: 12),
+      AppTextField(label: 'Warranty Expiry', controller: _warrantyCtrl, hintText: 'YYYY-MM-DD (defaults to today\'s install date otherwise)'),
+      if (_error != null) ...[
+        const SizedBox(height: 10),
+        Text(_error!, style: TextStyle(color: AppColors.coral, fontSize: 12)),
+      ],
+    ])),
+    actions: [
+      TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancel')),
+      FilledButton(
+        onPressed: _saving ? null : _confirm,
+        child: _saving
+            ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+            : const Text('Confirm Handover'),
+      ),
+    ],
+  );
 }
 
 // ── Override Billing Dialog ──────────────────────────────────────────────────
