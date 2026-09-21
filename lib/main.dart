@@ -173,6 +173,17 @@ bool hasServiceTicketResolveAuthority(String role) =>
 bool hasStaffManageAuthority(String role) =>
     const {'super_admin', 'admin', 'hr'}.contains(role);
 
+/// Mirrors the machines.receive/machines.allocate grants (Section 13 of
+/// hypermed_claude_code_prompt.md) — storekeeper, sales_manager, admin tier.
+bool hasMachineReceiveAuthority(String role) =>
+    const {'super_admin', 'admin', 'storekeeper', 'sales_manager'}.contains(role);
+bool hasMachineAllocateAuthority(String role) => hasMachineReceiveAuthority(role);
+
+/// Mirrors MachineController::costs()'s server-side gate (Section 12) —
+/// Admin, Director, CTO and finance roles only.
+bool hasMachineCostsViewAuthority(String role) =>
+    const {'super_admin', 'admin', 'cto', 'finance', 'finance_manager'}.contains(role);
+
 /// Mirrors the tasks.manage_board grant (create/reassign/delete a general,
 /// non-ticket task on the Staff screen's task board) — separate from
 /// authority.manager_tier since cto/team_leader supervise technicians and

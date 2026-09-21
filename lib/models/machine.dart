@@ -53,6 +53,18 @@ class Machine {
   final Map<String, String> specifications;
   final double? latitude;
   final double? longitude;
+  // Section 13: In Stock / Allocated / Installed (+ later Returned/Decommissioned).
+  final String lifecycleStage;
+  final String? manufacturer;
+  final String? condition;
+  final String? arrivalDate;
+  final int? storeLocationId;
+  final String? storeLocationName;
+  // Section 12: original currency amount + TSh comparison amount.
+  final int? purchaseCost;
+  final String? purchaseCostCurrency;
+  final int? purchaseCostTsh;
+  final String? purchaseCostRecordedAt;
 
   const Machine({
     required this.id,
@@ -72,7 +84,20 @@ class Machine {
     this.specifications = const {},
     this.latitude,
     this.longitude,
+    this.lifecycleStage = 'installed',
+    this.manufacturer,
+    this.condition,
+    this.arrivalDate,
+    this.storeLocationId,
+    this.storeLocationName,
+    this.purchaseCost,
+    this.purchaseCostCurrency,
+    this.purchaseCostTsh,
+    this.purchaseCostRecordedAt,
   });
+
+  bool get isInstalled => lifecycleStage == 'installed';
+  bool get isInStock => lifecycleStage == 'in_stock';
 
   factory Machine.fromJson(Map<String, dynamic> j) => Machine(
     id:             (j['id'] as num).toInt(),
@@ -99,6 +124,16 @@ class Machine {
                   ?? (j['hospital'] is Map ? (j['hospital'] as Map)['latitude']  as num? : null)?.toDouble(),
     longitude:      (j['longitude'] as num?)?.toDouble()
                   ?? (j['hospital'] is Map ? (j['hospital'] as Map)['longitude'] as num? : null)?.toDouble(),
+    lifecycleStage:      j['lifecycle_stage'] as String? ?? 'installed',
+    manufacturer:        j['manufacturer'] as String?,
+    condition:           j['condition'] as String?,
+    arrivalDate:         j['arrival_date'] as String?,
+    storeLocationId:     j['store_location_id'] as int?,
+    storeLocationName:   j['store_location_name'] as String?,
+    purchaseCost:        (j['purchase_cost'] as num?)?.toInt(),
+    purchaseCostCurrency: j['purchase_cost_currency'] as String?,
+    purchaseCostTsh:     (j['purchase_cost_tsh'] as num?)?.toInt(),
+    purchaseCostRecordedAt: j['purchase_cost_recorded_at'] as String?,
   );
 
   static Map<String, String> _parseSpecs(dynamic raw) {

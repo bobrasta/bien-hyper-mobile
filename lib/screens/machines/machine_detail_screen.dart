@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
+import '../../main.dart' show hasMachineCostsViewAuthority, hasMachineAllocateAuthority, userRoleNotifier;
 import '../../models/invoice.dart';
 import '../../models/machine.dart';
 import '../../models/service_ticket.dart';
@@ -14,6 +15,8 @@ import '../../services/ticket_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common/app_button.dart';
+import '../../widgets/common/app_dropdown.dart';
+import '../../widgets/common/app_text_field.dart';
 import '../../widgets/common/avatar_widget.dart';
 import '../../widgets/common/status_badge.dart';
 import '../../widgets/email/compose_modal.dart';
@@ -30,11 +33,19 @@ class MachineDetailScreen extends StatefulWidget {
 
 class _MachineDetailScreenState extends State<MachineDetailScreen> {
   int _tab = 0;
-  final _tabs = const ['Overview', 'Service History', 'Revenue', 'Documents', 'Notes'];
   bool _showEdit        = false;
   bool _showLogService  = false;
   bool _showRaiseTicket = false;
   bool _showEditSpecs   = false;
+  bool _showAllocate    = false;
+
+  // Section 12: Service Costs is visible only to Admin/Director/CTO/finance
+  // (server-enforced too — this only toggles the tab's visibility).
+  List<String> get _tabs => [
+    'Overview', 'Service History',
+    if (hasMachineCostsViewAuthority(userRoleNotifier.value)) 'Service Costs',
+    'Revenue', 'Documents', 'Notes',
+  ];
 
   Machine? _machine;
   bool     _loading = true;
@@ -162,11 +173,19 @@ class _MachineDetailScreenState extends State<MachineDetailScreen> {
                   ],
                 ),
               ]);
+              // Section 13: Raise Ticket/Log Service are for Installed
+              // machines only (server-enforced too, ServiceTicketController::
+              // store()); an In Stock machine gets Allocate instead.
               final actionButtons = Wrap(spacing: 8, runSpacing: 8, children: [
-                AppButton(label: 'Log Service',  icon: Symbols.build,               variant: BtnVariant.primary,
-                    onPressed: () => setState(() => _showLogService = true)),
-                AppButton(label: 'Raise Ticket', icon: Symbols.confirmation_number, variant: BtnVariant.normal,
-                    onPressed: () => setState(() => _showRaiseTicket = true)),
+                if (m.isInstalled) ...[
+                  AppButton(label: 'Log Service',  icon: Symbols.build,               variant: BtnVariant.primary,
+                      onPressed: () => setState(() => _showLogService = true)),
+                  AppButton(label: 'Raise Ticket', icon: Symbols.confirmation_number, variant: BtnVariant.normal,
+                      onPressed: () => setState(() => _showRaiseTicket = true)),
+                ],
+                if (m.isInStock && hasMachineAllocateAuthority(userRoleNotifier.value))
+                  AppButton(label: 'Allocate', icon: Symbols.local_shipping, variant: BtnVariant.primary,
+                      onPressed: () => setState(() => _showAllocate = true)),
                 AppButton(label: 'Edit Machine', icon: Symbols.edit,                variant: BtnVariant.normal,
                     onPressed: () => setState(() => _showEdit = true)),
                 AppButton(label: 'Send Email',   icon: Symbols.mail,                variant: BtnVariant.normal,
@@ -189,19 +208,7 @@ class _MachineDetailScreenState extends State<MachineDetailScreen> {
                 const SizedBox(width: 20),
                 Expanded(child: infoBlock),
                 const SizedBox(width: 20),
-                Column(children: [
-                  AppButton(label: 'Log Service',  icon: Symbols.build,               variant: BtnVariant.primary,
-                      onPressed: () => setState(() => _showLogService = true)),
-                  const SizedBox(height: 8),
-                  AppButton(label: 'Raise Ticket', icon: Symbols.confirmation_number, variant: BtnVariant.normal,
-                      onPressed: () => setState(() => _showRaiseTicket = true)),
-                  const SizedBox(height: 8),
-                  AppButton(label: 'Edit Machine', icon: Symbols.edit,                variant: BtnVariant.normal,
-                      onPressed: () => setState(() => _showEdit = true)),
-                  const SizedBox(height: 8),
-                  AppButton(label: 'Send Email',   icon: Symbols.mail,                variant: BtnVariant.normal,
-                      onPressed: _openCompose),
-                ]),
+                actionButtons,
               ]);
             }),
           ),
@@ -229,18 +236,20 @@ class _MachineDetailScreenState extends State<MachineDetailScreen> {
           ),
           const SizedBox(height: 20),
 
-          // Tab content
-          if (_tab == 0) _OverviewContent(
+          // Tab content — matched by label, not fixed index, since the tab
+          // list itself shrinks/grows per role (Service Costs).
+          if (_tabs[_tab] == 'Overview') _OverviewContent(
             machine: m,
             onEditSpecs: () => setState(() => _showEditSpecs = true),
           ),
-          if (_tab == 1) _ServiceHistoryContent(
+          if (_tabs[_tab] == 'Service History') _ServiceHistoryContent(
             machineId: widget.machineId,
             onLogService: () => setState(() => _showLogService = true),
           ),
-          if (_tab == 2) _RevenueTabContent(machine: m),
-          if (_tab == 3) const _DocumentsContent(),
-          if (_tab == 4) _NotesContent(machine: m),
+          if (_tabs[_tab] == 'Service Costs') _ServiceCostsContent(machine: m),
+          if (_tabs[_tab] == 'Revenue') _RevenueTabContent(machine: m),
+          if (_tabs[_tab] == 'Documents') const _DocumentsContent(),
+          if (_tabs[_tab] == 'Notes') _NotesContent(machine: m),
         ],
       ),
     );  // SingleChildScrollView
@@ -253,6 +262,12 @@ class _MachineDetailScreenState extends State<MachineDetailScreen> {
         _LogServiceDialog(machine: m, onClose: () => setState(() => _showLogService = false)),
       if (_showRaiseTicket)
         _RaiseTicketDialog(machine: m, onClose: () => setState(() => _showRaiseTicket = false)),
+      if (_showAllocate)
+        _AllocateMachineDialog(
+          machine: m,
+          onClose: () => setState(() => _showAllocate = false),
+          onSaved: () { setState(() => _showAllocate = false); _load(); },
+        ),
       if (_showEditSpecs)
         _EditSpecsDialog(
           machine: m,
@@ -1607,4 +1622,224 @@ class _SpecEntry {
         valCtrl = TextEditingController(text: val);
   final TextEditingController keyCtrl;
   final TextEditingController valCtrl;
+}
+
+// ── Allocate Machine Dialog (Section 13) ────────────────────────────────────
+// In Stock -> Allocated: reserves the machine for a hospital ahead of
+// installation. Handover (Allocated -> Installed) happens automatically
+// through the existing sign-off flow once an installation ticket resolves.
+class _AllocateMachineDialog extends StatefulWidget {
+  const _AllocateMachineDialog({required this.machine, required this.onClose, this.onSaved});
+  final Machine machine;
+  final VoidCallback onClose;
+  final VoidCallback? onSaved;
+  @override
+  State<_AllocateMachineDialog> createState() => _AllocateMachineDialogState();
+}
+
+class _AllocateMachineDialogState extends State<_AllocateMachineDialog> {
+  final _reasonCtrl = TextEditingController();
+  int? _hospitalId;
+  String? _hospitalName;
+  bool _saving = false;
+  String? _error;
+
+  @override
+  void dispose() { _reasonCtrl.dispose(); super.dispose(); }
+
+  Future<void> _save() async {
+    if (_saving || _hospitalId == null) {
+      setState(() => _error = 'Select a hospital.');
+      return;
+    }
+    setState(() { _saving = true; _error = null; });
+    try {
+      await MachineService.instance.allocate(widget.machine.id,
+          hospitalId: _hospitalId!, reason: _reasonCtrl.text.trim());
+      widget.onSaved?.call();
+    } catch (e) {
+      if (mounted) setState(() { _saving = false; _error = friendlyError(e); });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    backgroundColor: context.pal.surface1,
+    title: Row(children: [
+      Icon(Symbols.local_shipping, size: 18, color: AppColors.teal),
+      const SizedBox(width: 10),
+      const Text('Allocate Machine'),
+    ]),
+    content: SizedBox(width: 420, child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text('${widget.machine.model} · ${widget.machine.serialNo}', style: AppTheme.bodySub),
+      const SizedBox(height: 14),
+      Text('HOSPITAL', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+      const SizedBox(height: 6),
+      AppSearchableSelectField<int>(
+        hint: 'Search hospitals…',
+        selectedLabel: _hospitalName,
+        asyncSearch: (q) async {
+          final results = await HospitalService.instance.search(q);
+          return results.map((h) => AppSelectItem(value: h.id, label: h.name)).toList();
+        },
+        onSelected: (item) => setState(() { _hospitalId = item?.value; _hospitalName = item?.label; }),
+      ),
+      const SizedBox(height: 14),
+      AppTextField(controller: _reasonCtrl, label: 'Reason (optional)', hintText: 'e.g. Sold via Quotation Q-100'),
+      if (_error != null) ...[
+        const SizedBox(height: 10),
+        Text(_error!, style: TextStyle(color: AppColors.coral, fontSize: 12)),
+      ],
+    ])),
+    actions: [
+      TextButton(onPressed: widget.onClose, child: const Text('Cancel')),
+      FilledButton(
+        onPressed: _saving ? null : _save,
+        child: _saving
+            ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+            : const Text('Allocate'),
+      ),
+    ],
+  );
+}
+
+// ── Service Costs tab content (Section 12) ──────────────────────────────────
+class _ServiceCostsContent extends StatefulWidget {
+  const _ServiceCostsContent({required this.machine});
+  final Machine machine;
+  @override
+  State<_ServiceCostsContent> createState() => _ServiceCostsContentState();
+}
+
+class _ServiceCostsContentState extends State<_ServiceCostsContent> {
+  Map<String, dynamic>? _data;
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    try {
+      final data = await MachineService.instance.costs(widget.machine.id);
+      if (mounted) setState(() { _data = data; _loading = false; });
+    } catch (e) {
+      if (mounted) setState(() { _error = friendlyError(e); _loading = false; });
+    }
+  }
+
+  String _tsh(num n) {
+    if (n >= 1000000) return 'TSh ${(n / 1e6).toStringAsFixed(1)}M';
+    if (n >= 1000)    return 'TSh ${(n / 1e3).toStringAsFixed(0)}K';
+    return 'TSh $n';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) return const Padding(padding: EdgeInsets.symmetric(vertical: 40),
+        child: Center(child: CircularProgressIndicator(strokeWidth: 2)));
+    if (_error != null) return Padding(padding: const EdgeInsets.symmetric(vertical: 20),
+        child: Text(_error!, style: TextStyle(color: AppColors.coral)));
+
+    final d = _data!;
+    final viability = d['viability'] as Map<String, dynamic>;
+    final rows = (d['rows'] as List).cast<Map<String, dynamic>>();
+    final hasPurchaseCost = viability['has_purchase_cost'] == true;
+    final exceeds = viability['exceeds_threshold'] == true;
+    final percent = (viability['percent_of_purchase_cost'] as num?)?.toDouble();
+    final thresholdPercent = (viability['threshold_percent'] as num).toDouble();
+
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text('Based on recorded costs only.', style: AppTheme.bodySub.copyWith(fontSize: 12, color: context.pal.textDim)),
+      const SizedBox(height: 14),
+
+      if (hasPurchaseCost) ...[
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: exceeds ? AppColors.coralSoft : context.pal.surface2,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: exceeds ? AppColors.coral.withValues(alpha: 0.4) : context.pal.border),
+          ),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            if (exceeds)
+              Row(children: [
+                Icon(Symbols.warning, size: 16, color: AppColors.coral),
+                const SizedBox(width: 8),
+                Expanded(child: Text(
+                  'Service cost has exceeded ${(thresholdPercent * 100).toStringAsFixed(0)}% of the original purchase cost. Consider replacing this machine.',
+                  style: AppTheme.bodySm.copyWith(color: AppColors.coral, fontWeight: FontWeight.w600))),
+              ]),
+            if (exceeds) const SizedBox(height: 10),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: LinearProgressIndicator(
+                value: percent == null ? 0 : percent.clamp(0, 1.5) / 1.5,
+                minHeight: 8,
+                backgroundColor: context.pal.surface1,
+                color: exceeds ? AppColors.coral : AppColors.teal,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(spacing: 20, runSpacing: 6, children: [
+              Text('Spent: ${_tsh(viability['total_service_cost'] as num)}', style: AppTheme.bodySm),
+              Text('Purchase cost: ${_tsh(viability['purchase_cost_tsh'] as num)}', style: AppTheme.bodySm),
+              if (percent != null) Text('${(percent * 100).toStringAsFixed(0)}% of purchase cost', style: AppTheme.bodySm),
+              Text('Threshold: ${(thresholdPercent * 100).toStringAsFixed(0)}%', style: AppTheme.bodySub.copyWith(fontSize: 12)),
+            ]),
+          ]),
+        ),
+      ] else ...[
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(color: context.pal.surface2, borderRadius: BorderRadius.circular(10)),
+          child: const Text('Set the purchase cost to enable the replacement analysis. Edit Machine to add it.'),
+        ),
+      ],
+      const SizedBox(height: 16),
+
+      Wrap(spacing: 24, runSpacing: 10, children: [
+        _StatBlock('Lifetime total', _tsh(d['grand_total'] as num)),
+        _StatBlock('Last 12 months', _tsh(d['last_12_months_total'] as num)),
+        _StatBlock('Services', '${d['service_count']}'),
+        _StatBlock('Avg / service', _tsh(d['average_cost_per_service'] as num)),
+      ]),
+      const SizedBox(height: 20),
+
+      Text('Expense History', style: AppTheme.cardTitle),
+      const SizedBox(height: 10),
+      if (rows.isEmpty)
+        Padding(padding: const EdgeInsets.symmetric(vertical: 16),
+            child: Text('No recorded service costs yet.', style: AppTheme.bodySub))
+      else
+        Column(children: rows.map((r) => Container(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(border: Border(bottom: BorderSide(color: context.pal.divider))),
+          child: Row(children: [
+            Expanded(flex: 2, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('#${r['ticket_number']}', style: AppTheme.bodySm),
+              Text('${r['date'] ?? '—'} · ${r['ticket_type'] ?? '—'}', style: AppTheme.bodySub.copyWith(fontSize: 11)),
+            ])),
+            Expanded(flex: 2, child: Text(r['technician'] as String? ?? '—', style: AppTheme.bodySub)),
+            Expanded(child: Text(_tsh(r['parts'] as num), style: AppTheme.bodySm)),
+            Expanded(child: Text(_tsh(r['labor'] as num), style: AppTheme.bodySm)),
+            Expanded(child: Text(_tsh(r['travel'] as num), style: AppTheme.bodySm)),
+            Expanded(child: Text(_tsh(r['total'] as num), style: AppTheme.bodyStrong.copyWith(fontSize: 13))),
+          ]),
+        )).toList()),
+    ]);
+  }
+}
+
+class _StatBlock extends StatelessWidget {
+  const _StatBlock(this.label, this.value);
+  final String label, value;
+  @override
+  Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+    const SizedBox(height: 3),
+    Text(value, style: AppTheme.cardTitle),
+  ]);
 }
