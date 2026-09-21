@@ -614,6 +614,17 @@ class _AppSearchableSelectFieldState<T> extends State<AppSearchableSelectField<T
                   focusNode: _focusNode,
                   onChanged: _onChanged,
                   onSubmitted: (_) { if (_highlight >= 0) _selectIndex(_highlight); },
+                  // Desktop platforms default onTapOutside to an immediate
+                  // unfocus() on raw pointer-down — the results panel lives
+                  // in a separate Overlay, so every tap on a row counted as
+                  // "outside" and closed the panel (via _onFocusChange)
+                  // before the tap gesture could resolve into onTap, so
+                  // _pick() never ran at all. The existing full-screen
+                  // GestureDetector in _openPanel() already handles the
+                  // legitimate "click elsewhere closes it" case, correctly
+                  // ordered as a real tap — so the built-in behavior here is
+                  // just redundant and actively broken; disable it.
+                  onTapOutside: (_) {},
                   style: AppTheme.bodySm.copyWith(fontSize: 12.5),
                   decoration: InputDecoration(
                     isDense: true,
