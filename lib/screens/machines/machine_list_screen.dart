@@ -1,7 +1,10 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
+import '../../main.dart' show hasMachineReceiveAuthority, userRoleNotifier;
+import '../../models/location.dart';
 import '../../models/machine.dart';
 import '../../services/hospital_service.dart';
+import '../../services/location_service.dart';
 import '../../services/machine_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
@@ -37,7 +40,10 @@ class _MachineListScreenState extends State<MachineListScreen> {
   String? _zoneFilter; // stores the display label; resolved to a key via _zoneKey
   final _search = TextEditingController();
   bool _showAdd = false;
+  bool _showReceive = false;
   bool _mapView = false;
+  // Section 12: server-computed, one aggregate query — not a per-row lookup.
+  bool _replacementRecommended = false;
 
   List<Machine> _machines = [];
   List<String> _allTypes = [];
@@ -81,6 +87,7 @@ class _MachineListScreenState extends State<MachineListScreen> {
         type: _typeFilter,
         model: _modelFilter,
         zone: _zoneKey,
+        replacementRecommended: _replacementRecommended ? true : null,
       );
       if (mounted) {
         setState(() {
@@ -136,6 +143,14 @@ class _MachineListScreenState extends State<MachineListScreen> {
   void _setZoneFilter(String? label) {
     setState(() {
       _zoneFilter = label;
+      _showCount = _pageSize;
+    });
+    _load();
+  }
+
+  void _toggleReplacementRecommended() {
+    setState(() {
+      _replacementRecommended = !_replacementRecommended;
       _showCount = _pageSize;
     });
     _load();
@@ -329,6 +344,15 @@ class _MachineListScreenState extends State<MachineListScreen> {
                               ),
                             ),
                             const SizedBox(width: 10),
+                            if (hasMachineReceiveAuthority(userRoleNotifier.value)) ...[
+                              AppButton(
+                                label: 'Receive Machine',
+                                icon: Symbols.inventory_2,
+                                variant: BtnVariant.ghost,
+                                onPressed: () => setState(() => _showReceive = true),
+                              ),
+                              const SizedBox(width: 10),
+                            ],
                             AppButton(
                               label: 'Import CSV',
                               icon: Symbols.upload_file,
@@ -533,6 +557,12 @@ class _MachineListScreenState extends State<MachineListScreen> {
                                       _setZoneFilter,
                                     ),
                                   ),
+                                  _ToggleChip(
+                                    icon: Symbols.warning,
+                                    label: 'Needs replacement review',
+                                    active: _replacementRecommended,
+                                    onTap: _toggleReplacementRecommended,
+                                  ),
                                   AppButton(
                                     label: 'More filters',
                                     icon: Symbols.tune,
@@ -577,6 +607,13 @@ class _MachineListScreenState extends State<MachineListScreen> {
                                   _showCount = _pageSize;
                                 }),
                               ),
+                            ),
+                            const SizedBox(width: 10),
+                            _ToggleChip(
+                              icon: Symbols.warning,
+                              label: 'Needs replacement review',
+                              active: _replacementRecommended,
+                              onTap: _toggleReplacementRecommended,
                             ),
                             const SizedBox(width: 10),
                             const Spacer(),
@@ -759,6 +796,17 @@ class _MachineListScreenState extends State<MachineListScreen> {
             onClose: () => setState(() => _showAdd = false),
             onSaved: () {
               setState(() => _showAdd = false);
+              _load();
+            },
+          ),
+
+        // Receive Machine dialog (Section 13)
+        if (_showReceive)
+          _ReceiveMachineDialog(
+            existingModels: _allModels,
+            onClose: () => setState(() => _showReceive = false),
+            onSaved: () {
+              setState(() => _showReceive = false);
               _load();
             },
           ),
@@ -956,6 +1004,38 @@ class _FilterChip extends StatelessWidget {
       ),
     );
   }
+}
+
+// Section 12: a plain on/off filter (not a pick-a-value one), so it skips
+// _FilterChip's "Label: value" + expand/close affordance.
+class _ToggleChip extends StatelessWidget {
+  const _ToggleChip({required this.icon, required this.label, required this.active, required this.onTap});
+  final IconData icon;
+  final String label;
+  final bool active;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: onTap,
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+      decoration: BoxDecoration(
+        color: active ? AppColors.coralSoft : context.pal.surface1,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: active ? AppColors.coral : context.pal.border),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: active ? AppColors.coral : context.pal.textMute),
+          const SizedBox(width: 6),
+          Text(label, style: AppTheme.bodySm.copyWith(
+            color: active ? AppColors.coral : context.pal.textMute, fontSize: 12.5)),
+        ],
+      ),
+    ),
+  );
 }
 
 class _TableHeader extends StatelessWidget {
@@ -1158,11 +1238,13 @@ class _MachineRow extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      machine.hospital,
+                      machine.hospital == '—' && machine.storeLocationName != null
+                          ? machine.storeLocationName!
+                          : machine.hospital,
                       style: AppTheme.bodyStrong.copyWith(fontSize: 12.5),
                     ),
                     Text(
-                      machine.ward,
+                      machine.isInStock ? 'Store location' : machine.ward,
                       style: AppTheme.bodySub.copyWith(fontSize: 11.5),
                     ),
                   ],
@@ -1217,7 +1299,25 @@ class _MachineRow extends StatelessWidget {
                   horizontal: 12,
                   vertical: 12,
                 ),
-                child: StatusBadge.machine(machine.status),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    StatusBadge.machine(machine.status),
+                    // Section 13: lifecycle_stage is a separate axis from
+                    // status — only shown when it isn't the default Installed.
+                    if (machine.lifecycleStage == 'in_stock' || machine.lifecycleStage == 'allocated') ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        machine.lifecycleStage == 'in_stock' ? 'In Stock' : 'Allocated',
+                        style: AppTheme.bodySub.copyWith(
+                          fontSize: 10.5,
+                          color: machine.lifecycleStage == 'in_stock' ? context.pal.textDim : AppColors.amber,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
               ),
             ),
             // Actions
@@ -1581,6 +1681,298 @@ class _AddMachineDialogState extends State<_AddMachineDialog> {
     ); // outer GestureDetector
   } // build
 } // _AddMachineDialogState
+
+// ── Receive Machine Dialog (Section 13) ─────────────────────────────────────
+// New stock, no hospital yet — arrives In Stock at a store location. Separate
+// from _AddMachineDialog, which registers a machine straight to Installed at
+// a hospital (Section 13's "admin fallback registration" path).
+class _ReceiveMachineDialog extends StatefulWidget {
+  const _ReceiveMachineDialog({required this.onClose, this.onSaved, this.existingModels = const []});
+  final VoidCallback onClose;
+  final VoidCallback? onSaved;
+  final List<String> existingModels;
+
+  @override
+  State<_ReceiveMachineDialog> createState() => _ReceiveMachineDialogState();
+}
+
+class _ReceiveMachineDialogState extends State<_ReceiveMachineDialog> {
+  final _serialCtrl = TextEditingController();
+  final _manufacturerCtrl = TextEditingController();
+  final _conditionCtrl = TextEditingController();
+  final _arrivalCtrl = TextEditingController();
+  final _warrantyCtrl = TextEditingController();
+  final _purchaseCostCtrl = TextEditingController();
+  final _fxRateCtrl = TextEditingController();
+  String? _model;
+  String _type = 'Hematology Analyzer';
+  String _currency = 'TZS';
+  bool _saving = false;
+  String? _error;
+
+  List<Location> _locations = [];
+  int? _selectedLocationId;
+  bool _loadingLocations = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadLocations();
+  }
+
+  Future<void> _loadLocations() async {
+    try {
+      final list = await LocationService.instance.list();
+      if (mounted) {
+        setState(() {
+          _locations = list;
+          _selectedLocationId = list.isNotEmpty ? list.first.id : null;
+          _loadingLocations = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loadingLocations = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    _serialCtrl.dispose();
+    _manufacturerCtrl.dispose();
+    _conditionCtrl.dispose();
+    _arrivalCtrl.dispose();
+    _warrantyCtrl.dispose();
+    _purchaseCostCtrl.dispose();
+    _fxRateCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    if (_saving) return;
+    if ((_model ?? '').trim().isEmpty || _serialCtrl.text.trim().isEmpty) {
+      setState(() => _error = 'Model name and serial number are required.');
+      return;
+    }
+    if (_selectedLocationId == null) {
+      setState(() => _error = 'Please select a store location.');
+      return;
+    }
+    setState(() { _saving = true; _error = null; });
+    try {
+      final purchaseCostText = _purchaseCostCtrl.text.trim();
+      await MachineService.instance.receive({
+        'model': _model!.trim(),
+        'serial_no': _serialCtrl.text.trim(),
+        'type': _type,
+        'manufacturer': _manufacturerCtrl.text.trim().isEmpty ? null : _manufacturerCtrl.text.trim(),
+        'condition': _conditionCtrl.text.trim().isEmpty ? null : _conditionCtrl.text.trim(),
+        'store_location_id': _selectedLocationId,
+        'arrival_date': _arrivalCtrl.text.trim().isEmpty ? null : _arrivalCtrl.text.trim(),
+        'warranty_expiry': _warrantyCtrl.text.trim().isEmpty ? null : _warrantyCtrl.text.trim(),
+        'purchase_cost': purchaseCostText.isEmpty ? null : int.tryParse(purchaseCostText),
+        if (purchaseCostText.isNotEmpty) 'purchase_cost_currency': _currency,
+        if (purchaseCostText.isNotEmpty && _currency != 'TZS')
+          'purchase_cost_fx_rate': double.tryParse(_fxRateCtrl.text.trim()),
+      });
+      widget.onSaved?.call();
+    } catch (e) {
+      if (mounted) {
+        setState(() { _saving = false; _error = _apiError(e); });
+      }
+    }
+  }
+
+  String _apiError(Object e) {
+    final msg = e.toString();
+    if (msg.contains('422')) return 'Validation failed — check all fields.';
+    if (msg.contains('401') || msg.contains('403')) return 'Not authorised.';
+    if (msg.contains('500')) return 'Server error — try again.';
+    if (msg.contains('SocketException') || msg.contains('connection')) {
+      return 'No connection to server.';
+    }
+    return 'Failed to save. Please try again.';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final maxH = MediaQuery.of(context).size.height * 0.88;
+    return GestureDetector(
+      onTap: widget.onClose,
+      child: Container(
+        color: const Color(0xAA06070A),
+        alignment: Alignment.center,
+        child: GestureDetector(
+          onTap: () {},
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: 540, maxHeight: maxH),
+            child: Material(
+              color: Colors.transparent,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: context.pal.surface1,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: context.pal.borderStrong),
+                  boxShadow: const [
+                    BoxShadow(color: Color(0x70000000), blurRadius: 60, offset: Offset(0, 20)),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                      child: Row(children: [
+                        Icon(Symbols.inventory_2, size: 18, color: AppColors.teal),
+                        const SizedBox(width: 10),
+                        Text('Receive Machine', style: AppTheme.bodyStrong),
+                        const Spacer(),
+                        GestureDetector(onTap: widget.onClose,
+                            child: Icon(Symbols.close, size: 18, color: context.pal.textDim)),
+                      ]),
+                    ),
+                    Flexible(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: Column(
+                          children: [
+                            Row(children: [
+                              Expanded(
+                                child: AppSearchableSelectField<String>(
+                                  label: 'Model / Name',
+                                  hint: 'e.g. Mindray BC-6800 Plus',
+                                  selectedLabel: _model,
+                                  items: widget.existingModels.map((m) => AppSelectItem(value: m, label: m)).toList(),
+                                  onSelected: (item) => setState(() => _model = item?.value),
+                                  onTextChanged: (text) => _model = text,
+                                  createNewLabel: (q) => 'Use "$q" as a new model',
+                                  onCreateNew: (text) => setState(() => _model = text),
+                                ),
+                              ),
+                              const SizedBox(width: 14),
+                              Expanded(child: _DField('Serial Number', _serialCtrl, 'e.g. BC68-0001')),
+                            ]),
+                            const SizedBox(height: 14),
+                            Row(children: [
+                              Expanded(
+                                child: _DDropdown(
+                                  label: 'Equipment Type',
+                                  value: _type,
+                                  items: const [
+                                    'Hematology Analyzer', 'Ultrasound Unit', 'X-Ray Machine',
+                                    'Ventilator', 'ECG Machine', 'Autoclave', 'Patient Monitor', 'Defibrillator',
+                                  ],
+                                  onChanged: (v) => setState(() => _type = v),
+                                ),
+                              ),
+                              const SizedBox(width: 14),
+                              Expanded(child: _DField('Manufacturer', _manufacturerCtrl, 'e.g. GE Healthcare')),
+                            ]),
+                            const SizedBox(height: 14),
+                            Row(children: [
+                              Expanded(
+                                child: _loadingLocations
+                                  ? _dLoadingField('Store Location')
+                                  : _locations.isEmpty
+                                    ? _dLoadingField('Store Location (none found)')
+                                    : _DDropdown(
+                                        label: 'Store Location',
+                                        value: _locations.firstWhere(
+                                          (l) => l.id == _selectedLocationId,
+                                          orElse: () => _locations.first,
+                                        ).name,
+                                        items: _locations.map((l) => l.name).toList(),
+                                        onChanged: (v) => setState(() =>
+                                          _selectedLocationId = _locations.firstWhere((l) => l.name == v).id),
+                                      ),
+                              ),
+                              const SizedBox(width: 14),
+                              Expanded(child: _DField('Condition', _conditionCtrl, 'e.g. New, Refurbished')),
+                            ]),
+                            const SizedBox(height: 14),
+                            Row(children: [
+                              Expanded(child: _DField('Arrival Date', _arrivalCtrl, 'YYYY-MM-DD')),
+                              const SizedBox(width: 14),
+                              Expanded(child: _DField('Warranty Expiry', _warrantyCtrl, 'YYYY-MM-DD')),
+                            ]),
+                            const SizedBox(height: 14),
+                            Row(children: [
+                              Expanded(child: _DField('Purchase Cost', _purchaseCostCtrl, 'e.g. 25000000')),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: _DDropdown(
+                                  label: 'Currency',
+                                  value: _currency,
+                                  items: const ['TZS', 'USD', 'EUR', 'GBP'],
+                                  onChanged: (v) => setState(() => _currency = v),
+                                ),
+                              ),
+                            ]),
+                            if (_currency != 'TZS') ...[
+                              const SizedBox(height: 14),
+                              _DField('Exchange Rate (to TZS)', _fxRateCtrl, 'e.g. 2600'),
+                            ],
+                            if (_error != null) ...[
+                              const SizedBox(height: 10),
+                              Row(children: [
+                                Icon(Icons.error_outline, size: 14, color: AppColors.coral),
+                                const SizedBox(width: 6),
+                                Expanded(child: Text(_error!,
+                                    style: AppTheme.bodySub.copyWith(color: AppColors.coral, fontSize: 12))),
+                              ]),
+                            ],
+                            const SizedBox(height: 20),
+                          ],
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      child: Row(children: [
+                        Expanded(child: GestureDetector(
+                          onTap: widget.onClose,
+                          child: Container(height: 38,
+                            decoration: BoxDecoration(border: Border.all(color: context.pal.border),
+                                borderRadius: BorderRadius.circular(8)),
+                            child: Center(child: Text('Cancel', style: AppTheme.bodySm))),
+                        )),
+                        const SizedBox(width: 12),
+                        Expanded(child: GestureDetector(
+                          onTap: _save,
+                          child: Container(height: 38,
+                            decoration: BoxDecoration(color: AppColors.teal, borderRadius: BorderRadius.circular(8)),
+                            child: Center(child: _saving
+                                ? const SizedBox(width: 16, height: 16,
+                                    child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                                : Text('Receive Machine', style: AppTheme.bodyStrong.copyWith(
+                                    color: const Color(0xFF06120F), fontSize: 13)))),
+                        )),
+                      ]),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+Widget _dLoadingField(String label) => Builder(builder: (context) => Column(
+  crossAxisAlignment: CrossAxisAlignment.start,
+  children: [
+    Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+    const SizedBox(height: 6),
+    Container(
+      height: 38,
+      decoration: BoxDecoration(color: context.pal.surface2,
+          borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
+      child: const Center(child: SizedBox(width: 14, height: 14,
+          child: CircularProgressIndicator(strokeWidth: 2))),
+    ),
+  ],
+));
 
 class _DField extends StatelessWidget {
   const _DField(this.label, this.ctrl, this.hint);

@@ -1068,7 +1068,10 @@ class _EditMachineDialogState extends State<_EditMachineDialog> {
   late final _serialCtrl   = TextEditingController(text: widget.machine.serialNo);
   late final _wardCtrl     = TextEditingController(text: widget.machine.ward);
   late final _warrantyCtrl = TextEditingController(text: widget.machine.warrantyExpiry);
+  late final _purchaseCostCtrl = TextEditingController(text: widget.machine.purchaseCost?.toString() ?? '');
+  late final _fxRateCtrl   = TextEditingController();
   late String _status = widget.machine.status.name;
+  late String _currency = widget.machine.purchaseCostCurrency ?? 'TZS';
   bool    _saving = false;
   String? _error;
 
@@ -1104,6 +1107,7 @@ class _EditMachineDialogState extends State<_EditMachineDialog> {
   void dispose() {
     _modelCtrl.dispose(); _serialCtrl.dispose();
     _wardCtrl.dispose(); _warrantyCtrl.dispose();
+    _purchaseCostCtrl.dispose(); _fxRateCtrl.dispose();
     super.dispose();
   }
 
@@ -1111,6 +1115,7 @@ class _EditMachineDialogState extends State<_EditMachineDialog> {
     if (_saving) return;
     setState(() { _saving = true; _error = null; });
     try {
+      final purchaseCostText = _purchaseCostCtrl.text.trim();
       await MachineService.instance.update(widget.machine.id, {
         'model':           _modelCtrl.text.trim(),
         'serial_no':       _serialCtrl.text.trim(),
@@ -1118,6 +1123,10 @@ class _EditMachineDialogState extends State<_EditMachineDialog> {
         'ward':            _wardCtrl.text.trim(),
         'warranty_expiry': _warrantyCtrl.text.trim(),
         'status':          _status,
+        'purchase_cost': purchaseCostText.isEmpty ? null : int.tryParse(purchaseCostText),
+        if (purchaseCostText.isNotEmpty) 'purchase_cost_currency': _currency,
+        if (purchaseCostText.isNotEmpty && _currency != 'TZS')
+          'purchase_cost_fx_rate': double.tryParse(_fxRateCtrl.text.trim()),
       });
       widget.onClose();
     } catch (e) {
@@ -1183,6 +1192,21 @@ class _EditMachineDialogState extends State<_EditMachineDialog> {
           const SizedBox(width: 14),
           Expanded(child: _MField('Warranty Expiry', _warrantyCtrl, 'YYYY-MM-DD')),
         ]),
+        const SizedBox(height: 14),
+        Row(children: [
+          Expanded(child: _MField('Purchase Cost', _purchaseCostCtrl, 'e.g. 25000000')),
+          const SizedBox(width: 14),
+          Expanded(child: _MDrop(
+            label: 'Currency',
+            value: _currency,
+            items: const ['TZS', 'USD', 'EUR', 'GBP'],
+            onChanged: (v) => setState(() => _currency = v),
+          )),
+        ]),
+        if (_currency != 'TZS') ...[
+          const SizedBox(height: 14),
+          _MField('Exchange Rate (to TZS)', _fxRateCtrl, 'e.g. 2600'),
+        ],
         if (_error != null) ...[
           const SizedBox(height: 10),
           Row(children: [
