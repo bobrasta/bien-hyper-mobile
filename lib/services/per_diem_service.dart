@@ -64,4 +64,26 @@ class PerDiemService {
     final res = await _dio.post('/per-diem-requests/$id/mark-paid');
     return PerDiemRequest.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
   }
+
+  // Section 8: CTO day-by-day editing — sends the full day list every time
+  // (no from_seq_no), which correctly covers all three spec modes (single
+  // day, add/remove days) since the server always recomputes from what's
+  // submitted; only loses the "provably untouched earlier days" optimization,
+  // not correctness.
+  Future<PerDiemRequest> revise(int id, {required String reason, required List<PerDiemLine> lines}) async {
+    final res = await _dio.post('/per-diem-requests/$id/revise', data: {
+      'reason': reason,
+      'lines': lines.map((l) => l.toJson()).toList(),
+    });
+    return PerDiemRequest.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+  }
+
+  Future<PerDiemEditGrant> grantEditAccess(int id, {String? expiresAt}) async {
+    final res = await _dio.post('/per-diem-requests/$id/edit-grants', data: {
+      'expires_at': ?expiresAt,
+    });
+    return PerDiemEditGrant.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+  }
+
+  Future<void> revokeEditAccess(int id) => _dio.delete('/per-diem-requests/$id/edit-grants');
 }

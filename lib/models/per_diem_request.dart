@@ -81,6 +81,96 @@ class PerDiemLine {
   };
 }
 
+// Section 8: "every edit creates a revision: who, what changed, old and
+// new values, time, reason." Also doubles as the technician-edit approval
+// queue (status pending_cto_approval while awaiting CTO review).
+class PerDiemRevision {
+  final int     id;
+  final String? editedByName;
+  final String  editorRole; // cto | technician
+  final String  status;     // applied | pending_cto_approval | rejected
+  final String  reason;
+  final String? reviewedByName;
+  final String? reviewedAt;
+  final String? createdAt;
+
+  const PerDiemRevision({
+    required this.id,
+    this.editedByName,
+    required this.editorRole,
+    required this.status,
+    required this.reason,
+    this.reviewedByName,
+    this.reviewedAt,
+    this.createdAt,
+  });
+
+  bool get isPendingReview => status == 'pending_cto_approval';
+
+  factory PerDiemRevision.fromJson(Map<String, dynamic> j) => PerDiemRevision(
+    id:             (j['id'] as num).toInt(),
+    editedByName:   j['edited_by_name'] as String?,
+    editorRole:     j['editor_role'] as String? ?? 'cto',
+    status:         j['status'] as String? ?? 'applied',
+    reason:         j['reason'] as String? ?? '',
+    reviewedByName: j['reviewed_by_name'] as String?,
+    reviewedAt:     j['reviewed_at'] as String?,
+    createdAt:      j['created_at'] as String?,
+  );
+}
+
+// Section 8: "the CTO grants edit permission on a specific plan... with an
+// optional expiry, and can revoke it at any time."
+class PerDiemEditGrant {
+  final int     id;
+  final String? grantedByName;
+  final String? expiresAt;
+  final String? revokedAt;
+  final bool    isActive;
+
+  const PerDiemEditGrant({
+    required this.id,
+    this.grantedByName,
+    this.expiresAt,
+    this.revokedAt,
+    required this.isActive,
+  });
+
+  factory PerDiemEditGrant.fromJson(Map<String, dynamic> j) => PerDiemEditGrant(
+    id:            (j['id'] as num).toInt(),
+    grantedByName: j['granted_by_name'] as String?,
+    expiresAt:     j['expires_at'] as String?,
+    revokedAt:     j['revoked_at'] as String?,
+    isActive:      j['is_active'] as bool? ?? false,
+  );
+}
+
+// Section 8: "the original release is never rewritten... record an
+// adjustment (extra amount to send, or amount to return)."
+class PerDiemAdjustment {
+  final int     id;
+  final int     amount; // signed: + owed to technician, - to recover
+  final String  reason;
+  final String? createdByName;
+  final String? createdAt;
+
+  const PerDiemAdjustment({
+    required this.id,
+    required this.amount,
+    required this.reason,
+    this.createdByName,
+    this.createdAt,
+  });
+
+  factory PerDiemAdjustment.fromJson(Map<String, dynamic> j) => PerDiemAdjustment(
+    id:            (j['id'] as num).toInt(),
+    amount:        (j['amount'] as num? ?? 0).toInt(),
+    reason:        j['reason'] as String? ?? '',
+    createdByName: j['created_by_name'] as String?,
+    createdAt:     j['created_at'] as String?,
+  );
+}
+
 class PerDiemRequest {
   final int             id;
   final int             userId;
@@ -114,6 +204,11 @@ class PerDiemRequest {
   final String?         cancellationReason;
   final String?         createdAt;
   final List<PerDiemLine> lines;
+  final List<PerDiemRevision> revisions;
+  final List<PerDiemEditGrant> editGrants;
+  final List<PerDiemAdjustment> adjustments;
+  final bool hasActiveEditGrant;
+  final bool wasEdited;
 
   const PerDiemRequest({
     required this.id,
@@ -148,6 +243,11 @@ class PerDiemRequest {
     this.cancellationReason,
     this.createdAt,
     this.lines = const [],
+    this.revisions = const [],
+    this.editGrants = const [],
+    this.adjustments = const [],
+    this.hasActiveEditGrant = false,
+    this.wasEdited = false,
   });
 
   factory PerDiemRequest.fromJson(Map<String, dynamic> j) => PerDiemRequest(
@@ -184,6 +284,14 @@ class PerDiemRequest {
     createdAt:               j['created_at'] as String?,
     lines: (j['lines'] as List<dynamic>? ?? [])
         .map((l) => PerDiemLine.fromJson(l as Map<String, dynamic>)).toList(),
+    revisions: (j['revisions'] as List<dynamic>? ?? [])
+        .map((r) => PerDiemRevision.fromJson(r as Map<String, dynamic>)).toList(),
+    editGrants: (j['edit_grants'] as List<dynamic>? ?? [])
+        .map((g) => PerDiemEditGrant.fromJson(g as Map<String, dynamic>)).toList(),
+    adjustments: (j['adjustments'] as List<dynamic>? ?? [])
+        .map((a) => PerDiemAdjustment.fromJson(a as Map<String, dynamic>)).toList(),
+    hasActiveEditGrant: j['has_active_edit_grant'] as bool? ?? false,
+    wasEdited:          j['was_edited'] as bool? ?? false,
   );
 
   bool get isPendingTeamLead     => status == PerDiemStatus.pendingTeamLead;

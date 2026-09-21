@@ -15,6 +15,7 @@ import '../../theme/app_theme.dart';
 import '../../theme/app_palette.dart';
 import '../../utils/api_error.dart';
 import '../../widgets/common/error_view.dart';
+import 'per_diem_revise_dialog.dart';
 
 class ApprovalsScreen extends StatefulWidget {
   const ApprovalsScreen({super.key, this.initialTabIndex});
@@ -201,6 +202,36 @@ class _ApprovalsScreenState extends State<ApprovalsScreen> with SingleTickerProv
     }
   }
 
+  // Section 8: CTO day-by-day editing.
+  void _showRevisePerDiemDialog(PerDiemRequest r) {
+    showDialog<void>(
+      context: context,
+      builder: (_) => PerDiemReviseDialog(
+        request: r,
+        onClose: () => Navigator.of(context).pop(),
+        onSaved: (_) {
+          Navigator.of(context).pop();
+          if (mounted) { showSuccessToast(context, 'Travel plan updated.'); _load(); }
+        },
+      ),
+    );
+  }
+
+  Future<void> _toggleEditGrant(PerDiemRequest r) async {
+    try {
+      if (r.hasActiveEditGrant) {
+        await PerDiemService.instance.revokeEditAccess(r.id);
+        if (mounted) showSuccessToast(context, 'Edit access revoked.');
+      } else {
+        await PerDiemService.instance.grantEditAccess(r.id);
+        if (mounted) showSuccessToast(context, 'Edit access granted to ${r.userName ?? 'the technician'}.');
+      }
+      _load();
+    } catch (e) {
+      if (mounted) showErrorToast(context, e);
+    }
+  }
+
   Future<void> _approveExpense(Expense e) async {
     try {
       await ExpenseService.instance.approve(e.id);
@@ -374,6 +405,8 @@ class _ApprovalsScreenState extends State<ApprovalsScreen> with SingleTickerProv
                           onApprove: _approvePerDiem, onReject: _rejectPerDiem,
                           onInitiatePayment: _initiatePerDiemPayment,
                           onAuthorizePayment: _authorizePerDiemPayment,
+                          onRevise: _showRevisePerDiemDialog,
+                          onToggleEditGrant: _toggleEditGrant,
                         ),
                         _expensesError != null
                             ? ErrorView(message: _expensesError!, onRetry: _loadExpenses)
@@ -576,6 +609,7 @@ class _PerDiemTab extends StatelessWidget {
     required this.onForward, required this.onRejectTeamLead,
     required this.onApprove, required this.onReject,
     required this.onInitiatePayment, required this.onAuthorizePayment,
+    required this.onRevise, required this.onToggleEditGrant,
   });
   final List<PerDiemRequest> requests;
   final double pad;
@@ -586,6 +620,9 @@ class _PerDiemTab extends StatelessWidget {
   final ValueChanged<PerDiemRequest> onReject;
   final ValueChanged<PerDiemRequest> onInitiatePayment;
   final ValueChanged<PerDiemRequest> onAuthorizePayment;
+  // Section 8: CTO day-by-day editing + technician edit-grant toggle.
+  final ValueChanged<PerDiemRequest> onRevise;
+  final ValueChanged<PerDiemRequest> onToggleEditGrant;
 
   @override
   Widget build(BuildContext context) {
@@ -636,6 +673,29 @@ class _PerDiemTab extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(child: Text('${r.userName ?? '—'} · ${r.destination}',
                   style: AppTheme.bodyStrong.copyWith(fontSize: 13.5))),
+              // Section 8: "the CTO can edit any active plan" — available
+              // at every stage shown here (none of these are rejected/
+              // cancelled/paid, which this list never shows anyway).
+              if (canCto) ...[
+                GestureDetector(
+                  onTap: () => onRevise(r),
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: Icon(Symbols.edit_calendar, size: 16, color: context.pal.textDim),
+                  ),
+                ),
+                GestureDetector(
+                  onTap: () => onToggleEditGrant(r),
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: Icon(
+                      r.hasActiveEditGrant ? Symbols.lock_open : Symbols.lock,
+                      size: 16,
+                      color: r.hasActiveEditGrant ? AppColors.amber : context.pal.textDim,
+                    ),
+                  ),
+                ),
+              ],
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                 decoration: BoxDecoration(
@@ -646,6 +706,11 @@ class _PerDiemTab extends StatelessWidget {
                     color: stageColor, fontSize: 9.5)),
               ),
             ]),
+            if (canCto && r.hasActiveEditGrant) ...[
+              const SizedBox(height: 4),
+              Text('Technician has edit access — tap the unlocked icon to revoke.',
+                  style: AppTheme.bodySub.copyWith(fontSize: 10.5, color: AppColors.amber)),
+            ],
             const SizedBox(height: 8),
             Text('${r.startDate} → ${r.endDate}  ·  ${r.daysCount} day(s)  ·  TSh ${r.amount}',
                 style: AppTheme.bodySm.copyWith(fontSize: 12.5)),
@@ -696,6 +761,74 @@ class _PerDiemTab extends StatelessWidget {
                     );
                   }).toList(),
                 ),
+              ),
+            ],
+            // Section 8: "every edit creates a revision" — shown to
+            // everyone who can already see this request, same as the
+            // payment trail below.
+            if (r.wasEdited) ...[
+              const SizedBox(height: 10),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: context.pal.surface2,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('EDIT HISTORY', style: AppTheme.labelCaps.copyWith(fontSize: 9)),
+                  const SizedBox(height: 6),
+                  ...r.revisions.where((rev) => rev.status != 'pending_cto_approval').map((rev) => Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Text(
+                      '${rev.editorRole == 'cto' ? 'CTO' : 'Technician'} · ${rev.editedByName ?? '—'}: ${rev.reason}'
+                      '${rev.status == 'rejected' ? ' (rejected)' : ''}',
+                      style: AppTheme.bodySub.copyWith(fontSize: 11),
+                    ),
+                  )),
+                ]),
+              ),
+            ],
+            // Technician's proposed edit awaiting CTO review — only the
+            // CTO can act on it (approveTechnicianEdit/rejectTechnicianEdit
+            // aren't wired to this list yet; flagged, not silently missing).
+            if (r.revisions.any((rev) => rev.isPendingReview)) ...[
+              const SizedBox(height: 10),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppColors.blue.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppColors.blue.withValues(alpha: 0.25)),
+                ),
+                child: Text(
+                  'Technician has proposed an edit awaiting your review (approve/reject this from the plan detail).',
+                  style: AppTheme.bodySm.copyWith(fontSize: 11.5, color: AppColors.blue),
+                ),
+              ),
+            ],
+            if (r.adjustments.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppColors.amber.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppColors.amber.withValues(alpha: 0.25)),
+                ),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('ADJUSTMENTS (POST-PAYMENT)', style: AppTheme.labelCaps.copyWith(fontSize: 9, color: AppColors.amber)),
+                  const SizedBox(height: 6),
+                  ...r.adjustments.map((adj) => Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Text(
+                      '${adj.amount >= 0 ? '+' : ''}TSh ${adj.amount} — ${adj.reason}',
+                      style: AppTheme.bodySm.copyWith(fontSize: 11.5, color: AppColors.amber),
+                    ),
+                  )),
+                ]),
               ),
             ],
             if (r.paymentInitiatedByName != null) ...[
