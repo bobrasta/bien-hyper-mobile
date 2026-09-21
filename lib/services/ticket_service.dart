@@ -81,9 +81,10 @@ class TicketService {
 
   Future<void> delete(int id) => _dio.delete('/tickets/$id');
 
-  Future<TicketAttachment> uploadAttachment(int ticketId, String filePath, String fileName) async {
+  Future<TicketAttachment> uploadAttachment(int ticketId, String filePath, String fileName, {String? category}) async {
     final formData = FormData.fromMap({
       'file': await MultipartFile.fromFile(filePath, filename: fileName),
+      'category': ?category,
     });
     final res = await _dio.post('/tickets/$ticketId/attachments', data: formData);
     return TicketAttachment.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);

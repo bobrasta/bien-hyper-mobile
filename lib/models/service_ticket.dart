@@ -7,6 +7,9 @@ class TicketAttachment {
   final String? mimeType;
   final String  url;
   final String  createdAt;
+  // 'service_report' or null (generic attachment) — see Section 3 of
+  // hypermed_claude_code_prompt.md.
+  final String? category;
 
   const TicketAttachment({
     required this.id,
@@ -15,7 +18,10 @@ class TicketAttachment {
     this.mimeType,
     required this.url,
     required this.createdAt,
+    this.category,
   });
+
+  bool get isServiceReport => category == 'service_report';
 
   factory TicketAttachment.fromJson(Map<String, dynamic> j) => TicketAttachment(
     id:        (j['id'] as num).toInt(),
@@ -24,6 +30,7 @@ class TicketAttachment {
     mimeType:  j['mime_type'] as String?,
     url:       j['url'] as String? ?? '',
     createdAt: j['created_at'] as String? ?? '',
+    category:  j['category'] as String?,
   );
 }
 

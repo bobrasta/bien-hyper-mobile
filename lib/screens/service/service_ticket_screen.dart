@@ -386,6 +386,7 @@ class _ServiceTicketScreenState extends State<ServiceTicketScreen> {
       context: context,
       builder: (_) => _ResolveDialog(
         ticket: ticket,
+        existingAttachments: _attachments,
         onConfirm: (notes) => _resolve(ticket, notes: notes),
       ),
     );
@@ -1070,6 +1071,16 @@ class _TicketDetailPanel extends StatelessWidget {
             ),
           ),
         ),
+        // Older tickets predate the required-report rule (Section 3 of
+        // hypermed_claude_code_prompt.md) — no backfill, just a clear label.
+        if (!attachments.any((a) => a.isServiceReport)) ...[
+          const SizedBox(height: 8),
+          Row(children: [
+            Icon(Symbols.attach_file, size: 14, color: context.pal.textDim),
+            const SizedBox(width: 6),
+            Text('No report attached', style: AppTheme.bodySub.copyWith(fontSize: 12, color: context.pal.textDim)),
+          ]),
+        ],
         const SizedBox(height: 16),
       ],
 
@@ -2059,9 +2070,17 @@ class _StatusPickerDialogState extends State<_StatusPickerDialog> {
 }
 
 // ── Resolve Dialog ──────────────────────────────────────────────────────────
+// Section 3 of hypermed_claude_code_prompt.md: at least one service report
+// file (PDF/DOC/DOCX/PNG/JPG) is required to resolve — the backend enforces
+// this (ServiceTicketController::resolve() 422s without one), this dialog
+// just surfaces it up front instead of round-tripping an error. Files
+// upload immediately as picked (tagged category: service_report), reusing
+// the same TicketAttachmentController endpoint the Attachments section
+// already uses — not a new upload path.
 class _ResolveDialog extends StatefulWidget {
-  const _ResolveDialog({required this.ticket, required this.onConfirm});
+  const _ResolveDialog({required this.ticket, required this.existingAttachments, required this.onConfirm});
   final ServiceTicket ticket;
+  final List<TicketAttachment> existingAttachments;
   final void Function(String notes) onConfirm;
 
   @override
@@ -2071,12 +2090,51 @@ class _ResolveDialog extends StatefulWidget {
 class _ResolveDialogState extends State<_ResolveDialog> {
   final _notesCtrl = TextEditingController();
   bool _saving = false;
+  bool _uploading = false;
+  String? _uploadError;
+  late List<TicketAttachment> _reportFiles =
+      widget.existingAttachments.where((a) => a.isServiceReport).toList();
+
+  bool get _canSubmit =>
+      !_saving && !_uploading && _notesCtrl.text.trim().isNotEmpty && _reportFiles.isNotEmpty;
 
   @override
   void dispose() { _notesCtrl.dispose(); super.dispose(); }
 
+  Future<void> _pickAndUpload() async {
+    if (Platform.isAndroid) {
+      setState(() => _uploadError =
+          'File attachments aren\'t available on Android in this build —use the desktop app instead.');
+      return;
+    }
+    final result = await FilePicker.pickFiles(allowMultiple: true, withData: false);
+    if (result == null || result.files.isEmpty) return;
+    setState(() { _uploading = true; _uploadError = null; });
+    for (final f in result.files) {
+      if (f.path == null) continue;
+      try {
+        final att = await TicketService.instance.uploadAttachment(
+            widget.ticket.dbId, f.path!, f.name, category: 'service_report');
+        if (mounted) setState(() => _reportFiles = [..._reportFiles, att]);
+      } catch (e) {
+        if (mounted) setState(() => _uploadError = friendlyError(e));
+      }
+    }
+    if (mounted) setState(() => _uploading = false);
+  }
+
+  Future<void> _removeFile(TicketAttachment a) async {
+    setState(() => _reportFiles = _reportFiles.where((x) => x.id != a.id).toList());
+    try {
+      await TicketService.instance.deleteAttachment(widget.ticket.dbId, a.id);
+    } catch (_) {
+      // Best-effort — the dialog's own list already reflects the user's
+      // intent either way, and resolve() re-checks server-side regardless.
+    }
+  }
+
   void _submit() {
-    if (_saving) return;
+    if (!_canSubmit) return;
     setState(() => _saving = true);
     Navigator.of(context).pop();
     widget.onConfirm(_notesCtrl.text.trim());
@@ -2097,7 +2155,7 @@ class _ResolveDialogState extends State<_ResolveDialog> {
       ]),
       content: SizedBox(
         width: 460,
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
+        child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text('Describe what was done to resolve this ticket. '
                'This will be included in service reports.',
             style: AppTheme.bodySub.copyWith(fontSize: 12.5)),
@@ -2108,8 +2166,49 @@ class _ResolveDialogState extends State<_ResolveDialog> {
             height: 110,
             autofocus: true,
             hintText: 'e.g. Replaced flow sensor, recalibrated unit, tested 3 cycles — all passed.',
+            onChanged: (_) => setState(() {}),
           ),
-        ]),
+          const SizedBox(height: 14),
+          Text('SERVICE REPORT *', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+          const SizedBox(height: 6),
+          ..._reportFiles.map((a) => Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Row(children: [
+              Icon(_attIcon(a.mimeType), size: 15, color: AppColors.teal),
+              const SizedBox(width: 8),
+              Expanded(child: Text(a.name, style: AppTheme.bodySm, overflow: TextOverflow.ellipsis)),
+              Text(_fmtBytes(a.size), style: AppTheme.bodySub.copyWith(fontSize: 11)),
+              const SizedBox(width: 10),
+              GestureDetector(
+                onTap: () => _removeFile(a),
+                child: Icon(Symbols.close, size: 15, color: context.pal.textDim),
+              ),
+            ]),
+          )),
+          if (_uploading)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 4),
+              child: SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)),
+            )
+          else
+            GestureDetector(
+              onTap: _pickAndUpload,
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Symbols.upload_file, size: 14, color: AppColors.teal),
+                const SizedBox(width: 4),
+                Text('Add report file(s)', style: AppTheme.bodySub.copyWith(color: AppColors.teal, fontSize: 12)),
+              ]),
+            ),
+          if (_reportFiles.isEmpty && !_uploading) ...[
+            const SizedBox(height: 6),
+            Text('At least one file is required — PDF, DOC, DOCX, PNG or JPG, up to 10 MB.',
+                style: AppTheme.bodySub.copyWith(fontSize: 11, color: context.pal.textDim)),
+          ],
+          if (_uploadError != null) ...[
+            const SizedBox(height: 6),
+            Text(_uploadError!, style: TextStyle(color: AppColors.coral, fontSize: 12)),
+          ],
+        ])),
       ),
       actions: [
         TextButton(
@@ -2117,20 +2216,23 @@ class _ResolveDialogState extends State<_ResolveDialog> {
           child: Text('Cancel', style: AppTheme.bodySm.copyWith(color: context.pal.textMute)),
         ),
         GestureDetector(
-          onTap: _submit,
-          child: Container(
-            height: 36,
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            decoration: BoxDecoration(
-              color: AppColors.teal,
-              borderRadius: BorderRadius.circular(8),
+          onTap: _canSubmit ? _submit : null,
+          child: Opacity(
+            opacity: _canSubmit ? 1 : 0.4,
+            child: Container(
+              height: 36,
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              decoration: BoxDecoration(
+                color: AppColors.teal,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                const Icon(Symbols.check_circle, size: 14, color: Color(0xFF06120F)),
+                const SizedBox(width: 6),
+                Text('Resolve Ticket', style: AppTheme.bodyStrong.copyWith(
+                    color: const Color(0xFF06120F), fontSize: 13)),
+              ]),
             ),
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              const Icon(Symbols.check_circle, size: 14, color: Color(0xFF06120F)),
-              const SizedBox(width: 6),
-              Text('Resolve Ticket', style: AppTheme.bodyStrong.copyWith(
-                  color: const Color(0xFF06120F), fontSize: 13)),
-            ]),
           ),
         ),
       ],
