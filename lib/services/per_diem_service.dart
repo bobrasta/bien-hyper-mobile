@@ -98,4 +98,21 @@ class PerDiemService {
   }
 
   Future<void> revokeEditAccess(int id) => _dio.delete('/per-diem-requests/$id/edit-grants');
+
+  // A technician's edit never takes effect on its own — it's stored as a
+  // PerDiemRevision (status pending_cto_approval) and only applied once the
+  // CTO approves it below. Same field shape as revise() (reason + full day
+  // list), just a different endpoint and outcome.
+  Future<void> proposeEdit(int id, {required String reason, required List<PerDiemLine> lines}) async {
+    await _dio.post('/per-diem-requests/$id/propose-edit', data: {
+      'reason': reason,
+      'lines': lines.map((l) => l.toJson()).toList(),
+    });
+  }
+
+  Future<void> approveTechnicianEdit(int planId, int revisionId) =>
+      _dio.post('/per-diem-requests/$planId/revisions/$revisionId/approve');
+
+  Future<void> rejectTechnicianEdit(int planId, int revisionId) =>
+      _dio.post('/per-diem-requests/$planId/revisions/$revisionId/reject');
 }

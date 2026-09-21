@@ -77,10 +77,14 @@ class _ReviseLineDraft {
 /// days" optimization is unused, not correctness. "Every CTO edit still
 /// requires a reason."
 class PerDiemReviseDialog extends StatefulWidget {
-  const PerDiemReviseDialog({super.key, required this.request, required this.onClose, this.onSaved});
+  const PerDiemReviseDialog({super.key, required this.request, required this.onClose, this.onSaved, this.isProposal = false});
   final PerDiemRequest request;
   final VoidCallback onClose;
-  final ValueChanged<PerDiemRequest>? onSaved;
+  final VoidCallback? onSaved;
+  // Technician mode: "a technician's edit does not take effect on its own —
+  // it goes back to the CTO for approval" (Section 8). Same day-by-day
+  // editor, different endpoint/copy/outcome.
+  final bool isProposal;
 
   @override
   State<PerDiemReviseDialog> createState() => _PerDiemReviseDialogState();
@@ -134,12 +138,13 @@ class _PerDiemReviseDialogState extends State<PerDiemReviseDialog> {
     if (!_canSave) return;
     setState(() { _saving = true; _error = null; });
     try {
-      final updated = await PerDiemService.instance.revise(
-        widget.request.id,
-        reason: _reasonCtrl.text.trim(),
-        lines: _lines.asMap().entries.map((e) => e.value.toLine(e.key + 1)).toList(),
-      );
-      widget.onSaved?.call(updated);
+      final lines = _lines.asMap().entries.map((e) => e.value.toLine(e.key + 1)).toList();
+      if (widget.isProposal) {
+        await PerDiemService.instance.proposeEdit(widget.request.id, reason: _reasonCtrl.text.trim(), lines: lines);
+      } else {
+        await PerDiemService.instance.revise(widget.request.id, reason: _reasonCtrl.text.trim(), lines: lines);
+      }
+      widget.onSaved?.call();
     } catch (e) {
       if (mounted) setState(() { _error = friendlyError(e); _saving = false; });
     }
@@ -245,7 +250,8 @@ class _PerDiemReviseDialogState extends State<PerDiemReviseDialog> {
                 child: Row(children: [
                   Icon(Symbols.edit_calendar, size: 18, color: AppColors.teal),
                   const SizedBox(width: 10),
-                  Expanded(child: Text('Edit Travel Plan — ${widget.request.destination}',
+                  Expanded(child: Text(
+                      '${widget.isProposal ? 'Propose Edit' : 'Edit Travel Plan'} — ${widget.request.destination}',
                       style: AppTheme.bodyStrong, overflow: TextOverflow.ellipsis)),
                   GestureDetector(onTap: widget.onClose,
                       child: Icon(Symbols.close, size: 18, color: context.pal.textDim)),
@@ -254,6 +260,25 @@ class _PerDiemReviseDialogState extends State<PerDiemReviseDialog> {
               Flexible(child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
                 child: Column(children: [
+                  if (widget.isProposal)
+                    Container(
+                      width: double.infinity,
+                      margin: const EdgeInsets.only(bottom: 14),
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: AppColors.blue.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: AppColors.blue.withValues(alpha: 0.25)),
+                      ),
+                      child: Row(children: [
+                        Icon(Symbols.info, size: 14, color: AppColors.blue),
+                        const SizedBox(width: 8),
+                        Expanded(child: Text(
+                          'This won\'t take effect until the CTO reviews and approves it — the plan keeps its current values until then.',
+                          style: AppTheme.bodySm.copyWith(fontSize: 12, color: AppColors.blue),
+                        )),
+                      ]),
+                    ),
                   if (wasPaid)
                     Container(
                       width: double.infinity,
@@ -333,7 +358,7 @@ class _PerDiemReviseDialogState extends State<PerDiemReviseDialog> {
                   Expanded(child: AppButton(label: 'Cancel', variant: BtnVariant.ghost, onPressed: widget.onClose)),
                   const SizedBox(width: 12),
                   Expanded(child: AppButton(
-                    label: _saving ? 'Saving…' : 'Save Changes',
+                    label: _saving ? 'Saving…' : (widget.isProposal ? 'Submit for Approval' : 'Save Changes'),
                     icon: Symbols.check,
                     variant: BtnVariant.primary,
                     onPressed: _canSave ? _save : null,

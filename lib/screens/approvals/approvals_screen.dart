@@ -209,7 +209,7 @@ class _ApprovalsScreenState extends State<ApprovalsScreen> with SingleTickerProv
       builder: (_) => PerDiemReviseDialog(
         request: r,
         onClose: () => Navigator.of(context).pop(),
-        onSaved: (_) {
+        onSaved: () {
           Navigator.of(context).pop();
           if (mounted) { showSuccessToast(context, 'Travel plan updated.'); _load(); }
         },
@@ -227,6 +227,24 @@ class _ApprovalsScreenState extends State<ApprovalsScreen> with SingleTickerProv
         if (mounted) showSuccessToast(context, 'Edit access granted to ${r.userName ?? 'the technician'}.');
       }
       _load();
+    } catch (e) {
+      if (mounted) showErrorToast(context, e);
+    }
+  }
+
+  Future<void> _approveTechnicianEdit(PerDiemRequest r, PerDiemRevision rev) async {
+    try {
+      await PerDiemService.instance.approveTechnicianEdit(r.id, rev.id);
+      if (mounted) { showSuccessToast(context, 'Technician\'s edit applied.'); _load(); }
+    } catch (e) {
+      if (mounted) showErrorToast(context, e);
+    }
+  }
+
+  Future<void> _rejectTechnicianEdit(PerDiemRequest r, PerDiemRevision rev) async {
+    try {
+      await PerDiemService.instance.rejectTechnicianEdit(r.id, rev.id);
+      if (mounted) { showSuccessToast(context, 'Proposed edit rejected.'); _load(); }
     } catch (e) {
       if (mounted) showErrorToast(context, e);
     }
@@ -407,6 +425,8 @@ class _ApprovalsScreenState extends State<ApprovalsScreen> with SingleTickerProv
                           onAuthorizePayment: _authorizePerDiemPayment,
                           onRevise: _showRevisePerDiemDialog,
                           onToggleEditGrant: _toggleEditGrant,
+                          onApproveTechnicianEdit: _approveTechnicianEdit,
+                          onRejectTechnicianEdit: _rejectTechnicianEdit,
                         ),
                         _expensesError != null
                             ? ErrorView(message: _expensesError!, onRetry: _loadExpenses)
@@ -610,6 +630,7 @@ class _PerDiemTab extends StatelessWidget {
     required this.onApprove, required this.onReject,
     required this.onInitiatePayment, required this.onAuthorizePayment,
     required this.onRevise, required this.onToggleEditGrant,
+    required this.onApproveTechnicianEdit, required this.onRejectTechnicianEdit,
   });
   final List<PerDiemRequest> requests;
   final double pad;
@@ -623,6 +644,10 @@ class _PerDiemTab extends StatelessWidget {
   // Section 8: CTO day-by-day editing + technician edit-grant toggle.
   final ValueChanged<PerDiemRequest> onRevise;
   final ValueChanged<PerDiemRequest> onToggleEditGrant;
+  // Technician's proposed edit — CTO approve/reject, wired to the pending-
+  // review notice below (was previously just a passive text notice).
+  final void Function(PerDiemRequest, PerDiemRevision) onApproveTechnicianEdit;
+  final void Function(PerDiemRequest, PerDiemRevision) onRejectTechnicianEdit;
 
   @override
   Widget build(BuildContext context) {
@@ -789,24 +814,52 @@ class _PerDiemTab extends StatelessWidget {
                 ]),
               ),
             ],
-            // Technician's proposed edit awaiting CTO review — only the
-            // CTO can act on it (approveTechnicianEdit/rejectTechnicianEdit
-            // aren't wired to this list yet; flagged, not silently missing).
+            // Technician's proposed edit awaiting CTO review — "a
+            // technician can never approve their own change" is
+            // structurally true (they hold no CTO authority), so these
+            // buttons are only ever shown to an actual CTO-tier viewer.
             if (r.revisions.any((rev) => rev.isPendingReview)) ...[
               const SizedBox(height: 10),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: AppColors.blue.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppColors.blue.withValues(alpha: 0.25)),
-                ),
-                child: Text(
-                  'Technician has proposed an edit awaiting your review (approve/reject this from the plan detail).',
-                  style: AppTheme.bodySm.copyWith(fontSize: 11.5, color: AppColors.blue),
-                ),
-              ),
+              Builder(builder: (context) {
+                final pending = r.revisions.firstWhere((rev) => rev.isPendingReview);
+                return Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.blue.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppColors.blue.withValues(alpha: 0.25)),
+                  ),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(
+                      '${pending.editedByName ?? 'Technician'} proposed an edit: ${pending.reason}',
+                      style: AppTheme.bodySm.copyWith(fontSize: 11.5, color: AppColors.blue),
+                    ),
+                    if (canCto) ...[
+                      const SizedBox(height: 8),
+                      Row(children: [
+                        GestureDetector(
+                          onTap: () => onApproveTechnicianEdit(r, pending),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                            decoration: BoxDecoration(color: AppColors.teal, borderRadius: BorderRadius.circular(6)),
+                            child: Text('Approve', style: AppTheme.bodySub.copyWith(fontSize: 11.5, color: const Color(0xFF06120F), fontWeight: FontWeight.w600)),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        GestureDetector(
+                          onTap: () => onRejectTechnicianEdit(r, pending),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                            decoration: BoxDecoration(border: Border.all(color: context.pal.border), borderRadius: BorderRadius.circular(6)),
+                            child: Text('Reject', style: AppTheme.bodySub.copyWith(fontSize: 11.5)),
+                          ),
+                        ),
+                      ]),
+                    ],
+                  ]),
+                );
+              }),
             ],
             if (r.adjustments.isNotEmpty) ...[
               const SizedBox(height: 10),

@@ -8,6 +8,7 @@ import '../../theme/app_palette.dart';
 import '../../utils/api_error.dart';
 import '../../utils/pdf_download.dart';
 import '../../widgets/common/error_view.dart';
+import '../approvals/per_diem_revise_dialog.dart';
 
 // Section 7: "My travel plans" — a technician's own submitted per-diem
 // requests. PerDiemController::index() is already scoped server-side to
@@ -48,6 +49,25 @@ class _MyTravelPlansScreenState extends State<MyTravelPlansScreen> {
     context, () => PerDiemService.instance.pdfBytes(p.id), 'travel-plan-${p.id}.pdf',
   );
 
+  // Section 8: "the CTO grants edit permission on a specific plan... while
+  // granted, the technician can edit only what was unlocked." Reuses the
+  // same day-by-day editor the CTO uses, in propose mode — the edit is
+  // stored for CTO review, not applied immediately.
+  void _showProposeEditDialog(PerDiemRequest p) {
+    showDialog<void>(
+      context: context,
+      builder: (_) => PerDiemReviseDialog(
+        request: p,
+        isProposal: true,
+        onClose: () => Navigator.of(context).pop(),
+        onSaved: () {
+          Navigator.of(context).pop();
+          if (mounted) { showSuccessToast(context, 'Edit submitted — awaiting CTO approval.'); _load(); }
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(builder: (ctx, cst) {
@@ -74,6 +94,7 @@ class _MyTravelPlansScreenState extends State<MyTravelPlansScreen> {
                 expanded: _expandedId == p.id,
                 onToggle: () => setState(() => _expandedId = _expandedId == p.id ? null : p.id),
                 onDownload: () => _downloadPdf(p),
+                onProposeEdit: p.hasActiveEditGrant ? () => _showProposeEditDialog(p) : null,
                 onOpenTicket: (widget.onOpenTicket == null || p.serviceTicketId == null)
                     ? null : () => widget.onOpenTicket!(p.serviceTicketId!),
               )).toList()),
@@ -98,13 +119,16 @@ Color _stageColor(PerDiemRequest p) {
 class _PlanCard extends StatelessWidget {
   const _PlanCard({
     required this.plan, required this.expanded, required this.onToggle,
-    required this.onDownload, this.onOpenTicket,
+    required this.onDownload, this.onOpenTicket, this.onProposeEdit,
   });
   final PerDiemRequest plan;
   final bool expanded;
   final VoidCallback onToggle;
   final VoidCallback onDownload;
   final VoidCallback? onOpenTicket;
+  // Non-null only when the CTO has granted this technician edit access on
+  // this plan (Section 8: "a technician cannot edit by default").
+  final VoidCallback? onProposeEdit;
 
   @override
   Widget build(BuildContext context) {
@@ -181,27 +205,62 @@ class _PlanCard extends StatelessWidget {
             )),
             const SizedBox(height: 10),
           ],
-          if (plan.revisions.isNotEmpty) ...[
+          if (plan.revisions.where((r) => !r.isPendingReview).isNotEmpty) ...[
             Text('REVISION HISTORY', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
             const SizedBox(height: 8),
-            ...plan.revisions.map((r) => Padding(
+            ...plan.revisions.where((r) => !r.isPendingReview).map((r) => Padding(
               padding: const EdgeInsets.only(bottom: 6),
-              child: Text('${r.editedByName ?? 'Someone'} (${r.editorRole}) · ${r.reason}', style: AppTheme.bodySub.copyWith(fontSize: 12)),
+              child: Text(
+                '${r.editedByName ?? 'Someone'} (${r.editorRole}) · ${r.reason}${r.status == 'rejected' ? ' (rejected)' : ''}',
+                style: AppTheme.bodySub.copyWith(fontSize: 12),
+              ),
             )),
             const SizedBox(height: 6),
           ],
-          Align(alignment: Alignment.centerRight, child: GestureDetector(
-            onTap: onDownload,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-              decoration: BoxDecoration(border: Border.all(color: context.pal.border), borderRadius: BorderRadius.circular(8)),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Symbols.download, size: 14, color: AppColors.teal),
-                const SizedBox(width: 6),
-                Text('Download PDF', style: AppTheme.bodySub.copyWith(fontSize: 12)),
-              ]),
+          if (plan.hasActiveEditGrant) ...[
+            Builder(builder: (context) {
+              final pendingReview = plan.revisions.where((r) => r.isPendingReview).isNotEmpty;
+              if (pendingReview) {
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Text('Your proposed edit is awaiting CTO review.', style: AppTheme.bodySub.copyWith(fontSize: 12, color: AppColors.blue)),
+                );
+              }
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Text('The CTO has given you edit access on this plan.', style: AppTheme.bodySub.copyWith(fontSize: 12, color: context.pal.textDim)),
+              );
+            }),
+          ],
+          Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+            if (onProposeEdit != null && plan.revisions.where((r) => r.isPendingReview).isEmpty) ...[
+              GestureDetector(
+                onTap: onProposeEdit,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                  decoration: BoxDecoration(color: AppColors.blue, borderRadius: BorderRadius.circular(8)),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    const Icon(Symbols.edit_calendar, size: 14, color: Colors.white),
+                    const SizedBox(width: 6),
+                    Text('Propose Edit', style: AppTheme.bodySub.copyWith(fontSize: 12, color: Colors.white)),
+                  ]),
+                ),
+              ),
+              const SizedBox(width: 8),
+            ],
+            GestureDetector(
+              onTap: onDownload,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                decoration: BoxDecoration(border: Border.all(color: context.pal.border), borderRadius: BorderRadius.circular(8)),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Symbols.download, size: 14, color: AppColors.teal),
+                  const SizedBox(width: 6),
+                  Text('Download PDF', style: AppTheme.bodySub.copyWith(fontSize: 12)),
+                ]),
+              ),
             ),
-          )),
+          ]),
         ],
       ]),
     );
