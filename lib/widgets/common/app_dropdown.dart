@@ -342,6 +342,12 @@ class _AppSearchableSelectFieldState<T> extends State<AppSearchableSelectField<T
   Timer? _debounce;
   bool _open = false;
   bool _loading = false;
+  // Set just before unfocus() in _pick()/_createNew() so _onFocusChange's
+  // revert-on-blur-without-a-pick branch doesn't stomp the text those two
+  // just set — widget.selectedLabel is a prop from the parent's setState,
+  // which hasn't rebuilt this widget yet when the focus listener fires
+  // (unfocus() notifies synchronously), so it's still the pre-pick value.
+  bool _suppressBlurRevert = false;
   String _query = '';
   List<AppSelectItem<T>> _results = const [];
   int _highlight = -1;
@@ -380,9 +386,13 @@ class _AppSearchableSelectFieldState<T> extends State<AppSearchableSelectField<T
       _runQuery(_controller.text);
       _openPanel();
     } else {
-      // Revert to the committed selection's label if the user clicked away
-      // without picking anything (mirrors a native combobox).
-      _controller.text = widget.selectedLabel ?? '';
+      if (_suppressBlurRevert) {
+        _suppressBlurRevert = false;
+      } else {
+        // Revert to the committed selection's label if the user clicked
+        // away without picking anything (mirrors a native combobox).
+        _controller.text = widget.selectedLabel ?? '';
+      }
       _closePanel();
     }
   }
@@ -440,12 +450,14 @@ class _AppSearchableSelectFieldState<T> extends State<AppSearchableSelectField<T
   }
 
   void _pick(AppSelectItem<T> item) {
+    _suppressBlurRevert = true;
     widget.onSelected(item);
     _controller.text = item.label;
     _focusNode.unfocus();
   }
 
   void _createNew() {
+    _suppressBlurRevert = true;
     widget.onCreateNew?.call(_query.trim());
     _focusNode.unfocus();
   }
