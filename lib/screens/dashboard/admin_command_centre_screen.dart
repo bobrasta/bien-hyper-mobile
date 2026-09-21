@@ -72,7 +72,7 @@ class _AdminCommandCentreScreenState extends State<AdminCommandCentreScreen> {
   // m7/m5 Materialize-grid proportion (map:rail), same pattern used
   // elsewhere in this app rather than a fixed pixel rail width.
   Widget _mainRow(AdminOverview o) => Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-    Expanded(flex: 7, child: _MapPanel(hospitals: _hospitals, legend: o.fleetLegend, zones: o.zones, onNavigateTo: widget.onNavigateTo)),
+    Expanded(flex: 7, child: _MapPanel(hospitals: _hospitals, onNavigateTo: widget.onNavigateTo)),
     const SizedBox(width: 12),
     Expanded(
       flex: 5,
@@ -125,13 +125,21 @@ class _AdminCommandCentreScreenState extends State<AdminCommandCentreScreen> {
             _kpiRow(o),
             const SizedBox(height: 16),
             if (narrow) ...[
-              SizedBox(height: 480, child: _MapPanel(hospitals: _hospitals, legend: o.fleetLegend, zones: o.zones, onNavigateTo: widget.onNavigateTo)),
+              // Section 2: "make the map bigger" + "sized for mobile" —
+              // taller than before now that the legend/zones/stats bar no
+              // longer eat into the map's own visual space.
+              SizedBox(height: 560, child: _MapPanel(hospitals: _hospitals, onNavigateTo: widget.onNavigateTo)),
+              const SizedBox(height: 16),
+              _FleetSummaryCard(hospitals: _hospitals, legend: o.fleetLegend, zones: o.zones, inStock: o.fleetInStock),
               const SizedBox(height: 16),
               SizedBox(height: 340, child: _AttentionPanel(items: o.attention)),
               const SizedBox(height: 16),
               SizedBox(height: 280, child: _TechnicianPanel(techs: o.technicians, onNavigateTo: widget.onNavigateTo)),
-            ] else
-              SizedBox(height: 560, child: _mainRow(o)),
+            ] else ...[
+              SizedBox(height: 680, child: _mainRow(o)),
+              const SizedBox(height: 16),
+              _FleetSummaryCard(hospitals: _hospitals, legend: o.fleetLegend, zones: o.zones, inStock: o.fleetInStock),
+            ],
             const SizedBox(height: 16),
             SizedBox(height: 340, child: _bottomRow(o)),
           ]),
@@ -219,10 +227,8 @@ class _Header extends StatelessWidget {
 enum _MapLayer { machines, alerts, technicians }
 
 class _MapPanel extends StatefulWidget {
-  const _MapPanel({required this.hospitals, required this.legend, required this.zones, this.onNavigateTo});
+  const _MapPanel({required this.hospitals, this.onNavigateTo});
   final List<Hospital> hospitals;
-  final Map<String, int> legend;
-  final List<ZoneCount> zones;
   final void Function(String key)? onNavigateTo;
 
   @override
@@ -273,15 +279,18 @@ class _MapPanelState extends State<_MapPanel> {
       // against it) — round only the bottom two corners of the map itself
       // to meet the card's bottom edge, matching the reference design's
       // border-radius: 0 0 r r.
+      //
+      // Section 2: the region breakdown/status legend/bottom stats bar that
+      // used to overlay the map itself now live in _FleetSummaryCard below
+      // — only the map's own layer switcher (inside FleetMapWidget) and
+      // zoom controls stay inside the map.
       child: Padding(
         padding: const EdgeInsets.only(top: 10),
         child: ClipRRect(
-        borderRadius: BorderRadius.only(
-          bottomLeft: Radius.circular(AppColors.rLg),
-          bottomRight: Radius.circular(AppColors.rLg),
-        ),
-        child: Stack(children: [
-        Positioned.fill(
+          borderRadius: BorderRadius.only(
+            bottomLeft: Radius.circular(AppColors.rLg),
+            bottomRight: Radius.circular(AppColors.rLg),
+          ),
           child: FleetMapWidget(
             hospitals: shown,
             totalMachines: totalMachines,
@@ -291,54 +300,6 @@ class _MapPanelState extends State<_MapPanel> {
               bottomRight: Radius.circular(AppColors.rLg),
             ),
           ),
-        ),
-        Positioned(
-          left: 12, bottom: 12,
-          child: Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: context.pal.surface1.withValues(alpha: 0.9),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: context.pal.border),
-            ),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              _legendRow('Operational', AppColors.teal, widget.legend['operational'] ?? 0),
-              _legendRow('Needs Service', AppColors.amber, widget.legend['needs_service'] ?? 0),
-              _legendRow('Down', AppColors.coral, widget.legend['down'] ?? 0),
-              _legendRow('Technician En Route', AppColors.cyan, widget.legend['technician_en_route'] ?? 0),
-            ]),
-          ),
-        ),
-        Positioned(
-          right: 12, top: 12, width: 176,
-          child: Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: context.pal.surface1.withValues(alpha: 0.85),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: context.pal.border),
-            ),
-            child: Column(children: widget.zones.map((z) {
-              final maxCount = widget.zones.isEmpty ? 1 : widget.zones.first.count.clamp(1, 1 << 30);
-              return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 3),
-                child: Row(children: [
-                  Expanded(child: Text(z.name, style: AppTheme.bodySub.copyWith(fontSize: 10.5), overflow: TextOverflow.ellipsis)),
-                  SizedBox(
-                    width: 44, height: 3,
-                    child: LinearProgressIndicator(
-                      value: z.count / maxCount, backgroundColor: context.pal.border,
-                      valueColor: AlwaysStoppedAnimation(AppColors.teal), borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  SizedBox(width: 20, child: Text('${z.count}', style: AppTheme.monoXs.copyWith(fontSize: 10), textAlign: TextAlign.right)),
-                ]),
-              );
-            }).toList()),
-          ),
-        ),
-        ]),
         ),
       ),
     );
@@ -363,16 +324,129 @@ class _MapPanelState extends State<_MapPanel> {
       ),
     );
   }
+}
 
-  Widget _legendRow(String label, Color color, int count) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 2),
-    child: Row(mainAxisSize: MainAxisSize.min, children: [
-      Container(width: 7, height: 7, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+// Section 2: "Create a new card directly below the map card, full width,
+// height = fit content, containing the region breakdown, status legend and
+// the Hospitals / Machines / Uptime stats" — plus a new "In Stock" tile.
+// No expandChild/fixed SizedBox around this one anywhere it's used, so it
+// sizes to its own content instead of stretching or clipping.
+class _FleetSummaryCard extends StatelessWidget {
+  const _FleetSummaryCard({required this.hospitals, required this.legend, required this.zones, required this.inStock});
+  final List<Hospital> hospitals;
+  final Map<String, int> legend;
+  final List<ZoneCount> zones;
+  final int inStock;
+
+  @override
+  Widget build(BuildContext context) {
+    final totalMachines = hospitals.fold<int>(0, (a, h) => a + h.machineCount);
+    final operational = hospitals.fold<int>(0, (a, h) => a + h.machinesOperational);
+    final uptimePct = totalMachines == 0 ? 0.0 : operational / totalMachines * 100;
+
+    return AppCard(
+      header: Row(children: [
+        Icon(Symbols.donut_small, size: 14, color: AppColors.teal),
+        const SizedBox(width: 8),
+        Text('Fleet Summary', style: AppTheme.cardTitle),
+      ]),
+      child: LayoutBuilder(builder: (ctx, cst) {
+        if (cst.maxWidth < 760) {
+          return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            _regionBreakdown(context),
+            const SizedBox(height: 16),
+            _statusLegend(context),
+            const SizedBox(height: 16),
+            _statsRow(uptimePct),
+          ]);
+        }
+        return IntrinsicHeight(child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Expanded(flex: 4, child: _regionBreakdown(context)),
+          const SizedBox(width: 20),
+          Expanded(flex: 3, child: _statusLegend(context)),
+          const SizedBox(width: 20),
+          Expanded(flex: 4, child: _statsRow(uptimePct)),
+        ]));
+      }),
+    );
+  }
+
+  Widget _regionBreakdown(BuildContext context) {
+    final maxCount = zones.isEmpty ? 1 : zones.first.count.clamp(1, 1 << 30);
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text('REGION BREAKDOWN', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+      const SizedBox(height: 10),
+      if (zones.isEmpty)
+        Text('No regions on record.', style: AppTheme.bodySub.copyWith(fontSize: 12, color: context.pal.textMute))
+      else
+        ...zones.map((z) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 3),
+          child: Row(children: [
+            Expanded(child: Text(z.name, style: AppTheme.bodySub.copyWith(fontSize: 11.5), overflow: TextOverflow.ellipsis)),
+            SizedBox(
+              width: 60, height: 4,
+              child: LinearProgressIndicator(
+                value: z.count / maxCount, backgroundColor: context.pal.border,
+                valueColor: AlwaysStoppedAnimation(AppColors.teal), borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(width: 8),
+            SizedBox(width: 24, child: Text('${z.count}', style: AppTheme.monoXs.copyWith(fontSize: 11), textAlign: TextAlign.right)),
+          ]),
+        )),
+    ]);
+  }
+
+  Widget _statusLegend(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    Text('STATUS', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+    const SizedBox(height: 10),
+    _legendRow(context, 'Operational', AppColors.teal, legend['operational'] ?? 0),
+    _legendRow(context, 'Needs Service', AppColors.amber, legend['needs_service'] ?? 0),
+    _legendRow(context, 'Down', AppColors.coral, legend['down'] ?? 0),
+    _legendRow(context, 'Technician En Route', AppColors.cyan, legend['technician_en_route'] ?? 0),
+  ]);
+
+  Widget _legendRow(BuildContext context, String label, Color color, int count) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 3),
+    child: Row(children: [
+      Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
       const SizedBox(width: 8),
-      SizedBox(width: 130, child: Builder(builder: (context) => Text(label, style: AppTheme.bodySub.copyWith(fontSize: 10.5)))),
-      Builder(builder: (context) => Text('$count', style: AppTheme.monoXs.copyWith(fontSize: 10.5, color: context.pal.text))),
+      Expanded(child: Text(label, style: AppTheme.bodySub.copyWith(fontSize: 11.5))),
+      Text('$count', style: AppTheme.monoXs.copyWith(fontSize: 11.5, color: context.pal.text)),
     ]),
   );
+
+  Widget _statsRow(double uptimePct) => GridView.count(
+    crossAxisCount: 2,
+    shrinkWrap: true,
+    physics: const NeverScrollableScrollPhysics(),
+    mainAxisSpacing: 10,
+    crossAxisSpacing: 10,
+    childAspectRatio: 2.2,
+    children: [
+      _statTile('Hospitals', '${hospitals.length}', AppColors.teal),
+      _statTile('Machines', '${hospitals.fold<int>(0, (a, h) => a + h.machineCount)}', AppColors.teal),
+      _statTile('Uptime', '${uptimePct.toStringAsFixed(0)}%', AppColors.teal),
+      // Section 13: in-stock/allocated machines are deliberately excluded
+      // from the map and every other fleet count above — this is the one
+      // place they're surfaced.
+      _statTile('In Stock', '$inStock', AppColors.amber),
+    ],
+  );
+
+  Widget _statTile(String label, String value, Color color) => Builder(builder: (context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+    decoration: BoxDecoration(
+      color: context.pal.surface2,
+      borderRadius: BorderRadius.circular(8),
+      border: Border.all(color: context.pal.border),
+    ),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
+      Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 9)),
+      const SizedBox(height: 2),
+      Text(value, style: AppTheme.cardTitle.copyWith(fontSize: 18, color: color)),
+    ]),
+  ));
 }
 
 class _AttentionPanel extends StatelessWidget {

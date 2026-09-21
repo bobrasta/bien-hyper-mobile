@@ -68,6 +68,9 @@ class AdminOverview {
   final Map<String, dynamic> kpis;
   final Map<String, int> fleetLegend;
   final List<ZoneCount> zones;
+  // Section 2: machines sitting in the warehouse, deliberately excluded
+  // from the map/legend/uptime counts above (not deployed to a hospital).
+  final int fleetInStock;
   final List<AttentionItem> attention;
   final List<TechnicianRosterEntry> technicians;
   final Map<String, dynamic> sales;
@@ -77,7 +80,7 @@ class AdminOverview {
 
   const AdminOverview({
     required this.greeting, required this.kpis, required this.fleetLegend,
-    required this.zones, required this.attention, required this.technicians,
+    required this.zones, required this.fleetInStock, required this.attention, required this.technicians,
     required this.sales, required this.finance, required this.inventory, required this.people,
   });
 
@@ -90,6 +93,7 @@ class AdminOverview {
       fleetLegend: legend.map((k, v) => MapEntry(k, (v as num? ?? 0).toInt())),
       zones: (fleet['zones'] as List? ?? [])
           .map((z) => ZoneCount.fromJson((z as Map).cast<String, dynamic>())).toList(),
+      fleetInStock: (fleet['in_stock'] as num? ?? 0).toInt(),
       attention: (j['attention'] as List? ?? [])
           .map((a) => AttentionItem.fromJson((a as Map).cast<String, dynamic>())).toList(),
       technicians: (j['technicians'] as List? ?? [])
