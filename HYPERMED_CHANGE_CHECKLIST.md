@@ -45,6 +45,10 @@ Tracking implementation of `hypermed_claude_code_prompt.md` (14-section spec cov
 - [ ] **Section 5 — Downloads for every role** — SPLIT: **Flutter already done** (`sidebar.dart:135`, `if (key == 'downloads') return true;` — deliberately universal, well-commented, exactly matches the spec). **Blade not started at all** — zero references to "download" anywhere in `Nav.php`, no controller, no view. Bigger gap than the spec assumed (it isn't just missing for technicians on web, it doesn't exist on web at all).
 - [ ] **Section 10 — Ticket list ordering** — NOT STARTED. `ServiceTicketController::index()` is `$query->latest()->paginate($perPage)` — plain newest-first, no active/resolved split, no priority ordering, no overdue-first logic. Matches the spec's "Problem" description exactly.
 
+## Addendum
+
+- [ ] **Section 15 — Travel plan template: in-app view + XLSX export** — NOT STARTED. Added 2026-09-21 (`/home/bob/Downloads/hypermed_section15_travel_plan_template.md`, reference file `YONAH LEONARD TRAVEL PLAN...xlsx` in the same folder). Amends Sections 7/8/12. Real scope: `labor_amount` as a third per-day cost category (currently only per_diem_cost/transport_fare exist on `PerDiemLine`); hospital region/district fields (backfill); a staff payment-profile model (provider/account number/account name) with masked-by-default display and audit-logged changes; server-computed summary fields (days_spent, sites_visited, avg_days_per_site, avg_cost_per_site, grand_total); an in-app viewer matching the template's section order on both platforms; a new XLSX export endpoint that reproduces the template cell-for-cell (merged ranges, BFBFBF header fill, live `SUM`/averages formulas, dd/mm/yyyy + long-date formatting, the exact filename convention) plus a second `APP DETAILS` sheet; a signature block generated from the plan's actual approval stages (not hardcoded); PDF export sharing the same layout/data as the XLSX. Acceptance criteria and test fixture given in 15.9 of the source doc.
+
 ## Wrap-up
 
 - [ ] **Section 14 — Final parity checklist** — this file serves that purpose; will be filled in as each section above is actually finished.
