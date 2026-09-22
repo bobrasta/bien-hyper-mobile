@@ -3,6 +3,7 @@ import 'package:material_symbols_icons/symbols.dart';
 import '../../models/per_diem_request.dart';
 import '../../models/service_ticket.dart';
 import '../../services/per_diem_service.dart';
+import '../../services/setting_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_palette.dart';
 import '../../theme/app_theme.dart';
@@ -75,6 +76,10 @@ class _TravelPlanDialogState extends State<TravelPlanDialog> {
   final List<_PlanLineDraft> _lines = [];
   bool _saving = false;
   String? _error;
+  // Section 15.2: "A default per-diem rate can be configured in Settings
+  // and pre-filled." Loaded async so it doesn't block the dialog opening;
+  // applied to whatever line(s) already exist once it arrives.
+  String? _defaultPerDiemRate;
 
   @override
   void initState() {
@@ -84,6 +89,24 @@ class _TravelPlanDialogState extends State<TravelPlanDialog> {
       _purposeCtrl.text = 'Service visit — ${t.machineName} at ${t.hospital}';
     }
     _lines.add(_PlanLineDraft(date: DateTime.now()));
+    _loadDefaultRate();
+  }
+
+  Future<void> _loadDefaultRate() async {
+    try {
+      final settings = await SettingService.instance.all();
+      final rate = settings['per_diem_default_daily_rate'];
+      if (rate != null && rate.isNotEmpty && mounted) {
+        setState(() {
+          _defaultPerDiemRate = rate;
+          for (final l in _lines) {
+            if (l.perDiemCtrl.text.isEmpty) l.perDiemCtrl.text = rate;
+          }
+        });
+      }
+    } catch (_) {
+      // Non-critical — the field just stays blank if this fails.
+    }
   }
 
   @override
@@ -97,7 +120,9 @@ class _TravelPlanDialogState extends State<TravelPlanDialog> {
 
   void _addLine() {
     final lastDate = _lines.isNotEmpty ? _lines.last.date : DateTime.now();
-    setState(() => _lines.add(_PlanLineDraft(date: lastDate.add(const Duration(days: 1)))));
+    final line = _PlanLineDraft(date: lastDate.add(const Duration(days: 1)));
+    if (_defaultPerDiemRate != null) line.perDiemCtrl.text = _defaultPerDiemRate!;
+    setState(() => _lines.add(line));
   }
 
   void _removeLine(int i) {

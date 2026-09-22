@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import '../../main.dart' show authTokenNotifier, userNameNotifier, can;
@@ -86,6 +87,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final _thresholdCtrl = TextEditingController();
   bool _savingThreshold = false;
   List<ExpenseCategory> _expenseCategories = [];
+
+  // Section 15.6/15.2: travel plan signature-block role labels + default
+  // per-diem rate — Settings-adjustable per the spec, not hardcoded.
+  final _perDiemDefaultRateCtrl = TextEditingController();
+  final _sigTeamLeadCtrl = TextEditingController();
+  final _sigCtoCtrl = TextEditingController();
+  final _sigAccountantCtrl = TextEditingController();
+  final _sigFinalReleaseCtrl = TextEditingController();
+  bool _savingTravelPlanSettings = false;
+  String? _travelPlanSettingsMsg;
 
   // Roles & Permissions
   bool _loadingRoles = true;
@@ -185,9 +196,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ]);
       if (!mounted) return;
       final settings = results[0] as Map<String, String?>;
+      final sigLabelsRaw = settings['per_diem_signature_role_labels'];
+      Map<String, dynamic> sigLabels = {};
+      if (sigLabelsRaw != null && sigLabelsRaw.isNotEmpty) {
+        try { sigLabels = jsonDecode(sigLabelsRaw) as Map<String, dynamic>; } catch (_) {}
+      }
       setState(() {
         _thresholdCtrl.text = settings['expense_director_threshold'] ?? '3000000';
         _expenseCategories = results[1] as List<ExpenseCategory>;
+        _perDiemDefaultRateCtrl.text = settings['per_diem_default_daily_rate'] ?? '80000';
+        _sigTeamLeadCtrl.text = sigLabels['team_lead'] as String? ?? 'Technical supervisor';
+        _sigCtoCtrl.text = sigLabels['cto'] as String? ?? 'CTO';
+        _sigAccountantCtrl.text = sigLabels['accountant_initiate'] as String? ?? 'Finance';
+        _sigFinalReleaseCtrl.text = sigLabels['final_release'] as String? ?? 'Managing director';
         _loadingApprovals = false;
       });
     } catch (e) {
@@ -203,6 +224,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (mounted) { setState(() => _savingThreshold = false); showSuccessToast(context, 'Threshold updated.'); }
     } catch (e) {
       if (mounted) { setState(() => _savingThreshold = false); showErrorToast(context, e); }
+    }
+  }
+
+  Future<void> _saveTravelPlanSettings() async {
+    if (_savingTravelPlanSettings) return;
+    setState(() { _savingTravelPlanSettings = true; _travelPlanSettingsMsg = null; });
+    try {
+      await SettingService.instance.set('per_diem_default_daily_rate', _perDiemDefaultRateCtrl.text.trim());
+      await SettingService.instance.set('per_diem_signature_role_labels', jsonEncode({
+        'team_lead': _sigTeamLeadCtrl.text.trim(),
+        'cto': _sigCtoCtrl.text.trim(),
+        'accountant_initiate': _sigAccountantCtrl.text.trim(),
+        'final_release': _sigFinalReleaseCtrl.text.trim(),
+      }));
+      if (mounted) setState(() { _savingTravelPlanSettings = false; _travelPlanSettingsMsg = 'Saved.'; });
+    } catch (e) {
+      if (mounted) setState(() { _savingTravelPlanSettings = false; _travelPlanSettingsMsg = 'Save failed.'; });
     }
   }
 
@@ -236,6 +274,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _oldPwCtrl.dispose(); _newPwCtrl.dispose();
     _paymentProviderCtrl.dispose(); _paymentAccountNumberCtrl.dispose(); _paymentAccountNameCtrl.dispose();
     _thresholdCtrl.dispose();
+    _perDiemDefaultRateCtrl.dispose(); _sigTeamLeadCtrl.dispose(); _sigCtoCtrl.dispose();
+    _sigAccountantCtrl.dispose(); _sigFinalReleaseCtrl.dispose();
     _memberSearchCtrl.dispose();
     super.dispose();
   }
@@ -605,6 +645,41 @@ class _SettingsScreenState extends State<SettingsScreen> {
               value: cat.requiresDirectorApproval,
               onChanged: (v) => _toggleCategoryApproval(cat, v),
             )),
+        ]),
+      ),
+      const SizedBox(height: 16),
+      _SCard(
+        title: 'Travel Plan Settings',
+        icon: Symbols.route,
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('Default per-diem rate pre-fills each new itinerary day. Signature-block labels are the role titles shown on the exported travel plan — the plan\'s real approval chain (Team Lead / CTO / Accountant / final release) doesn\'t change, only what each line is called.',
+              style: AppTheme.bodySub.copyWith(fontSize: 12)),
+          const SizedBox(height: 14),
+          _SettingsField(label: 'Default per-diem rate (TZS/day)', ctrl: _perDiemDefaultRateCtrl, hint: '80000'),
+          const SizedBox(height: 14),
+          Row(children: [
+            Expanded(child: _SettingsField(label: 'Team Lead stage label', ctrl: _sigTeamLeadCtrl, hint: 'Technical supervisor')),
+            const SizedBox(width: 14),
+            Expanded(child: _SettingsField(label: 'CTO stage label', ctrl: _sigCtoCtrl, hint: 'CTO')),
+          ]),
+          const SizedBox(height: 14),
+          Row(children: [
+            Expanded(child: _SettingsField(label: 'Accountant-initiate stage label', ctrl: _sigAccountantCtrl, hint: 'Finance')),
+            const SizedBox(width: 14),
+            Expanded(child: _SettingsField(label: 'Final-release stage label', ctrl: _sigFinalReleaseCtrl, hint: 'Managing director')),
+          ]),
+          const SizedBox(height: 16),
+          Row(children: [
+            if (_travelPlanSettingsMsg != null) ...[
+              Icon(_travelPlanSettingsMsg!.contains('failed') ? Symbols.error : Symbols.check_circle,
+                  size: 14, color: _travelPlanSettingsMsg!.contains('failed') ? AppColors.coral : AppColors.teal),
+              const SizedBox(width: 6),
+              Text(_travelPlanSettingsMsg!, style: AppTheme.bodySub.copyWith(
+                  color: _travelPlanSettingsMsg!.contains('failed') ? AppColors.coral : AppColors.teal, fontSize: 12.5)),
+            ],
+            const Spacer(),
+            _TealBtn(label: 'Save', saving: _savingTravelPlanSettings, onTap: _saveTravelPlanSettings),
+          ]),
         ]),
       ),
     ]);
