@@ -87,7 +87,10 @@ Set<String>? _legacyAllowedScreenKeys(String role) => switch (role) {
   'sales_manager' || 'sales' => {'dashboard', 'machines', 'detail', 'sales', 'customers', 'revenue', 'email', 'staff', 'my_leave', 'reports', 'settings', 'notifications'},
   'finance_manager' || 'finance' => {'dashboard', 'revenue', 'finance', 'staff', 'my_leave', 'reports', 'settings', 'notifications'},
   'cs'             => {'dashboard', 'customers', 'service', 'email', 'staff', 'my_leave', 'reports', 'settings', 'notifications'},
-  'storekeeper'    => {'dashboard', 'inventory', 'staff', 'my_leave', 'reports', 'settings', 'notifications'},
+  // 'machines'/'detail' added 2026-09-22 — storekeeper has held
+  // machines.receive/allocate authority server-side since Section 13
+  // shipped but had no nav path to reach the Machines screen at all.
+  'storekeeper'    => {'dashboard', 'machines', 'detail', 'inventory', 'staff', 'my_leave', 'reports', 'settings', 'notifications'},
   // HR does not get the operational 'staff' (task-assignment board) key —
   // that's Operations' job. The hr_* keys below are HR's own dedicated
   // section (dashboard, personal-info directory, recruitment, leave

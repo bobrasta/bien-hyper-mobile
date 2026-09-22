@@ -14,6 +14,7 @@ import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_palette.dart';
 import '../../utils/api_error.dart';
+import '../../utils/pdf_download.dart';
 import '../../widgets/common/error_view.dart';
 import 'per_diem_revise_dialog.dart';
 
@@ -216,6 +217,18 @@ class _ApprovalsScreenState extends State<ApprovalsScreen> with SingleTickerProv
       ),
     );
   }
+
+  // Section 15.5: "Available to the requester, the approvers on that
+  // plan, the CTO, finance and admins" — everyone who reaches this tab
+  // already holds one of those authorities server-side (same gate as
+  // show()), so no extra client-side check is needed here.
+  Future<void> _downloadPerDiemPdf(PerDiemRequest r) => downloadPdf(
+    context, () => PerDiemService.instance.pdfBytes(r.id), 'travel-plan-${r.id}.pdf',
+  );
+
+  Future<void> _downloadPerDiemXlsx(PerDiemRequest r) => downloadPdf(
+    context, () => PerDiemService.instance.xlsxBytes(r.id), 'travel-plan-${r.id}.xlsx',
+  );
 
   Future<void> _toggleEditGrant(PerDiemRequest r) async {
     try {
@@ -427,6 +440,8 @@ class _ApprovalsScreenState extends State<ApprovalsScreen> with SingleTickerProv
                           onToggleEditGrant: _toggleEditGrant,
                           onApproveTechnicianEdit: _approveTechnicianEdit,
                           onRejectTechnicianEdit: _rejectTechnicianEdit,
+                          onDownloadPdf: _downloadPerDiemPdf,
+                          onDownloadXlsx: _downloadPerDiemXlsx,
                         ),
                         _expensesError != null
                             ? ErrorView(message: _expensesError!, onRetry: _loadExpenses)
@@ -631,6 +646,7 @@ class _PerDiemTab extends StatelessWidget {
     required this.onInitiatePayment, required this.onAuthorizePayment,
     required this.onRevise, required this.onToggleEditGrant,
     required this.onApproveTechnicianEdit, required this.onRejectTechnicianEdit,
+    required this.onDownloadPdf, required this.onDownloadXlsx,
   });
   final List<PerDiemRequest> requests;
   final double pad;
@@ -648,6 +664,9 @@ class _PerDiemTab extends StatelessWidget {
   // review notice below (was previously just a passive text notice).
   final void Function(PerDiemRequest, PerDiemRevision) onApproveTechnicianEdit;
   final void Function(PerDiemRequest, PerDiemRevision) onRejectTechnicianEdit;
+  // Section 15.5: approvers are permitted viewers of the export too.
+  final ValueChanged<PerDiemRequest> onDownloadPdf;
+  final ValueChanged<PerDiemRequest> onDownloadXlsx;
 
   @override
   Widget build(BuildContext context) {
@@ -698,6 +717,21 @@ class _PerDiemTab extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(child: Text('${r.userName ?? '—'} · ${r.destination}',
                   style: AppTheme.bodyStrong.copyWith(fontSize: 13.5))),
+              // Section 15.5: approvers are permitted export viewers too.
+              GestureDetector(
+                onTap: () => onDownloadPdf(r),
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: Icon(Symbols.picture_as_pdf, size: 16, color: context.pal.textDim),
+                ),
+              ),
+              GestureDetector(
+                onTap: () => onDownloadXlsx(r),
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: Icon(Symbols.table_chart, size: 16, color: context.pal.textDim),
+                ),
+              ),
               // Section 8: "the CTO can edit any active plan" — available
               // at every stage shown here (none of these are rejected/
               // cancelled/paid, which this list never shows anyway).
