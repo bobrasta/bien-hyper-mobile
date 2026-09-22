@@ -56,7 +56,7 @@ class _AdminCommandCentreScreenState extends State<AdminCommandCentreScreen> {
     try {
       final results = await Future.wait([
         AdminOverviewService.instance.load(),
-        HospitalService.instance.list(),
+        HospitalService.instance.list(hasMachines: true),
       ]);
       if (mounted) {
         setState(() {

@@ -88,7 +88,7 @@ class _RevenueScreenState extends State<RevenueScreen> {
         MachineService.instance.list(),
         InvoiceService.instance.revenueByHospital(),
         InvoiceService.instance.revenueSummary(),
-        HospitalService.instance.list(),
+        HospitalService.instance.list(hasMachines: true),
       ]);
       final settings = await SettingService.instance.all();
       if (!mounted) return;

@@ -6,7 +6,6 @@ import '../../models/machine.dart';
 import '../../models/service_ticket.dart';
 import '../../utils/api_error.dart';
 import '../../widgets/common/error_view.dart';
-import '../../models/hospital.dart';
 import '../../services/hospital_service.dart';
 import '../../services/invoice_service.dart';
 import '../../services/machine_service.dart';
@@ -1075,33 +1074,16 @@ class _EditMachineDialogState extends State<_EditMachineDialog> {
   bool    _saving = false;
   String? _error;
 
-  List<Hospital> _hospitals        = [];
-  Hospital?      _selectedHospital;
-  bool           _loadingHospitals = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadHospitals();
-  }
-
-  Future<void> _loadHospitals() async {
-    try {
-      final list = await HospitalService.instance.list();
-      if (mounted) {
-        setState(() {
-          _hospitals        = list;
-          _loadingHospitals = false;
-          _selectedHospital = list.firstWhere(
-            (h) => h.name == widget.machine.hospital,
-            orElse: () => list.first,
-          );
-        });
-      }
-    } catch (_) {
-      if (mounted) setState(() => _loadingHospitals = false);
-    }
-  }
+  // Was: fetch up to 500 hospitals and name-match against them, falling
+  // back to `list.first` (an arbitrary, likely-wrong hospital) whenever the
+  // machine's real hospital fell outside that batch — silently reassigning
+  // the machine to the wrong facility on save. The hospital directory is
+  // 13,000+ rows since the national facility registry import, so that
+  // fallback was no longer a rare edge case. Fixed by trusting the id
+  // already on the Machine record instead of re-deriving it from a name
+  // lookup over a truncated list.
+  late int?    _hospitalId   = widget.machine.hospitalId;
+  late String? _hospitalName = widget.machine.hospital;
 
   @override
   void dispose() {
@@ -1119,7 +1101,7 @@ class _EditMachineDialogState extends State<_EditMachineDialog> {
       await MachineService.instance.update(widget.machine.id, {
         'model':           _modelCtrl.text.trim(),
         'serial_no':       _serialCtrl.text.trim(),
-        'hospital_id':     _selectedHospital?.id,
+        'hospital_id':     _hospitalId,
         'ward':            _wardCtrl.text.trim(),
         'warranty_expiry': _warrantyCtrl.text.trim(),
         'status':          _status,
@@ -1166,17 +1148,18 @@ class _EditMachineDialogState extends State<_EditMachineDialog> {
         ]),
         const SizedBox(height: 14),
         Row(children: [
-          Expanded(child: _loadingHospitals
-            ? _mLoadingField('Hospital')
-            : _hospitals.isEmpty
-              ? _MField('Hospital', TextEditingController(text: widget.machine.hospital), '')
-              : _MDrop(
-                  label: 'Hospital',
-                  value: _selectedHospital?.name ?? _hospitals.first.name,
-                  items: _hospitals.map((h) => h.name).toList(),
-                  onChanged: (v) => setState(() =>
-                    _selectedHospital = _hospitals.firstWhere((h) => h.name == v)),
-                )),
+          Expanded(child: AppSearchableSelectField<int>(
+            label: 'Hospital',
+            selectedLabel: _hospitalName,
+            asyncSearch: (q) async {
+              final results = await HospitalService.instance.search(q);
+              return results.map((h) => AppSelectItem(value: h.id, label: h.name)).toList();
+            },
+            onSelected: (item) => setState(() {
+              _hospitalId   = item?.value;
+              _hospitalName = item?.label;
+            }),
+          )),
           const SizedBox(width: 14),
           Expanded(child: _MField('Ward', _wardCtrl, '')),
         ]),
@@ -1250,19 +1233,17 @@ class _LogServiceDialogState extends State<_LogServiceDialog> {
 
   Future<void> _loadData() async {
     try {
-      final results = await Future.wait([
-        StaffService.instance.list(),
-        HospitalService.instance.list(),
-      ]);
-      final staff     = results[0] as List<StaffMember>;
-      final hospitals = results[1] as List<Hospital>;
-      final match = hospitals.where((h) => h.name == widget.machine.hospital).firstOrNull;
+      // Was: also fetch up to 500 hospitals to name-match a fallback for
+      // when machine.hospitalId is null — that id is reliably populated by
+      // the backend already, and the fallback list is now 13,000+ rows, so
+      // fetching it just for a redundant `??` fallback isn't worth it.
+      final staff = await StaffService.instance.list();
       if (mounted) {
         setState(() {
           _staff        = staff;
           _selectedTech = staff.isNotEmpty ? staff.first : null;
           _loadingStaff = false;
-          _hospitalId   = widget.machine.hospitalId ?? match?.id;
+          _hospitalId   = widget.machine.hospitalId;
         });
       }
     } catch (_) {
@@ -1395,19 +1376,17 @@ class _RaiseTicketDialogState extends State<_RaiseTicketDialog> {
 
   Future<void> _loadData() async {
     try {
-      final results = await Future.wait([
-        StaffService.instance.list(),
-        HospitalService.instance.list(),
-      ]);
-      final staff     = results[0] as List<StaffMember>;
-      final hospitals = results[1] as List<Hospital>;
-      final match = hospitals.where((h) => h.name == widget.machine.hospital).firstOrNull;
+      // Was: also fetch up to 500 hospitals to name-match a fallback for
+      // when machine.hospitalId is null — that id is reliably populated by
+      // the backend already, and the fallback list is now 13,000+ rows, so
+      // fetching it just for a redundant `??` fallback isn't worth it.
+      final staff = await StaffService.instance.list();
       if (mounted) {
         setState(() {
           _staff        = staff;
           _selectedTech = staff.isNotEmpty ? staff.first : null;
           _loadingStaff = false;
-          _hospitalId   = widget.machine.hospitalId ?? match?.id;
+          _hospitalId   = widget.machine.hospitalId;
         });
       }
     } catch (_) {

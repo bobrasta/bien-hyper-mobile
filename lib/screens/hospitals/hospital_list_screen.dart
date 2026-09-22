@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import '../../main.dart' show can;
@@ -28,52 +29,122 @@ class _HospitalListScreenState extends State<HospitalListScreen> {
   Hospital? _viewHospital;
   Hospital? _editHospital;
 
-  List<Hospital> _hospitals  = [];
-  bool           _loading    = true;
-  String?        _loadError;
-  int            _showCount  = 25;
-  static const   _pageSize   = 25;
+  // Real server-side pagination — the directory is 13,000+ rows since the
+  // national facility registry import, so "fetch up to 500 and treat that
+  // as the whole list" (the old behaviour here) silently truncated it down
+  // to whatever 500 rows happened to load first, and showed that count as
+  // if it were the true total. See lib/services/hospital_service.dart's
+  // listPaged() — filtering (search/type) happens server-side too, so what's
+  // displayed and what's actually in the table always agree.
+  static const _pageSize = 25;
+  List<Hospital> _pageHospitals = [];
+  int     _page      = 1;
+  int     _lastPage  = 1;
+  int     _pageTotal = 0;
+  bool    _loading   = true;
+  String? _loadError;
+  Timer?  _debounce;
+
+  // KPI chip numbers — deliberately NOT derived from _pageHospitals (that's
+  // only the current page). Total/Public/Private/Mission are true counts
+  // across the whole directory (cheap: paginate() computes a COUNT(*) for
+  // `total` regardless of per_page, so per_page:1 is a lightweight count-
+  // only request). Machines/Revenue are summed from the real client set
+  // only (has_machines:1, ~250 rows, safe to load in full) — every
+  // prospect row from the registry import has machine_count/revenue_monthly
+  // of exactly 0, so that sum is exact, not an approximation.
+  int?    _totalAll, _totalPublic, _totalPrivate, _totalMission;
+  int     _totalMachines = 0;
+  double  _totalRev      = 0;
 
   @override
   void initState() {
     super.initState();
-    _load();
+    _loadStats();
+    _loadPage();
   }
 
-  Future<void> _load() async {
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _search.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadStats() async {
+    try {
+      final results = await Future.wait([
+        HospitalService.instance.listPaged(perPage: 1),
+        HospitalService.instance.listPaged(perPage: 1, type: 'public'),
+        HospitalService.instance.listPaged(perPage: 1, type: 'private'),
+        HospitalService.instance.listPaged(perPage: 1, type: 'mission'),
+        HospitalService.instance.list(hasMachines: true),
+      ]);
+      if (!mounted) return;
+      final clients = results[4] as List<Hospital>;
+      setState(() {
+        _totalAll      = (results[0] as HospitalPage).total;
+        _totalPublic   = (results[1] as HospitalPage).total;
+        _totalPrivate  = (results[2] as HospitalPage).total;
+        _totalMission  = (results[3] as HospitalPage).total;
+        _totalMachines = clients.fold(0, (s, h) => s + h.machineCount);
+        _totalRev      = clients.fold(0.0, (s, h) => s + h.revenueMonthly);
+      });
+    } catch (_) {
+      // Non-critical — the table itself doesn't depend on these.
+    }
+  }
+
+  Future<void> _loadPage() async {
     setState(() { _loading = true; _loadError = null; });
     try {
-      final data = await HospitalService.instance.list();
-      if (mounted) setState(() { _hospitals = data; _loading = false; });
+      final q = _search.text.trim();
+      final result = await HospitalService.instance.listPaged(
+        page: _page,
+        perPage: _pageSize,
+        q: q.isEmpty ? null : q,
+        type: _typeFilter,
+      );
+      if (mounted) {
+        setState(() {
+          _pageHospitals = result.items;
+          _lastPage      = result.lastPage;
+          _pageTotal     = result.total;
+          _loading       = false;
+        });
+      }
     } catch (e) {
       if (mounted) setState(() { _loadError = friendlyError(e); _loading = false; });
     }
   }
 
-  int _typeCount(String? t) => t == null
-      ? _hospitals.length
-      : _hospitals.where((h) => h.type == t).length;
+  Future<void> _load() async {
+    _page = 1;
+    await Future.wait([_loadStats(), _loadPage()]);
+  }
 
-  List<Hospital> get _filtered {
-    var list = _hospitals;
-    if (_typeFilter != null) list = list.where((h) => h.type == _typeFilter).toList();
-    final q = _search.text.trim().toLowerCase();
-    if (q.isNotEmpty) {
-      list = list.where((h) =>
-        h.name.toLowerCase().contains(q) ||
-        h.region.toLowerCase().contains(q) ||
-        h.shortCode.toLowerCase().contains(q)).toList();
-    }
-    return list;
+  void _onSearchChanged() {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 350), () {
+      _page = 1;
+      _loadPage();
+    });
+  }
+
+  void _setTypeFilter(String? t) {
+    setState(() { _typeFilter = t; _page = 1; });
+    _loadPage();
+  }
+
+  void _goToPage(int p) {
+    if (p < 1 || p > _lastPage || p == _page) return;
+    setState(() => _page = p);
+    _loadPage();
   }
 
   @override
   Widget build(BuildContext context) {
-    final allFiltered   = _filtered;
-    final hospitals     = allFiltered.take(_showCount).toList();
-    final remaining     = allFiltered.length - hospitals.length;
-    final totalMachines = _hospitals.fold(0, (s, h) => s + h.machineCount);
-    final totalRev      = _hospitals.fold(0.0, (s, h) => s + h.revenueMonthly);
+    final hospitals = _pageHospitals;
 
     return Stack(
       children: [
@@ -95,7 +166,7 @@ class _HospitalListScreenState extends State<HospitalListScreen> {
                   const SizedBox(height: 4),
                   Text('Hospitals', style: AppTheme.pageTitle),
                   const SizedBox(height: 4),
-                  Text('${_hospitals.length} hospitals · $totalMachines machines · 11 regions',
+                  Text('${_totalAll ?? '…'} hospitals · $_totalMachines machines',
                     style: AppTheme.bodySub),
                 ]);
                 final actions = Row(mainAxisSize: MainAxisSize.min, children: [
@@ -124,20 +195,20 @@ class _HospitalListScreenState extends State<HospitalListScreen> {
                 wideCols: 5, mediumCols: 3, narrowCols: 2,
                 spacing: 10, runSpacing: 10,
                 children: [
-                  _TypeChip(label: 'All Hospitals',  value: '${_typeCount(null)}',
+                  _TypeChip(label: 'All Hospitals',  value: '${_totalAll ?? '…'}',
                     active: _typeFilter == null,
-                    onTap: () => setState(() { _typeFilter = null; _showCount = _pageSize; })),
-                  _TypeChip(label: 'Public',         value: '${_typeCount('public')}',
+                    onTap: () => _setTypeFilter(null)),
+                  _TypeChip(label: 'Public',         value: '${_totalPublic ?? '…'}',
                     color: AppColors.teal,   active: _typeFilter == 'public',
-                    onTap: () => setState(() { _typeFilter = _typeFilter == 'public'  ? null : 'public';  _showCount = _pageSize; })),
-                  _TypeChip(label: 'Private',        value: '${_typeCount('private')}',
+                    onTap: () => _setTypeFilter(_typeFilter == 'public'  ? null : 'public')),
+                  _TypeChip(label: 'Private',        value: '${_totalPrivate ?? '…'}',
                     color: AppColors.blue,   active: _typeFilter == 'private',
-                    onTap: () => setState(() { _typeFilter = _typeFilter == 'private' ? null : 'private'; _showCount = _pageSize; })),
-                  _TypeChip(label: 'Mission / NGO',  value: '${_typeCount('mission')}',
+                    onTap: () => _setTypeFilter(_typeFilter == 'private' ? null : 'private')),
+                  _TypeChip(label: 'Mission / NGO',  value: '${_totalMission ?? '…'}',
                     color: AppColors.violet, active: _typeFilter == 'mission',
-                    onTap: () => setState(() { _typeFilter = _typeFilter == 'mission' ? null : 'mission'; _showCount = _pageSize; })),
+                    onTap: () => _setTypeFilter(_typeFilter == 'mission' ? null : 'mission')),
                   _TypeChip(label: 'Monthly Revenue',
-                    value: 'TSh ${(totalRev / 1e6).toStringAsFixed(1)}M',
+                    value: 'TSh ${(_totalRev / 1e6).toStringAsFixed(1)}M',
                     color: AppColors.amber, active: false, onTap: () {}),
                 ],
               ),
@@ -158,7 +229,7 @@ class _HospitalListScreenState extends State<HospitalListScreen> {
                     const SizedBox(width: 8),
                     Expanded(child: TextField(
                       controller: _search,
-                      onChanged: (_) => setState(() => _showCount = _pageSize),
+                      onChanged: (_) => _onSearchChanged(),
                       style: AppTheme.bodySm,
                       decoration: InputDecoration(
                         hintText: 'Search by name, region or code—',
@@ -213,7 +284,7 @@ class _HospitalListScreenState extends State<HospitalListScreen> {
                         child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
                           Icon(Symbols.local_hospital, size: 36, color: context.pal.textDim),
                           const SizedBox(height: 10),
-                          Text(_hospitals.isEmpty ? 'No hospitals yet' : 'No hospitals match your search',
+                          Text(_pageTotal == 0 ? 'No hospitals match your search' : 'No hospitals yet',
                               style: AppTheme.bodySub),
                         ])),
                       )
@@ -223,21 +294,32 @@ class _HospitalListScreenState extends State<HospitalListScreen> {
                         onView: () => setState(() => _viewHospital = h),
                         onEdit: () => setState(() => _editHospital = h),
                       )),
-                    // Footer
+                    // Footer — real server-side pagination over _pageTotal
+                    // (the filtered directory's true count), not a client-
+                    // side "load more" over an already-fetched batch.
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                       decoration: BoxDecoration(
                         border: Border(top: BorderSide(color: context.pal.border)),
                       ),
                       child: Row(children: [
-                        Text('Showing ${hospitals.length} of ${allFiltered.length} hospitals',
+                        Text('Showing ${hospitals.isEmpty ? 0 : (_page - 1) * _pageSize + 1}'
+                          '–${(_page - 1) * _pageSize + hospitals.length} of $_pageTotal hospitals',
                           style: AppTheme.bodySub.copyWith(fontSize: 12)),
-                        if (remaining > 0) ...[
-                          const Spacer(),
+                        const Spacer(),
+                        if (_lastPage > 1) ...[
                           GestureDetector(
-                            onTap: () => setState(() => _showCount += _pageSize),
-                            child: Text('Load $remaining more',
-                              style: AppTheme.bodySm.copyWith(color: AppColors.teal, fontSize: 12)),
+                            onTap: _page > 1 ? () => _goToPage(_page - 1) : null,
+                            child: Icon(Symbols.chevron_left, size: 18,
+                              color: _page > 1 ? context.pal.text : context.pal.textDim),
+                          ),
+                          const SizedBox(width: 10),
+                          Text('Page $_page of $_lastPage', style: AppTheme.bodySm.copyWith(fontSize: 12)),
+                          const SizedBox(width: 10),
+                          GestureDetector(
+                            onTap: _page < _lastPage ? () => _goToPage(_page + 1) : null,
+                            child: Icon(Symbols.chevron_right, size: 18,
+                              color: _page < _lastPage ? context.pal.text : context.pal.textDim),
                           ),
                         ],
                       ]),

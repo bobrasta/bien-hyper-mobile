@@ -68,7 +68,7 @@ class _MachineMapScreenState extends State<MachineMapScreen> {
 
   Future<void> _loadHospitals() async {
     try {
-      final list = await HospitalService.instance.list();
+      final list = await HospitalService.instance.list(hasMachines: true);
       if (mounted) {
         setState(() {
           _hospitals = list;
