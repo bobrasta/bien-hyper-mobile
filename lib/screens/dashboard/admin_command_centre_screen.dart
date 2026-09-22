@@ -360,13 +360,13 @@ class _FleetSummaryCard extends StatelessWidget {
             _statsRow(uptimePct),
           ]);
         }
-        return IntrinsicHeight(child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Expanded(flex: 4, child: _regionBreakdown(context)),
           const SizedBox(width: 20),
           Expanded(flex: 3, child: _statusLegend(context)),
           const SizedBox(width: 20),
           Expanded(flex: 4, child: _statsRow(uptimePct)),
-        ]));
+        ]);
       }),
     );
   }
@@ -416,23 +416,27 @@ class _FleetSummaryCard extends StatelessWidget {
     ]),
   );
 
-  Widget _statsRow(double uptimePct) => GridView.count(
-    crossAxisCount: 2,
-    shrinkWrap: true,
-    physics: const NeverScrollableScrollPhysics(),
-    mainAxisSpacing: 10,
-    crossAxisSpacing: 10,
-    childAspectRatio: 2.2,
-    children: [
-      _statTile('Hospitals', '${hospitals.length}', AppColors.teal),
-      _statTile('Machines', '${hospitals.fold<int>(0, (a, h) => a + h.machineCount)}', AppColors.teal),
-      _statTile('Uptime', '${uptimePct.toStringAsFixed(0)}%', AppColors.teal),
+  // Plain Column/Row instead of GridView.count — a GridView (even
+  // shrinkWrap:true) builds on a lazy Viewport internally, which can't
+  // report intrinsic dimensions; harmless on its own, but fatal the
+  // moment an ancestor (or a future one) needs this subtree's intrinsic
+  // height. Four fixed tiles don't need a scrolling-grid widget anyway.
+  Widget _statsRow(double uptimePct) => Column(children: [
+    Row(children: [
+      Expanded(child: _statTile('Hospitals', '${hospitals.length}', AppColors.teal)),
+      const SizedBox(width: 10),
+      Expanded(child: _statTile('Machines', '${hospitals.fold<int>(0, (a, h) => a + h.machineCount)}', AppColors.teal)),
+    ]),
+    const SizedBox(height: 10),
+    Row(children: [
+      Expanded(child: _statTile('Uptime', '${uptimePct.toStringAsFixed(0)}%', AppColors.teal)),
+      const SizedBox(width: 10),
       // Section 13: in-stock/allocated machines are deliberately excluded
       // from the map and every other fleet count above — this is the one
       // place they're surfaced.
-      _statTile('In Stock', '$inStock', AppColors.amber),
-    ],
-  );
+      Expanded(child: _statTile('In Stock', '$inStock', AppColors.amber)),
+    ]),
+  ]);
 
   Widget _statTile(String label, String value, Color color) => Builder(builder: (context) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
