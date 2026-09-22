@@ -51,6 +51,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool   _savingPw      = false;
   String? _profileMsg;
 
+  // Section 15.7: payment details — required before any travel plan can
+  // be submitted (PerDiemController::store() 422s without one).
+  final _paymentProviderCtrl      = TextEditingController();
+  final _paymentAccountNumberCtrl = TextEditingController();
+  final _paymentAccountNameCtrl   = TextEditingController();
+  bool    _savingPaymentProfile = false;
+  String? _paymentProfileMsg;
+
   // Team members
   bool              _loadingMembers = true;
   List<StaffMember> _staffList      = [];
@@ -226,6 +234,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void dispose() {
     _nameCtrl.dispose(); _emailCtrl.dispose();
     _oldPwCtrl.dispose(); _newPwCtrl.dispose();
+    _paymentProviderCtrl.dispose(); _paymentAccountNumberCtrl.dispose(); _paymentAccountNameCtrl.dispose();
     _thresholdCtrl.dispose();
     _memberSearchCtrl.dispose();
     super.dispose();
@@ -240,6 +249,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
           if (profile != null) {
             _nameCtrl.text  = profile['name']  as String? ?? '';
             _emailCtrl.text = profile['email'] as String? ?? '';
+            final paymentProfile = profile['payment_profile'] as Map<String, dynamic>?;
+            if (paymentProfile != null) {
+              _paymentProviderCtrl.text      = paymentProfile['provider'] as String? ?? '';
+              _paymentAccountNumberCtrl.text = paymentProfile['account_number'] as String? ?? '';
+              _paymentAccountNameCtrl.text   = paymentProfile['account_name'] as String? ?? '';
+            }
           }
         });
       }
@@ -264,6 +279,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (mounted) setState(() { _savingProfile = false; _profileMsg = 'Profile updated.'; });
     } catch (e) {
       if (mounted) setState(() { _savingProfile = false; _profileMsg = 'Update failed.'; });
+    }
+  }
+
+  Future<void> _savePaymentProfile() async {
+    if (_savingPaymentProfile) return;
+    setState(() { _savingPaymentProfile = true; _paymentProfileMsg = null; });
+    try {
+      await ApiClient.instance.dio.put('/auth/payment-profile', data: {
+        'provider':       _paymentProviderCtrl.text.trim(),
+        'account_number': _paymentAccountNumberCtrl.text.trim(),
+        'account_name':   _paymentAccountNameCtrl.text.trim(),
+      });
+      if (mounted) setState(() { _savingPaymentProfile = false; _paymentProfileMsg = 'Payment details saved.'; });
+    } catch (e) {
+      if (mounted) setState(() { _savingPaymentProfile = false; _paymentProfileMsg = 'Save failed.'; });
     }
   }
 
@@ -474,6 +504,44 @@ class _SettingsScreenState extends State<SettingsScreen> {
     ]),
   );
 
+  // ── Payment details card (Section 15.7) ─────────────────────────────────
+  // Required before any travel plan can be submitted — the account number
+  // shown here is your own, never masked (masking only applies when
+  // someone ELSE views your plan's payment details).
+  Widget _paymentProfileCard(BuildContext context) => _SCard(
+    title: 'Payment Details',
+    child: _loadingProfile
+        ? const Center(child: Padding(
+            padding: EdgeInsets.symmetric(vertical: 12),
+            child: CircularProgressIndicator(strokeWidth: 2)))
+        : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(
+              'Used for travel-plan/per-diem payouts. Required before you can submit a travel plan.',
+              style: AppTheme.bodySub.copyWith(fontSize: 12.5, color: AppColors.textDim),
+            ),
+            const SizedBox(height: 12),
+            Row(children: [
+              Expanded(child: _SettingsField(label: 'Provider', ctrl: _paymentProviderCtrl, hint: 'e.g. SELCOM')),
+              const SizedBox(width: 14),
+              Expanded(child: _SettingsField(label: 'Account Number', ctrl: _paymentAccountNumberCtrl, hint: '1234567890123')),
+            ]),
+            const SizedBox(height: 14),
+            _SettingsField(label: 'Account Name', ctrl: _paymentAccountNameCtrl, hint: 'Full name on the account'),
+            const SizedBox(height: 16),
+            Row(children: [
+              if (_paymentProfileMsg != null) ...[
+                Icon(_paymentProfileMsg!.contains('failed') ? Symbols.error : Symbols.check_circle,
+                    size: 14, color: _paymentProfileMsg!.contains('failed') ? AppColors.coral : AppColors.teal),
+                const SizedBox(width: 6),
+                Text(_paymentProfileMsg!, style: AppTheme.bodySub.copyWith(
+                    color: _paymentProfileMsg!.contains('failed') ? AppColors.coral : AppColors.teal, fontSize: 12.5)),
+              ],
+              const Spacer(),
+              _TealBtn(label: 'Save payment details', saving: _savingPaymentProfile, onTap: _savePaymentProfile),
+            ]),
+          ]),
+  );
+
   // ── Section content ───────────────────────────────────────────────────────
   Widget _buildSectionContent(BuildContext context) => switch (_section) {
     0 => _profileSection(context),
@@ -489,6 +557,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       _profileCard(context),
+      const SizedBox(height: 16),
+      _paymentProfileCard(context),
       const SizedBox(height: 16),
       _passwordCard(context),
     ],

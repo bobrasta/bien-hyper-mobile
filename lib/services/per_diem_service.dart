@@ -26,6 +26,13 @@ class PerDiemService {
     return res.data!;
   }
 
+  // Section 15.5: same layout/data as the PDF, reproducing the approved
+  // WORKPLAN template cell-for-cell (see PerDiemXlsxExportService).
+  Future<List<int>> xlsxBytes(int id) async {
+    final res = await _dio.get<List<int>>('/per-diem-requests/$id/xlsx', options: Options(responseType: ResponseType.bytes));
+    return res.data!;
+  }
+
   Future<PerDiemRequest> create(Map<String, dynamic> data) async {
     final res = await _dio.post('/per-diem-requests', data: data);
     return PerDiemRequest.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);

@@ -23,18 +23,21 @@ class _PlanLineDraft {
   final districtCtrl   = TextEditingController();
   final siteCtrl       = TextEditingController();
   final activityCtrl   = TextEditingController();
+  final laborCtrl      = TextEditingController();
   final perDiemCtrl    = TextEditingController();
   final transportCtrl  = TextEditingController();
 
+  int get labor     => int.tryParse(laborCtrl.text.trim()) ?? 0;
   int get perDiem   => int.tryParse(perDiemCtrl.text.trim()) ?? 0;
   int get transport => int.tryParse(transportCtrl.text.trim()) ?? 0;
-  int get total     => perDiem + transport;
+  int get total     => labor + perDiem + transport;
 
   void dispose() {
     regionCtrl.dispose();
     districtCtrl.dispose();
     siteCtrl.dispose();
     activityCtrl.dispose();
+    laborCtrl.dispose();
     perDiemCtrl.dispose();
     transportCtrl.dispose();
   }
@@ -46,6 +49,7 @@ class _PlanLineDraft {
     district: districtCtrl.text.trim().isEmpty ? null : districtCtrl.text.trim(),
     siteName: siteCtrl.text.trim().isEmpty     ? null : siteCtrl.text.trim(),
     activity: activityCtrl.text.trim().isEmpty ? null : activityCtrl.text.trim(),
+    laborCost:     labor,
     perDiemCost:   perDiem,
     transportFare: transport,
   ).toJson();
@@ -114,9 +118,10 @@ class _TravelPlanDialogState extends State<TravelPlanDialog> {
     if (picked != null) setState(() => _lines[i].date = picked);
   }
 
+  int get _totalLabor     => _lines.fold(0, (s, l) => s + l.labor);
   int get _totalPerDiem   => _lines.fold(0, (s, l) => s + l.perDiem);
   int get _totalTransport => _lines.fold(0, (s, l) => s + l.transport);
-  int get _grandTotal     => _totalPerDiem + _totalTransport;
+  int get _grandTotal     => _totalLabor + _totalPerDiem + _totalTransport;
   int get _sitesVisited   =>
       _lines.map((l) => l.siteCtrl.text.trim()).where((s) => s.isNotEmpty).toSet().length;
   int get _daysSpent => _lines.map((l) => _iso(l.date)).toSet().length;
@@ -208,6 +213,8 @@ class _TravelPlanDialogState extends State<TravelPlanDialog> {
         ]),
         const SizedBox(height: 8),
         Row(children: [
+          Expanded(child: _miniField('Labor (TSh)', l.laborCtrl, numeric: true)),
+          const SizedBox(width: 8),
           Expanded(child: _miniField('Per Diem (TSh)', l.perDiemCtrl, numeric: true)),
           const SizedBox(width: 8),
           Expanded(child: _miniField('Transport (TSh)', l.transportCtrl, numeric: true)),
@@ -319,11 +326,13 @@ class _TravelPlanDialogState extends State<TravelPlanDialog> {
                   ),
                   child: Row(children: [
                     _summaryStat('Days', '$_daysSpent'),
-                    const SizedBox(width: 20),
+                    const SizedBox(width: 16),
                     _summaryStat('Sites', '$_sitesVisited'),
-                    const SizedBox(width: 20),
+                    const SizedBox(width: 16),
+                    _summaryStat('Labor', tshShort(_totalLabor)),
+                    const SizedBox(width: 16),
                     _summaryStat('Per Diem', tshShort(_totalPerDiem)),
-                    const SizedBox(width: 20),
+                    const SizedBox(width: 16),
                     _summaryStat('Transport', tshShort(_totalTransport)),
                     const Spacer(),
                     Column(crossAxisAlignment: CrossAxisAlignment.end, children: [

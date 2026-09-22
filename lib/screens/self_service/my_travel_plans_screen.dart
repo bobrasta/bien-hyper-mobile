@@ -49,6 +49,11 @@ class _MyTravelPlansScreenState extends State<MyTravelPlansScreen> {
     context, () => PerDiemService.instance.pdfBytes(p.id), 'travel-plan-${p.id}.pdf',
   );
 
+  // Section 15.5: reproduces the approved WORKPLAN template cell-for-cell.
+  Future<void> _downloadXlsx(PerDiemRequest p) => downloadPdf(
+    context, () => PerDiemService.instance.xlsxBytes(p.id), 'travel-plan-${p.id}.xlsx',
+  );
+
   // Section 8: "the CTO grants edit permission on a specific plan... while
   // granted, the technician can edit only what was unlocked." Reuses the
   // same day-by-day editor the CTO uses, in propose mode — the edit is
@@ -94,6 +99,7 @@ class _MyTravelPlansScreenState extends State<MyTravelPlansScreen> {
                 expanded: _expandedId == p.id,
                 onToggle: () => setState(() => _expandedId = _expandedId == p.id ? null : p.id),
                 onDownload: () => _downloadPdf(p),
+                onDownloadXlsx: () => _downloadXlsx(p),
                 onProposeEdit: p.hasActiveEditGrant ? () => _showProposeEditDialog(p) : null,
                 onOpenTicket: (widget.onOpenTicket == null || p.serviceTicketId == null)
                     ? null : () => widget.onOpenTicket!(p.serviceTicketId!),
@@ -119,12 +125,13 @@ Color _stageColor(PerDiemRequest p) {
 class _PlanCard extends StatelessWidget {
   const _PlanCard({
     required this.plan, required this.expanded, required this.onToggle,
-    required this.onDownload, this.onOpenTicket, this.onProposeEdit,
+    required this.onDownload, required this.onDownloadXlsx, this.onOpenTicket, this.onProposeEdit,
   });
   final PerDiemRequest plan;
   final bool expanded;
   final VoidCallback onToggle;
   final VoidCallback onDownload;
+  final VoidCallback onDownloadXlsx;
   final VoidCallback? onOpenTicket;
   // Non-null only when the CTO has granted this technician edit access on
   // this plan (Section 8: "a technician cannot edit by default").
@@ -196,6 +203,27 @@ class _PlanCard extends StatelessWidget {
             )),
             const SizedBox(height: 10),
           ],
+          if (plan.summary != null) ...[
+            Text('SUMMARY', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+            const SizedBox(height: 8),
+            Wrap(spacing: 18, runSpacing: 4, children: [
+              Text('Sites: ${plan.summary!.sitesVisited}', style: AppTheme.bodySub.copyWith(fontSize: 12)),
+              Text('Days: ${plan.summary!.daysSpent}', style: AppTheme.bodySub.copyWith(fontSize: 12)),
+              Text('Avg days/site: ${plan.summary!.avgDaysPerSite?.toStringAsFixed(1) ?? '-'}', style: AppTheme.bodySub.copyWith(fontSize: 12)),
+              Text('Avg cost/site: ${plan.summary!.avgCostPerSite != null ? 'TSh ${plan.summary!.avgCostPerSite!.toStringAsFixed(0)}' : '-'}', style: AppTheme.bodySub.copyWith(fontSize: 12)),
+              Text('Grand total: TSh ${plan.summary!.grandTotal}', style: AppTheme.bodyStrong.copyWith(fontSize: 12, color: AppColors.teal)),
+            ]),
+            const SizedBox(height: 10),
+          ],
+          if (plan.paymentSnapshot != null) ...[
+            Text('PAYMENT DETAILS', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+            const SizedBox(height: 6),
+            Text(
+              '${plan.paymentSnapshot!.provider ?? ''} · ${plan.paymentSnapshot!.accountNumber ?? ''} · ${plan.paymentSnapshot!.accountName ?? ''}',
+              style: AppTheme.bodySub.copyWith(fontSize: 12),
+            ),
+            const SizedBox(height: 10),
+          ],
           if (plan.adjustments.isNotEmpty) ...[
             Text('PAYMENT ADJUSTMENTS', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
             const SizedBox(height: 8),
@@ -257,6 +285,19 @@ class _PlanCard extends StatelessWidget {
                   Icon(Symbols.download, size: 14, color: AppColors.teal),
                   const SizedBox(width: 6),
                   Text('Download PDF', style: AppTheme.bodySub.copyWith(fontSize: 12)),
+                ]),
+              ),
+            ),
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: onDownloadXlsx,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                decoration: BoxDecoration(border: Border.all(color: context.pal.border), borderRadius: BorderRadius.circular(8)),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Symbols.table_chart, size: 14, color: AppColors.teal),
+                  const SizedBox(width: 6),
+                  Text('Download XLSX', style: AppTheme.bodySub.copyWith(fontSize: 12)),
                 ]),
               ),
             ),
