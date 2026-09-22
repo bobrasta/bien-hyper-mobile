@@ -405,6 +405,70 @@ class _ServiceTicketScreenState extends State<ServiceTicketScreen> {
     setState(() { _travelPlanTicket = ticket; _showTravelPlan = true; });
   }
 
+  // Section 6: "Machines can be added later while the ticket is open" —
+  // this was wired end-to-end in TicketService but never surfaced in the
+  // detail view (only the create-time picker and the resolve wizard's
+  // per-machine completion existed). Mirrors hypermed-web's Machines panel.
+  void _showAddMachineDialog(BuildContext context, ServiceTicket ticket) {
+    showDialog<void>(
+      context: context,
+      builder: (_) => _AddMachineToTicketDialog(
+        ticket: ticket,
+        onAdded: (updated) {
+          if (mounted) setState(() { if (_detailTicket?.dbId == updated.dbId) _detailTicket = updated; });
+        },
+      ),
+    );
+  }
+
+  Future<void> _removeMachine(ServiceTicket ticket, TicketMachine machine, String reason) async {
+    try {
+      final updated = await TicketService.instance.removeMachine(ticket.dbId, machine.id, reason);
+      if (mounted) {
+        setState(() { if (_detailTicket?.dbId == updated.dbId) _detailTicket = updated; });
+        showSuccessToast(context, '${machine.model} removed from ticket');
+      }
+    } catch (e) {
+      if (mounted) showErrorToast(context, e);
+    }
+  }
+
+  void _showRemoveMachineDialog(BuildContext context, ServiceTicket ticket, TicketMachine machine) {
+    showDialog<void>(
+      context: context,
+      builder: (_) => _RemoveMachineReasonDialog(
+        machine: machine,
+        onConfirm: (reason) => _removeMachine(ticket, machine, reason),
+      ),
+    );
+  }
+
+  // Installation needs the full handover form (_CompleteMachineDialog,
+  // already built for the resolve wizard — reused here verbatim); every
+  // other type is a single tap, matching hypermed-web's plain "Mark done"
+  // button with no modal.
+  Future<void> _completeMachineDirect(ServiceTicket ticket, TicketMachine machine) async {
+    if (ticket.type == 'installation') {
+      final updated = await showDialog<ServiceTicket>(
+        context: context,
+        builder: (_) => _CompleteMachineDialog(ticketId: ticket.dbId, machine: machine),
+      );
+      if (updated != null && mounted) {
+        setState(() { if (_detailTicket?.dbId == updated.dbId) _detailTicket = updated; });
+      }
+      return;
+    }
+    try {
+      final updated = await TicketService.instance.completeMachine(ticket.dbId, machine.id);
+      if (mounted) {
+        setState(() { if (_detailTicket?.dbId == updated.dbId) _detailTicket = updated; });
+        showSuccessToast(context, '${machine.model} marked done');
+      }
+    } catch (e) {
+      if (mounted) showErrorToast(context, e);
+    }
+  }
+
   void _showAddPartDialog(BuildContext context, ServiceTicket ticket) {
     showDialog<void>(
       context: context,
@@ -654,7 +718,10 @@ class _ServiceTicketScreenState extends State<ServiceTicketScreen> {
                     onAcknowledge: () => _acknowledge(ticket),
                     acknowledging: _acknowledging,
                     onSubmitTravelPlan: () => _showTravelPlanDialog(ticket),
-                    travelPlan: _travelPlanFor(ticket))),
+                    travelPlan: _travelPlanFor(ticket),
+                    onAddMachine: () => _showAddMachineDialog(context, ticket),
+                    onRemoveMachine: (m) => _showRemoveMachineDialog(context, ticket, m),
+                    onCompleteMachine: (m) => _completeMachineDirect(ticket, m))),
               ]);
             }
 
@@ -692,6 +759,9 @@ class _ServiceTicketScreenState extends State<ServiceTicketScreen> {
                       acknowledging: _acknowledging,
                       onSubmitTravelPlan: () => _showTravelPlanDialog(ticket),
                       travelPlan: _travelPlanFor(ticket),
+                      onAddMachine: () => _showAddMachineDialog(context, ticket),
+                      onRemoveMachine: (m) => _showRemoveMachineDialog(context, ticket, m),
+                      onCompleteMachine: (m) => _completeMachineDirect(ticket, m),
                     ),
             ),
           ]);  // Row
@@ -789,10 +859,27 @@ class _TicketListRow extends StatelessWidget {
 }
 
 // Section 6: "Ticket list and detail show 'Installation, N machines' with
-// an expandable list, and a Pending count."
+// an expandable list, and a Pending count." Also where a machine can be
+// added/removed/completed independently of the full resolve wizard —
+// mirrors hypermed-web's Machines panel (only shown when not resolved and
+// the viewer can act: assignee or CTO/Director tier).
 class _MachineListExpander extends StatefulWidget {
-  const _MachineListExpander({required this.machines});
+  const _MachineListExpander({
+    required this.machines,
+    required this.ticketType,
+    required this.isResolved,
+    required this.canAct,
+    this.onAddMachine,
+    this.onRemoveMachine,
+    this.onCompleteMachine,
+  });
   final List<TicketMachine> machines;
+  final String ticketType;
+  final bool isResolved;
+  final bool canAct;
+  final VoidCallback? onAddMachine;
+  final ValueChanged<TicketMachine>? onRemoveMachine;
+  final ValueChanged<TicketMachine>? onCompleteMachine;
 
   @override
   State<_MachineListExpander> createState() => _MachineListExpanderState();
@@ -802,32 +889,63 @@ class _MachineListExpanderState extends State<_MachineListExpander> {
   bool _open = false;
 
   @override
-  Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    GestureDetector(
-      onTap: () => setState(() => _open = !_open),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(_open ? Symbols.expand_less : Symbols.expand_more, size: 16, color: context.pal.textDim),
-        const SizedBox(width: 4),
-        Text(_open ? 'Hide machine list' : 'Show machine list',
-            style: AppTheme.bodySub.copyWith(fontSize: 12, color: AppColors.teal)),
+  Widget build(BuildContext context) {
+    final showActions = widget.canAct && !widget.isResolved;
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        GestureDetector(
+          onTap: () => setState(() => _open = !_open),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(_open ? Symbols.expand_less : Symbols.expand_more, size: 16, color: context.pal.textDim),
+            const SizedBox(width: 4),
+            Text(_open ? 'Hide machine list' : 'Show machine list',
+                style: AppTheme.bodySub.copyWith(fontSize: 12, color: AppColors.teal)),
+          ]),
+        ),
+        if (showActions && widget.onAddMachine != null) ...[
+          const SizedBox(width: 14),
+          GestureDetector(
+            onTap: widget.onAddMachine,
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(Symbols.add, size: 14, color: AppColors.teal),
+              const SizedBox(width: 2),
+              Text('Add machine', style: AppTheme.bodySub.copyWith(fontSize: 12, color: AppColors.teal)),
+            ]),
+          ),
+        ],
       ]),
-    ),
-    if (_open) ...[
-      const SizedBox(height: 8),
-      ...widget.machines.map((m) => Padding(
-        padding: const EdgeInsets.only(bottom: 6),
-        child: Row(children: [
-          Icon(m.isDone ? Symbols.check_circle : Symbols.pending, size: 14,
-              color: m.isDone ? AppColors.teal : AppColors.amber),
-          const SizedBox(width: 8),
-          Expanded(child: Text('${m.model} · ${m.serialNo}',
-              style: AppTheme.bodySm.copyWith(fontSize: 12.5), overflow: TextOverflow.ellipsis)),
-          Text(m.isDone ? 'Done' : 'Pending',
-              style: AppTheme.bodySub.copyWith(fontSize: 11, color: m.isDone ? AppColors.teal : AppColors.amber)),
-        ]),
-      )),
-    ],
-  ]);
+      if (_open) ...[
+        const SizedBox(height: 8),
+        ...widget.machines.map((m) => Padding(
+          padding: const EdgeInsets.only(bottom: 6),
+          child: Row(children: [
+            Icon(m.isDone ? Symbols.check_circle : Symbols.pending, size: 14,
+                color: m.isDone ? AppColors.teal : AppColors.amber),
+            const SizedBox(width: 8),
+            Expanded(child: Text('${m.model} · ${m.serialNo}',
+                style: AppTheme.bodySm.copyWith(fontSize: 12.5), overflow: TextOverflow.ellipsis)),
+            if (m.isDone)
+              Text('Done', style: AppTheme.bodySub.copyWith(fontSize: 11, color: AppColors.teal))
+            else if (showActions) ...[
+              GestureDetector(
+                onTap: widget.onCompleteMachine == null ? null : () => widget.onCompleteMachine!(m),
+                child: Text(
+                  widget.ticketType == 'installation' ? 'Hand over' : 'Mark done',
+                  style: AppTheme.bodySub.copyWith(fontSize: 11.5, color: AppColors.teal, fontWeight: FontWeight.w600),
+                ),
+              ),
+              const SizedBox(width: 10),
+              GestureDetector(
+                onTap: widget.onRemoveMachine == null ? null : () => widget.onRemoveMachine!(m),
+                child: Icon(Symbols.delete_outline, size: 15, color: AppColors.coral),
+              ),
+            ] else
+              Text('Pending', style: AppTheme.bodySub.copyWith(fontSize: 11, color: AppColors.amber)),
+          ]),
+        )),
+      ],
+    ]);
+  }
 }
 
 // Section 6: how many of a multi-machine ticket's lines are still pending —
@@ -868,6 +986,9 @@ class _TicketDetailPanel extends StatelessWidget {
     this.acknowledging = false,
     this.onSubmitTravelPlan,
     this.travelPlan,
+    this.onAddMachine,
+    this.onRemoveMachine,
+    this.onCompleteMachine,
   });
   final ServiceTicket ticket;
   final ServiceTicket? detailTicket;
@@ -893,6 +1014,12 @@ class _TicketDetailPanel extends StatelessWidget {
   // any — drives whether we show the "Submit Travel Plan" button or a
   // status banner instead.
   final PerDiemRequest? travelPlan;
+  // Section 6: "Machines can be added later while the ticket is open" —
+  // add/remove/complete a machine independently of the full resolve
+  // wizard, mirroring hypermed-web's Machines panel.
+  final VoidCallback? onAddMachine;
+  final ValueChanged<TicketMachine>? onRemoveMachine;
+  final ValueChanged<TicketMachine>? onCompleteMachine;
 
   @override
   Widget build(BuildContext context) {
@@ -944,9 +1071,17 @@ class _TicketDetailPanel extends StatelessWidget {
                   ? (ticket.type == 'installation' ? 'Installation · ${ticket.hospital}' : '${ticket.machineType} · ${ticket.hospital}')
                   : '${ticket.machineType} · ${ticket.hospital}',
               style: AppTheme.bodySub),
-          if (ticket.isMultiMachine && ticket.machines != null) ...[
+          if (t.isMultiMachine && t.machines != null) ...[
             const SizedBox(height: 10),
-            _MachineListExpander(machines: ticket.machines!),
+            _MachineListExpander(
+              machines: t.machines!,
+              ticketType: t.type,
+              isResolved: isResolved,
+              canAct: canAct,
+              onAddMachine: onAddMachine,
+              onRemoveMachine: onRemoveMachine,
+              onCompleteMachine: onCompleteMachine,
+            ),
           ],
         ])),
         if (canAct)
@@ -2504,6 +2639,165 @@ class _CompleteMachineDialogState extends State<_CompleteMachineDialog> {
         child: _saving
             ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
             : const Text('Confirm Handover'),
+      ),
+    ],
+  );
+}
+
+// ── Add Machine to (already-open) Ticket Dialog ──────────────────────────────
+// Section 6: "Machines can be added later while the ticket is open" — same
+// eligibility rule as the create-time picker (TravelPlanDialog's sibling,
+// _CreateTicketDialogState._filteredMachines): Installation tickets only
+// take a machine still awaiting install, every other type only takes one
+// already installed. The server re-checks this regardless
+// (assertMachineEligibleForTicket) — this is just so the picker doesn't
+// offer a choice it would reject anyway.
+class _AddMachineToTicketDialog extends StatefulWidget {
+  const _AddMachineToTicketDialog({required this.ticket, required this.onAdded});
+  final ServiceTicket ticket;
+  final ValueChanged<ServiceTicket> onAdded;
+
+  @override
+  State<_AddMachineToTicketDialog> createState() => _AddMachineToTicketDialogState();
+}
+
+class _AddMachineToTicketDialogState extends State<_AddMachineToTicketDialog> {
+  List<Machine> _machines = [];
+  bool _loading = true;
+  bool _saving = false;
+  String? _error;
+  int? _selectedId;
+  String _search = '';
+
+  @override
+  void initState() {
+    super.initState();
+    MachineService.instance.list().then((list) {
+      if (mounted) setState(() { _machines = list; _loading = false; });
+    }).catchError((e) {
+      if (mounted) setState(() { _loading = false; _error = friendlyError(e); });
+    });
+  }
+
+  List<Machine> get _eligible {
+    final existingIds = (widget.ticket.machines ?? []).map((m) => m.id).toSet();
+    final isInstallation = widget.ticket.type == 'installation';
+    return _machines.where((m) =>
+      m.hospital == widget.ticket.hospital &&
+      !existingIds.contains(m.id) &&
+      (isInstallation ? m.status == MachineStatus.pendingInstallation : m.status != MachineStatus.pendingInstallation) &&
+      (_search.isEmpty || m.model.toLowerCase().contains(_search.toLowerCase()) || m.serialNo.toLowerCase().contains(_search.toLowerCase()))
+    ).toList();
+  }
+
+  Future<void> _confirm() async {
+    if (_saving || _selectedId == null) return;
+    setState(() { _saving = true; _error = null; });
+    try {
+      final updated = await TicketService.instance.addMachine(widget.ticket.dbId, _selectedId!);
+      if (mounted) {
+        widget.onAdded(updated);
+        Navigator.of(context).pop();
+      }
+    } catch (e) {
+      if (mounted) setState(() { _saving = false; _error = friendlyError(e); });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    backgroundColor: context.pal.surface1,
+    title: const Text('Add Machine'),
+    content: SizedBox(width: 420, child: Column(mainAxisSize: MainAxisSize.min, children: [
+      TextField(
+        decoration: const InputDecoration(hintText: 'Search model or serial…', isDense: true),
+        onChanged: (v) => setState(() => _search = v),
+      ),
+      const SizedBox(height: 10),
+      SizedBox(
+        height: 280,
+        child: _loading
+            ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
+            : _eligible.isEmpty
+                ? Center(child: Text(
+                    widget.ticket.type == 'installation' ? 'No machines awaiting installation at this hospital.' : 'No installed machines at this hospital.',
+                    style: AppTheme.bodySub, textAlign: TextAlign.center))
+                : ListView.builder(
+                    itemCount: _eligible.length,
+                    itemBuilder: (_, i) {
+                      final m = _eligible[i];
+                      final selected = m.id == _selectedId;
+                      return ListTile(
+                        dense: true,
+                        selected: selected,
+                        selectedTileColor: AppColors.tealSoft,
+                        title: Text(m.model, style: AppTheme.bodySm.copyWith(fontSize: 13)),
+                        subtitle: Text(m.serialNo, style: AppTheme.monoXs.copyWith(fontSize: 11)),
+                        trailing: selected ? Icon(Symbols.check_circle, size: 18, color: AppColors.teal) : null,
+                        onTap: () => setState(() => _selectedId = m.id),
+                      );
+                    },
+                  ),
+      ),
+      if (_error != null) ...[
+        const SizedBox(height: 10),
+        Text(_error!, style: TextStyle(color: AppColors.coral, fontSize: 12)),
+      ],
+    ])),
+    actions: [
+      TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancel')),
+      FilledButton(
+        onPressed: (_saving || _selectedId == null) ? null : _confirm,
+        child: _saving
+            ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+            : const Text('Add'),
+      ),
+    ],
+  );
+}
+
+// ── Remove Machine Reason Dialog ─────────────────────────────────────────────
+// Section 6: "A machine can be removed from an open ticket (for example
+// delivery delayed) with a required reason" — matches the API's
+// required|min:10 validation.
+class _RemoveMachineReasonDialog extends StatefulWidget {
+  const _RemoveMachineReasonDialog({required this.machine, required this.onConfirm});
+  final TicketMachine machine;
+  final ValueChanged<String> onConfirm;
+
+  @override
+  State<_RemoveMachineReasonDialog> createState() => _RemoveMachineReasonDialogState();
+}
+
+class _RemoveMachineReasonDialogState extends State<_RemoveMachineReasonDialog> {
+  final _reasonCtrl = TextEditingController();
+
+  @override
+  void dispose() { _reasonCtrl.dispose(); super.dispose(); }
+
+  bool get _canSubmit => _reasonCtrl.text.trim().length >= 10;
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    backgroundColor: context.pal.surface1,
+    title: Text('Remove ${widget.machine.model}'),
+    content: SizedBox(width: 380, child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text('This machine returns to Allocated — it was never actually handed over on this ticket.',
+          style: AppTheme.bodySub.copyWith(fontSize: 12.5)),
+      const SizedBox(height: 12),
+      TextField(
+        controller: _reasonCtrl,
+        maxLines: 3,
+        decoration: const InputDecoration(hintText: 'Reason (min 10 characters) — e.g. delivery delayed', isDense: true),
+        onChanged: (_) => setState(() {}),
+      ),
+    ])),
+    actions: [
+      TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancel')),
+      FilledButton(
+        style: FilledButton.styleFrom(backgroundColor: AppColors.coral),
+        onPressed: _canSubmit ? () { widget.onConfirm(_reasonCtrl.text.trim()); Navigator.of(context).pop(); } : null,
+        child: const Text('Remove'),
       ),
     ],
   );
