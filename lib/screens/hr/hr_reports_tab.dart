@@ -320,9 +320,18 @@ class _HrReportsTabState extends State<HrReportsTab> {
                 child: Column(mainAxisAlignment: MainAxisAlignment.end, children: [
                   Text(e.value.toStringAsFixed(0), style: AppTheme.monoXs.copyWith(fontSize: 11, color: context.pal.text)),
                   const SizedBox(height: 6),
-                  FractionallySizedBox(
-                    heightFactor: (maxV == 0 ? 0.0 : e.value / maxV).clamp(0.04, 1.0),
-                    child: Container(decoration: BoxDecoration(color: _leaveColor(e.key), borderRadius: const BorderRadius.vertical(top: Radius.circular(5)))),
+                  // Expanded is required here: a Column gives a direct
+                  // (non-flex) child unbounded max height along the main
+                  // axis, and FractionallySizedBox.heightFactor multiplies
+                  // that straight through (factor * infinity = infinity),
+                  // which crashes downstream in RenderDecoratedBox. Expanded
+                  // gives it the Column's actual remaining bounded height.
+                  Expanded(
+                    child: FractionallySizedBox(
+                      heightFactor: (maxV == 0 ? 0.0 : e.value / maxV).clamp(0.04, 1.0),
+                      alignment: Alignment.bottomCenter,
+                      child: Container(decoration: BoxDecoration(color: _leaveColor(e.key), borderRadius: const BorderRadius.vertical(top: Radius.circular(5)))),
+                    ),
                   ),
                   const SizedBox(height: 6),
                   Text(e.key, style: AppTheme.bodySub.copyWith(fontSize: 9.5), textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis),
