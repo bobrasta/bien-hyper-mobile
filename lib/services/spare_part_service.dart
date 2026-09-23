@@ -6,6 +6,11 @@ class SparePartService {
   static final instance = SparePartService._();
   final _dio = ApiClient.instance.dio;
 
+  // Stale-while-revalidate screen cache — see MachineService for the full
+  // reasoning. cachedDefaultList only covers the unfiltered query.
+  static List<SparePart>? cachedDefaultList;
+  static final Map<int, SparePart> cachedById = {};
+
   Future<List<SparePart>> list({
     String? category,
     bool? lowStock,
@@ -23,12 +28,18 @@ class SparePartService {
       'per_page': 1000,
     });
     final (data, _) = ApiClient.unwrapList(res);
-    return data.map((j) => SparePart.fromJson(j as Map<String, dynamic>)).toList();
+    final parts = data.map((j) => SparePart.fromJson(j as Map<String, dynamic>)).toList();
+    if (category == null && lowStock != true && supplier == null && search == null) {
+      cachedDefaultList = parts;
+    }
+    return parts;
   }
 
   Future<SparePart> get(int id) async {
     final res = await _dio.get('/inventory/$id');
-    return SparePart.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+    final part = SparePart.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+    cachedById[part.id] = part;
+    return part;
   }
 
   Future<SparePart> create(Map<String, dynamic> data) async {

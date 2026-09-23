@@ -6,6 +6,10 @@ class LocationService {
   static final instance = LocationService._();
   final _dio = ApiClient.instance.dio;
 
+  // Stale-while-revalidate screen cache — see MachineService for the full
+  // reasoning. Only covers the unfiltered/default query.
+  static List<Location>? cachedDefaultList;
+
   Future<List<Location>> list({String? search, String? type, bool includeInactive = false}) async {
     final res = await _dio.get('/locations', queryParameters: {
       'search':           ?search,
@@ -13,7 +17,9 @@ class LocationService {
       if (includeInactive) 'include_inactive': 'true',
     });
     final (data, _) = ApiClient.unwrapList(res);
-    return data.map((j) => Location.fromJson(j as Map<String, dynamic>)).toList();
+    final locations = data.map((j) => Location.fromJson(j as Map<String, dynamic>)).toList();
+    if (search == null && type == null && includeInactive == false) cachedDefaultList = locations;
+    return locations;
   }
 
   Future<Location> create(Map<String, dynamic> data) async {

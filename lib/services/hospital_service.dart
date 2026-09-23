@@ -19,6 +19,12 @@ class HospitalService {
   static final instance = HospitalService._();
   final _dio = ApiClient.instance.dio;
 
+  // Stale-while-revalidate screen cache — see MachineService for the full
+  // reasoning. Each covers only its own default/unfiltered, page-1 query.
+  static List<Hospital>? cachedDefaultList;
+  static HospitalPage? cachedFirstPage;
+  static final Map<int, Hospital> cachedById = {};
+
   /// `hasMachines: true` restricts to real client facilities (excludes the
   /// ~13,600 machine-less prospect rows from the national facility registry
   /// import) — pass it for anything fleet/revenue-shaped that only ever
@@ -37,7 +43,9 @@ class HospitalService {
       options: ApiClient.cachingOptions(const Duration(minutes: 30)),
     );
     final (data, _) = ApiClient.unwrapList(res);
-    return data.map((j) => Hospital.fromJson(j as Map<String, dynamic>)).toList();
+    final hospitals = data.map((j) => Hospital.fromJson(j as Map<String, dynamic>)).toList();
+    if (type == null && region == null && hasMachines == false) cachedDefaultList = hospitals;
+    return hospitals;
   }
 
   /// Real server-side pagination over the full hospital directory (now
@@ -60,12 +68,14 @@ class HospitalService {
       'region': ?region,
     });
     final (data, meta) = ApiClient.unwrapList(res);
-    return HospitalPage(
+    final result = HospitalPage(
       items: data.map((j) => Hospital.fromJson(j as Map<String, dynamic>)).toList(),
       currentPage: (meta?['current_page'] as num?)?.toInt() ?? page,
       lastPage: (meta?['last_page'] as num?)?.toInt() ?? page,
       total: (meta?['total'] as num?)?.toInt() ?? data.length,
     );
+    if (page == 1 && q == null && type == null && region == null) cachedFirstPage = result;
+    return result;
   }
 
   /// Server-side search for the combobox — never loads the full directory.
@@ -79,7 +89,9 @@ class HospitalService {
 
   Future<Hospital> get(int id) async {
     final res = await _dio.get('/hospitals/$id');
-    return Hospital.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+    final hospital = Hospital.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+    cachedById[hospital.id] = hospital;
+    return hospital;
   }
 
   Future<Hospital> create(Map<String, dynamic> data) async {

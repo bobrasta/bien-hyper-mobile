@@ -56,10 +56,18 @@ class AttendanceService {
   static final instance = AttendanceService._();
   final _dio = ApiClient.instance.dio;
 
+  // Stale-while-revalidate screen cache — see MachineService for the full
+  // reasoning. list() has no "default" query (start/end are always
+  // required), so it's cached by its own exact query key instead.
+  static final Map<String, List<AttendanceRecord>> cachedByQuery = {};
+  static List<AttendanceImportResult>? cachedImports;
+
   Future<List<AttendanceRecord>> list({required String start, required String end, int? userId}) async {
     final res = await _dio.get('/attendance', queryParameters: {'start': start, 'end': end, 'user_id': ?userId});
     final (data, _) = ApiClient.unwrapList(res);
-    return data.map((j) => AttendanceRecord.fromJson(j as Map<String, dynamic>)).toList();
+    final records = data.map((j) => AttendanceRecord.fromJson(j as Map<String, dynamic>)).toList();
+    cachedByQuery['$start|$end|${userId ?? ''}'] = records;
+    return records;
   }
 
   Future<AttendanceRecord> mark(Map<String, dynamic> data) async {
@@ -81,6 +89,8 @@ class AttendanceService {
   Future<List<AttendanceImportResult>> imports() async {
     final res = await _dio.get('/attendance/imports');
     final (data, _) = ApiClient.unwrapList(res);
-    return data.map((j) => AttendanceImportResult.fromJson(j as Map<String, dynamic>)).toList();
+    final list = data.map((j) => AttendanceImportResult.fromJson(j as Map<String, dynamic>)).toList();
+    cachedImports = list;
+    return list;
   }
 }

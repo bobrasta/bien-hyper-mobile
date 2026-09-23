@@ -7,17 +7,26 @@ class PerDiemService {
   static final instance = PerDiemService._();
   final _dio = ApiClient.instance.dio;
 
+  // Stale-while-revalidate screen cache — see MachineService for the full
+  // reasoning. cachedDefaultList only covers the unfiltered query.
+  static List<PerDiemRequest>? cachedDefaultList;
+  static final Map<int, PerDiemRequest> cachedById = {};
+
   Future<List<PerDiemRequest>> list({String? status}) async {
     final res = await _dio.get('/per-diem-requests', queryParameters: {
       'status': ?status,
     });
     final (data, _) = ApiClient.unwrapList(res);
-    return data.map((j) => PerDiemRequest.fromJson(j as Map<String, dynamic>)).toList();
+    final requests = data.map((j) => PerDiemRequest.fromJson(j as Map<String, dynamic>)).toList();
+    if (status == null) cachedDefaultList = requests;
+    return requests;
   }
 
   Future<PerDiemRequest> show(int id) async {
     final res = await _dio.get('/per-diem-requests/$id');
-    return PerDiemRequest.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+    final request = PerDiemRequest.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+    cachedById[request.id] = request;
+    return request;
   }
 
   // Section 7: "can open details and download the plan as a PDF."

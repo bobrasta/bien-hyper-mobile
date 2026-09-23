@@ -195,10 +195,20 @@ class PayrollService {
   static final instance = PayrollService._();
   final _dio = ApiClient.instance.dio;
 
+  // Stale-while-revalidate screen cache — see MachineService for the full
+  // reasoning. Per-id maps keyed by the run/user id the fetch is scoped to.
+  static List<PayrollRun>? cachedRuns;
+  static final Map<int, PayrollRun> cachedRunById = {};
+  static final Map<int, List<EligibleStaffOption>> cachedEligibleStaff = {};
+  static final Map<int, List<SalaryAdjustment>> cachedSalaryAdjustments = {};
+  static final Map<int, List<PayrollHistoryItem>> cachedHistoryForUser = {};
+
   Future<List<PayrollRun>> runs() async {
     final res = await _dio.get('/payroll-runs');
     final (data, _) = ApiClient.unwrapList(res);
-    return data.map((j) => PayrollRun.fromJson(j as Map<String, dynamic>)).toList();
+    final list = data.map((j) => PayrollRun.fromJson(j as Map<String, dynamic>)).toList();
+    cachedRuns = list;
+    return list;
   }
 
   Future<PayrollRun> createRun({required int month, required int year}) async {
@@ -208,13 +218,17 @@ class PayrollService {
 
   Future<PayrollRun> show(int runId) async {
     final res = await _dio.get('/payroll-runs/$runId');
-    return PayrollRun.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+    final run = PayrollRun.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+    cachedRunById[runId] = run;
+    return run;
   }
 
   Future<List<EligibleStaffOption>> eligibleStaff(int runId) async {
     final res = await _dio.get('/payroll-runs/$runId/eligible-staff');
     final (data, _) = ApiClient.unwrapList(res);
-    return data.map((j) => EligibleStaffOption.fromJson(j as Map<String, dynamic>)).toList();
+    final list = data.map((j) => EligibleStaffOption.fromJson(j as Map<String, dynamic>)).toList();
+    cachedEligibleStaff[runId] = list;
+    return list;
   }
 
   Future<PayrollItem> upsertItem(int runId, Map<String, dynamic> data) async {
@@ -242,7 +256,9 @@ class PayrollService {
   Future<List<SalaryAdjustment>> salaryAdjustments(int userId) async {
     final res = await _dio.get('/staff/$userId/salary-adjustments');
     final (data, _) = ApiClient.unwrapList(res);
-    return data.map((j) => SalaryAdjustment.fromJson(j as Map<String, dynamic>)).toList();
+    final list = data.map((j) => SalaryAdjustment.fromJson(j as Map<String, dynamic>)).toList();
+    cachedSalaryAdjustments[userId] = list;
+    return list;
   }
 
   Future<SalaryAdjustment> addSalaryAdjustment(int userId, Map<String, dynamic> data) async {
@@ -258,6 +274,8 @@ class PayrollService {
   Future<List<PayrollHistoryItem>> historyForUser(int userId) async {
     final res = await _dio.get('/staff/$userId/payroll-history');
     final (data, _) = ApiClient.unwrapList(res);
-    return data.map((j) => PayrollHistoryItem.fromJson(j as Map<String, dynamic>)).toList();
+    final list = data.map((j) => PayrollHistoryItem.fromJson(j as Map<String, dynamic>)).toList();
+    cachedHistoryForUser[userId] = list;
+    return list;
   }
 }

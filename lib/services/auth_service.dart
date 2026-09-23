@@ -86,6 +86,10 @@ class AuthService {
     }
   }
 
+  // Stale-while-revalidate screen cache — see MachineService for the full
+  // reasoning.
+  static Map<String, dynamic>? cachedProfile;
+
   Future<Map<String, dynamic>?> getProfile() async {
     try {
       final res  = await ApiClient.instance.dio.get('/auth/me');
@@ -98,6 +102,7 @@ class AuthService {
       if (name != null) await _storage.write(key: _userKey, value: name);
       if (role != null) await _storage.write(key: _roleKey, value: role);
       if (id != null) await _storage.write(key: _idKey, value: id.toString());
+      cachedProfile = data;
       return data;
     } catch (_) { return null; }
   }

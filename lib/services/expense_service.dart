@@ -6,10 +6,18 @@ class ExpenseService {
   static final instance = ExpenseService._();
   final _dio = ApiClient.instance.dio;
 
+  // Stale-while-revalidate screen cache — see MachineService for the full
+  // reasoning. cachedDefaultList only covers the unfiltered query.
+  static List<ExpenseCategory>? cachedCategories;
+  static List<Expense>? cachedDefaultList;
+  static final Map<int, Expense> cachedById = {};
+
   Future<List<ExpenseCategory>> categories() async {
     final res = await _dio.get('/expense-categories');
     final (data, _) = ApiClient.unwrapList(res);
-    return data.map((j) => ExpenseCategory.fromJson(j as Map<String, dynamic>)).toList();
+    final cats = data.map((j) => ExpenseCategory.fromJson(j as Map<String, dynamic>)).toList();
+    cachedCategories = cats;
+    return cats;
   }
 
   Future<List<Expense>> list({int? categoryId, String? paymentMode, String? dateFrom, String? dateTo, String? search}) async {
@@ -21,12 +29,18 @@ class ExpenseService {
       'search':       ?search,
     });
     final (data, _) = ApiClient.unwrapList(res);
-    return data.map((j) => Expense.fromJson(j as Map<String, dynamic>)).toList();
+    final expenses = data.map((j) => Expense.fromJson(j as Map<String, dynamic>)).toList();
+    if (categoryId == null && paymentMode == null && dateFrom == null && dateTo == null && search == null) {
+      cachedDefaultList = expenses;
+    }
+    return expenses;
   }
 
   Future<Expense> get(int id) async {
     final res = await _dio.get('/expenses/$id');
-    return Expense.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+    final expense = Expense.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+    cachedById[expense.id] = expense;
+    return expense;
   }
 
   Future<Expense> create(Map<String, dynamic> data) async {

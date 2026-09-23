@@ -7,6 +7,13 @@ class InvoiceService {
   static final instance = InvoiceService._();
   final _dio = ApiClient.instance.dio;
 
+  // Stale-while-revalidate screen cache — see MachineService for the full
+  // reasoning. cachedDefaultList only covers the unfiltered query.
+  static List<Invoice>? cachedDefaultList;
+  static final Map<int, Invoice> cachedById = {};
+  static Map<String, dynamic>? cachedRevenueSummary;
+  static List<Map<String, dynamic>>? cachedRevenueByHospital;
+
   Future<List<Invoice>> list({String? status, String? search, int? salesOrderId, int? machineId}) async {
     final res = await _dio.get('/invoices', queryParameters: {
       'status':          ?status,
@@ -15,12 +22,18 @@ class InvoiceService {
       'machine_id':      ?machineId,
     });
     final (data, _) = ApiClient.unwrapList(res);
-    return data.map((j) => Invoice.fromJson(j as Map<String, dynamic>)).toList();
+    final invoices = data.map((j) => Invoice.fromJson(j as Map<String, dynamic>)).toList();
+    if (status == null && search == null && salesOrderId == null && machineId == null) {
+      cachedDefaultList = invoices;
+    }
+    return invoices;
   }
 
   Future<Invoice> get(int id) async {
     final res = await _dio.get('/invoices/$id');
-    return Invoice.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+    final invoice = Invoice.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+    cachedById[invoice.id] = invoice;
+    return invoice;
   }
 
   Future<Invoice> send(int id) async {
@@ -56,7 +69,7 @@ class InvoiceService {
     try {
       final res = await _dio.get('/revenue/summary');
       final raw = ApiClient.unwrap(res);
-      if (raw is Map<String, dynamic>) return raw;
+      if (raw is Map<String, dynamic>) { cachedRevenueSummary = raw; return raw; }
       return {};
     } catch (_) {
       return {};
@@ -80,7 +93,9 @@ class InvoiceService {
     try {
       final res = await _dio.get('/revenue/by-hospital');
       final (data, _) = ApiClient.unwrapList(res);
-      return data.whereType<Map<String, dynamic>>().toList();
+      final list = data.whereType<Map<String, dynamic>>().toList();
+      cachedRevenueByHospital = list;
+      return list;
     } catch (_) {
       return [];
     }

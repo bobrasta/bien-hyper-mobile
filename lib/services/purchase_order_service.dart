@@ -6,18 +6,27 @@ class PurchaseOrderService {
   static final instance = PurchaseOrderService._();
   final _dio = ApiClient.instance.dio;
 
+  // Stale-while-revalidate screen cache — see MachineService for the full
+  // reasoning. cachedDefaultList only covers the unfiltered query.
+  static List<PurchaseOrder>? cachedDefaultList;
+  static final Map<int, PurchaseOrder> cachedById = {};
+
   Future<List<PurchaseOrder>> list({String? status, int? supplierId}) async {
     final res = await _dio.get('/purchase-orders', queryParameters: {
       'status':      ?status,
       'supplier_id': ?supplierId,
     });
     final (data, _) = ApiClient.unwrapList(res);
-    return data.map((j) => PurchaseOrder.fromJson(j as Map<String, dynamic>)).toList();
+    final orders = data.map((j) => PurchaseOrder.fromJson(j as Map<String, dynamic>)).toList();
+    if (status == null && supplierId == null) cachedDefaultList = orders;
+    return orders;
   }
 
   Future<PurchaseOrder> get(int id) async {
     final res = await _dio.get('/purchase-orders/$id');
-    return PurchaseOrder.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+    final order = PurchaseOrder.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+    cachedById[order.id] = order;
+    return order;
   }
 
   Future<PurchaseOrder> create(Map<String, dynamic> data) async {

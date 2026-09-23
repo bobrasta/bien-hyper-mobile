@@ -8,6 +8,11 @@ class TicketService {
   static final instance = TicketService._();
   final _dio = ApiClient.instance.dio;
 
+  // Stale-while-revalidate screen cache — see MachineService for the full
+  // reasoning. cachedDefaultList only covers the unfiltered query.
+  static List<ServiceTicket>? cachedDefaultList;
+  static final Map<int, ServiceTicket> cachedById = {};
+
   Future<List<ServiceTicket>> list({String? status, String? hospital, int? machineId, int? assignedTo, bool noCache = false}) async {
     final res = await _dio.get('/tickets',
       queryParameters: {
@@ -20,12 +25,21 @@ class TicketService {
       options: noCache ? ApiClient.noCache : null,
     );
     final (data, _) = ApiClient.unwrapList(res);
-    return data.map((j) => ServiceTicket.fromJson(j as Map<String, dynamic>)).toList();
+    final tickets = data.map((j) => ServiceTicket.fromJson(j as Map<String, dynamic>)).toList();
+    if (status == null && hospital == null && machineId == null && assignedTo == null) {
+      cachedDefaultList = tickets;
+    }
+    return tickets;
   }
 
   Future<ServiceTicket> get(int id) async {
     final res = await _dio.get('/tickets/$id');
-    return ServiceTicket.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+    final ticket = ServiceTicket.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+    // ServiceTicket.id is the display code (e.g. "SVC-0001"), not the
+    // numeric route id — key the cache by the route id actually used to
+    // fetch it, not the model's own id field.
+    cachedById[id] = ticket;
+    return ticket;
   }
 
   Future<ServiceTicket> create(Map<String, dynamic> data) async {

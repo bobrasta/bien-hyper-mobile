@@ -202,13 +202,22 @@ class PerformanceService {
   static final instance = PerformanceService._();
   final _dio = ApiClient.instance.dio;
 
+  // Stale-while-revalidate screen cache — see MachineService for the full
+  // reasoning.
+  static MyPerformance? cachedMine;
+  static TeamPerformance? cachedTeam;
+
   Future<MyPerformance> mine() async {
     final res = await _dio.get('/performance/mine');
-    return MyPerformance.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+    final perf = MyPerformance.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+    cachedMine = perf;
+    return perf;
   }
 
   Future<TeamPerformance> team() async {
     final res = await _dio.get('/performance/team');
-    return TeamPerformance.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+    final perf = TeamPerformance.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+    cachedTeam = perf;
+    return perf;
   }
 }

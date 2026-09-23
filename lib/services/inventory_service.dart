@@ -7,6 +7,13 @@ class InventoryService {
   static final instance = InventoryService._();
   final _dio = ApiClient.instance.dio;
 
+  // Stale-while-revalidate screen cache (survives widget disposal, unlike
+  // State fields) — see MachineService for the full reasoning. Scoped to
+  // the default/unfiltered catalog query only; a filtered/searched list
+  // still shows the normal loading state.
+  static List<InventoryItem>? cachedDefaultList;
+  static final Map<int, InventoryItem> cachedById = {};
+
   Future<List<InventoryItem>> list({
     String? category,
     bool? lowStock,
@@ -24,12 +31,18 @@ class InventoryService {
       'per_page': 1000,
     });
     final (data, _) = ApiClient.unwrapList(res);
-    return data.map((j) => InventoryItem.fromJson(j as Map<String, dynamic>)).toList();
+    final items = data.map((j) => InventoryItem.fromJson(j as Map<String, dynamic>)).toList();
+    if (category == null && lowStock != true && search == null && createsMachineRecord == null) {
+      cachedDefaultList = items;
+    }
+    return items;
   }
 
   Future<InventoryItem> get(int id) async {
     final res = await _dio.get('/inventory/$id');
-    return InventoryItem.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+    final item = InventoryItem.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+    cachedById[item.id] = item;
+    return item;
   }
 
   Future<InventoryItem> create(Map<String, dynamic> data) async {

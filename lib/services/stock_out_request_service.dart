@@ -6,12 +6,18 @@ class StockOutRequestService {
   static final instance = StockOutRequestService._();
   final _dio = ApiClient.instance.dio;
 
+  // Stale-while-revalidate screen cache — see MachineService for the full
+  // reasoning. Only covers the unfiltered (status == null) query.
+  static List<StockOutRequest>? cachedDefaultList;
+
   Future<List<StockOutRequest>> list({String? status}) async {
     final res = await _dio.get('/stock-out-requests', queryParameters: {
       'status': ?status,
     });
     final (data, _) = ApiClient.unwrapList(res);
-    return data.map((j) => StockOutRequest.fromJson(j as Map<String, dynamic>)).toList();
+    final requests = data.map((j) => StockOutRequest.fromJson(j as Map<String, dynamic>)).toList();
+    if (status == null) cachedDefaultList = requests;
+    return requests;
   }
 
   Future<StockOutRequest> create(Map<String, dynamic> data) async {
