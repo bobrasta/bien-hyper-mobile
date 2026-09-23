@@ -6,10 +6,17 @@ class BatchLotService {
   static final instance = BatchLotService._();
   final _dio = ApiClient.instance.dio;
 
+  // Stale-while-revalidate screen cache — see MachineService for the full
+  // reasoning. Keyed by item id — listForItem() has no filter params, so
+  // every call is effectively the "unfiltered" query for that item.
+  static final Map<int, List<BatchLot>> cachedByItemId = {};
+
   Future<List<BatchLot>> listForItem(int inventoryItemId) async {
     final res = await _dio.get('/inventory/$inventoryItemId/batches');
     final (data, _) = ApiClient.unwrapList(res);
-    return data.map((j) => BatchLot.fromJson(j as Map<String, dynamic>)).toList();
+    final lots = data.map((j) => BatchLot.fromJson(j as Map<String, dynamic>)).toList();
+    cachedByItemId[inventoryItemId] = lots;
+    return lots;
   }
 
   Future<BatchLot> create(int inventoryItemId, Map<String, dynamic> data) async {

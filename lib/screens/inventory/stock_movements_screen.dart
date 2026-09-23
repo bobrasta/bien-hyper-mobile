@@ -33,10 +33,23 @@ class _StockMovementsScreenState extends State<StockMovementsScreen> {
   String? _error;
 
   @override
-  void initState() { super.initState(); _load(); }
+  void initState() {
+    super.initState();
+    // Stale-while-revalidate: show the last-known unfiltered list immediately
+    // (if any) instead of blanking to a spinner on every navigation — see
+    // MachineService for the full reasoning. Scoped to the default (no type
+    // filter) view, matching how StockMovementService.cachedDefaultList is
+    // populated.
+    final cached = StockMovementService.cachedDefaultList;
+    if (cached != null && _typeFilter == null) { _movements = cached; _loading = false; }
+    _load();
+  }
 
   Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      if (_movements.isEmpty) _loading = true;
+      _error = null;
+    });
     try {
       final data = await StockMovementService.instance.list(type: _typeFilter);
       if (mounted) setState(() { _movements = data; _loading = false; });
@@ -117,7 +130,7 @@ class _StockMovementsScreenState extends State<StockMovementsScreen> {
           onRefresh: _load,
           child: _loading
             ? shimmerTable(count: 10, cols: 7)
-            : _error != null
+            : _error != null && _movements.isEmpty
               ? ErrorView(message: _error!, onRetry: _load)
               : _movements.isEmpty
                 ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [

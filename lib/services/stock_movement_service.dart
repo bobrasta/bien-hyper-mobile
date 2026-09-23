@@ -6,13 +6,28 @@ class StockMovementService {
   static final instance = StockMovementService._();
   final _dio = ApiClient.instance.dio;
 
+  // Stale-while-revalidate screen cache — see MachineService for the full
+  // reasoning. cachedDefaultList covers the fully-unfiltered (no item, no
+  // type) query used by the audit-trail screen; cachedByItemId covers the
+  // per-item unfiltered (type == null) query used by an item's Movements tab.
+  static List<StockMovement>? cachedDefaultList;
+  static final Map<int, List<StockMovement>> cachedByItemId = {};
+
   Future<List<StockMovement>> list({int? inventoryItemId, String? type}) async {
     final res = await _dio.get('/stock-movements', queryParameters: {
       'inventory_item_id': ?inventoryItemId,
       'type':              ?type,
     });
     final (data, _) = ApiClient.unwrapList(res);
-    return data.map((j) => StockMovement.fromJson(j as Map<String, dynamic>)).toList();
+    final movements = data.map((j) => StockMovement.fromJson(j as Map<String, dynamic>)).toList();
+    if (type == null) {
+      if (inventoryItemId == null) {
+        cachedDefaultList = movements;
+      } else {
+        cachedByItemId[inventoryItemId] = movements;
+      }
+    }
+    return movements;
   }
 
   Future<StockMovement> record({

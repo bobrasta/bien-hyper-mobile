@@ -6,12 +6,18 @@ class CategoryService {
   static final instance = CategoryService._();
   final _dio = ApiClient.instance.dio;
 
+  // Stale-while-revalidate screen cache — see MachineService for the full
+  // reasoning. cachedDefaultList only covers the unfiltered (active-only) query.
+  static List<Category>? cachedDefaultList;
+
   Future<List<Category>> list({bool includeInactive = false}) async {
     final res = await _dio.get('/categories', queryParameters: {
       if (includeInactive) 'include_inactive': 'true',
     });
     final (data, _) = ApiClient.unwrapList(res);
-    return data.map((j) => Category.fromJson(j as Map<String, dynamic>)).toList();
+    final categories = data.map((j) => Category.fromJson(j as Map<String, dynamic>)).toList();
+    if (!includeInactive) cachedDefaultList = categories;
+    return categories;
   }
 
   Future<Category> create(Map<String, dynamic> data) async {

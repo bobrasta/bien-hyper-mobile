@@ -31,10 +31,21 @@ class _RequisitionsScreenState extends State<RequisitionsScreen> {
   String? _error;
 
   @override
-  void initState() { super.initState(); _load(); }
+  void initState() {
+    super.initState();
+    // Stale-while-revalidate: show the last-known list immediately (if any)
+    // instead of blanking to a spinner on every navigation — see
+    // MachineService for the full reasoning.
+    final cached = PurchaseRequisitionService.cachedDefaultList;
+    if (cached != null) { _prs = cached; _loading = false; }
+    _load();
+  }
 
   Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      if (_prs.isEmpty) _loading = true;
+      _error = null;
+    });
     try {
       final data = await PurchaseRequisitionService.instance.list(status: _statusFilter);
       if (mounted) setState(() { _prs = data; _loading = false; });
@@ -44,6 +55,11 @@ class _RequisitionsScreenState extends State<RequisitionsScreen> {
   }
 
   Future<void> _loadDetail(int id) async {
+    // Show a cached full record instantly (if we have one) rather than
+    // leaving the panel on the list row's summary fields until the fetch
+    // resolves.
+    final cached = PurchaseRequisitionService.cachedById[id];
+    if (cached != null && mounted) setState(() => _selected = cached);
     try {
       final full = await PurchaseRequisitionService.instance.get(id);
       if (mounted) setState(() => _selected = full);
@@ -120,7 +136,7 @@ class _RequisitionsScreenState extends State<RequisitionsScreen> {
               ),
               Expanded(child: _loading
                 ? shimmerTable(count: 8, cols: 5)
-                : _error != null
+                : _error != null && _prs.isEmpty
                   ? ErrorView(message: _error!, onRetry: _load, compact: true)
                   : _prs.isEmpty
                     ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [

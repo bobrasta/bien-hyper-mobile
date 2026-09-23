@@ -29,11 +29,19 @@ class _FlaggedUnitsScreenState extends State<FlaggedUnitsScreen> {
   @override
   void initState() {
     super.initState();
+    // Stale-while-revalidate: show the last-known list immediately (if any)
+    // instead of blanking to a spinner on every navigation — see
+    // MachineService for the full reasoning.
+    final cached = PartCannibalizationService.cachedDefaultList;
+    if (cached != null) { _all = cached; _loading = false; }
     _load();
   }
 
   Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      if (_all.isEmpty) _loading = true;
+      _error = null;
+    });
     try {
       final list = await PartCannibalizationService.instance.list();
       if (mounted) setState(() { _all = list; _loading = false; });
@@ -93,7 +101,7 @@ class _FlaggedUnitsScreenState extends State<FlaggedUnitsScreen> {
             const SizedBox(height: 24),
             if (_loading)
               const Center(child: Padding(padding: EdgeInsets.symmetric(vertical: 48), child: CircularProgressIndicator(strokeWidth: 2)))
-            else if (_error != null)
+            else if (_error != null && _all.isEmpty)
               ErrorView(message: _error!, onRetry: _load)
             else if (_filtered.isEmpty)
               Padding(padding: const EdgeInsets.symmetric(vertical: 32), child: Center(child: Text('No flagged units', style: TextStyle(color: context.pal.textMute))))

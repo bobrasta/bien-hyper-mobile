@@ -347,11 +347,19 @@ class _MovementsTabState extends State<_MovementsTab>
   @override
   void initState() {
     super.initState();
+    // Stale-while-revalidate: show the last-known movements for this item
+    // immediately (if any) instead of blanking to a spinner on every
+    // navigation — see MachineService for the full reasoning.
+    final cached = StockMovementService.cachedByItemId[widget.item.id];
+    if (cached != null) { _movements = cached; _loading = false; }
     _load();
   }
 
   Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      if (_movements == null) _loading = true;
+      _error = null;
+    });
     try {
       final data = await StockMovementService.instance
           .list(inventoryItemId: widget.item.id);
@@ -370,7 +378,9 @@ class _MovementsTabState extends State<_MovementsTab>
         child: shimmerList(count: 8),
       );
     }
-    if (_error != null) {
+    // A background refresh erroring while stale-but-valid cached data is
+    // already showing shouldn't blow that away.
+    if (_error != null && _movements == null) {
       return ErrorView(message: _error!, onRetry: _load);
     }
     final movements = _movements ?? [];
@@ -490,11 +500,22 @@ class _SuppliersTabState extends State<_SuppliersTab>
   @override
   void initState() {
     super.initState();
-    if (widget.item.preferredSupplierId != null) _loadSupplier();
+    final preferredId = widget.item.preferredSupplierId;
+    if (preferredId != null) {
+      // Stale-while-revalidate: show the last-known supplier immediately
+      // (if any) instead of blanking to a spinner on every navigation —
+      // see MachineService for the full reasoning.
+      final cached = SupplierService.cachedById[preferredId];
+      if (cached != null) _supplier = cached;
+      _loadSupplier();
+    }
   }
 
   Future<void> _loadSupplier() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      if (_supplier == null) _loading = true;
+      _error = null;
+    });
     try {
       final s = await SupplierService.instance.get(widget.item.preferredSupplierId!);
       if (mounted) setState(() { _supplier = s; _loading = false; });
@@ -517,7 +538,10 @@ class _SuppliersTabState extends State<_SuppliersTab>
               Text('PREFERRED SUPPLIER', style: AppTheme.labelCaps),
               const SizedBox(height: 10),
               if (_loading) shimmerList(count: 1),
-              if (_error != null)
+              // A background refresh erroring while stale-but-valid cached
+              // data is already showing shouldn't cover it with an error
+              // banner — only surface the error when there's nothing to show.
+              if (_error != null && _supplier == null)
                 ErrorView(message: _error!, onRetry: _loadSupplier, compact: true),
               if (_supplier != null) _SupplierCard(supplier: _supplier!),
               const SizedBox(height: 24),
@@ -637,11 +661,19 @@ class _BatchesTabState extends State<_BatchesTab>
   @override
   void initState() {
     super.initState();
+    // Stale-while-revalidate: show the last-known batches for this item
+    // immediately (if any) instead of blanking to a spinner on every
+    // navigation — see MachineService for the full reasoning.
+    final cached = BatchLotService.cachedByItemId[widget.item.id];
+    if (cached != null) { _lots = cached; _loading = false; }
     _load();
   }
 
   Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      if (_lots == null) _loading = true;
+      _error = null;
+    });
     try {
       final data = await BatchLotService.instance.listForItem(widget.item.id);
       if (mounted) setState(() { _lots = data; _loading = false; });
@@ -654,7 +686,9 @@ class _BatchesTabState extends State<_BatchesTab>
   Widget build(BuildContext context) {
     super.build(context);
     if (_loading) return Padding(padding: const EdgeInsets.all(24), child: shimmerList(count: 5));
-    if (_error != null) return ErrorView(message: _error!, onRetry: _load);
+    // A background refresh erroring while stale-but-valid cached data is
+    // already showing shouldn't blow that away.
+    if (_error != null && _lots == null) return ErrorView(message: _error!, onRetry: _load);
 
     final lots = _lots ?? [];
     if (lots.isEmpty) {
@@ -801,11 +835,21 @@ class _SerialsTabState extends State<_SerialsTab>
   @override
   void initState() {
     super.initState();
+    // Stale-while-revalidate: show the last-known serials for this item
+    // immediately (if any) instead of blanking to a spinner on every
+    // navigation — see MachineService for the full reasoning. Only seeded
+    // when starting on the unfiltered (All) view, matching how
+    // SerialNumberService.cachedByItemId is populated.
+    final cached = SerialNumberService.cachedByItemId[widget.item.id];
+    if (cached != null && _statusFilter == null) { _serials = cached; _loading = false; }
     _load();
   }
 
   Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      if (_serials == null) _loading = true;
+      _error = null;
+    });
     try {
       final data = await SerialNumberService.instance
           .listForItem(widget.item.id, status: _statusFilter);
@@ -860,7 +904,7 @@ class _SerialsTabState extends State<_SerialsTab>
       Expanded(
         child: _loading
             ? Padding(padding: const EdgeInsets.all(24), child: shimmerList(count: 6))
-            : _error != null
+            : _error != null && _serials == null
                 ? ErrorView(message: _error!, onRetry: _load)
                 : (_serials ?? []).isEmpty
                     ? Center(

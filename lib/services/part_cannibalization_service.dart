@@ -6,13 +6,19 @@ class PartCannibalizationService {
   static final instance = PartCannibalizationService._();
   final _dio = ApiClient.instance.dio;
 
+  // Stale-while-revalidate screen cache — see MachineService for the full
+  // reasoning. cachedDefaultList only covers the unfiltered query.
+  static List<PartCannibalization>? cachedDefaultList;
+
   Future<List<PartCannibalization>> list({String? status, int? sourceSerialNumberId}) async {
     final res = await _dio.get('/part-cannibalizations', queryParameters: {
       'status': ?status,
       'source_serial_number_id': ?sourceSerialNumberId,
     });
     final (data, _) = ApiClient.unwrapList(res);
-    return data.map((j) => PartCannibalization.fromJson(j as Map<String, dynamic>)).toList();
+    final records = data.map((j) => PartCannibalization.fromJson(j as Map<String, dynamic>)).toList();
+    if (status == null && sourceSerialNumberId == null) cachedDefaultList = records;
+    return records;
   }
 
   Future<PartCannibalization> orderReplacement(int id, {int? purchaseOrderId}) async {

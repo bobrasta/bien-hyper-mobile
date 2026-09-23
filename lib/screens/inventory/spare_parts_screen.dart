@@ -37,11 +37,19 @@ class _SparePartsScreenState extends State<SparePartsScreen> {
   @override
   void initState() {
     super.initState();
+    // Stale-while-revalidate: show the last-known catalog immediately (if
+    // any) instead of blanking to a spinner on every navigation — see
+    // MachineService for the full reasoning.
+    final cached = SparePartService.cachedDefaultList;
+    if (cached != null) { _allParts = cached; _loading = false; }
     _load();
   }
 
   Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      if (_allParts.isEmpty) _loading = true;
+      _error = null;
+    });
     try {
       final data = await SparePartService.instance.list();
       if (mounted) setState(() { _allParts = data; _loading = false; });
@@ -275,7 +283,7 @@ class _SparePartsScreenState extends State<SparePartsScreen> {
                     ),
                     if (_loading)
                       shimmerTable(count: 8, cols: 6)
-                    else if (_error != null)
+                    else if (_error != null && _allParts.isEmpty)
                       ErrorView(message: _error!, onRetry: _load, compact: true)
                     else if (parts.isEmpty)
                       Padding(

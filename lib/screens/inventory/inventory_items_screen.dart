@@ -41,10 +41,21 @@ class _InventoryItemsScreenState extends State<InventoryItemsScreen> {
   static const _pageSize = 25;
 
   @override
-  void initState() { super.initState(); _load(); }
+  void initState() {
+    super.initState();
+    // Stale-while-revalidate: show the last-known catalog immediately (if
+    // any) instead of blanking to a spinner on every navigation — see
+    // MachineService for the full reasoning.
+    final cached = InventoryService.cachedDefaultList;
+    if (cached != null) { _allItems = cached; _loading = false; }
+    _load();
+  }
 
   Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      if (_allItems.isEmpty) _loading = true;
+      _error = null;
+    });
     try {
       final data = await InventoryService.instance.list();
       if (mounted) setState(() { _allItems = data; _loading = false; });
@@ -185,7 +196,7 @@ class _InventoryItemsScreenState extends State<InventoryItemsScreen> {
                 ),
                 if (_loading)
                   shimmerTable(count: 8, cols: 5)
-                else if (_error != null)
+                else if (_error != null && _allItems.isEmpty)
                   ErrorView(message: _error!, onRetry: _load, compact: true)
                 else if (items.isEmpty)
                   Padding(

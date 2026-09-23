@@ -29,10 +29,21 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
   String? _error;
 
   @override
-  void initState() { super.initState(); _load(); }
+  void initState() {
+    super.initState();
+    // Stale-while-revalidate: show the last-known list immediately (if any)
+    // instead of blanking to a spinner on every navigation — see
+    // MachineService for the full reasoning.
+    final cached = SupplierService.cachedDefaultList;
+    if (cached != null) { _suppliers = cached; _loading = false; }
+    _load();
+  }
 
   Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      if (_suppliers.isEmpty) _loading = true;
+      _error = null;
+    });
     try {
       final data = await SupplierService.instance.list();
       if (mounted) setState(() { _suppliers = data; _loading = false; });
@@ -126,7 +137,7 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
                 ),
                 if (_loading)
                   shimmerTable(count: 6, cols: 7)
-                else if (_error != null)
+                else if (_error != null && _suppliers.isEmpty)
                   ErrorView(message: _error!, onRetry: _load, compact: true)
                 else if (filtered.isEmpty)
                   Padding(
