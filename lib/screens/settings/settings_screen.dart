@@ -143,6 +143,68 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   void initState() {
     super.initState();
+    // Stale-while-revalidate: this screen's several independent pieces
+    // (profile, members, approvals, roles, audit log) each seed from their
+    // own cache (if present) so a return visit shows the last-known data
+    // immediately instead of blanking to a spinner, then each quietly
+    // refreshes in the background — see MachineService's own doc comment
+    // for the full reasoning. Direct field assignment (no setState needed
+    // pre-first-build), matching each cached source's own parsing.
+    final cachedProfile = AuthService.cachedProfile;
+    if (cachedProfile != null) {
+      _nameCtrl.text  = cachedProfile['name']  as String? ?? '';
+      _emailCtrl.text = cachedProfile['email'] as String? ?? '';
+      _phoneCtrl.text = cachedProfile['phone'] as String? ?? '';
+      _avatarUrl = cachedProfile['avatar_url'] as String?;
+      _managerName = cachedProfile['manager_name'] as String?;
+      _positionTitle = cachedProfile['position_title'] as String?;
+      _positionDepartment = cachedProfile['position_department'] as String?;
+      _region = cachedProfile['region'] as String?;
+      _zone = cachedProfile['zone'] as String?;
+      _hireDate = cachedProfile['hire_date'] as String?;
+      final cachedPaymentProfile = cachedProfile['payment_profile'] as Map<String, dynamic>?;
+      if (cachedPaymentProfile != null) {
+        _paymentProviderCtrl.text      = cachedPaymentProfile['provider'] as String? ?? '';
+        _paymentAccountNumberCtrl.text = cachedPaymentProfile['account_number'] as String? ?? '';
+        _paymentAccountNameCtrl.text   = cachedPaymentProfile['account_name'] as String? ?? '';
+      }
+      _loadingProfile = false;
+    }
+    final cachedPerf = PerformanceService.cachedMine;
+    if (cachedPerf != null) _myPerformance = cachedPerf;
+
+    final cachedStaff = StaffService.instance.staffNotifier.value;
+    if (cachedStaff.isNotEmpty) { _staffList = cachedStaff; _loadingMembers = false; }
+
+    final cachedSettings = SettingService.cachedAll;
+    final cachedExpenseCategories = ExpenseService.cachedCategories;
+    if (cachedSettings != null && cachedExpenseCategories != null) {
+      final sigLabelsRaw = cachedSettings['per_diem_signature_role_labels'];
+      Map<String, dynamic> sigLabels = {};
+      if (sigLabelsRaw != null && sigLabelsRaw.isNotEmpty) {
+        try { sigLabels = jsonDecode(sigLabelsRaw) as Map<String, dynamic>; } catch (_) {}
+      }
+      _thresholdCtrl.text = cachedSettings['expense_director_threshold'] ?? '3000000';
+      _expenseCategories = cachedExpenseCategories;
+      _perDiemDefaultRateCtrl.text = cachedSettings['per_diem_default_daily_rate'] ?? '80000';
+      _sigTeamLeadCtrl.text = sigLabels['team_lead'] as String? ?? 'Technical supervisor';
+      _sigCtoCtrl.text = sigLabels['cto'] as String? ?? 'CTO';
+      _sigAccountantCtrl.text = sigLabels['accountant_initiate'] as String? ?? 'Finance';
+      _sigFinalReleaseCtrl.text = sigLabels['final_release'] as String? ?? 'Managing director';
+      _loadingApprovals = false;
+    }
+
+    final cachedRoles = RoleService.cachedList;
+    final cachedCatalog = RoleService.cachedCatalog;
+    if (cachedRoles != null && cachedCatalog != null) {
+      _roles = cachedRoles;
+      _permissionCatalog = cachedCatalog;
+      _loadingRoles = false;
+    }
+
+    final cachedAudit = PermissionService.cachedAllOverrides;
+    if (cachedAudit != null) { _auditLog = cachedAudit; _loadingAudit = false; }
+
     _loadProfile();
     _loadMembers();
     _loadApprovals();
@@ -151,7 +213,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _loadAudit() async {
-    setState(() => _loadingAudit = true);
+    setState(() { if (_auditLog.isEmpty) _loadingAudit = true; });
     try {
       final log = await PermissionService.instance.allOverrides();
       if (mounted) setState(() { _auditLog = log; _loadingAudit = false; });
@@ -161,7 +223,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _loadRoles() async {
-    setState(() { _loadingRoles = true; _rolesError = null; });
+    setState(() {
+      if (_roles.isEmpty) _loadingRoles = true;
+      _rolesError = null;
+    });
     try {
       final rolesF   = RoleService.instance.list();
       final catalogF = RoleService.instance.catalog();
@@ -209,7 +274,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _loadApprovals() async {
-    setState(() => _loadingApprovals = true);
+    setState(() { if (_expenseCategories.isEmpty) _loadingApprovals = true; });
     try {
       final results = await Future.wait([
         SettingService.instance.all(),
@@ -280,7 +345,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _loadMembers({bool force = false}) async {
-    setState(() { _loadingMembers = true; _memberError = null; });
+    setState(() {
+      if (_staffList.isEmpty) _loadingMembers = true;
+      _memberError = null;
+    });
     try {
       final list = await StaffService.instance.list(force: force);
       if (mounted) setState(() { _staffList = list; _loadingMembers = false; });
@@ -1156,7 +1224,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       child: _loadingMembers
           ? const Padding(padding: EdgeInsets.symmetric(vertical: 32),
               child: Center(child: CircularProgressIndicator(strokeWidth: 2)))
-          : _memberError != null
+          : _memberError != null && _staffList.isEmpty
               ? Padding(padding: const EdgeInsets.all(24),
                   child: Center(child: Text(_memberError!,
                       style: AppTheme.bodySub.copyWith(color: AppColors.coral))))
@@ -1301,7 +1369,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         child: CircularProgressIndicator(strokeWidth: 2),
       ));
     }
-    if (_rolesError != null) {
+    if (_rolesError != null && _roles.isEmpty) {
       return Center(child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 48),
         child: Text(_rolesError!, style: AppTheme.bodySub),

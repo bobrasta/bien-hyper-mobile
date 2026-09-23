@@ -6,10 +6,16 @@ class DelegationService {
   static final instance = DelegationService._();
   final _dio = ApiClient.instance.dio;
 
+  // Stale-while-revalidate screen cache — see MachineService for the full
+  // reasoning. list() takes no filters, so every call is the default view.
+  static List<Delegation>? cachedList;
+
   Future<List<Delegation>> list() async {
     final res = await _dio.get('/delegations');
     final (data, _) = ApiClient.unwrapList(res);
-    return data.map((j) => Delegation.fromJson(j as Map<String, dynamic>)).toList();
+    final delegations = data.map((j) => Delegation.fromJson(j as Map<String, dynamic>)).toList();
+    cachedList = delegations;
+    return delegations;
   }
 
   Future<Delegation> create(Map<String, dynamic> data) async {

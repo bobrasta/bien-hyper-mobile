@@ -6,10 +6,18 @@ class RoleService {
   static final instance = RoleService._();
   final _dio = ApiClient.instance.dio;
 
+  // Stale-while-revalidate screen cache — see MachineService for the full
+  // reasoning. Neither list() nor catalog() takes filters, so every call is
+  // the default view.
+  static List<RoleSummary>? cachedList;
+  static Map<String, List<PermissionCatalogItem>>? cachedCatalog;
+
   Future<List<RoleSummary>> list() async {
     final res = await _dio.get('/roles');
     final (data, _) = ApiClient.unwrapList(res);
-    return data.map((j) => RoleSummary.fromJson(j as Map<String, dynamic>)).toList();
+    final roles = data.map((j) => RoleSummary.fromJson(j as Map<String, dynamic>)).toList();
+    cachedList = roles;
+    return roles;
   }
 
   /// Full permission catalog, grouped by module (e.g. 'sales' -> [...]).
@@ -17,10 +25,12 @@ class RoleService {
     final res = await _dio.get('/permissions');
     final raw = ApiClient.unwrap(res);
     if (raw is! Map) return {};
-    return raw.map((module, items) => MapEntry(
+    final result = raw.map((module, items) => MapEntry(
       module as String,
       (items as List).map((j) => PermissionCatalogItem.fromJson(j as Map<String, dynamic>)).toList(),
     ));
+    cachedCatalog = result;
+    return result;
   }
 
   Future<RoleSummary> create(String name) async {

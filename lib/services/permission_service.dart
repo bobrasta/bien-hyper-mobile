@@ -25,11 +25,18 @@ class PermissionService {
     return data.map((j) => UserPermissionOverride.fromJson(j as Map<String, dynamic>)).toList();
   }
 
+  // Stale-while-revalidate screen cache — see MachineService for the full
+  // reasoning. allOverrides() takes no filters, so every call is the
+  // default (company-wide) view.
+  static List<UserPermissionOverride>? cachedAllOverrides;
+
   /// Every override across every user, most recent first — the audit trail.
   Future<List<UserPermissionOverride>> allOverrides() async {
     final res = await _dio.get('/permission-overrides');
     final (data, _) = ApiClient.unwrapList(res);
-    return data.map((j) => UserPermissionOverride.fromJson(j as Map<String, dynamic>)).toList();
+    final overrides = data.map((j) => UserPermissionOverride.fromJson(j as Map<String, dynamic>)).toList();
+    cachedAllOverrides = overrides;
+    return overrides;
   }
 
   Future<void> addOverride(int userId, {

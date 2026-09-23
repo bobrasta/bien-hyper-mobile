@@ -28,11 +28,26 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
   @override
   void initState() {
     super.initState();
+    // Stale-while-revalidate: show the last-known first page immediately
+    // (surviving widget disposal, unlike State fields) while a real refresh
+    // happens silently in the background — see MachineService's own doc
+    // comment for the full reasoning. Scoped to page 1 only; navigating to
+    // another page still shows the normal loading state.
+    final cached = ActivityLogService.cachedFirstPage;
+    if (cached != null) {
+      _entries = cached.items;
+      _page = cached.currentPage;
+      _lastPage = cached.lastPage;
+      _loading = false;
+    }
     _load();
   }
 
   Future<void> _load({int page = 1}) async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      if (_entries.isEmpty) _loading = true;
+      _error = null;
+    });
     try {
       final result = await ActivityLogService.instance.list(page: page);
       if (!mounted) return;
@@ -76,7 +91,7 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
         ),
         Expanded(child: _loading
             ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
-            : _error != null
+            : _error != null && _entries.isEmpty
                 ? ErrorView(message: _error!, onRetry: () => _load(page: _page))
                 : _entries.isEmpty
                     ? Center(child: Text('No activity recorded yet.', style: AppTheme.bodySub))

@@ -30,6 +30,11 @@ class _NotificationTemplatesScreenState extends State<NotificationTemplatesScree
   @override
   void initState() {
     super.initState();
+    // Stale-while-revalidate: show the last-known list immediately, then
+    // quietly refresh — see MachineService's own doc comment for the full
+    // reasoning.
+    final cached = NotificationTemplateService.cachedList;
+    if (cached != null) { _templates = cached; _loading = false; }
     _load();
     _searchCtrl.addListener(() => setState(() => _search = _searchCtrl.text.toLowerCase()));
   }
@@ -38,7 +43,10 @@ class _NotificationTemplatesScreenState extends State<NotificationTemplatesScree
   void dispose() { _searchCtrl.dispose(); super.dispose(); }
 
   Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      if (_templates.isEmpty) _loading = true;
+      _error = null;
+    });
     try {
       final templates = await NotificationTemplateService.instance.list();
       if (!mounted) return;
@@ -97,7 +105,7 @@ class _NotificationTemplatesScreenState extends State<NotificationTemplatesScree
         ),
         Expanded(child: _loading
             ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
-            : _error != null
+            : _error != null && _templates.isEmpty
                 ? ErrorView(message: _error!, onRetry: _load)
                 : ListView(
                     padding: EdgeInsets.all(pad),

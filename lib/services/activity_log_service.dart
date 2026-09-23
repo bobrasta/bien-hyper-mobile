@@ -45,6 +45,11 @@ class ActivityLogService {
   static final instance = ActivityLogService._();
   final _dio = ApiClient.instance.dio;
 
+  // Stale-while-revalidate screen cache — see MachineService for the full
+  // reasoning. Scoped to the default view only (page 1, no filters) — the
+  // screen only ever shows this page immediately, then background-refreshes.
+  static ActivityLogPage? cachedFirstPage;
+
   Future<ActivityLogPage> list({int page = 1, String? subjectType, int? causerId}) async {
     final res = await _dio.get('/activity-log', queryParameters: {
       'page': page,
@@ -53,10 +58,14 @@ class ActivityLogService {
     });
     final data = ApiClient.unwrap(res) as Map<String, dynamic>;
     final items = (data['data'] as List).map((j) => ActivityLogEntry.fromJson(j as Map<String, dynamic>)).toList();
-    return ActivityLogPage(
+    final result = ActivityLogPage(
       items: items,
       currentPage: (data['current_page'] as num?)?.toInt() ?? 1,
       lastPage: (data['last_page'] as num?)?.toInt() ?? 1,
     );
+    if (page == 1 && subjectType == null && causerId == null) {
+      cachedFirstPage = result;
+    }
+    return result;
   }
 }

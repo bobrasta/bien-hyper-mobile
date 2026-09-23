@@ -6,10 +6,16 @@ class NotificationTemplateService {
   static final instance = NotificationTemplateService._();
   final _dio = ApiClient.instance.dio;
 
+  // Stale-while-revalidate screen cache — see MachineService for the full
+  // reasoning. list() takes no filters, so every call is the default view.
+  static List<NotificationTemplate>? cachedList;
+
   Future<List<NotificationTemplate>> list() async {
     final res = await _dio.get('/notification-templates');
     final (data, _) = ApiClient.unwrapList(res);
-    return data.map((j) => NotificationTemplate.fromJson(j as Map<String, dynamic>)).toList();
+    final templates = data.map((j) => NotificationTemplate.fromJson(j as Map<String, dynamic>)).toList();
+    cachedList = templates;
+    return templates;
   }
 
   Future<NotificationTemplate> update(int id, {required String title, required String body}) async {

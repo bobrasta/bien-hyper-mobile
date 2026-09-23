@@ -67,6 +67,28 @@ class _OrgChartEditorState extends State<OrgChartEditor> {
   @override
   void initState() {
     super.initState();
+    // Stale-while-revalidate: show the last-known chart immediately
+    // (surviving widget disposal, unlike State fields) while a real refresh
+    // happens silently in the background — see MachineService's own doc
+    // comment for the full reasoning. SettingService.cachedAll is the
+    // shared settings cache (not owned by this screen), parsed the same way
+    // _load() below parses it.
+    final cachedAll = SettingService.cachedAll;
+    if (cachedAll != null) {
+      final raw = cachedAll[_kSettingKey];
+      try {
+        if (raw != null && raw.trim().isNotEmpty) {
+          final list = jsonDecode(raw) as List;
+          _nodes = list.map((e) => OrgNode.fromJson(e as Map<String, dynamic>)).toList();
+        } else {
+          _nodes = _defaultNodes();
+        }
+        _loading = false;
+      } catch (_) {
+        // Malformed cached JSON — fall through to the normal load path
+        // below instead of crashing init.
+      }
+    }
     _load();
   }
 
@@ -96,7 +118,10 @@ class _OrgChartEditorState extends State<OrgChartEditor> {
   }
 
   Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      if (_nodes.isEmpty) _loading = true;
+      _error = null;
+    });
     try {
       final all = await SettingService.instance.all();
       final raw = all[_kSettingKey];

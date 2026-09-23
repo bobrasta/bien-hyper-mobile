@@ -30,10 +30,26 @@ class _DelegationsScreenState extends State<DelegationsScreen> {
   String? _error;
 
   @override
-  void initState() { super.initState(); _load(); }
+  void initState() {
+    super.initState();
+    // Stale-while-revalidate: show the last-known data immediately, then
+    // quietly refresh — see MachineService's own doc comment for the full
+    // reasoning. Staff seeds from StaffService's own notifier-based cache
+    // (a different pattern from the static-field one below, per that
+    // service's own doc comment).
+    final cachedDelegations = DelegationService.cachedList;
+    final cachedStaff = StaffService.instance.staffNotifier.value;
+    if (cachedDelegations != null) _delegations = cachedDelegations;
+    if (cachedStaff.isNotEmpty) _staff = cachedStaff;
+    if (cachedDelegations != null) _loading = false;
+    _load();
+  }
 
   Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      if (_delegations.isEmpty) _loading = true;
+      _error = null;
+    });
     try {
       final results = await Future.wait([DelegationService.instance.list(), StaffService.instance.list()]);
       if (!mounted) return;
@@ -93,7 +109,7 @@ class _DelegationsScreenState extends State<DelegationsScreen> {
         Expanded(
           child: _loading
               ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
-              : _error != null
+              : _error != null && _delegations.isEmpty
                   ? ErrorView(message: _error!, onRetry: _load)
                   : _delegations.isEmpty
                       ? Center(child: Text('No delegations yet.', style: AppTheme.bodySub.copyWith(fontSize: 12)))
