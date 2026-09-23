@@ -7,18 +7,29 @@ class QuotationService {
   static final instance = QuotationService._();
   final _dio = ApiClient.instance.dio;
 
+  // Stale-while-revalidate screen cache — see MachineService for the full
+  // reasoning. cachedDefaultList only covers the unfiltered query.
+  static List<Quotation>? cachedDefaultList;
+  static final Map<int, Quotation> cachedById = {};
+
   Future<List<Quotation>> list({String? status, String? search}) async {
     final res = await _dio.get('/quotations', queryParameters: {
       'status': ?status,
       'search': ?search,
     });
     final (data, _) = ApiClient.unwrapList(res);
-    return data.map((j) => Quotation.fromJson(j as Map<String, dynamic>)).toList();
+    final quotations = data.map((j) => Quotation.fromJson(j as Map<String, dynamic>)).toList();
+    if (status == null && search == null) {
+      cachedDefaultList = quotations;
+    }
+    return quotations;
   }
 
   Future<Quotation> get(int id) async {
     final res = await _dio.get('/quotations/$id');
-    return Quotation.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+    final quotation = Quotation.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+    cachedById[quotation.id] = quotation;
+    return quotation;
   }
 
   Future<Quotation> create(Map<String, dynamic> data) async {

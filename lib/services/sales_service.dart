@@ -6,15 +6,25 @@ class SalesService {
   static final instance = SalesService._();
   final _dio = ApiClient.instance.dio;
 
+  // Stale-while-revalidate screen cache — see MachineService for the full
+  // reasoning. list() takes no filter params at all, so every call is the
+  // "default" list.
+  static List<SalesLead>? cachedDefaultList;
+  static final Map<int, SalesLead> cachedById = {};
+
   Future<List<SalesLead>> list() async {
     final res = await _dio.get('/leads');
     final (data, _) = ApiClient.unwrapList(res);
-    return data.map((j) => SalesLead.fromJson(j as Map<String, dynamic>)).toList();
+    final leads = data.map((j) => SalesLead.fromJson(j as Map<String, dynamic>)).toList();
+    cachedDefaultList = leads;
+    return leads;
   }
 
   Future<SalesLead> get(int id) async {
     final res = await _dio.get('/leads/$id');
-    return SalesLead.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+    final lead = SalesLead.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+    cachedById[lead.id] = lead;
+    return lead;
   }
 
   Future<SalesLead> create(Map<String, dynamic> data) async {

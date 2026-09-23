@@ -57,6 +57,15 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
   @override
   void initState() {
     super.initState();
+    // Stale-while-revalidate: show the last-known quotation list immediately
+    // on a return visit instead of blanking to a spinner, then quietly
+    // refresh in the background — see MachineService for the full reasoning.
+    final cached = QuotationService.cachedDefaultList;
+    if (cached != null) {
+      _all = cached;
+      _loading = false;
+      _applyFilter();
+    }
     _load();
     _searchCtrl.addListener(_applyFilter);
   }
@@ -75,7 +84,10 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
   }
 
   Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      if (_all.isEmpty) _loading = true;
+      _error = null;
+    });
     try {
       final data = await QuotationService.instance.list();
       if (!mounted) return;
@@ -161,7 +173,9 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
               padding: EdgeInsets.fromLTRB(pad, 0, pad, pad),
               child: _loading
                   ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
-                  : _error != null
+                  // A background refresh failing while stale-but-valid
+                  // cached data is already showing shouldn't blow that away.
+                  : _error != null && _all.isEmpty
                       ? ErrorView(message: _error!, onRetry: _load)
                       : _QuotationTable(items: _filtered, onSelect: _showDetailModal, openValue: openValue, convertedCount: converted, totalCount: _all.length),
             ),
@@ -363,10 +377,34 @@ class _QuotationDetailScreenState extends State<QuotationDetailScreen> {
   bool _changed = false;
 
   @override
-  void initState() { super.initState(); _load(); }
+  void initState() {
+    super.initState();
+    // Stale-while-revalidate — same reasoning as MachineDetailScreen's own
+    // fix: show the last-known version of this exact quotation instantly if
+    // we have one cached, then quietly refresh.
+    final cached = QuotationService.cachedById[widget.quotationId];
+    if (cached != null) { _qt = cached; _loading = false; }
+    _load();
+  }
+
+  @override
+  void didUpdateWidget(QuotationDetailScreen old) {
+    super.didUpdateWidget(old);
+    if (old.quotationId != widget.quotationId) {
+      // A different quotation — must not keep showing the previous one's
+      // data under the new ID. Seed from that ID's own cache entry (which
+      // may be null), then refresh.
+      final cached = QuotationService.cachedById[widget.quotationId];
+      setState(() { _qt = cached; _loading = cached == null; _error = null; });
+      _load();
+    }
+  }
 
   Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      if (_qt == null) _loading = true;
+      _error = null;
+    });
     try {
       final qt = await QuotationService.instance.get(widget.quotationId);
       if (mounted) setState(() { _qt = qt; _loading = false; });
@@ -536,11 +574,14 @@ class _QuotationDetailScreenState extends State<QuotationDetailScreen> {
         ),
         body: _loading
             ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
-            : _error != null
-                ? ErrorView(message: _error!, onRetry: _load)
-                : qt == null
-                    ? const SizedBox.shrink()
-                    : LayoutBuilder(builder: (ctx, cst) {
+            // A background refresh erroring while stale-but-valid cached
+            // data is already showing shouldn't blow that away — only the
+            // "genuinely nothing to show" case surfaces the error screen.
+            : qt == null
+                ? (_error != null
+                    ? ErrorView(message: _error!, onRetry: _load)
+                    : const SizedBox.shrink())
+                : LayoutBuilder(builder: (ctx, cst) {
                         final wide = cst.maxWidth >= 900;
                         final left = _leftColumn(context, qt);
                         final right = SizedBox(width: wide ? 372 : double.infinity, child: _rightColumn(context, qt));

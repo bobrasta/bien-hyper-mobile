@@ -29,6 +29,14 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
   @override
   void initState() {
     super.initState();
+    // Stale-while-revalidate: show the last-known invoice list immediately
+    // on a return visit instead of blanking to a shimmer, then quietly
+    // refresh in the background — see MachineService for the full reasoning.
+    final cached = InvoiceService.cachedDefaultList;
+    if (cached != null) {
+      _invoices = cached;
+      _loading = false;
+    }
     _load();
     _searchCtrl.addListener(() => setState(() => _search = _searchCtrl.text));
   }
@@ -40,7 +48,10 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
   }
 
   Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      if (_invoices.isEmpty) _loading = true;
+      _error = null;
+    });
     try {
       final data = await InvoiceService.instance.list();
       if (mounted) setState(() { _invoices = data; _loading = false; });
@@ -146,7 +157,9 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
               padding: EdgeInsets.fromLTRB(pad, 0, pad, pad),
               child: _loading
                   ? shimmerTable(count: 10, cols: 7)
-                  : _error != null
+                  // A background refresh failing while stale-but-valid
+                  // cached data is already showing shouldn't blow that away.
+                  : _error != null && _invoices.isEmpty
                       ? ErrorView(message: _error!, onRetry: _load)
                       : Container(
                           decoration: BoxDecoration(color: context.pal.surface1, borderRadius: BorderRadius.circular(14), border: Border.all(color: context.pal.border)),

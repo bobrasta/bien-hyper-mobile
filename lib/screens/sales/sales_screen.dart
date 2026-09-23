@@ -49,11 +49,23 @@ class _SalesScreenState extends State<SalesScreen> {
   @override
   void initState() {
     super.initState();
+    // Stale-while-revalidate: show the last-known pipeline board
+    // immediately on a return visit instead of blanking to a spinner, then
+    // quietly refresh in the background — see MachineService for the full
+    // reasoning.
+    final cached = SalesService.cachedDefaultList;
+    if (cached != null) {
+      _leads = cached;
+      _loading = false;
+    }
     _load();
   }
 
   Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      if (_leads.isEmpty) _loading = true;
+      _error = null;
+    });
     try {
       final data = await SalesService.instance.list();
       if (mounted) {
@@ -125,7 +137,9 @@ class _SalesScreenState extends State<SalesScreen> {
           const SizedBox(height: 16),
           if (_loading)
             const Expanded(child: Center(child: CircularProgressIndicator(strokeWidth: 2)))
-          else if (_error != null)
+          // A background refresh failing while stale-but-valid cached data
+          // is already showing shouldn't blow that away.
+          else if (_error != null && _leads.isEmpty)
             Expanded(child: ErrorView(message: _error!, onRetry: _load))
           else
             Expanded(

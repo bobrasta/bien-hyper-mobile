@@ -115,8 +115,15 @@ class SalesDashboardService {
   static final instance = SalesDashboardService._();
   final _dio = ApiClient.instance.dio;
 
+  // Stale-while-revalidate screen cache — see MachineService for the full
+  // reasoning. A single-object fetch, so one cached instance (no by-id map
+  // needed), mirroring InvoiceService.cachedRevenueSummary.
+  static SalesDashboardData? cachedData;
+
   Future<SalesDashboardData> load() async {
     final res = await _dio.get('/dashboard/sales');
-    return SalesDashboardData.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+    final data = SalesDashboardData.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+    cachedData = data;
+    return data;
   }
 }

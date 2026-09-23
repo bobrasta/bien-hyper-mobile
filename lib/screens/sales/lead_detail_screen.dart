@@ -42,10 +42,36 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
   bool _busy = false;
 
   @override
-  void initState() { super.initState(); _load(); }
+  void initState() {
+    super.initState();
+    // Stale-while-revalidate — same reasoning as MachineDetailScreen's own
+    // fix: show the last-known version of this exact lead instantly if
+    // we have one cached, then quietly refresh, instead of blanking to a
+    // spinner on every navigation regardless of how fast the underlying
+    // fetch resolves.
+    final cached = SalesService.cachedById[widget.leadId];
+    if (cached != null) { _lead = cached; _loading = false; }
+    _load();
+  }
+
+  @override
+  void didUpdateWidget(LeadDetailScreen old) {
+    super.didUpdateWidget(old);
+    if (old.leadId != widget.leadId) {
+      // A different lead — must not keep showing the previous one's data
+      // under the new ID. Seed from that ID's own cache entry (which may
+      // be null), then refresh.
+      final cached = SalesService.cachedById[widget.leadId];
+      setState(() { _lead = cached; _loading = cached == null; _error = null; });
+      _load();
+    }
+  }
 
   Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      if (_lead == null) _loading = true;
+      _error = null;
+    });
     try {
       final lead = await SalesService.instance.get(widget.leadId);
       if (mounted) setState(() { _lead = lead; _loading = false; });
@@ -153,11 +179,14 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
-          : _error != null
-              ? ErrorView(message: _error!, onRetry: _load)
-              : lead == null
-                  ? const SizedBox.shrink()
-                  : LayoutBuilder(builder: (ctx, cst) {
+          // A background refresh erroring while stale-but-valid cached data
+          // is already showing shouldn't blow that away — only the
+          // "genuinely nothing to show" case surfaces the error screen.
+          : lead == null
+              ? (_error != null
+                  ? ErrorView(message: _error!, onRetry: _load)
+                  : const SizedBox.shrink())
+              : LayoutBuilder(builder: (ctx, cst) {
                       final wide = cst.maxWidth >= 900;
                       final left = _leftColumn(context, lead);
                       final right = _rightColumn(context, lead, isManager);

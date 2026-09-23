@@ -67,6 +67,12 @@ class SalesTeamService {
   static final instance = SalesTeamService._();
   final _dio = ApiClient.instance.dio;
 
+  // Stale-while-revalidate screen cache — see MachineService for the full
+  // reasoning. load() takes no filter params, so every call is the default
+  // (single, unfiltered) view.
+  static List<TeamMember>? cachedTeam;
+  static List<TeamActivity>? cachedActivity;
+
   Future<(List<TeamMember>, List<TeamActivity>)> load() async {
     final res = await _dio.get('/sales-team');
     final data = ApiClient.unwrap(res) as Map<String, dynamic>;
@@ -74,6 +80,8 @@ class SalesTeamService {
         .map((e) => TeamMember.fromJson(e as Map<String, dynamic>)).toList();
     final activity = (data['recent_activity'] as List? ?? [])
         .map((e) => TeamActivity.fromJson(e as Map<String, dynamic>)).toList();
+    cachedTeam = team;
+    cachedActivity = activity;
     return (team, activity);
   }
 

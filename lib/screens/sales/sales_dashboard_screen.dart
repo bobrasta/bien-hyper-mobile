@@ -37,10 +37,29 @@ class _SalesDashboardScreenState extends State<SalesDashboardScreen> {
   String? _error;
 
   @override
-  void initState() { super.initState(); _load(); }
+  void initState() {
+    super.initState();
+    // Stale-while-revalidate: show the last-known dashboard figures
+    // immediately on a return visit instead of blanking to a spinner, then
+    // quietly refresh in the background — see MachineService for the full
+    // reasoning. _data is the "do we have anything to show" signal here
+    // (the whole build tree depends on it); the invoice/lead lists are
+    // supplementary and simply default to whatever was last cached.
+    final cachedData = SalesDashboardService.cachedData;
+    if (cachedData != null) {
+      _data = cachedData;
+      _invoices = InvoiceService.cachedDefaultList ?? [];
+      _leads = SalesService.cachedDefaultList ?? [];
+      _loading = false;
+    }
+    _load();
+  }
 
   Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      if (_data == null) _loading = true;
+      _error = null;
+    });
     try {
       final results = await Future.wait([
         SalesDashboardService.instance.load(),
@@ -62,7 +81,10 @@ class _SalesDashboardScreenState extends State<SalesDashboardScreen> {
   @override
   Widget build(BuildContext context) {
     if (_loading) return const Center(child: CircularProgressIndicator(strokeWidth: 2));
-    if (_error != null) return ErrorView(message: _error!, onRetry: _load);
+    // A background refresh erroring while stale-but-valid cached data is
+    // already showing shouldn't blow that away — only surface the error
+    // when there's genuinely nothing to show.
+    if (_data == null) return ErrorView(message: _error ?? 'Failed to load dashboard.', onRetry: _load);
     final d = _data!;
 
     final invoicedTotal = _invoices.fold<int>(0, (s, i) => s + i.total);

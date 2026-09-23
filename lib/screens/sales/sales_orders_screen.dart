@@ -50,6 +50,15 @@ class _SalesOrdersScreenState extends State<SalesOrdersScreen> {
   @override
   void initState() {
     super.initState();
+    // Stale-while-revalidate: show the last-known order list immediately on
+    // a return visit instead of blanking to a spinner, then quietly refresh
+    // in the background — see MachineService for the full reasoning.
+    final cached = SalesOrderService.cachedDefaultList;
+    if (cached != null) {
+      _all = cached;
+      _loading = false;
+      _applyFilter();
+    }
     _load();
     _searchCtrl.addListener(_applyFilter);
   }
@@ -61,7 +70,10 @@ class _SalesOrdersScreenState extends State<SalesOrdersScreen> {
   }
 
   Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      if (_all.isEmpty) _loading = true;
+      _error = null;
+    });
     try {
       final data = await SalesOrderService.instance.list();
       if (!mounted) return;
@@ -161,7 +173,9 @@ class _SalesOrdersScreenState extends State<SalesOrdersScreen> {
             padding: EdgeInsets.fromLTRB(pad, 0, pad, pad),
             child: _loading
                 ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
-                : _error != null
+                // A background refresh failing while stale-but-valid cached
+                // data is already showing shouldn't blow that away.
+                : _error != null && _all.isEmpty
                     ? ErrorView(message: _error!, onRetry: _load)
                     : _OrderTable(items: _filtered, onSelect: _showDetailModal, booked: booked, cancelledTotal: cancelledTotal, cancelledCount: cancelled.length),
           ),

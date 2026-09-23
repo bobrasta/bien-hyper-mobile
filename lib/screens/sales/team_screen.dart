@@ -33,10 +33,28 @@ class _TeamScreenState extends State<TeamScreen> {
   bool _showAssign = false;
 
   @override
-  void initState() { super.initState(); _load(); }
+  void initState() {
+    super.initState();
+    // Stale-while-revalidate: show the last-known team + activity feed
+    // immediately on a return visit instead of blanking to a spinner, then
+    // quietly refresh in the background — see MachineService for the full
+    // reasoning. cachedTeam (not cachedTeam.isNotEmpty) is the presence
+    // signal since a manager legitimately having zero reports is a valid,
+    // already-loaded state, not "nothing fetched yet".
+    final cachedTeam = SalesTeamService.cachedTeam;
+    if (cachedTeam != null) {
+      _team = cachedTeam;
+      _activity = SalesTeamService.cachedActivity ?? [];
+      _loading = false;
+    }
+    _load();
+  }
 
   Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      if (_team.isEmpty) _loading = true;
+      _error = null;
+    });
     try {
       final (team, activity) = await SalesTeamService.instance.load();
       if (mounted) setState(() { _team = team; _activity = activity; _loading = false; });
@@ -73,7 +91,9 @@ class _TeamScreenState extends State<TeamScreen> {
             Expanded(
               child: _loading
                   ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
-                  : _error != null
+                  // A background refresh failing while stale-but-valid
+                  // cached data is already showing shouldn't blow that away.
+                  : _error != null && _team.isEmpty
                       ? ErrorView(message: _error!, onRetry: _load)
                       : wide
                           ? Row(crossAxisAlignment: CrossAxisAlignment.start, children: [

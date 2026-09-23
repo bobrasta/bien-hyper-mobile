@@ -54,6 +54,15 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
   @override
   void initState() {
     super.initState();
+    // Stale-while-revalidate: show the last-known invoice list immediately
+    // on a return visit instead of blanking to a spinner, then quietly
+    // refresh in the background — see MachineService for the full reasoning.
+    final cached = InvoiceService.cachedDefaultList;
+    if (cached != null) {
+      _all = cached;
+      _loading = false;
+      _applyFilter();
+    }
     _load();
     _searchCtrl.addListener(_applyFilter);
   }
@@ -65,7 +74,13 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
   }
 
   Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      // Only show the blank/loading state when there's genuinely nothing to
+      // show yet — a background refresh (or a return visit seeded from the
+      // cache above) updates silently.
+      if (_all.isEmpty) _loading = true;
+      _error = null;
+    });
     try {
       final results = await Future.wait([
         InvoiceService.instance.list(),
@@ -240,7 +255,10 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
             padding: EdgeInsets.fromLTRB(pad, 0, pad, pad),
             child: _loading
                 ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
-                : _error != null
+                // A background refresh failing while stale-but-valid cached
+                // data is already showing shouldn't blow that away — only
+                // surface the error when there's nothing else to show.
+                : _error != null && _all.isEmpty
                     ? ErrorView(message: _error!, onRetry: _load)
                     : _InvoiceTable(items: _filtered, onSelect: _showDetailModal, total: totalRaised, outstandingTotal: outstanding),
           ),
