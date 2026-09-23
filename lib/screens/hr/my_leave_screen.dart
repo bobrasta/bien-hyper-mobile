@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
-import '../../main.dart' show userIdNotifier;
 import '../../models/leave_request.dart';
 import '../../services/late_arrival_service.dart';
 import '../../services/leave_service.dart';
@@ -36,12 +35,12 @@ class _MyLeaveScreenState extends State<MyLeaveScreen> {
   Future<void> _load() async {
     setState(() { _loading = true; _error = null; });
     try {
-      // Always scope to the logged-in user's own requests — HR/admin callers
-      // get everyone's by default otherwise, which is wrong on a screen
-      // titled "My Leave" (hr_approval_screen.dart is the intentional
-      // company-wide view for those roles).
+      // Always scope to the logged-in user's own requests — mine:true forces
+      // this server-side even for HR/admin callers, regardless of whether
+      // userIdNotifier happens to be populated (hr_approval_screen.dart is
+      // the intentional company-wide view for those roles).
       final results = await Future.wait([
-        LeaveService.instance.list(userId: userIdNotifier.value),
+        LeaveService.instance.list(mine: true),
         LeaveService.instance.balances(),
       ]);
       if (mounted) setState(() {

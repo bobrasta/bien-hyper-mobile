@@ -6,11 +6,12 @@ class LeaveService {
   static final instance = LeaveService._();
   final _dio = ApiClient.instance.dio;
 
-  Future<List<LeaveRequest>> list({int? userId, String? status, String? type}) async {
+  Future<List<LeaveRequest>> list({int? userId, String? status, String? type, bool mine = false}) async {
     final res = await _dio.get('/leave-requests', queryParameters: {
       'user_id': ?userId,
       'status':  ?status,
       'type':    ?type,
+      if (mine) 'mine': 1,
     });
     final (data, _) = ApiClient.unwrapList(res);
     return data.map((j) => LeaveRequest.fromJson(j as Map<String, dynamic>)).toList();
