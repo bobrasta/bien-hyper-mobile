@@ -9,6 +9,10 @@ class MyReportsService {
   static final instance = MyReportsService._();
   final _dio = ApiClient.instance.dio;
 
+  // Stale-while-revalidate screen cache — see MachineService for the full
+  // reasoning. cachedDefaultList only covers the fully unfiltered query.
+  static List<MyServiceReport>? cachedDefaultList;
+
   Future<List<MyServiceReport>> serviceReports({
     int? hospitalId, int? machineId, String? ticketNumber, String? type,
     String? dateFrom, String? dateTo,
@@ -22,7 +26,12 @@ class MyReportsService {
       'date_to':       ?dateTo,
     });
     final (data, _) = ApiClient.unwrapList(res);
-    return data.map((j) => MyServiceReport.fromJson(j as Map<String, dynamic>)).toList();
+    final reports = data.map((j) => MyServiceReport.fromJson(j as Map<String, dynamic>)).toList();
+    if (hospitalId == null && machineId == null && ticketNumber == null &&
+        type == null && dateFrom == null && dateTo == null) {
+      cachedDefaultList = reports;
+    }
+    return reports;
   }
 
   /// Fetches raw bytes from an attachment's own storage URL (not an API

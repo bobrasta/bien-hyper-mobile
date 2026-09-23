@@ -157,12 +157,43 @@ class _TechnicianDashboardScreenState extends State<TechnicianDashboardScreen> {
   @override
   void initState() {
     super.initState();
+    // Stale-while-revalidate: seed every independently-cacheable piece
+    // from its service's own cache so this dashboard doesn't blank to a
+    // full shimmer list on every return visit — same reasoning as
+    // MachineListScreen, applied per-piece since this is a dashboard of
+    // several independent fetches. Tickets has no matching cache —
+    // TicketService.cachedDefaultList only covers the fully unfiltered
+    // call, and this screen always fetches assignedTo: me — so that
+    // piece always starts empty until its own fetch resolves, same as
+    // before.
+    final me = userIdNotifier.value;
+    final profile = AuthService.cachedProfile;
+    if (profile != null) {
+      _me = StaffMember.fromJson(profile);
+      _managerName = profile['manager_name'] as String?;
+    }
+    if (me != null) {
+      final contracts = ContractService.cachedByUserId[me];
+      if (contracts != null) _contracts = contracts;
+      final positionChanges = PositionChangeService.cachedByUserId[me];
+      if (positionChanges != null) _positionChanges = positionChanges;
+      final tasks = TaskService.cachedByAssignee[me];
+      if (tasks != null) _myTasks = tasks;
+      final payroll = PayrollService.cachedHistoryForUser[me];
+      if (payroll != null) { _payrollHistory = payroll; _payrollLoading = false; }
+      final now = DateTime.now();
+      final start = DateTime(now.year, now.month, 1);
+      final end = DateTime(now.year, now.month + 1, 0);
+      final attendance = AttendanceService.cachedByQuery['${_fmtDate(start)}|${_fmtDate(end)}|$me'];
+      if (attendance != null) { _attendance = attendance; _attendanceLoading = false; }
+    }
+    if (profile != null) _loading = false;
     _load();
   }
 
   Future<void> _load() async {
     setState(() {
-      _loading = true;
+      if (_me == null) _loading = true;
       _loadError = null;
     });
     final me = userIdNotifier.value;
@@ -260,7 +291,7 @@ class _TechnicianDashboardScreenState extends State<TechnicianDashboardScreen> {
       return;
     }
     setState(() {
-      _payrollLoading = true;
+      if (_payrollHistory.isEmpty) _payrollLoading = true;
       _payrollForbidden = false;
     });
     try {
@@ -285,7 +316,7 @@ class _TechnicianDashboardScreenState extends State<TechnicianDashboardScreen> {
       return;
     }
     setState(() {
-      _attendanceLoading = true;
+      if (_attendance.isEmpty) _attendanceLoading = true;
       _attendanceForbidden = false;
     });
     final now = DateTime.now();
@@ -526,7 +557,10 @@ class _TechnicianDashboardScreenState extends State<TechnicianDashboardScreen> {
         child: shimmerList(count: 8),
       );
     }
-    if (_loadError != null) {
+    // A background refresh failing while stale-but-valid cached data is
+    // already showing shouldn't blow that away — only surface the error
+    // when there's genuinely nothing else to show.
+    if (_loadError != null && _me == null) {
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,

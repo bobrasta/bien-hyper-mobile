@@ -60,6 +60,19 @@ class _HospitalListScreenState extends State<HospitalListScreen> {
   @override
   void initState() {
     super.initState();
+    // Stale-while-revalidate: show the last-known page-1, no-filter table
+    // instantly if cached, then quietly refresh — same reasoning as
+    // MachineListScreen. The KPI stat chips above the table have no
+    // matching cache (each is its own count-only or has_machines-filtered
+    // query) — they already show "…" until they resolve, an existing,
+    // unrelated loading affordance.
+    final cached = HospitalService.cachedFirstPage;
+    if (cached != null) {
+      _pageHospitals = cached.items;
+      _lastPage = cached.lastPage;
+      _pageTotal = cached.total;
+      _loading = false;
+    }
     _loadStats();
     _loadPage();
   }
@@ -96,7 +109,10 @@ class _HospitalListScreenState extends State<HospitalListScreen> {
   }
 
   Future<void> _loadPage() async {
-    setState(() { _loading = true; _loadError = null; });
+    setState(() {
+      if (_pageHospitals.isEmpty) _loading = true;
+      _loadError = null;
+    });
     try {
       final q = _search.text.trim();
       final result = await HospitalService.instance.listPaged(
@@ -276,7 +292,10 @@ class _HospitalListScreenState extends State<HospitalListScreen> {
                     _TableHeader(),
                     if (_loading)
                       shimmerList(count: 8)
-                    else if (_loadError != null)
+                    // A background refresh failing while stale-but-valid
+                    // cached hospitals are already showing shouldn't blow
+                    // that away.
+                    else if (_loadError != null && _pageHospitals.isEmpty)
                       ErrorView(message: _loadError!, onRetry: _load, compact: true)
                     else if (hospitals.isEmpty)
                       Padding(

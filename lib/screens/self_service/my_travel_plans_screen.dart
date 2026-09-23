@@ -32,11 +32,19 @@ class _MyTravelPlansScreenState extends State<MyTravelPlansScreen> {
   @override
   void initState() {
     super.initState();
+    // Stale-while-revalidate: show the last-known default (unfiltered)
+    // plan list instantly if cached, then quietly refresh — same
+    // reasoning as MachineListScreen.
+    final cached = PerDiemService.cachedDefaultList;
+    if (cached != null) { _plans = cached; _loading = false; }
     _load();
   }
 
   Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      if (_plans.isEmpty) _loading = true;
+      _error = null;
+    });
     try {
       final results = await PerDiemService.instance.list();
       if (mounted) setState(() { _plans = results; _loading = false; });
@@ -89,7 +97,9 @@ class _MyTravelPlansScreenState extends State<MyTravelPlansScreen> {
             const SizedBox(height: 20),
             if (_loading)
               const Center(child: Padding(padding: EdgeInsets.symmetric(vertical: 48), child: CircularProgressIndicator(strokeWidth: 2)))
-            else if (_error != null)
+            // A background refresh failing while stale-but-valid cached
+            // data is already showing shouldn't blow that away.
+            else if (_error != null && _plans.isEmpty)
               ErrorView(message: _error!, onRetry: _load)
             else if (_plans.isEmpty)
               Padding(padding: const EdgeInsets.symmetric(vertical: 32), child: Center(child: Text('No travel plans submitted yet', style: TextStyle(color: context.pal.textMute))))

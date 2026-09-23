@@ -77,11 +77,40 @@ class _RevenueScreenState extends State<RevenueScreen> {
   @override
   void initState() {
     super.initState();
+    // Stale-while-revalidate: seed every independently-cacheable piece
+    // from its service's own cache so this screen doesn't blank to a
+    // full-page spinner on every return visit — same reasoning as
+    // MachineListScreen. Hospitals (fetched here with hasMachines: true)
+    // has no matching cache — HospitalService.cachedDefaultList only
+    // covers the fully unfiltered call — so that piece always refreshes
+    // freshly regardless.
+    final invoices = InvoiceService.cachedDefaultList;
+    final machines = MachineService.cachedDefaultList;
+    final revByHosp = InvoiceService.cachedRevenueByHospital;
+    final revSummary = InvoiceService.cachedRevenueSummary;
+    final settings = SettingService.cachedAll;
+    if (invoices != null && machines != null) {
+      _invoices = invoices;
+      _machines = machines;
+      if (revByHosp != null) _revenueByHosp = revByHosp;
+      if (revSummary != null) {
+        _revenueMonths = (revSummary['months'] as List? ?? []).cast<String>();
+        _revenueActual = (revSummary['actual'] as List? ?? []).map((e) => (e as num).toDouble()).toList();
+        _revenueTarget = (revSummary['target'] as List? ?? []).map((e) => (e as num).toDouble()).toList();
+      }
+      if (settings != null) {
+        _monthlyTarget = double.tryParse(settings['revenue_monthly_target'] ?? '') ?? 0;
+      }
+      _loading = false;
+    }
     _load();
   }
 
   Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      if (_invoices.isEmpty && _machines.isEmpty) _loading = true;
+      _error = null;
+    });
     try {
       final results = await Future.wait([
         InvoiceService.instance.list(),
@@ -172,7 +201,9 @@ class _RevenueScreenState extends State<RevenueScreen> {
               padding: EdgeInsets.symmetric(vertical: 48),
               child: CircularProgressIndicator(strokeWidth: 2),
             ))
-          else if (_error != null)
+          // A background refresh failing while stale-but-valid cached
+          // data is already showing shouldn't blow that away.
+          else if (_error != null && _invoices.isEmpty && _machines.isEmpty)
             ErrorView(message: _error!, onRetry: _load)
           else ...[
 

@@ -34,11 +34,24 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   @override
   void initState() {
     super.initState();
+    // Stale-while-revalidate: show the last-known notifications instantly
+    // if we have them cached, then quietly refresh — same reasoning as
+    // MachineListScreen, so this screen doesn't blank to a shimmer on
+    // every navigation.
+    final cached = NotificationService.cachedDefaultList;
+    if (cached != null) {
+      _notifications = cached;
+      _loading = false;
+      notificationCountNotifier.value = _unreadCount;
+    }
     _load();
   }
 
   Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      if (_notifications.isEmpty) _loading = true;
+      _error = null;
+    });
     try {
       final data = await NotificationService.instance.list(noCache: true);
       if (mounted) {
@@ -140,7 +153,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       return SingleChildScrollView(child: shimmerList(count: 10));
     }
 
-    if (_error != null) {
+    // A background refresh failing while stale-but-valid cached
+    // notifications are already showing shouldn't blow that away —
+    // only surface the error when there's nothing else to show.
+    if (_error != null && _notifications.isEmpty) {
       return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
         Icon(Symbols.error_outline, size: 36, color: AppColors.coral),
         const SizedBox(height: 10),

@@ -64,6 +64,23 @@ class _ApprovalsScreenState extends State<ApprovalsScreen> with SingleTickerProv
   @override
   void initState() {
     super.initState();
+    // Stale-while-revalidate: seed each tab from its service's own
+    // default-list cache (where one exists) so re-visiting Approvals
+    // doesn't blank the whole four-tab view to a spinner while a
+    // background refresh runs — same reasoning as MachineListScreen.
+    // Stock-out has no matching cache: StockOutRequestService only caches
+    // the fully unfiltered call, and this screen always fetches
+    // status: 'pending', so that tab always starts empty until its own
+    // fetch resolves, same as before.
+    final perDiem = PerDiemService.cachedDefaultList;
+    final expenses = ExpenseService.cachedDefaultList;
+    final purchaseOrders = PurchaseOrderService.cachedDefaultList;
+    if (perDiem != null) _perDiem = perDiem;
+    if (expenses != null) _expenses = expenses;
+    if (purchaseOrders != null) _purchaseOrders = purchaseOrders;
+    if (perDiem != null || expenses != null || purchaseOrders != null) {
+      _loading = false;
+    }
     _load();
   }
 
@@ -72,7 +89,9 @@ class _ApprovalsScreenState extends State<ApprovalsScreen> with SingleTickerProv
 
   Future<void> _load() async {
     setState(() {
-      _loading = true;
+      if (_stockOut.isEmpty && _perDiem.isEmpty && _expenses.isEmpty && _purchaseOrders.isEmpty) {
+        _loading = true;
+      }
       _stockOutError = null; _perDiemError = null; _expensesError = null; _purchaseOrdersError = null;
     });
     // Each tab's resource loads independently — one tab lacking permission

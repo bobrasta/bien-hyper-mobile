@@ -51,6 +51,20 @@ class _EmailScreenState extends State<EmailScreen> {
   }
 
   Future<void> _init() async {
+    // Stale-while-revalidate: skip both the account-check spinner and the
+    // email-list spinner on a return visit when we already know accounts
+    // exist and have the current folder's emails cached — same reasoning
+    // as MachineListScreen.
+    final cachedAccounts = EmailAccountService.cachedAccounts;
+    if (cachedAccounts != null) {
+      _accounts = cachedAccounts;
+      _checkingAccounts = false;
+    }
+    final cachedEmails = EmailService.cachedByFolder[_folder];
+    if (cachedEmails != null) {
+      _emails = cachedEmails;
+      _loading = false;
+    }
     // 1. Check if any account is configured
     try {
       final accounts = await EmailAccountService.instance.list();
@@ -95,7 +109,11 @@ class _EmailScreenState extends State<EmailScreen> {
   }
 
   Future<void> _loadEmails() async {
-    setState(() { _loading = true; _loadError = null; _selectedIdx = -1; });
+    setState(() {
+      if (_emails.isEmpty) _loading = true;
+      _loadError = null;
+      _selectedIdx = -1;
+    });
     try {
       final list = await _fetchForFolder(_folder);
       if (!mounted) return;
@@ -123,7 +141,18 @@ class _EmailScreenState extends State<EmailScreen> {
   }
 
   Future<void> _switchFolder(String folder) async {
-    setState(() { _folder = folder; _narrowPane = 1; });
+    // Switching folders is an identity change, same as
+    // MachineDetailScreen's didUpdateWidget on a changed id — leaving the
+    // OLD folder's emails showing under the NEW folder would be actively
+    // wrong, so seed from that folder's own cache entry (or empty) rather
+    // than carrying the previous folder's list over.
+    final cached = EmailService.cachedByFolder[folder];
+    setState(() {
+      _folder = folder;
+      _narrowPane = 1;
+      _emails = cached ?? [];
+      _selectedIdx = -1;
+    });
     await _loadEmails();
   }
 
@@ -383,7 +412,9 @@ class _EmailScreenState extends State<EmailScreen> {
 
   Widget _emailList(BuildContext context) {
     if (_loading) return const Center(child: CircularProgressIndicator(strokeWidth: 2));
-    if (_loadError != null) return ErrorView(message: _loadError!, onRetry: _loadEmails);
+    // A background refresh failing while stale-but-valid cached emails
+    // are already showing shouldn't blow that away.
+    if (_loadError != null && _emails.isEmpty) return ErrorView(message: _loadError!, onRetry: _loadEmails);
     if (_emails.isEmpty) {
       return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
         Icon(Symbols.inbox, size: 36, color: context.pal.textDim),

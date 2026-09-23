@@ -31,6 +31,11 @@ class _MyServiceReportsScreenState extends State<MyServiceReportsScreen> {
   @override
   void initState() {
     super.initState();
+    // Stale-while-revalidate: show the last-known default (unfiltered)
+    // report list instantly if cached, then quietly refresh — same
+    // reasoning as MachineListScreen.
+    final cached = MyReportsService.cachedDefaultList;
+    if (cached != null) { _reports = cached; _loading = false; }
     _load();
   }
 
@@ -41,7 +46,10 @@ class _MyServiceReportsScreenState extends State<MyServiceReportsScreen> {
   }
 
   Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      if (_reports.isEmpty) _loading = true;
+      _error = null;
+    });
     try {
       final results = await MyReportsService.instance.serviceReports(
         ticketNumber: _ticketCtrl.text.trim().isEmpty ? null : _ticketCtrl.text.trim(),
@@ -80,7 +88,9 @@ class _MyServiceReportsScreenState extends State<MyServiceReportsScreen> {
             const SizedBox(height: 16),
             if (_loading)
               const Center(child: Padding(padding: EdgeInsets.symmetric(vertical: 48), child: CircularProgressIndicator(strokeWidth: 2)))
-            else if (_error != null)
+            // A background refresh failing while stale-but-valid cached
+            // data is already showing shouldn't blow that away.
+            else if (_error != null && _reports.isEmpty)
               ErrorView(message: _error!, onRetry: _load)
             else if (_reports.isEmpty)
               Padding(padding: const EdgeInsets.symmetric(vertical: 32), child: Center(child: Text('No reports found', style: TextStyle(color: context.pal.textMute))))

@@ -30,10 +30,20 @@ class _MyPerformanceScreenState extends State<MyPerformanceScreen> {
   String? _error;
 
   @override
-  void initState() { super.initState(); _load(); }
+  void initState() {
+    super.initState();
+    // Stale-while-revalidate: show the last-known figures instantly if
+    // cached, then quietly refresh — same reasoning as MachineListScreen.
+    final cached = PerformanceService.cachedMine;
+    if (cached != null) { _data = cached; _loading = false; }
+    _load();
+  }
 
   Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      if (_data == null) _loading = true;
+      _error = null;
+    });
     try {
       final data = await PerformanceService.instance.mine();
       if (mounted) setState(() { _data = data; _loading = false; });
@@ -47,7 +57,9 @@ class _MyPerformanceScreenState extends State<MyPerformanceScreen> {
     final d = _data;
     return _loading
         ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
-        : _error != null
+        // A background refresh failing while stale-but-valid cached data
+        // is already showing shouldn't blow that away.
+        : _error != null && d == null
             ? ErrorView(message: _error!, onRetry: _load)
             : d == null
                 ? const SizedBox.shrink()

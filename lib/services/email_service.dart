@@ -6,6 +6,17 @@ class EmailService {
   static final instance = EmailService._();
   final _dio = ApiClient.instance.dio;
 
+  // Stale-while-revalidate screen cache — see MachineService for the full
+  // reasoning. EmailScreen fetches a different folder's list via a
+  // different method (inbox()/sent()/drafts()/folder()) rather than one
+  // method with a folder param, so cache by the same folder key the
+  // screen itself uses ('inbox', 'sent', 'drafts', or a server folder
+  // name) instead of a single unfiltered-list field. Only inbox()'s fully
+  // unfiltered call (no unread/search/accountId) is cached — a filtered
+  // inbox view showing stale data from a different filter would be
+  // misleading, same reasoning as MachineService's own default-list cache.
+  static final Map<String, List<Email>> cachedByFolder = {};
+
   // ── Fetch ──────────────────────────────────────────────────────────────────
 
   Future<List<Email>> inbox({bool? unread, String? search, int? accountId}) async {
@@ -15,7 +26,11 @@ class EmailService {
       'account_id': ?accountId,
     });
     final (data, _) = ApiClient.unwrapList(res);
-    return data.map((j) => Email.fromJson(j as Map<String, dynamic>)).toList();
+    final emails = data.map((j) => Email.fromJson(j as Map<String, dynamic>)).toList();
+    if (unread != true && search == null && accountId == null) {
+      cachedByFolder['inbox'] = emails;
+    }
+    return emails;
   }
 
   Future<List<Email>> sent()   => _folder('sent');
@@ -24,13 +39,17 @@ class EmailService {
   Future<List<Email>> folder(String name) async {
     final res = await _dio.get('/emails/folder/$name');
     final (data, _) = ApiClient.unwrapList(res);
-    return data.map((j) => Email.fromJson(j as Map<String, dynamic>)).toList();
+    final emails = data.map((j) => Email.fromJson(j as Map<String, dynamic>)).toList();
+    cachedByFolder[name] = emails;
+    return emails;
   }
 
   Future<List<Email>> _folder(String name) async {
     final res = await _dio.get('/emails/$name');
     final (data, _) = ApiClient.unwrapList(res);
-    return data.map((j) => Email.fromJson(j as Map<String, dynamic>)).toList();
+    final emails = data.map((j) => Email.fromJson(j as Map<String, dynamic>)).toList();
+    cachedByFolder[name] = emails;
+    return emails;
   }
 
   Future<Email> get(int id) async {

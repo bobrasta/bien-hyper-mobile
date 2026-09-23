@@ -43,20 +43,43 @@ class _CustomersScreenState extends State<CustomersScreen> {
   @override
   void initState() {
     super.initState();
+    // Stale-while-revalidate: show the last-known default (unfiltered)
+    // contact list — and, if we have it, the first contact's own cached
+    // detail — instantly instead of blanking to a shimmer on every
+    // navigation, then quietly refresh. Same reasoning as
+    // MachineListScreen/MachineDetailScreen.
+    final cached = ContactService.cachedDefaultList;
+    if (cached != null) {
+      _allContacts = cached;
+      _loading = false;
+      if (cached.isNotEmpty) {
+        final cachedDetail = ContactService.cachedById[cached[0].id];
+        if (cachedDetail != null) _detailContact = cachedDetail;
+      }
+    }
     _load();
   }
 
   Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      if (_allContacts.isEmpty) _loading = true;
+      _error = null;
+    });
     try {
       final contacts = await ContactService.instance.list();
       if (mounted) {
+        // Preserve the currently-shown detail across a background refresh
+        // instead of always wiping it and re-fetching the first contact —
+        // that used to happen on every single call to _load(), including
+        // silent re-visits to this screen.
+        final keepDetail = _detailContact != null &&
+            contacts.any((c) => c.id == _detailContact!.id);
         setState(() {
-          _allContacts   = contacts;
-          _loading       = false;
-          _detailContact = null;
+          _allContacts = contacts;
+          _loading = false;
+          if (!keepDetail) _detailContact = null;
         });
-        if (contacts.isNotEmpty) _loadDetail(contacts[0]);
+        if (!keepDetail && contacts.isNotEmpty) _loadDetail(contacts[0]);
       }
     } catch (e) {
       if (mounted) setState(() { _error = friendlyError(e); _loading = false; });
@@ -207,7 +230,10 @@ class _CustomersScreenState extends State<CustomersScreen> {
             Expanded(
               child: _loading
                 ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
-                : _error != null
+                // A background refresh failing while stale-but-valid
+                // cached contacts are already showing shouldn't blow
+                // that away.
+                : _error != null && _allContacts.isEmpty
                     ? ErrorView(message: _error!, onRetry: _load)
                     : RefreshIndicator(
                         onRefresh: _load,

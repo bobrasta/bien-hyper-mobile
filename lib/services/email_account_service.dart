@@ -8,10 +8,16 @@ class EmailAccountService {
   static final instance = EmailAccountService._();
   final _dio = ApiClient.instance.dio;
 
+  // Stale-while-revalidate screen cache — see MachineService for the full
+  // reasoning. list() takes no filters, so it's always cached.
+  static List<EmailAccount>? cachedAccounts;
+
   Future<List<EmailAccount>> list() async {
     final res = await _dio.get('/email-accounts');
     final (data, _) = ApiClient.unwrapList(res);
-    return data.map((j) => EmailAccount.fromJson(j as Map<String, dynamic>)).toList();
+    final accounts = data.map((j) => EmailAccount.fromJson(j as Map<String, dynamic>)).toList();
+    cachedAccounts = accounts;
+    return accounts;
   }
 
   Future<EmailAccount> create(Map<String, dynamic> data) async {
