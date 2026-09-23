@@ -29,10 +29,36 @@ class _HrLeaveCalendarScreenState extends State<HrLeaveCalendarScreen> {
   static List<Color> get _lanePalette => [AppColors.amber, AppColors.violet, AppColors.cyan, AppColors.info, AppColors.coral];
 
   @override
-  void initState() { super.initState(); _load(); }
+  void initState() {
+    super.initState();
+    // Stale-while-revalidate: seed from whatever's already cached for the
+    // current month (the default landing view) so this screen doesn't
+    // blank to a spinner on every navigation — see MachineService's own
+    // doc comment for the full reasoning. Scoped to the current month only;
+    // paging to a different month still shows the normal loading state.
+    final start = DateTime(_month.year, _month.month, 1);
+    final end = DateTime(_month.year, _month.month + 1, 0);
+    final cachedEntries = HrReportService.cachedLeaveCalendarByRange['${_fmt(start)}|${_fmt(end)}'];
+    final cachedHolidays = PublicHolidayService.cachedByYear[_month.year];
+    final cachedBalances = HrReportService.cachedLeaveBalancesByYear[_month.year];
+    if (cachedEntries != null) _entries = cachedEntries;
+    if (cachedHolidays != null) {
+      _holidays = cachedHolidays.where((h) {
+        final d = DateTime.tryParse(h.date);
+        return d != null && !d.isBefore(DateTime.now());
+      }).toList()..sort((a, b) => a.date.compareTo(b.date));
+    }
+    if (cachedBalances != null) _balances = cachedBalances;
+    if (cachedEntries != null || cachedHolidays != null || cachedBalances != null) _loading = false;
+    _load();
+  }
 
   Future<void> _load() async {
-    setState(() { _loading = true; _error = null; _selected = null; });
+    setState(() {
+      if (_entries.isEmpty && _holidays.isEmpty && _balances.isEmpty) _loading = true;
+      _error = null;
+      _selected = null;
+    });
     try {
       final start = DateTime(_month.year, _month.month, 1);
       final end = DateTime(_month.year, _month.month + 1, 0);
@@ -89,7 +115,7 @@ class _HrLeaveCalendarScreenState extends State<HrLeaveCalendarScreen> {
           Expanded(
             child: _loading
                 ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
-                : _error != null
+                : (_error != null && _entries.isEmpty && _holidays.isEmpty && _balances.isEmpty)
                     ? ErrorView(message: _error!, onRetry: _load)
                     : SingleChildScrollView(child: wide
                         ? Row(crossAxisAlignment: CrossAxisAlignment.start, children: [

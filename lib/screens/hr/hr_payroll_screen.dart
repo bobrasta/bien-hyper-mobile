@@ -34,10 +34,29 @@ class _HrPayrollScreenState extends State<HrPayrollScreen> {
   static const _stageLabels = {'draft': 'Draft', 'reviewed': 'Reviewed', 'approved': 'Approved', 'paid': 'Paid'};
 
   @override
-  void initState() { super.initState(); _load(); }
+  void initState() {
+    super.initState();
+    // Stale-while-revalidate: show the last-known runs list (and its most
+    // recent run's detail, matching what _load() itself would select by
+    // default) immediately instead of blanking to a spinner on every
+    // navigation — see MachineService's own doc comment for the full
+    // reasoning.
+    final cachedRuns = PayrollService.cachedRuns;
+    if (cachedRuns != null) {
+      _runs = cachedRuns;
+      if (cachedRuns.isNotEmpty) {
+        _selected = PayrollService.cachedRunById[cachedRuns.first.id];
+      }
+      _loading = false;
+    }
+    _load();
+  }
 
   Future<void> _load({int? selectId}) async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      if (_runs.isEmpty) _loading = true;
+      _error = null;
+    });
     try {
       final runs = await PayrollService.instance.runs();
       PayrollRun? sel;
@@ -198,7 +217,7 @@ class _HrPayrollScreenState extends State<HrPayrollScreen> {
   @override
   Widget build(BuildContext context) {
     if (_loading && _runs.isEmpty) return const Center(child: CircularProgressIndicator(strokeWidth: 2));
-    if (_error != null) return ErrorView(message: _error!, onRetry: _load);
+    if (_error != null && _runs.isEmpty) return ErrorView(message: _error!, onRetry: _load);
 
     return LayoutBuilder(builder: (ctx, cst) {
       final pad = cst.maxWidth < 560 ? 16.0 : 26.0;

@@ -36,12 +36,37 @@ class _HrAttendanceScreenState extends State<HrAttendanceScreen> {
   static const _statusLabels = {'present': 'Present', 'late': 'Late', 'absent': 'Absent', 'half_day': 'Half day', 'leave': 'Leave'};
 
   @override
-  void initState() { super.initState(); _load(); }
+  void initState() {
+    super.initState();
+    // Stale-while-revalidate: seed from whatever's already cached for the
+    // current month (the default landing view) so this screen doesn't
+    // blank to a spinner on every navigation — see MachineService's own
+    // doc comment for the full reasoning. Scoped to the current month's
+    // exact query key, same as AttendanceService.cachedByQuery elsewhere;
+    // paging to a different month still shows the normal loading state.
+    final cachedStaff = StaffService.instance.staffNotifier.value;
+    final monthStart = DateTime(_selectedDate.year, _selectedDate.month, 1);
+    final monthEnd = DateTime(_selectedDate.year, _selectedDate.month + 1, 0);
+    final cachedMonth = AttendanceService.cachedByQuery['${_fmt(monthStart)}|${_fmt(monthEnd)}|'];
+    if (cachedStaff.isNotEmpty) _staff = cachedStaff;
+    if (cachedMonth != null) {
+      _monthRecords = cachedMonth;
+      final byUser = <String, List<AttendanceRecord>>{};
+      for (final r in cachedMonth) { byUser.putIfAbsent('${r.userId}', () => []).add(r); }
+      _monthByUser = byUser;
+      _dayRecords = cachedMonth.where((r) => r.date == _fmt(_selectedDate)).toList();
+    }
+    if (cachedStaff.isNotEmpty || cachedMonth != null) _loading = false;
+    _load();
+  }
 
   static String _fmt(DateTime d) => '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
   Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      if (_staff.isEmpty && _monthRecords.isEmpty) _loading = true;
+      _error = null;
+    });
     try {
       final monthStart = DateTime(_selectedDate.year, _selectedDate.month, 1);
       final monthEnd = DateTime(_selectedDate.year, _selectedDate.month + 1, 0);
@@ -122,7 +147,7 @@ class _HrAttendanceScreenState extends State<HrAttendanceScreen> {
           Expanded(
             child: _loading
                 ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
-                : _error != null
+                : (_error != null && _staff.isEmpty && _monthRecords.isEmpty)
                     ? ErrorView(message: _error!, onRetry: _load)
                     : SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                         _kpiRow(),

@@ -255,9 +255,27 @@ class HrReportService {
   static final instance = HrReportService._();
   final _dio = ApiClient.instance.dio;
 
+  // Stale-while-revalidate screen cache — see MachineService for the full
+  // reasoning. Each report is cached under the exact parameter shape the
+  // HR dashboard/reports/leave-calendar screens actually call it with —
+  // most of these reports take no filter at all, so a single slot per
+  // report covers every caller.
+  static HeadcountBreakdown? cachedHeadcount;
+  static HrTurnoverReport? cachedTurnover; // turnover() — no year filter
+  static List<HrLeaveBalanceRow>? cachedDefaultLeaveBalances; // leaveBalances() — no year
+  static final Map<int, List<HrLeaveBalanceRow>> cachedLeaveBalancesByYear = {};
+  static final Map<String, List<LeaveCalendarEntry>> cachedLeaveCalendarByRange = {}; // '$start|$end'
+  static RecruitmentSummary? cachedRecruitmentSummary;
+  static final Map<int, List<ContractExpiringEntry>> cachedContractsExpiringByDays = {};
+  static ContractsSummary? cachedContractsSummary;
+  static DisciplinarySummary? cachedDisciplinarySummary;
+  static List<CareerProgressionEntry>? cachedCareerProgressions;
+
   Future<HrTurnoverReport> turnover({int? year}) async {
     final res = await _dio.get('/hr-reports/turnover', queryParameters: {'year': ?year});
-    return HrTurnoverReport.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+    final report = HrTurnoverReport.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+    if (year == null) cachedTurnover = report;
+    return report;
   }
 
   Future<List<OrgChartEntry>> orgChart() async {
@@ -268,7 +286,9 @@ class HrReportService {
 
   Future<HeadcountBreakdown> headcount() async {
     final res = await _dio.get('/hr-reports/headcount');
-    return HeadcountBreakdown.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+    final breakdown = HeadcountBreakdown.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+    cachedHeadcount = breakdown;
+    return breakdown;
   }
 
   Future<List<StaffDirectoryEntry>> staffDirectory() async {
@@ -280,40 +300,58 @@ class HrReportService {
   Future<List<HrLeaveBalanceRow>> leaveBalances({int? year}) async {
     final res = await _dio.get('/hr-reports/leave-balances', queryParameters: {'year': ?year});
     final (data, _) = ApiClient.unwrapList(res);
-    return data.map((j) => HrLeaveBalanceRow.fromJson(j as Map<String, dynamic>)).toList();
+    final list = data.map((j) => HrLeaveBalanceRow.fromJson(j as Map<String, dynamic>)).toList();
+    if (year == null) {
+      cachedDefaultLeaveBalances = list;
+    } else {
+      cachedLeaveBalancesByYear[year] = list;
+    }
+    return list;
   }
 
   Future<List<LeaveCalendarEntry>> leaveCalendar({String? start, String? end}) async {
     final res = await _dio.get('/hr-reports/leave-calendar', queryParameters: {'start': ?start, 'end': ?end});
     final (data, _) = ApiClient.unwrapList(res);
-    return data.map((j) => LeaveCalendarEntry.fromJson(j as Map<String, dynamic>)).toList();
+    final list = data.map((j) => LeaveCalendarEntry.fromJson(j as Map<String, dynamic>)).toList();
+    cachedLeaveCalendarByRange['${start ?? ''}|${end ?? ''}'] = list;
+    return list;
   }
 
   Future<RecruitmentSummary> recruitmentSummary() async {
     final res = await _dio.get('/hr-reports/recruitment-summary');
-    return RecruitmentSummary.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+    final summary = RecruitmentSummary.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+    cachedRecruitmentSummary = summary;
+    return summary;
   }
 
   Future<List<ContractExpiringEntry>> contractsExpiring({int withinDays = 90}) async {
     final res = await _dio.get('/hr-reports/contracts-expiring', queryParameters: {'within_days': withinDays});
     final (data, _) = ApiClient.unwrapList(res);
-    return data.map((j) => ContractExpiringEntry.fromJson(j as Map<String, dynamic>)).toList();
+    final list = data.map((j) => ContractExpiringEntry.fromJson(j as Map<String, dynamic>)).toList();
+    cachedContractsExpiringByDays[withinDays] = list;
+    return list;
   }
 
   Future<ContractsSummary> contractsSummary() async {
     final res = await _dio.get('/hr-reports/contracts-summary');
-    return ContractsSummary.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+    final summary = ContractsSummary.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+    cachedContractsSummary = summary;
+    return summary;
   }
 
   Future<DisciplinarySummary> disciplinarySummary() async {
     final res = await _dio.get('/hr-reports/disciplinary-summary');
-    return DisciplinarySummary.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+    final summary = DisciplinarySummary.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+    cachedDisciplinarySummary = summary;
+    return summary;
   }
 
   Future<List<CareerProgressionEntry>> careerProgressions() async {
     final res = await _dio.get('/hr-reports/career-progressions');
     final (data, _) = ApiClient.unwrapList(res);
-    return data.map((j) => CareerProgressionEntry.fromJson(j as Map<String, dynamic>)).toList();
+    final list = data.map((j) => CareerProgressionEntry.fromJson(j as Map<String, dynamic>)).toList();
+    cachedCareerProgressions = list;
+    return list;
   }
 
   Future<String> exportPdfLink() async {

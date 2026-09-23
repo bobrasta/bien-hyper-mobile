@@ -43,10 +43,59 @@ class _HrReportsTabState extends State<HrReportsTab> {
   List<StaffMember> _staff = [];
 
   @override
-  void initState() { super.initState(); _load(); }
+  void initState() {
+    super.initState();
+    // Stale-while-revalidate: show whatever's already cached from a
+    // previous visit immediately instead of blanking to a spinner on every
+    // navigation — see MachineService's own doc comment for the full
+    // reasoning. This dashboard combines 12 independent pieces, so
+    // "loading" is only true when NONE of them have anything cached yet.
+    final now = DateTime.now();
+    final attStart = DateTime(now.year, now.month - 5, 1);
+    final attendanceKey = '${_fmt(attStart)}|${_fmt(now)}|';
+    final cachedHeadcount    = HrReportService.cachedHeadcount;
+    final cachedTurnover     = HrReportService.cachedTurnover;
+    final cachedBalances     = HrReportService.cachedDefaultLeaveBalances;
+    final cachedRecruitment  = HrReportService.cachedRecruitmentSummary;
+    final cachedVacancies    = RecruitmentService.cachedDefaultVacancies;
+    final cachedExpiring     = HrReportService.cachedContractsExpiringByDays[90];
+    final cachedContractsSum = HrReportService.cachedContractsSummary;
+    final cachedDiscipline   = HrReportService.cachedDisciplinarySummary;
+    final cachedCareer       = HrReportService.cachedCareerProgressions;
+    final cachedRuns         = PayrollService.cachedRuns;
+    final cachedAttendance   = AttendanceService.cachedByQuery[attendanceKey];
+    final cachedStaff        = StaffService.instance.staffNotifier.value;
+    if (cachedHeadcount != null) _headcount = cachedHeadcount;
+    if (cachedTurnover != null) _turnover = cachedTurnover;
+    if (cachedBalances != null) _leaveBalances = cachedBalances;
+    if (cachedRecruitment != null) _recruitment = cachedRecruitment;
+    if (cachedVacancies != null) _vacancies = cachedVacancies;
+    if (cachedExpiring != null) _contractsExpiring = cachedExpiring;
+    if (cachedContractsSum != null) _contractsSummary = cachedContractsSum;
+    if (cachedDiscipline != null) _discipline = cachedDiscipline;
+    if (cachedCareer != null) _careerLog = cachedCareer;
+    if (cachedRuns != null) _payrollRuns = cachedRuns;
+    if (cachedAttendance != null) _attendance = cachedAttendance;
+    if (cachedStaff.isNotEmpty) _staff = cachedStaff;
+    if (cachedHeadcount != null || cachedTurnover != null || cachedBalances != null ||
+        cachedRecruitment != null || cachedVacancies != null || cachedExpiring != null ||
+        cachedContractsSum != null || cachedDiscipline != null || cachedCareer != null ||
+        cachedRuns != null || cachedAttendance != null || cachedStaff.isNotEmpty) {
+      _loading = false;
+    }
+    _load();
+  }
 
   Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      if (_headcount == null && _turnover == null && _leaveBalances.isEmpty && _recruitment == null &&
+          _vacancies.isEmpty && _contractsExpiring.isEmpty && _contractsSummary == null &&
+          _discipline == null && _careerLog.isEmpty && _payrollRuns.isEmpty && _attendance.isEmpty &&
+          _staff.isEmpty) {
+        _loading = true;
+      }
+      _error = null;
+    });
     try {
       final now = DateTime.now();
       final attStart = DateTime(now.year, now.month - 5, 1);
@@ -98,7 +147,14 @@ class _HrReportsTabState extends State<HrReportsTab> {
   @override
   Widget build(BuildContext context) {
     if (_loading) return const Center(child: CircularProgressIndicator(strokeWidth: 2));
-    if (_error != null) return ErrorView(message: _error!, onRetry: _load);
+    // A background refresh erroring while stale-but-valid cached data is
+    // already showing shouldn't blow that away — only surface the error
+    // screen when there's genuinely nothing to show.
+    final hasAnyData = _headcount != null || _turnover != null || _leaveBalances.isNotEmpty ||
+        _recruitment != null || _vacancies.isNotEmpty || _contractsExpiring.isNotEmpty ||
+        _contractsSummary != null || _discipline != null || _careerLog.isNotEmpty ||
+        _payrollRuns.isNotEmpty || _attendance.isNotEmpty || _staff.isNotEmpty;
+    if (_error != null && !hasAnyData) return ErrorView(message: _error!, onRetry: _load);
 
     return LayoutBuilder(builder: (ctx, cst) {
       final pad = cst.maxWidth < 560 ? 16.0 : 26.0;

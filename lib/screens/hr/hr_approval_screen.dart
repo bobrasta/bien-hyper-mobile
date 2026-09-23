@@ -61,6 +61,22 @@ class _HrApprovalScreenState extends State<HrApprovalScreen> with SingleTickerPr
   @override
   void initState() {
     super.initState();
+    // Stale-while-revalidate: show whatever's already cached from a
+    // previous visit immediately instead of blanking to a spinner on every
+    // navigation — see MachineService's own doc comment for the full
+    // reasoning. This screen combines 4 independent pieces, so "loading" is
+    // only true when NONE of them have anything cached yet.
+    final cachedAll = LeaveService.cachedDefaultList;
+    final cachedLate = LateArrivalService.cachedDefaultList;
+    final cachedStaff = StaffService.instance.staffNotifier.value;
+    final cachedBalances = LeaveService.cachedBalancesByYear[DateTime.now().year];
+    if (cachedAll != null) _all = cachedAll;
+    if (cachedLate != null) _lateArrivals = cachedLate;
+    if (cachedStaff.isNotEmpty) _staff = cachedStaff;
+    if (cachedBalances != null) _balances = cachedBalances;
+    if (cachedAll != null || cachedLate != null || cachedStaff.isNotEmpty || cachedBalances != null) {
+      _loading = false;
+    }
     _load();
   }
 
@@ -68,7 +84,10 @@ class _HrApprovalScreenState extends State<HrApprovalScreen> with SingleTickerPr
   void dispose() { _tab.dispose(); super.dispose(); }
 
   Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      if (_all.isEmpty && _lateArrivals.isEmpty && _staff.isEmpty && _balances.isEmpty) _loading = true;
+      _error = null;
+    });
     try {
       final results = await Future.wait([
         LeaveService.instance.list(),
@@ -173,7 +192,7 @@ class _HrApprovalScreenState extends State<HrApprovalScreen> with SingleTickerPr
         Expanded(
           child: _loading
               ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
-              : _error != null
+              : (_error != null && _all.isEmpty && _lateArrivals.isEmpty && _staff.isEmpty && _balances.isEmpty)
                   ? ErrorView(message: _error!, onRetry: _load)
                   : TabBarView(controller: _tab, children: [
                       _buildPendingWithRail(pad, wide),

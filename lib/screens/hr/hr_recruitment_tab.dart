@@ -35,10 +35,33 @@ class _HrRecruitmentTabState extends State<HrRecruitmentTab> {
   Map<String, int> _hiresBySource = {};
 
   @override
-  void initState() { super.initState(); _load(); }
+  void initState() {
+    super.initState();
+    // Stale-while-revalidate: show whatever's already cached from a
+    // previous visit immediately instead of blanking to a spinner on every
+    // navigation — see MachineService's own doc comment for the full
+    // reasoning.
+    final cachedVacancies = RecruitmentService.cachedDefaultVacancies;
+    final cachedPool = RecruitmentService.cachedTalentPool;
+    if (cachedVacancies != null) {
+      _vacancies = cachedVacancies;
+      _active = _vacancies.where((v) => v.status == 'open').isNotEmpty
+          ? _vacancies.where((v) => v.status == 'open').first
+          : (_vacancies.isNotEmpty ? _vacancies.first : null);
+      if (_active != null) {
+        _pipeline = RecruitmentService.cachedPipelineByVacancyId[_active!.id] ?? [];
+      }
+    }
+    if (cachedPool != null) _pool = cachedPool;
+    if (cachedVacancies != null || cachedPool != null) _loading = false;
+    _load();
+  }
 
   Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      if (_vacancies.isEmpty && _pool.isEmpty) _loading = true;
+      _error = null;
+    });
     try {
       final results = await Future.wait([
         RecruitmentService.instance.vacancies(),
@@ -75,7 +98,7 @@ class _HrRecruitmentTabState extends State<HrRecruitmentTab> {
   @override
   Widget build(BuildContext context) {
     if (_loading) return const Center(child: CircularProgressIndicator(strokeWidth: 2));
-    if (_error != null) return ErrorView(message: _error!, onRetry: _load);
+    if (_error != null && _vacancies.isEmpty && _pool.isEmpty) return ErrorView(message: _error!, onRetry: _load);
 
     final openCount = _vacancies.where((v) => v.status == 'open').length;
 

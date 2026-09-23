@@ -29,11 +29,23 @@ class _MyLeaveScreenState extends State<MyLeaveScreen> {
   @override
   void initState() {
     super.initState();
+    // Stale-while-revalidate: show whatever's already cached from a
+    // previous visit immediately instead of blanking to a spinner on every
+    // navigation — see MachineService's own doc comment for the full
+    // reasoning.
+    final cachedMine = LeaveService.cachedMineList;
+    final cachedBalances = LeaveService.cachedDefaultBalances;
+    if (cachedMine != null) _requests = cachedMine;
+    if (cachedBalances != null) _balances = cachedBalances;
+    if (cachedMine != null || cachedBalances != null) _loading = false;
     _load();
   }
 
   Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      if (_requests.isEmpty && _balances.isEmpty) _loading = true;
+      _error = null;
+    });
     try {
       // Always scope to the logged-in user's own requests — mine:true forces
       // this server-side even for HR/admin callers, regardless of whether
@@ -99,7 +111,7 @@ class _MyLeaveScreenState extends State<MyLeaveScreen> {
               ],
               if (_loading)
                 const Center(child: Padding(padding: EdgeInsets.symmetric(vertical: 48), child: CircularProgressIndicator(strokeWidth: 2)))
-              else if (_error != null)
+              else if (_error != null && _requests.isEmpty)
                 ErrorView(message: _error!, onRetry: _load)
               else if (_requests.isEmpty)
                 Padding(padding: const EdgeInsets.symmetric(vertical: 32), child: Center(child: Text('No leave requests yet', style: TextStyle(color: context.pal.textMute))))

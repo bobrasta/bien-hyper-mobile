@@ -48,10 +48,28 @@ class _HrDirectoryTabState extends State<HrDirectoryTab> {
   List<PayrollHistoryItem> _payrollHistory = [];
 
   @override
-  void initState() { super.initState(); _load(); }
+  void initState() {
+    super.initState();
+    // Stale-while-revalidate: show whatever's already cached from a
+    // previous visit immediately instead of blanking to a spinner on every
+    // navigation — see MachineService's own doc comment for the full
+    // reasoning. Direct field assignment (no setState) since this runs
+    // before the first build.
+    final cachedStaff = StaffService.instance.staffNotifier.value;
+    if (cachedStaff.isNotEmpty) {
+      _staff = cachedStaff;
+      _loading = false;
+      _selectedId = cachedStaff.first.id;
+      _seedDetailFromCache(_selectedId!);
+    }
+    _load();
+  }
 
   Future<void> _load({bool force = false}) async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      if (_staff.isEmpty) _loading = true;
+      _error = null;
+    });
     try {
       final list = await StaffService.instance.list(force: force);
       if (!mounted) return;
@@ -66,8 +84,36 @@ class _HrDirectoryTabState extends State<HrDirectoryTab> {
     }
   }
 
+  // Seeds the per-staff detail panes (contracts/cases/career/balances/
+  // attendance/leave/payroll) from each service's own stale-while-
+  // revalidate cache for [userId] — resetting every field to that id's
+  // cache entry (or empty), never leaving a previously-selected staff
+  // member's data showing under a new id. Mutates fields directly; callers
+  // wrap this in setState() themselves except the initState seed, which
+  // runs before the first build.
+  void _seedDetailFromCache(int userId) {
+    final now = DateTime.now();
+    final start = now.subtract(const Duration(days: 90));
+    final cachedAttendance = AttendanceService.cachedByQuery['${_fmt(start)}|${_fmt(now)}|$userId'];
+    final cachedContracts  = ContractService.cachedByUserId[userId];
+    final cachedCases      = DisciplinaryCaseService.cachedByUserId[userId];
+    final cachedCareer     = PositionChangeService.cachedByUserId[userId];
+    final cachedBalances   = LeaveService.cachedBalancesByUserId[userId];
+    final cachedLeave      = LeaveService.cachedByUserId[userId];
+    final cachedPayroll    = PayrollService.cachedHistoryForUser[userId];
+    _contracts      = cachedContracts ?? [];
+    _cases          = cachedCases ?? [];
+    _careerLog      = cachedCareer ?? [];
+    _balances       = cachedBalances ?? [];
+    _attendance     = cachedAttendance ?? [];
+    _leaveHistory   = cachedLeave ?? [];
+    _payrollHistory = cachedPayroll ?? [];
+    _loadingDetail = cachedContracts == null && cachedCases == null && cachedCareer == null &&
+        cachedBalances == null && cachedAttendance == null && cachedLeave == null && cachedPayroll == null;
+  }
+
   Future<void> _loadDetail(int userId) async {
-    setState(() => _loadingDetail = true);
+    setState(() => _seedDetailFromCache(userId));
     try {
       final now = DateTime.now();
       final start = now.subtract(const Duration(days: 90));
@@ -133,7 +179,7 @@ class _HrDirectoryTabState extends State<HrDirectoryTab> {
   @override
   Widget build(BuildContext context) {
     if (_loading) return const Center(child: CircularProgressIndicator(strokeWidth: 2));
-    if (_error != null) return ErrorView(message: _error!, onRetry: _load);
+    if (_error != null && _staff.isEmpty) return ErrorView(message: _error!, onRetry: _load);
 
     final selectedMatches = _staff.where((s) => s.id == _selectedId);
     final selected = selectedMatches.isEmpty ? null : selectedMatches.first;
@@ -162,7 +208,7 @@ class _HrDirectoryTabState extends State<HrDirectoryTab> {
 
       return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Padding(padding: const EdgeInsets.fromLTRB(24, 18, 24, 12), child: _headerRow(context, incompleteIds)),
-        Container(height: 1, color: context.pal.divider),
+        Container(width: double.infinity, height: 1, color: context.pal.divider),
         Expanded(child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           SizedBox(width: 260, child: rail),
           Container(width: 1, color: context.pal.border),
@@ -202,7 +248,7 @@ class _HrDirectoryTabState extends State<HrDirectoryTab> {
             Expanded(child: TextField(
               onChanged: (v) => setState(() => _search = v),
               style: AppTheme.bodySm.copyWith(fontSize: 12),
-              decoration: InputDecoration(hintText: 'Search staff…', hintStyle: AppTheme.bodySub.copyWith(fontSize: 12), border: InputBorder.none, isDense: true),
+              decoration: InputDecoration(hintText: 'Search staff…', hintStyle: AppTheme.bodySub.copyWith(fontSize: 12), border: InputBorder.none, isDense: false),
             )),
           ]),
         ),
@@ -304,7 +350,7 @@ class _HrDirectoryTabState extends State<HrDirectoryTab> {
     const SizedBox(width: 8),
     Text(title.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10.5)),
     const SizedBox(width: 8),
-    Expanded(child: Container(height: 1, color: Theme.of(context).extension<AppPalette>()!.divider)),
+    Expanded(child: Container(width: double.infinity, height: 1, color: Theme.of(context).extension<AppPalette>()!.divider)),
     GestureDetector(onTap: onAdd, child: Icon(Symbols.add, size: 15, color: Theme.of(context).extension<AppPalette>()!.textDim)),
   ]);
 
@@ -340,7 +386,7 @@ class _HrDirectoryTabState extends State<HrDirectoryTab> {
             ]),
           ],
           const SizedBox(height: 10),
-          Container(height: 1, color: context.pal.divider),
+          Container(width: double.infinity, height: 1, color: context.pal.divider),
           const SizedBox(height: 10),
           if (c.hasDocument)
             GestureDetector(
@@ -492,7 +538,7 @@ class _ProfileCentreState extends State<_ProfileCentre> {
             ),
           )),
         ]),
-        Container(height: 1, color: context.pal.border),
+        Container(width: double.infinity, height: 1, color: context.pal.border),
         Padding(padding: const EdgeInsets.all(22), child: _tabContent(context, m)),
       ]),
     );
@@ -564,7 +610,7 @@ class _ProfileCentreState extends State<_ProfileCentre> {
       Row(children: [
         Text('REQUEST HISTORY', style: AppTheme.labelCaps.copyWith(fontSize: 10.5)),
         const SizedBox(width: 9),
-        Expanded(child: Container(height: 1, color: context.pal.divider)),
+        Expanded(child: Container(width: double.infinity, height: 1, color: context.pal.divider)),
       ]),
       const SizedBox(height: 11),
       if (widget.loading) const SizedBox(height: 60, child: Center(child: CircularProgressIndicator(strokeWidth: 2)))
@@ -606,7 +652,7 @@ class _ProfileCentreState extends State<_ProfileCentre> {
       Row(children: [
         Text('LAST 90 DAYS', style: AppTheme.labelCaps.copyWith(fontSize: 10.5)),
         const SizedBox(width: 9),
-        Expanded(child: Container(height: 1, color: context.pal.divider)),
+        Expanded(child: Container(width: double.infinity, height: 1, color: context.pal.divider)),
         Text('${sorted.length} marked', style: AppTheme.monoXs.copyWith(fontSize: 10.5)),
       ]),
       const SizedBox(height: 11),
@@ -648,7 +694,7 @@ class _ProfileCentreState extends State<_ProfileCentre> {
       Row(children: [
         Text('PAY HISTORY', style: AppTheme.labelCaps.copyWith(fontSize: 10.5)),
         const SizedBox(width: 9),
-        Expanded(child: Container(height: 1, color: context.pal.divider)),
+        Expanded(child: Container(width: double.infinity, height: 1, color: context.pal.divider)),
       ]),
       const SizedBox(height: 11),
       if (widget.loading) const SizedBox(height: 60, child: Center(child: CircularProgressIndicator(strokeWidth: 2)))
@@ -661,7 +707,7 @@ class _ProfileCentreState extends State<_ProfileCentre> {
           const SizedBox(width: 80),
         ]),
         const SizedBox(height: 8),
-        Container(height: 1, color: context.pal.border),
+        Container(width: double.infinity, height: 1, color: context.pal.border),
         ...widget.payrollHistory.map((p) {
           final color = _payrollStatusColor(p.status);
           return Container(
@@ -708,7 +754,7 @@ class _ProfileCentreState extends State<_ProfileCentre> {
       Row(children: [
         Text('CONTRACT DOCUMENTS', style: AppTheme.labelCaps.copyWith(fontSize: 10.5)),
         const SizedBox(width: 9),
-        Expanded(child: Container(height: 1, color: context.pal.divider)),
+        Expanded(child: Container(width: double.infinity, height: 1, color: context.pal.divider)),
       ]),
       const SizedBox(height: 11),
       if (widget.loading) const SizedBox(height: 60, child: Center(child: CircularProgressIndicator(strokeWidth: 2)))
@@ -737,7 +783,7 @@ class _ProfileCentreState extends State<_ProfileCentre> {
     Row(children: [
       Text(title.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10.5)),
       const SizedBox(width: 9),
-      Expanded(child: Builder(builder: (context) => Container(height: 1, color: context.pal.divider))),
+      Expanded(child: Builder(builder: (context) => Container(width: double.infinity, height: 1, color: context.pal.divider))),
     ]),
     const SizedBox(height: 11),
     ...rows.map((r) => Padding(
@@ -761,7 +807,7 @@ class _ProfileCentreState extends State<_ProfileCentre> {
       Row(children: [
         Text('STATUTORY IDS', style: AppTheme.labelCaps.copyWith(fontSize: 10.5)),
         const SizedBox(width: 9),
-        Expanded(child: Builder(builder: (context) => Container(height: 1, color: context.pal.divider))),
+        Expanded(child: Builder(builder: (context) => Container(width: double.infinity, height: 1, color: context.pal.divider))),
         Builder(builder: (context) => Container(
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
           decoration: BoxDecoration(color: (complete == 4 ? AppColors.green : AppColors.amber).withValues(alpha: 0.14), borderRadius: BorderRadius.circular(5)),
@@ -784,7 +830,7 @@ class _ProfileCentreState extends State<_ProfileCentre> {
       Row(children: [
         Text('LEAVE BALANCE ${DateTime.now().year}', style: AppTheme.labelCaps.copyWith(fontSize: 10.5)),
         const SizedBox(width: 9),
-        Expanded(child: Container(height: 1, color: context.pal.divider)),
+        Expanded(child: Container(width: double.infinity, height: 1, color: context.pal.divider)),
       ]),
       const SizedBox(height: 12),
       if (widget.loading) const SizedBox(height: 60, child: Center(child: CircularProgressIndicator(strokeWidth: 2)))
@@ -820,7 +866,7 @@ class _ProfileCentreState extends State<_ProfileCentre> {
         const SizedBox(width: 8),
         Text('ATTENDANCE · LAST 21 DAYS', style: AppTheme.labelCaps.copyWith(fontSize: 10.5)),
         const SizedBox(width: 8),
-        Expanded(child: Container(height: 1, color: context.pal.divider)),
+        Expanded(child: Container(width: double.infinity, height: 1, color: context.pal.divider)),
         Text('$present present · $leave leave · $late late', style: AppTheme.monoXs.copyWith(fontSize: 10.5)),
       ]),
       const SizedBox(height: 9),
@@ -846,7 +892,7 @@ class _ProfileCentreState extends State<_ProfileCentre> {
             ));
           }).toList()),
           const SizedBox(height: 10),
-          Container(height: 1, color: context.pal.divider),
+          Container(width: double.infinity, height: 1, color: context.pal.divider),
           const SizedBox(height: 10),
           Row(children: [
             _legendDot(const Color(0xFF17301F), 'Present'),

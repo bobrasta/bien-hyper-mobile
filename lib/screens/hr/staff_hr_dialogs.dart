@@ -119,6 +119,16 @@ class _EditHrDetailsDialogState extends State<_EditHrDetailsDialog> {
     _tinCtrl.text        = widget.member.tinNumber ?? '';
     _nidaCtrl.text       = widget.member.nidaNumber ?? '';
     _biometricCtrl.text  = widget.member.biometricId ?? '';
+    // Stale-while-revalidate — see _ContractsDialogState's own comment for
+    // the full reasoning.
+    final cachedPositions = PositionService.cachedList;
+    if (cachedPositions != null) { _positions = cachedPositions; _loadingPositions = false; }
+    final cachedContracts = ContractService.cachedByUserId[widget.member.id];
+    if (cachedContracts != null) {
+      final active = cachedContracts.where((c) => c.isActive).toList();
+      _activeContract = active.isNotEmpty ? active.first : null;
+      _loadingContract = false;
+    }
     _loadPositions();
     _loadContract();
   }
@@ -384,10 +394,22 @@ class _ContractsDialogState extends State<_ContractsDialog> {
   bool _loading = true;
 
   @override
-  void initState() { super.initState(); _load(); }
+  void initState() {
+    super.initState();
+    // Stale-while-revalidate: this dialog is often opened right after the
+    // Directory tab's own background fetch for the same staff member has
+    // already populated this cache — show it immediately instead of
+    // blanking to a spinner. See MachineService's own doc comment for the
+    // full reasoning.
+    final cached = ContractService.cachedByUserId[widget.member.id];
+    if (cached != null) { _contracts = cached; _loading = false; }
+    _load();
+  }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
+    setState(() {
+      if (_contracts.isEmpty) _loading = true;
+    });
     try {
       final list = await ContractService.instance.list(widget.member.id);
       if (mounted) setState(() { _contracts = list; _loading = false; });
@@ -611,10 +633,19 @@ class _DisciplinaryCasesDialogState extends State<_DisciplinaryCasesDialog> {
   bool _loading = true;
 
   @override
-  void initState() { super.initState(); _load(); }
+  void initState() {
+    super.initState();
+    // Stale-while-revalidate — see _ContractsDialogState's own comment for
+    // the full reasoning.
+    final cached = DisciplinaryCaseService.cachedByUserId[widget.member.id];
+    if (cached != null) { _cases = cached; _loading = false; }
+    _load();
+  }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
+    setState(() {
+      if (_cases.isEmpty) _loading = true;
+    });
     try {
       final list = await DisciplinaryCaseService.instance.list(widget.member.id);
       if (mounted) setState(() { _cases = list; _loading = false; });
@@ -770,10 +801,19 @@ class _CareerProgressionDialogState extends State<_CareerProgressionDialog> {
   bool _loading = true;
 
   @override
-  void initState() { super.initState(); _load(); }
+  void initState() {
+    super.initState();
+    // Stale-while-revalidate — see _ContractsDialogState's own comment for
+    // the full reasoning.
+    final cached = PositionChangeService.cachedByUserId[widget.member.id];
+    if (cached != null) { _changes = cached; _loading = false; }
+    _load();
+  }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
+    setState(() {
+      if (_changes.isEmpty) _loading = true;
+    });
     try {
       final list = await PositionChangeService.instance.list(widget.member.id);
       if (mounted) setState(() { _changes = list; _loading = false; });
@@ -836,9 +876,19 @@ class _NewPositionChangeDialogState extends State<_NewPositionChangeDialog> {
   String? _error;
 
   @override
-  void initState() { super.initState(); _load(); }
+  void initState() {
+    super.initState();
+    // Stale-while-revalidate — see _ContractsDialogState's own comment for
+    // the full reasoning.
+    final cached = PositionService.cachedList;
+    if (cached != null) { _positions = cached; _loading = false; }
+    _load();
+  }
 
   Future<void> _load() async {
+    setState(() {
+      if (_positions.isEmpty) _loading = true;
+    });
     try {
       final list = await PositionService.instance.list();
       if (mounted) setState(() { _positions = list; _loading = false; });
@@ -931,10 +981,19 @@ class _SalaryAdjustmentsDialogState extends State<_SalaryAdjustmentsDialog> {
   bool _loading = true;
 
   @override
-  void initState() { super.initState(); _load(); }
+  void initState() {
+    super.initState();
+    // Stale-while-revalidate — see _ContractsDialogState's own comment for
+    // the full reasoning.
+    final cached = PayrollService.cachedSalaryAdjustments[widget.member.id];
+    if (cached != null) { _adjustments = cached; _loading = false; }
+    _load();
+  }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
+    setState(() {
+      if (_adjustments.isEmpty) _loading = true;
+    });
     try {
       final list = await PayrollService.instance.salaryAdjustments(widget.member.id);
       if (mounted) setState(() { _adjustments = list; _loading = false; });

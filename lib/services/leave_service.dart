@@ -6,6 +6,20 @@ class LeaveService {
   static final instance = LeaveService._();
   final _dio = ApiClient.instance.dio;
 
+  // Stale-while-revalidate screen cache — see MachineService for the full
+  // reasoning. list()/balances()/types() each have several distinct call
+  // "shapes" across the HR screens — each shape gets its own cache slot so
+  // a filtered/scoped view never shows another view's stale data.
+  static List<LeaveRequest>? cachedDefaultList;       // list() — no filters
+  static List<LeaveRequest>? cachedMineList;          // list(mine: true)
+  static final Map<int, List<LeaveRequest>> cachedByUserId = {}; // list(userId: ...)
+
+  static List<LeaveBalanceEntry>? cachedDefaultBalances;                    // balances() — no filters
+  static final Map<int, List<LeaveBalanceEntry>> cachedBalancesByYear = {}; // balances(year: ...)
+  static final Map<int, List<LeaveBalanceEntry>> cachedBalancesByUserId = {}; // balances(userId: ...)
+
+  static List<LeaveTypeCatalogEntry>? cachedTypes; // types() — activeOnly: false
+
   Future<List<LeaveRequest>> list({int? userId, String? status, String? type, bool mine = false}) async {
     final res = await _dio.get('/leave-requests', queryParameters: {
       'user_id': ?userId,
@@ -14,7 +28,15 @@ class LeaveService {
       if (mine) 'mine': 1,
     });
     final (data, _) = ApiClient.unwrapList(res);
-    return data.map((j) => LeaveRequest.fromJson(j as Map<String, dynamic>)).toList();
+    final list = data.map((j) => LeaveRequest.fromJson(j as Map<String, dynamic>)).toList();
+    if (userId == null && status == null && type == null && !mine) {
+      cachedDefaultList = list;
+    } else if (mine && userId == null && status == null && type == null) {
+      cachedMineList = list;
+    } else if (userId != null) {
+      cachedByUserId[userId] = list;
+    }
+    return list;
   }
 
   Future<LeaveRequest> create(Map<String, dynamic> data) async {
@@ -47,7 +69,9 @@ class LeaveService {
       if (activeOnly) 'active_only': 'true',
     });
     final (data, _) = ApiClient.unwrapList(res);
-    return data.map((j) => LeaveTypeCatalogEntry.fromJson(j as Map<String, dynamic>)).toList();
+    final list = data.map((j) => LeaveTypeCatalogEntry.fromJson(j as Map<String, dynamic>)).toList();
+    if (!activeOnly) cachedTypes = list;
+    return list;
   }
 
   Future<LeaveTypeCatalogEntry> updateType(int id, Map<String, dynamic> data) async {
@@ -61,6 +85,14 @@ class LeaveService {
       'year':    ?year,
     });
     final (data, _) = ApiClient.unwrapList(res);
-    return data.map((j) => LeaveBalanceEntry.fromJson(j as Map<String, dynamic>)).toList();
+    final list = data.map((j) => LeaveBalanceEntry.fromJson(j as Map<String, dynamic>)).toList();
+    if (userId != null) {
+      cachedBalancesByUserId[userId] = list;
+    } else if (year != null) {
+      cachedBalancesByYear[year] = list;
+    } else {
+      cachedDefaultBalances = list;
+    }
+    return list;
   }
 }

@@ -35,6 +35,25 @@ class _HrSettingsScreenState extends State<HrSettingsScreen> {
   @override
   void initState() {
     super.initState();
+    // Stale-while-revalidate: show whatever's already cached from a
+    // previous visit immediately instead of blanking to a spinner on every
+    // navigation — see MachineService's own doc comment for the full
+    // reasoning.
+    final cachedTypes = LeaveService.cachedTypes;
+    final cachedHolidays = PublicHolidayService.cachedDefaultList;
+    final cachedSettings = HrSettingService.cachedSettings;
+    final cachedPositions = PositionService.cachedList;
+    if (cachedTypes != null) _leaveTypes = cachedTypes;
+    if (cachedHolidays != null) _holidays = cachedHolidays;
+    if (cachedPositions != null) _positions = cachedPositions;
+    if (cachedSettings != null) {
+      for (final entry in cachedSettings.entries) {
+        _settingCtrls.putIfAbsent(entry.key, () => TextEditingController()).text = entry.value;
+      }
+    }
+    if (cachedTypes != null || cachedHolidays != null || cachedSettings != null || cachedPositions != null) {
+      _loading = false;
+    }
     _load();
   }
 
@@ -45,7 +64,12 @@ class _HrSettingsScreenState extends State<HrSettingsScreen> {
   }
 
   Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      if (_leaveTypes.isEmpty && _holidays.isEmpty && _positions.isEmpty && _settingCtrls.isEmpty) {
+        _loading = true;
+      }
+      _error = null;
+    });
     try {
       final results = await Future.wait([
         LeaveService.instance.types(),
@@ -216,7 +240,9 @@ class _HrSettingsScreenState extends State<HrSettingsScreen> {
   @override
   Widget build(BuildContext context) {
     if (_loading) return const Center(child: CircularProgressIndicator(strokeWidth: 2));
-    if (_error != null) return ErrorView(message: _error!, onRetry: _load);
+    if (_error != null && _leaveTypes.isEmpty && _holidays.isEmpty && _positions.isEmpty && _settingCtrls.isEmpty) {
+      return ErrorView(message: _error!, onRetry: _load);
+    }
 
     return LayoutBuilder(builder: (ctx, cst) {
       final pad = cst.maxWidth < 560 ? 16.0 : 26.0;

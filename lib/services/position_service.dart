@@ -11,6 +11,12 @@ class PositionService {
   List<Position>? _cache;
   Future<List<Position>>? _inflight;
 
+  // Stale-while-revalidate screen cache — see MachineService for the full
+  // reasoning. Public (unlike the private _cache above, which only helps
+  // *within* this service) so a screen can seed itself synchronously in
+  // initState, before the first frame, the same way MachineListScreen does.
+  static List<Position>? cachedList;
+
   Future<List<Position>> list({bool force = false}) async {
     if (!force && _cache != null) return _cache!;
     if (!force && _inflight != null) return _inflight!;
@@ -19,8 +25,9 @@ class PositionService {
     _inflight = future;
     try {
       final result = await future;
-      _cache    = result;
-      _inflight = null;
+      _cache     = result;
+      cachedList = result;
+      _inflight  = null;
       return result;
     } catch (_) {
       _inflight = null;

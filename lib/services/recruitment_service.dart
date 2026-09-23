@@ -9,10 +9,18 @@ class RecruitmentService {
   static final instance = RecruitmentService._();
   final _dio = ApiClient.instance.dio;
 
+  // Stale-while-revalidate screen cache — see MachineService for the full
+  // reasoning.
+  static List<Vacancy>? cachedDefaultVacancies; // vacancies() — no status filter
+  static List<Applicant>? cachedTalentPool;     // applicants(talentPool: true)
+  static final Map<int, List<Application>> cachedPipelineByVacancyId = {};
+
   Future<List<Vacancy>> vacancies({String? status}) async {
     final res = await _dio.get('/vacancies', queryParameters: {'status': ?status});
     final (data, _) = ApiClient.unwrapList(res);
-    return data.map((j) => Vacancy.fromJson(j as Map<String, dynamic>)).toList();
+    final list = data.map((j) => Vacancy.fromJson(j as Map<String, dynamic>)).toList();
+    if (status == null) cachedDefaultVacancies = list;
+    return list;
   }
 
   Future<Vacancy> createVacancy(Map<String, dynamic> data) async {
@@ -28,7 +36,9 @@ class RecruitmentService {
   Future<List<Application>> pipeline(int vacancyId) async {
     final res = await _dio.get('/vacancies/$vacancyId/applications');
     final (data, _) = ApiClient.unwrapList(res);
-    return data.map((j) => Application.fromJson(j as Map<String, dynamic>)).toList();
+    final list = data.map((j) => Application.fromJson(j as Map<String, dynamic>)).toList();
+    cachedPipelineByVacancyId[vacancyId] = list;
+    return list;
   }
 
   Future<Application> applyToVacancy(int vacancyId, int applicantId) async {
@@ -53,7 +63,9 @@ class RecruitmentService {
       'search': ?search,
     });
     final (data, _) = ApiClient.unwrapList(res);
-    return data.map((j) => Applicant.fromJson(j as Map<String, dynamic>)).toList();
+    final list = data.map((j) => Applicant.fromJson(j as Map<String, dynamic>)).toList();
+    if (talentPool == true && skill == null && search == null) cachedTalentPool = list;
+    return list;
   }
 
   Future<Applicant> applicant(int id) async {

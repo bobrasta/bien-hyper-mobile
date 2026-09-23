@@ -48,10 +48,54 @@ class _HrDashboardScreenState extends State<HrDashboardScreen> {
   List<StaffMember> _staff = [];
 
   @override
-  void initState() { super.initState(); _load(); }
+  void initState() {
+    super.initState();
+    // Stale-while-revalidate: show whatever's already cached from a
+    // previous visit immediately instead of blanking to a spinner on every
+    // navigation — see MachineService's own doc comment for the full
+    // reasoning. This dashboard combines 10 independent pieces, so
+    // "loading" is only true when NONE of them have anything cached yet.
+    final now = DateTime.now();
+    final start = now.subtract(const Duration(days: 25));
+    final calendarKey = '${_fmt(now.subtract(const Duration(days: 30)))}|${_fmt(now)}';
+    final attendanceKey = '${_fmt(start)}|${_fmt(now)}|';
+    final cachedHeadcount   = HrReportService.cachedHeadcount;
+    final cachedRecruitment = HrReportService.cachedRecruitmentSummary;
+    final cachedExpiring    = HrReportService.cachedContractsExpiringByDays[90];
+    final cachedBalances    = HrReportService.cachedDefaultLeaveBalances;
+    final cachedDiscipline  = HrReportService.cachedDisciplinarySummary;
+    final cachedCareer      = HrReportService.cachedCareerProgressions;
+    final cachedCalendar    = HrReportService.cachedLeaveCalendarByRange[calendarKey];
+    final cachedRuns        = PayrollService.cachedRuns;
+    final cachedAttendance  = AttendanceService.cachedByQuery[attendanceKey];
+    final cachedStaff       = StaffService.instance.staffNotifier.value;
+    if (cachedHeadcount != null) _headcount = cachedHeadcount;
+    if (cachedRecruitment != null) _recruitment = cachedRecruitment;
+    if (cachedExpiring != null) _expiring = cachedExpiring;
+    if (cachedBalances != null) _leaveBalances = cachedBalances;
+    if (cachedDiscipline != null) _discipline = cachedDiscipline;
+    if (cachedCareer != null) _career = cachedCareer;
+    if (cachedCalendar != null) _leaveCalendar = cachedCalendar;
+    if (cachedRuns != null) _payrollRuns = cachedRuns;
+    if (cachedAttendance != null) _attendance = cachedAttendance;
+    if (cachedStaff.isNotEmpty) _staff = cachedStaff;
+    if (cachedHeadcount != null || cachedRecruitment != null || cachedExpiring != null ||
+        cachedBalances != null || cachedDiscipline != null || cachedCareer != null ||
+        cachedCalendar != null || cachedRuns != null || cachedAttendance != null || cachedStaff.isNotEmpty) {
+      _loading = false;
+    }
+    _load();
+  }
 
   Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      if (_headcount == null && _recruitment == null && _expiring.isEmpty && _leaveBalances.isEmpty &&
+          _discipline == null && _career.isEmpty && _leaveCalendar.isEmpty && _payrollRuns.isEmpty &&
+          _attendance.isEmpty && _staff.isEmpty) {
+        _loading = true;
+      }
+      _error = null;
+    });
     try {
       final now = DateTime.now();
       final start = now.subtract(const Duration(days: 25));
@@ -91,7 +135,13 @@ class _HrDashboardScreenState extends State<HrDashboardScreen> {
   @override
   Widget build(BuildContext context) {
     if (_loading) return const Center(child: CircularProgressIndicator(strokeWidth: 2));
-    if (_error != null) return ErrorView(message: _error!, onRetry: _load);
+    // A background refresh erroring while stale-but-valid cached data is
+    // already showing shouldn't blow that away — only surface the error
+    // screen when there's genuinely nothing to show.
+    final hasAnyData = _headcount != null || _recruitment != null || _expiring.isNotEmpty ||
+        _leaveBalances.isNotEmpty || _discipline != null || _career.isNotEmpty ||
+        _leaveCalendar.isNotEmpty || _payrollRuns.isNotEmpty || _attendance.isNotEmpty || _staff.isNotEmpty;
+    if (_error != null && !hasAnyData) return ErrorView(message: _error!, onRetry: _load);
 
     return LayoutBuilder(builder: (ctx, cst) {
       final pad = cst.maxWidth < 560 ? 16.0 : 26.0;
