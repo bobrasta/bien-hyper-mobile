@@ -10,6 +10,7 @@ import '../../screens/finance/expenses_screen.dart';
 import '../../screens/finance/finance_dashboard_screen.dart';
 import '../../screens/finance/finance_reports_screen.dart';
 import '../../screens/finance/vendor_bills_screen.dart';
+import '../../screens/finance/vendor_fees_screen.dart';
 import '../../screens/hospitals/hospital_list_screen.dart';
 import '../../screens/hr/hr_approval_screen.dart';
 import '../../screens/hr/hr_attendance_screen.dart';
@@ -252,6 +253,7 @@ class _AppShellState extends State<AppShell> {
     'finance_ledger'         => const ChartOfAccountsScreen(),
     'finance_reports'        => const FinanceReportsScreen(),
     'finance_bank_rec'       => const BankReconciliationScreen(),
+    'vendor_fees'            => const VendorFeesScreen(),
     'email'     => const EmailScreen(),
     'sales' || 'sales_leads' => SalesScreen(initialLeadId: _pendingEntityId),
     'sales_dashboard'         => SalesDashboardScreen(onNavigateTo: _navigate),

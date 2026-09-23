@@ -46,6 +46,10 @@ const _business = [
   NavDestination(icon: Symbols.trending_up,             label: 'Sales',      key: 'sales'),
   // 'finance' key triggers the expandable group — rendered separately below
   NavDestination(icon: Symbols.account_balance,         label: 'Finance',    key: 'finance'),
+  // Section 16 — deliberately its own entry, not nested under Finance:
+  // procurement_manager/logistics hold real authority here but no
+  // 'finance' key at all (same reasoning as hypermed-web's Nav.php).
+  NavDestination(icon: Symbols.local_shipping,          label: 'Vendors',    key: 'vendor_fees'),
   NavDestination(icon: Symbols.groups,                  label: 'Customers',  key: 'customers'),
   NavDestination(icon: Symbols.mail,                    label: 'Email',      key: 'email'),
 ];

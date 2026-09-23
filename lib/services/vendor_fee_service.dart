@@ -1,0 +1,133 @@
+import 'package:dio/dio.dart';
+import '../models/vendor.dart';
+import 'api_client.dart';
+
+class VendorFeeService {
+  VendorFeeService._();
+  static final instance = VendorFeeService._();
+  final _dio = ApiClient.instance.dio;
+
+  Future<List<Vendor>> vendors({String? type, bool includeInactive = false}) async {
+    final res = await _dio.get('/vendors', queryParameters: {
+      'type': ?type,
+      if (includeInactive) 'include_inactive': 1,
+    });
+    final (data, _) = ApiClient.unwrapList(res);
+    return data.map((j) => Vendor.fromJson(j as Map<String, dynamic>)).toList();
+  }
+
+  Future<Vendor> createVendor(Map<String, dynamic> data) async {
+    final res = await _dio.post('/vendors', data: data);
+    return Vendor.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+  }
+
+  Future<Vendor> updateVendor(int id, Map<String, dynamic> data) async {
+    final res = await _dio.put('/vendors/$id', data: data);
+    return Vendor.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+  }
+
+  Future<List<VendorFee>> fees({String? status, int? vendorId}) async {
+    final res = await _dio.get('/vendor-fees', queryParameters: {
+      'status': ?status,
+      'vendor_id': ?vendorId,
+    });
+    final (data, _) = ApiClient.unwrapList(res);
+    return data.map((j) => VendorFee.fromJson(j as Map<String, dynamic>)).toList();
+  }
+
+  Future<VendorFee> fee(int id) async {
+    final res = await _dio.get('/vendor-fees/$id');
+    return VendorFee.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+  }
+
+  Future<VendorFee> createFee({required int vendorId, int? deliveryJobId, required String description, required int billedAmount}) async {
+    final res = await _dio.post('/vendor-fees', data: {
+      'vendor_id': vendorId,
+      'delivery_job_id': ?deliveryJobId,
+      'description': description,
+      'billed_amount': billedAmount,
+    });
+    return VendorFee.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+  }
+
+  Future<VendorFee> submitForPayment(int id) async {
+    final res = await _dio.post('/vendor-fees/$id/submit-for-payment');
+    return VendorFee.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+  }
+
+  Future<VendorFee> approve(int id, {required String paymentReference}) async {
+    final res = await _dio.post('/vendor-fees/$id/approve', data: {'payment_reference': paymentReference});
+    return VendorFee.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+  }
+
+  Future<VendorFee> reject(int id, {required String reason}) async {
+    final res = await _dio.post('/vendor-fees/$id/reject', data: {'rejection_reason': reason});
+    return VendorFee.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+  }
+
+  Future<void> uploadReceipt(int feeId, String filePath, String fileName, {
+    required String receiptType, required String receiptNumber, required String issuerName,
+    String? issuerTin, required String receiptDate, required int amount,
+  }) async {
+    final formData = FormData.fromMap({
+      'file': await MultipartFile.fromFile(filePath, filename: fileName),
+      'receipt_type': receiptType,
+      'receipt_number': receiptNumber,
+      'issuer_name': issuerName,
+      'issuer_tin': ?issuerTin,
+      'receipt_date': receiptDate,
+      'amount': amount,
+    });
+    await _dio.post('/vendor-fees/$feeId/receipts', data: formData);
+  }
+
+  Future<void> verifyReceipt(int feeId, int receiptId) =>
+      _dio.post('/vendor-fees/$feeId/receipts/$receiptId/verify');
+
+  Future<void> deleteReceipt(int feeId, int receiptId) =>
+      _dio.delete('/vendor-fees/$feeId/receipts/$receiptId');
+
+  Future<List<DeliveryJob>> deliveryJobs({String? status, int? vendorId}) async {
+    final res = await _dio.get('/delivery-jobs', queryParameters: {
+      'status': ?status,
+      'vendor_id': ?vendorId,
+    });
+    final (data, _) = ApiClient.unwrapList(res);
+    return data.map((j) => DeliveryJob.fromJson(j as Map<String, dynamic>)).toList();
+  }
+
+  Future<DeliveryJob> deliveryJob(int id) async {
+    final res = await _dio.get('/delivery-jobs/$id');
+    return DeliveryJob.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+  }
+
+  Future<DeliveryJob> createDeliveryJob({
+    required String jobNumber, required int vendorId, String? destinationName,
+    String? destinationAddress, required List<DeliveryGoodsLine> goodsList,
+  }) async {
+    final res = await _dio.post('/delivery-jobs', data: {
+      'job_number': jobNumber,
+      'vendor_id': vendorId,
+      'destination_name': ?destinationName,
+      'destination_address': ?destinationAddress,
+      'goods_list': goodsList.map((g) => g.toJson()).toList(),
+    });
+    return DeliveryJob.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+  }
+
+  Future<void> uploadDeliveryNote(int jobId, String filePath, String fileName, {
+    required String receiverName, required String deliveryDate, required List<DeliveryGoodsLine> deliveredGoods,
+  }) async {
+    final formData = FormData.fromMap({
+      'file': await MultipartFile.fromFile(filePath, filename: fileName),
+      'receiver_name': receiverName,
+      'delivery_date': deliveryDate,
+      for (var i = 0; i < deliveredGoods.length; i++) ...{
+        'delivered_items[$i][item]': deliveredGoods[i].item,
+        'delivered_items[$i][serial]': ?deliveredGoods[i].serial,
+        'delivered_items[$i][quantity]': deliveredGoods[i].quantity,
+      },
+    });
+    await _dio.post('/delivery-jobs/$jobId/delivery-note', data: formData);
+  }
+}

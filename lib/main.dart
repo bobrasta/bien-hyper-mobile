@@ -59,6 +59,9 @@ const _screenKeys = [
   'hr_dashboard', 'hr_directory', 'hr_recruitment', 'hr_leave_calendar',
   'hr_attendance', 'hr_payroll', 'hr_reports', 'notifications', 'delegations',
   'notification_templates', 'activity_log',
+  // Section 16: Vendor Fees/Delivery Jobs/Vendors registry, one combined
+  // screen key like 'finance' or 'inventory' already are.
+  'vendor_fees',
 ];
 
 /// Returns the set of screen keys accessible for the current user. Primarily
@@ -85,7 +88,7 @@ Set<String>? _legacyAllowedScreenKeys(String role) => switch (role) {
   'technician'     => {'dashboard', 'machines', 'detail', 'hospitals', 'service', 'my_leave', 'my_service_reports', 'my_travel_plans', 'reports', 'settings', 'notifications'},
   'team_leader'    => {'dashboard', 'approvals', 'machines', 'detail', 'hospitals', 'service', 'staff', 'my_leave', 'reports', 'settings', 'notifications'},
   'sales_manager' || 'sales' => {'dashboard', 'machines', 'detail', 'sales', 'customers', 'revenue', 'email', 'staff', 'my_leave', 'reports', 'settings', 'notifications'},
-  'finance_manager' || 'finance' => {'dashboard', 'revenue', 'finance', 'staff', 'my_leave', 'reports', 'settings', 'notifications'},
+  'finance_manager' || 'finance' => {'dashboard', 'revenue', 'finance', 'vendor_fees', 'staff', 'my_leave', 'reports', 'settings', 'notifications'},
   'cs'             => {'dashboard', 'customers', 'service', 'email', 'staff', 'my_leave', 'reports', 'settings', 'notifications'},
   // 'machines'/'detail' added 2026-09-22 — storekeeper has held
   // machines.receive/allocate authority server-side since Section 13
@@ -100,11 +103,11 @@ Set<String>? _legacyAllowedScreenKeys(String role) => switch (role) {
     'hr_leave_calendar', 'hr_attendance', 'hr_payroll', 'hr_approvals',
     'hr_reports', 'hr_settings', 'reports', 'settings', 'notifications',
   },
-  'procurement_manager' => {'dashboard', 'approvals', 'inventory', 'staff', 'my_leave', 'reports', 'settings', 'notifications'},
+  'procurement_manager' => {'dashboard', 'approvals', 'inventory', 'vendor_fees', 'staff', 'my_leave', 'reports', 'settings', 'notifications'},
   // No 'staff' (the task-assignment board) — accountant handles payments,
   // not staff task assignment.
-  'accountant'     => {'dashboard', 'approvals', 'revenue', 'finance', 'my_leave', 'reports', 'settings', 'notifications'},
-  'logistics'      => {'dashboard', 'inventory', 'sales', 'staff', 'my_leave', 'reports', 'settings', 'notifications'},
+  'accountant'     => {'dashboard', 'approvals', 'revenue', 'finance', 'vendor_fees', 'my_leave', 'reports', 'settings', 'notifications'},
+  'logistics'      => {'dashboard', 'inventory', 'sales', 'vendor_fees', 'staff', 'my_leave', 'reports', 'settings', 'notifications'},
   _                => {'dashboard', 'staff', 'my_leave', 'reports', 'settings', 'notifications'},
 };
 
