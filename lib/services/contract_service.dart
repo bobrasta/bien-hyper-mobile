@@ -9,10 +9,16 @@ class ContractService {
   static final instance = ContractService._();
   final _dio = ApiClient.instance.dio;
 
+  // Stale-while-revalidate screen cache — see MachineService for the full
+  // reasoning. Keyed by the user id it's scoped to.
+  static final Map<int, List<Contract>> cachedByUserId = {};
+
   Future<List<Contract>> list(int userId) async {
     final res = await _dio.get('/staff/$userId/contracts');
     final (data, _) = ApiClient.unwrapList(res);
-    return data.map((j) => Contract.fromJson(j as Map<String, dynamic>)).toList();
+    final list = data.map((j) => Contract.fromJson(j as Map<String, dynamic>)).toList();
+    cachedByUserId[userId] = list;
+    return list;
   }
 
   Future<Contract> create(int userId, Map<String, dynamic> data) async {
