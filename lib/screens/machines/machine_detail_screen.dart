@@ -53,17 +53,34 @@ class _MachineDetailScreenState extends State<MachineDetailScreen> {
   @override
   void initState() {
     super.initState();
+    // Stale-while-revalidate — same reasoning as MachineListScreen's own
+    // fix: show the last-known version of this exact machine instantly if
+    // we have one cached, then quietly refresh, instead of blanking to a
+    // spinner on every navigation regardless of how fast the underlying
+    // fetch resolves.
+    final cached = MachineService.cachedById[widget.machineId];
+    if (cached != null) { _machine = cached; _loading = false; }
     _load();
   }
 
   @override
   void didUpdateWidget(MachineDetailScreen old) {
     super.didUpdateWidget(old);
-    if (old.machineId != widget.machineId) _load();
+    if (old.machineId != widget.machineId) {
+      // A different machine — must not keep showing the previous one's
+      // data under the new ID. Seed from that ID's own cache entry (which
+      // may be null), then refresh.
+      final cached = MachineService.cachedById[widget.machineId];
+      setState(() { _machine = cached; _loading = cached == null; _loadError = null; });
+      _load();
+    }
   }
 
   Future<void> _load() async {
-    setState(() { _loading = true; _loadError = null; });
+    setState(() {
+      if (_machine == null) _loading = true;
+      _loadError = null;
+    });
     try {
       final m = await MachineService.instance.get(widget.machineId);
       if (mounted) setState(() { _machine = m; _loading = false; });
@@ -94,7 +111,10 @@ class _MachineDetailScreenState extends State<MachineDetailScreen> {
     if (_loading) {
       return const Center(child: CircularProgressIndicator(strokeWidth: 2));
     }
-    if (_loadError != null || _machine == null) {
+    // A background refresh erroring while stale-but-valid cached data is
+    // already showing shouldn't blow that away — only the "genuinely
+    // nothing to show" case surfaces the error screen.
+    if (_machine == null) {
       return Center(child: Text(_loadError ?? 'Not found',
           style: TextStyle(color: AppColors.coral)));
     }

@@ -59,12 +59,30 @@ class _MachineListScreenState extends State<MachineListScreen> {
   void initState() {
     super.initState();
     _mapView = widget.initialMapView;
+    // Stale-while-revalidate: a fresh instance of this screen (every time
+    // it's navigated to — this widget isn't kept alive across navigation)
+    // used to blank to a shimmer every single time even though the
+    // underlying HTTP call was often already cache-fast. Showing the last
+    // default-view list immediately, then quietly refreshing, fixes the
+    // "go back to the list → blanks again" symptom directly — see
+    // MachineService.cachedDefaultList's own doc comment for the full
+    // reasoning and why it's scoped to the unfiltered view only.
+    final cached = MachineService.cachedDefaultList;
+    if (cached != null) {
+      _machines = cached;
+      _allTypes = cached.map((m) => m.type).toSet().toList()..sort();
+      _allModels = cached.map((m) => m.model).toSet().toList()..sort();
+      _loading = false;
+    }
     _load();
   }
 
   Future<void> _load() async {
     setState(() {
-      _loading = true;
+      // Only show the blank/shimmer state when there's genuinely nothing
+      // to show yet — a background refresh of an already-populated list
+      // (or a return visit seeded from the cache above) updates silently.
+      if (_machines.isEmpty) _loading = true;
       _loadError = null;
     });
     try {
@@ -652,7 +670,12 @@ class _MachineListScreenState extends State<MachineListScreen> {
                             // Rows — loading / error / data
                             if (_loading)
                               shimmerTable(count: 10, cols: 5)
-                            else if (_loadError != null)
+                            // A background refresh failing while stale-but-
+                            // valid cached data is already showing shouldn't
+                            // blow away that data with an error screen —
+                            // only surface the error when there's nothing
+                            // else to show.
+                            else if (_loadError != null && _machines.isEmpty)
                               ErrorView(
                                 message: _loadError!,
                                 onRetry: _load,
