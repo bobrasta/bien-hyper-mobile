@@ -96,19 +96,57 @@ class _ServiceTicketScreenState extends State<ServiceTicketScreen> {
   bool                         _acknowledging = false;
 
   // Staff —loaded once at screen init; Future is reused by every dialog.
-  Map<int, StaffMember>          _staffById     = {};
+  // Seeded synchronously from StaffService's own live cache (populated by a
+  // previous screen visit this session, if any) so technician names/
+  // initials on ticket rows don't flash blank while this fetch is in
+  // flight — see StaffService.staffNotifier's own doc comment.
+  Map<int, StaffMember> _staffById = {
+    for (final s in StaffService.instance.staffNotifier.value) s.id: s,
+  };
   late final Future<List<StaffMember>> _staffFuture = _fetchStaff();
 
   // My own per-diem requests (the backend self-scopes /per-diem-requests to
-  // the caller) — loaded once, refreshed after submitting a new travel
-  // plan, and looked up per-ticket to show its approval/payment status
-  // instead of a "Submit Travel Plan" button once one already exists.
-  List<PerDiemRequest> _myPerDiemRequests = [];
+  // the caller) — seeded from the shared stale-while-revalidate cache (see
+  // PerDiemService.cachedDefaultList) so the travel-plan prompt/status
+  // banner doesn't flash the wrong state (e.g. "Submit Travel Plan" for a
+  // ticket that already has one filed) while this refetches; refreshed for
+  // real below and again after submitting a new travel plan.
+  List<PerDiemRequest> _myPerDiemRequests = PerDiemService.cachedDefaultList ?? [];
   late final Future<List<PerDiemRequest>> _perDiemFuture = _fetchPerDiem();
 
   @override
   void initState() {
     super.initState();
+    // Stale-while-revalidate: this screen is torn down and rebuilt on every
+    // navigation away and back (no keep-alive — see app_shell.dart's
+    // _buildScreen() switch), so it used to blank to a shimmer/spinner on
+    // every single visit even when the underlying fetch was cache-fast —
+    // see MachineService.cachedDefaultList's doc comment for the full
+    // reasoning. Seed the ticket list (and, if we already know it, the
+    // initially-selected ticket's own detail) from the shared caches
+    // immediately, then still kick off a real background refresh of both
+    // via _load() below.
+    final cachedList = TicketService.cachedDefaultList;
+    if (cachedList != null) {
+      _tickets = cachedList;
+      _loading = false;
+      if (cachedList.isNotEmpty) {
+        final wanted = widget.initialTicketId == null
+            ? -1
+            : cachedList.indexWhere((t) => t.dbId == widget.initialTicketId);
+        _selectedIdx = wanted >= 0 ? wanted : 0;
+        final cachedDetail = TicketService.cachedById[cachedList[_selectedIdx].dbId];
+        if (cachedDetail != null) {
+          _detailTicket = cachedDetail;
+          _loadedDbId   = cachedDetail.dbId;
+          _checks = (cachedDetail.checklist ?? []).map((c) =>
+              {'label': c.label, 'on': c.checked}).toList();
+          _parts  = (cachedDetail.partsUsed ?? []).map((p) =>
+              {'name': p.name, 'qty': p.qty, 'cost': p.unitCost}).toList();
+          _attachments = cachedDetail.attachments ?? [];
+        }
+      }
+    }
     _load();
     _staffFuture; // kick off the future
     _perDiemFuture; // kick off the future
@@ -165,7 +203,14 @@ class _ServiceTicketScreenState extends State<ServiceTicketScreen> {
       _resolveTech(t)?.initials ?? (t.technicianInitials != '?' ? t.technicianInitials : '?');
 
   Future<void> _load() async {
-    setState(() { _loading = true; _loadError = null; });
+    setState(() {
+      // Only show the blank/shimmer state when there's genuinely nothing
+      // to show yet — a background refresh of an already-populated list
+      // (or a return visit seeded from the cache in initState) updates
+      // silently.
+      if (_tickets.isEmpty) _loading = true;
+      _loadError = null;
+    });
     try {
       final data = await TicketService.instance.list();
       if (mounted) {
@@ -183,7 +228,25 @@ class _ServiceTicketScreenState extends State<ServiceTicketScreen> {
 
   Future<void> _loadDetail(ServiceTicket ticket) async {
     if (_loadedDbId == ticket.dbId) return;
-    setState(() { _loadingDetail = true; _checks = []; _parts = []; _detailTicket = null; });
+    // Seed from whatever we already know about this exact ticket — either
+    // it's still sitting in state from before this call (_load() always
+    // nulls _loadedDbId ahead of a refresh, so without this a background
+    // refresh or a reselect of the same ticket would blank an
+    // already-loaded detail back to a spinner every time), or it's in the
+    // shared stale-while-revalidate cache from a previous visit/selection
+    // this session. Only a genuinely never-seen ticket shows the spinner.
+    final cached = _detailTicket?.dbId == ticket.dbId
+        ? _detailTicket
+        : TicketService.cachedById[ticket.dbId];
+    setState(() {
+      _loadingDetail = cached == null;
+      _detailTicket  = cached;
+      _checks = cached == null ? [] : (cached.checklist ?? []).map((c) =>
+          {'label': c.label, 'on': c.checked}).toList();
+      _parts  = cached == null ? [] : (cached.partsUsed ?? []).map((p) =>
+          {'name': p.name, 'qty': p.qty, 'cost': p.unitCost}).toList();
+      _attachments = cached?.attachments ?? [];
+    });
     try {
       final full = await TicketService.instance.get(ticket.dbId);
       if (!mounted) return;
@@ -584,7 +647,10 @@ class _ServiceTicketScreenState extends State<ServiceTicketScreen> {
     if (_loading) {
       return shimmerList(count: 10);
     }
-    if (_loadError != null) {
+    // A background refresh failing while stale-but-valid cached tickets are
+    // already showing shouldn't blow that away with an error screen — only
+    // surface the error when there's genuinely nothing else to show.
+    if (_loadError != null && _tickets.isEmpty) {
       return ErrorView(message: _loadError!, onRetry: _load);
     }
     if (tickets.isEmpty) {
