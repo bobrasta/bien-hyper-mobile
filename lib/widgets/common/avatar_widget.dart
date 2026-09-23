@@ -11,11 +11,16 @@ class AvatarWidget extends StatelessWidget {
     required this.initials,
     this.size = 30,
     this.variant = AvatarVariant.blue,
+    this.imageUrl,
   });
 
   final String initials;
   final double size;
   final AvatarVariant variant;
+  // When set, shows the real photo instead of the initials gradient —
+  // falls back to initials on load failure so a dead/expired URL never
+  // shows a broken-image icon.
+  final String? imageUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -30,7 +35,7 @@ class AvatarWidget extends StatelessWidget {
         ? context.pal.bg
         : Colors.white;
 
-    return Container(
+    final initialsCircle = Container(
       width: size, height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
@@ -45,6 +50,18 @@ class AvatarWidget extends StatelessWidget {
           fontSize: size * 0.37,
           fontWeight: FontWeight.w600,
         ),
+      ),
+    );
+
+    if (imageUrl == null || imageUrl!.isEmpty) return initialsCircle;
+
+    return ClipOval(
+      child: Image.network(
+        imageUrl!,
+        width: size, height: size, fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => initialsCircle,
+        loadingBuilder: (context, child, progress) =>
+            progress == null ? child : initialsCircle,
       ),
     );
   }

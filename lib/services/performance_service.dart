@@ -46,6 +46,7 @@ class MySalesPerformance {
     required this.pipelineValue, required this.openLeads, required this.leadsByStage,
     required this.quotationsSentThisMonth, required this.quotationsAcceptedThisMonth,
     required this.monthlyChart, required this.acceptRate, required this.commissionMtd,
+    this.dealsWonAllTime = 0, this.accountsServed = 0,
   });
   final int pipelineValue;
   final int openLeads;
@@ -55,6 +56,9 @@ class MySalesPerformance {
   final List<QuoteMonth> monthlyChart;
   final int acceptRate;
   final int commissionMtd;
+  // Career totals — used by the profile page's header stat strip.
+  final int dealsWonAllTime;
+  final int accountsServed;
 
   factory MySalesPerformance.fromJson(Map<String, dynamic> j) => MySalesPerformance(
     pipelineValue: (j['pipeline_value'] as num? ?? 0).toInt(),
@@ -65,19 +69,31 @@ class MySalesPerformance {
     monthlyChart: (j['monthly_chart'] as List? ?? []).map((e) => QuoteMonth.fromJson(e as Map<String, dynamic>)).toList(),
     acceptRate: (j['accept_rate'] as num? ?? 0).toInt(),
     commissionMtd: (j['commission_mtd'] as num? ?? 0).toInt(),
+    dealsWonAllTime: (j['deals_won_all_time'] as num? ?? 0).toInt(),
+    accountsServed: (j['accounts_served'] as num? ?? 0).toInt(),
   );
 }
 
 class MyFieldPerformance {
-  const MyFieldPerformance({required this.machinesInstalledThisMonth, required this.ticketsResolvedThisMonth, required this.ticketsOpen});
+  const MyFieldPerformance({
+    required this.machinesInstalledThisMonth, required this.ticketsResolvedThisMonth, required this.ticketsOpen,
+    this.machinesInstalledAllTime = 0, this.ticketsResolvedAllTime = 0, this.hospitalsServed = 0,
+  });
   final int machinesInstalledThisMonth;
   final int ticketsResolvedThisMonth;
   final int ticketsOpen;
+  // Career totals — used by the profile page's header stat strip.
+  final int machinesInstalledAllTime;
+  final int ticketsResolvedAllTime;
+  final int hospitalsServed;
 
   factory MyFieldPerformance.fromJson(Map<String, dynamic> j) => MyFieldPerformance(
     machinesInstalledThisMonth: (j['machines_installed_this_month'] as num? ?? 0).toInt(),
     ticketsResolvedThisMonth: (j['tickets_resolved_this_month'] as num? ?? 0).toInt(),
     ticketsOpen: (j['tickets_open'] as num? ?? 0).toInt(),
+    machinesInstalledAllTime: (j['machines_installed_all_time'] as num? ?? 0).toInt(),
+    ticketsResolvedAllTime: (j['tickets_resolved_all_time'] as num? ?? 0).toInt(),
+    hospitalsServed: (j['hospitals_served'] as num? ?? 0).toInt(),
   );
 }
 

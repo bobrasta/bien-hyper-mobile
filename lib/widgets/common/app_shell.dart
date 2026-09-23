@@ -281,7 +281,7 @@ class _AppShellState extends State<AppShell> {
     'approvals'      => ApprovalsScreen(initialTabIndex: _pendingTabIndex),
     'notifications'  => NotificationsScreen(onOpenNotification: _openNotification),
     'reports'        => ReportsScreen(onNavigateTo: _navigate),
-    'settings'  => const SettingsScreen(),
+    'settings'  => SettingsScreen(onNavigateTo: _navigate),
     'delegations' => const DelegationsScreen(),
     'notification_templates' => const NotificationTemplatesScreen(),
     'activity_log' => const ActivityLogScreen(),

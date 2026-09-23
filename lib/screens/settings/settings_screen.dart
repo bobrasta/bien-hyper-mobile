@@ -1,12 +1,16 @@
 import 'dart:convert';
+import 'dart:io';
+import 'package:dio/dio.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
-import '../../main.dart' show authTokenNotifier, userNameNotifier, can;
+import '../../main.dart' show authTokenNotifier, userNameNotifier, userRoleNotifier, can;
 import '../../models/expense.dart';
 import '../../models/permission.dart';
 import '../../services/api_client.dart';
 import '../../services/auth_service.dart';
 import '../../services/expense_service.dart';
+import '../../services/performance_service.dart';
 import '../../services/permission_service.dart';
 import '../../services/role_service.dart';
 import '../../services/setting_service.dart';
@@ -19,6 +23,7 @@ import '../../utils/api_error.dart';
 import '../../utils/csv_export.dart';
 import '../../utils/format.dart';
 import '../../utils/responsive.dart';
+import '../../widgets/common/app_button.dart';
 import '../../widgets/common/app_dropdown.dart';
 import '../../widgets/common/avatar_widget.dart';
 import '../../theme/app_palette.dart';
@@ -31,7 +36,8 @@ String _roleLabel(String name) => name
     .join(' ');
 
 class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({super.key});
+  const SettingsScreen({super.key, this.onNavigateTo});
+  final void Function(String key)? onNavigateTo;
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -46,11 +52,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _showInvite     = false;
   final _nameCtrl      = TextEditingController();
   final _emailCtrl     = TextEditingController();
+  final _phoneCtrl     = TextEditingController();
   final _oldPwCtrl     = TextEditingController();
   final _newPwCtrl     = TextEditingController();
+  final _confirmPwCtrl = TextEditingController();
   bool   _savingProfile = false;
   bool   _savingPw      = false;
   String? _profileMsg;
+  String? _pwMsg;
+
+  // Identity header — real fields only, read-only/HR-managed, populated
+  // from the same GET /auth/me payload the profile form already fetches.
+  String? _avatarUrl;
+  bool    _uploadingAvatar = false;
+  String? _managerName;
+  String? _positionTitle;
+  String? _positionDepartment;
+  String? _region;
+  String? _zone;
+  String? _hireDate;
+  MyPerformance? _myPerformance;
 
   // Section 15.7: payment details — required before any travel plan can
   // be submitted (PerDiemController::store() 422s without one).
@@ -270,8 +291,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   void dispose() {
-    _nameCtrl.dispose(); _emailCtrl.dispose();
-    _oldPwCtrl.dispose(); _newPwCtrl.dispose();
+    _nameCtrl.dispose(); _emailCtrl.dispose(); _phoneCtrl.dispose();
+    _oldPwCtrl.dispose(); _newPwCtrl.dispose(); _confirmPwCtrl.dispose();
     _paymentProviderCtrl.dispose(); _paymentAccountNumberCtrl.dispose(); _paymentAccountNameCtrl.dispose();
     _thresholdCtrl.dispose();
     _perDiemDefaultRateCtrl.dispose(); _sigTeamLeadCtrl.dispose(); _sigCtoCtrl.dispose();
@@ -289,6 +310,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
           if (profile != null) {
             _nameCtrl.text  = profile['name']  as String? ?? '';
             _emailCtrl.text = profile['email'] as String? ?? '';
+            _phoneCtrl.text = profile['phone'] as String? ?? '';
+            _avatarUrl = profile['avatar_url'] as String?;
+            _managerName = profile['manager_name'] as String?;
+            _positionTitle = profile['position_title'] as String?;
+            _positionDepartment = profile['position_department'] as String?;
+            _region = profile['region'] as String?;
+            _zone = profile['zone'] as String?;
+            _hireDate = profile['hire_date'] as String?;
             final paymentProfile = profile['payment_profile'] as Map<String, dynamic>?;
             if (paymentProfile != null) {
               _paymentProviderCtrl.text      = paymentProfile['provider'] as String? ?? '';
@@ -304,6 +333,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
       // section's spinner stuck forever.
       if (mounted) setState(() => _loadingProfile = false);
     }
+    _loadMyPerformance();
+  }
+
+  // Header stat strip — reuses the same /performance/mine data the
+  // separate My Performance screen already shows, rather than a second
+  // computation. Silently absent if the call fails or the caller has
+  // neither field nor sales activity (no fabricated fallback numbers).
+  Future<void> _loadMyPerformance() async {
+    try {
+      final perf = await PerformanceService.instance.mine();
+      if (mounted) setState(() => _myPerformance = perf);
+    } catch (_) {
+      // Stat strip just doesn't render — not worth surfacing an error for
+      // what is a secondary, decorative part of the header.
+    }
   }
 
   Future<void> _saveProfile() async {
@@ -313,12 +357,46 @@ class _SettingsScreenState extends State<SettingsScreen> {
       await ApiClient.instance.dio.put('/auth/profile', data: {
         'name':  _nameCtrl.text.trim(),
         'email': _emailCtrl.text.trim(),
+        'phone': _phoneCtrl.text.trim(),
       });
       await AuthService.instance.updateStoredName(_nameCtrl.text.trim());
       userNameNotifier.value = _nameCtrl.text.trim();
       if (mounted) setState(() { _savingProfile = false; _profileMsg = 'Profile updated.'; });
     } catch (e) {
       if (mounted) setState(() { _savingProfile = false; _profileMsg = 'Update failed.'; });
+    }
+  }
+
+  Future<void> _pickAndUploadAvatar() async {
+    if (_uploadingAvatar) return;
+    if (Platform.isAndroid) {
+      showErrorToast(context, Exception('Photo upload isn\'t available on Android in this build — use the desktop app instead.'));
+      return;
+    }
+    final result = await FilePicker.pickFiles(allowMultiple: false, withData: false);
+    if (!mounted || result == null || result.files.isEmpty || result.files.first.path == null) return;
+    final file = result.files.first;
+    setState(() => _uploadingAvatar = true);
+    try {
+      final formData = FormData.fromMap({
+        'file': await MultipartFile.fromFile(file.path!, filename: file.name),
+      });
+      final res = await ApiClient.instance.dio.post('/auth/avatar', data: formData);
+      final data = ApiClient.unwrap(res) as Map<String, dynamic>;
+      if (mounted) setState(() { _avatarUrl = data['avatar_url'] as String?; _uploadingAvatar = false; });
+    } catch (e) {
+      if (mounted) { setState(() => _uploadingAvatar = false); showErrorToast(context, e); }
+    }
+  }
+
+  Future<void> _removeAvatar() async {
+    if (_uploadingAvatar) return;
+    setState(() => _uploadingAvatar = true);
+    try {
+      await ApiClient.instance.dio.delete('/auth/avatar');
+      if (mounted) setState(() { _avatarUrl = null; _uploadingAvatar = false; });
+    } catch (e) {
+      if (mounted) { setState(() => _uploadingAvatar = false); showErrorToast(context, e); }
     }
   }
 
@@ -339,16 +417,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _changePassword() async {
     if (_savingPw) return;
-    setState(() { _savingPw = true; _profileMsg = null; });
+    // Client-side only — the API's own min:8 check is the real gate, this
+    // just avoids a round trip for the two mistakes a confirm field exists
+    // to catch (matches hypermed-web's Blade `confirmed` validation, which
+    // is likewise client/controller-side only on that platform too).
+    if (_newPwCtrl.text.length < 8) {
+      setState(() => _pwMsg = 'New password must be at least 8 characters.');
+      return;
+    }
+    if (_newPwCtrl.text != _confirmPwCtrl.text) {
+      setState(() => _pwMsg = 'Passwords do not match.');
+      return;
+    }
+    setState(() { _savingPw = true; _pwMsg = null; });
     try {
       await ApiClient.instance.dio.post('/auth/change-password', data: {
         'current_password': _oldPwCtrl.text,
         'new_password':     _newPwCtrl.text,
       });
-      _oldPwCtrl.clear(); _newPwCtrl.clear();
-      if (mounted) setState(() { _savingPw = false; _profileMsg = 'Password changed.'; });
+      _oldPwCtrl.clear(); _newPwCtrl.clear(); _confirmPwCtrl.clear();
+      if (mounted) setState(() { _savingPw = false; _pwMsg = 'Password changed.'; });
     } catch (e) {
-      if (mounted) setState(() { _savingPw = false; _profileMsg = 'Password change failed.'; });
+      if (mounted) setState(() { _savingPw = false; _pwMsg = friendlyError(e); });
     }
   }
 
@@ -491,8 +581,165 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   // ── Profile card ──────────────────────────────────────────────────────────
+  // ── Identity header ──────────────────────────────────────────────────────
+  // Real fields only — no bio/credentials/employee-ID, none of which exist
+  // in the schema. Stat strip reuses /performance/mine (same data as the
+  // separate My Performance screen) rather than a second computation, and
+  // is simply absent for roles with neither field nor sales activity.
+  static const _providers = ['M-Pesa', 'Tigo Pesa', 'Airtel Money', 'Selcom', 'Bank'];
+
+  bool get _payoutReady =>
+      _paymentProviderCtrl.text.trim().isNotEmpty &&
+      _paymentAccountNumberCtrl.text.trim().isNotEmpty &&
+      _paymentAccountNameCtrl.text.trim().isNotEmpty;
+
+  bool get _profileComplete =>
+      _nameCtrl.text.trim().isNotEmpty &&
+      _emailCtrl.text.trim().isNotEmpty &&
+      _phoneCtrl.text.trim().isNotEmpty;
+
+  List<(String, String)> get _headerStats {
+    final f = _myPerformance?.field;
+    final s = _myPerformance?.sales;
+    if (f != null) {
+      return [
+        ('${f.machinesInstalledAllTime}', 'Installations'),
+        ('${f.ticketsResolvedAllTime}', 'Services'),
+        ('${f.hospitalsServed}', 'Hospitals'),
+      ];
+    }
+    if (s != null) {
+      return [
+        (tshShort(s.pipelineValue), 'Pipeline'),
+        ('${s.dealsWonAllTime}', 'Deals won'),
+        ('${s.accountsServed}', 'Accounts'),
+      ];
+    }
+    return const [];
+  }
+
+  Widget _identityHeaderCard(BuildContext context) {
+    final name = _nameCtrl.text.trim().isEmpty ? userNameNotifier.value : _nameCtrl.text.trim();
+    final initials = name.trim().split(RegExp(r'\s+')).where((w) => w.isNotEmpty)
+        .map((w) => w[0].toUpperCase()).take(2).join();
+    final stats = _headerStats;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: context.pal.surface1,
+        borderRadius: BorderRadius.circular(AppColors.rLg),
+        border: Border.all(color: context.pal.border),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+            Stack(clipBehavior: Clip.none, children: [
+              _loadingProfile
+                  ? AvatarWidget(initials: initials.isEmpty ? '?' : initials, size: 64, variant: AvatarVariant.teal)
+                  : AvatarWidget(initials: initials.isEmpty ? '?' : initials, size: 64, variant: AvatarVariant.teal, imageUrl: _avatarUrl),
+              Positioned(
+                right: -2, bottom: -2,
+                child: GestureDetector(
+                  onTap: _uploadingAvatar ? null : (_avatarUrl != null ? _showAvatarMenu : _pickAndUploadAvatar),
+                  child: Container(
+                    width: 24, height: 24,
+                    decoration: BoxDecoration(
+                      color: context.pal.surface2, shape: BoxShape.circle,
+                      border: Border.all(color: context.pal.border),
+                    ),
+                    alignment: Alignment.center,
+                    child: _uploadingAvatar
+                        ? const SizedBox(width: 11, height: 11, child: CircularProgressIndicator(strokeWidth: 1.5))
+                        : Icon(Symbols.photo_camera, size: 12, color: context.pal.textDim),
+                  ),
+                ),
+              ),
+            ]),
+            const SizedBox(width: 16),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Flexible(child: Text(name.isEmpty ? '—' : name,
+                    style: AppTheme.pageTitle.copyWith(fontSize: 18),
+                    overflow: TextOverflow.ellipsis, maxLines: 1)),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(color: AppColors.tealSoft, borderRadius: BorderRadius.circular(5),
+                      border: Border.all(color: AppColors.teal.withValues(alpha: 0.3))),
+                  child: Text(_roleLabel(userRoleNotifier.value), style: TextStyle(color: AppColors.teal, fontSize: 10.5, fontWeight: FontWeight.w600)),
+                ),
+              ]),
+              const SizedBox(height: 5),
+              Wrap(spacing: 14, runSpacing: 4, children: [
+                if (_positionTitle != null && _positionTitle!.isNotEmpty)
+                  _HeaderMeta(icon: Symbols.work, text: _positionTitle!),
+                if ((_region ?? _zone) != null && (_region ?? _zone)!.isNotEmpty)
+                  _HeaderMeta(icon: Symbols.location_on, text: (_region ?? _zone)!),
+                if (_hireDate != null && _hireDate!.isNotEmpty)
+                  _HeaderMeta(icon: Symbols.calendar_today, text: 'Since ${_formatHireDate(_hireDate!)}'),
+              ]),
+            ])),
+            AppButton(
+              label: 'My performance', icon: Symbols.trending_up, variant: BtnVariant.ghost, small: true,
+              onPressed: () => widget.onNavigateTo?.call('my_performance'),
+            ),
+          ]),
+        ),
+        if (stats.isNotEmpty) ...[
+          Container(height: 1, color: context.pal.border),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            // Horizontal-scroll safety net, same reasoning as the name
+            // Flexible+ellipsis above — 3 short stat values fit a normal
+            // window comfortably, but never hard-overflow if they don't.
+            child: SingleChildScrollView(scrollDirection: Axis.horizontal, child: Row(children: [
+              for (final (value, label) in stats) ...[
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(value, style: AppTheme.pageTitle.copyWith(fontSize: 18)),
+                  Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 9)),
+                ]),
+                const SizedBox(width: 28),
+              ],
+            ])),
+          ),
+        ],
+        Container(height: 1, color: context.pal.border),
+        Row(children: [
+          Expanded(child: _ReadinessTile(
+            icon: Symbols.check_circle, ok: _profileComplete,
+            label: 'Profile', note: _profileComplete ? 'Complete' : 'Add your phone number',
+          )),
+          Container(width: 1, height: 44, color: context.pal.border),
+          Expanded(child: _ReadinessTile(
+            icon: Symbols.payments, ok: _payoutReady,
+            label: 'Payouts', note: _payoutReady ? 'Ready' : 'Needed for travel plans',
+          )),
+        ]),
+      ]),
+    );
+  }
+
+  void _showAvatarMenu() {
+    showMenu(
+      context: context,
+      position: RelativeRect.fromLTRB(200, 200, 200, 200),
+      items: [
+        PopupMenuItem(onTap: _pickAndUploadAvatar, child: const Text('Replace photo')),
+        PopupMenuItem(onTap: _removeAvatar, child: Text('Remove photo', style: TextStyle(color: AppColors.coral))),
+      ],
+    );
+  }
+
+  String _formatHireDate(String iso) {
+    final d = DateTime.tryParse(iso);
+    if (d == null) return iso;
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return '${months[d.month - 1]} ${d.year}';
+  }
+
   Widget _profileCard(BuildContext context) => _SCard(
-    title: 'My Profile',
+    title: 'Personal Information',
     trailing: GestureDetector(
       onTap: _logout,
       child: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -505,12 +752,37 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ? const Center(child: Padding(
             padding: EdgeInsets.symmetric(vertical: 12),
             child: CircularProgressIndicator(strokeWidth: 2)))
-        : Column(children: [
+        : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('How you appear on approvals, tickets and payslips.',
+                style: AppTheme.bodySub.copyWith(fontSize: 12.5, color: AppColors.textDim)),
+            const SizedBox(height: 14),
             Row(children: [
               Expanded(child: _SettingsField(label: 'Full Name', ctrl: _nameCtrl, hint: 'Your name')),
               const SizedBox(width: 14),
-              Expanded(child: _SettingsField(label: 'Email', ctrl: _emailCtrl, hint: 'your@email.com')),
+              Expanded(child: _SettingsField(label: 'Phone', ctrl: _phoneCtrl, hint: '+255 7XX XXX XXX')),
             ]),
+            const SizedBox(height: 14),
+            _SettingsField(label: 'Work Email', ctrl: _emailCtrl, hint: 'your@email.com'),
+            if (_managerName != null || _positionDepartment != null || _region != null) ...[
+              const SizedBox(height: 16),
+              Container(height: 1, color: context.pal.border),
+              const SizedBox(height: 14),
+              Row(children: [
+                if (_positionDepartment != null && _positionDepartment!.isNotEmpty)
+                  Expanded(child: _ReadOnlyField(label: 'Department', value: _positionDepartment!)),
+                if (_managerName != null && _managerName!.isNotEmpty) ...[
+                  const SizedBox(width: 10),
+                  Expanded(child: _ReadOnlyField(label: 'Reports to', value: _managerName!)),
+                ],
+                if ((_region ?? _zone) != null && (_region ?? _zone)!.isNotEmpty) ...[
+                  const SizedBox(width: 10),
+                  Expanded(child: _ReadOnlyField(label: 'Branch', value: (_region ?? _zone)!)),
+                ],
+              ]),
+              const SizedBox(height: 8),
+              Text('Managed by HR — contact HR to request a change.',
+                  style: AppTheme.bodySub.copyWith(fontSize: 10.5, color: context.pal.textDim)),
+            ],
             const SizedBox(height: 16),
             Row(children: [
               if (_profileMsg != null) ...[
@@ -528,59 +800,133 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   // ── Password card ─────────────────────────────────────────────────────────
 
+  int get _pwStrengthScore {
+    final pw = _newPwCtrl.text;
+    var score = 0;
+    if (pw.length >= 10) score++;
+    if (RegExp(r'[A-Z]').hasMatch(pw) && RegExp(r'[a-z]').hasMatch(pw)) score++;
+    if (RegExp(r'\d').hasMatch(pw)) score++;
+    if (RegExp(r'[^A-Za-z0-9]').hasMatch(pw)) score++;
+    if (pw.isNotEmpty && score == 0) score = 1;
+    return score;
+  }
+
   Widget _passwordCard(BuildContext context) => _SCard(
-    title: 'Change Password',
-    child: Column(children: [
-      Row(children: [
+    title: 'Password & Security',
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Expanded(child: _SettingsField(label: 'Current Password', ctrl: _oldPwCtrl,
             hint: '••••••••', obscure: true)),
         const SizedBox(width: 14),
-        Expanded(child: _SettingsField(label: 'New Password', ctrl: _newPwCtrl,
-            hint: '••••••••', obscure: true)),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          _SettingsField(label: 'New Password', ctrl: _newPwCtrl,
+              hint: 'At least 8 characters', obscure: true, onChanged: (_) => setState(() {})),
+          const SizedBox(height: 8),
+          _PasswordStrengthMeter(score: _pwStrengthScore, hasInput: _newPwCtrl.text.isNotEmpty),
+        ])),
       ]),
+      const SizedBox(height: 14),
+      _SettingsField(label: 'Confirm New Password', ctrl: _confirmPwCtrl, hint: '••••••••', obscure: true),
       const SizedBox(height: 16),
-      Align(alignment: Alignment.centerRight,
-        child: _OutlineBtn(label: 'Update password', saving: _savingPw, onTap: _changePassword)),
+      Row(children: [
+        if (_pwMsg != null) ...[
+          Icon(_pwMsg == 'Password changed.' ? Symbols.check_circle : Symbols.error,
+              size: 14, color: _pwMsg == 'Password changed.' ? AppColors.teal : AppColors.coral),
+          const SizedBox(width: 6),
+          Expanded(child: Text(_pwMsg!, style: AppTheme.bodySub.copyWith(
+              color: _pwMsg == 'Password changed.' ? AppColors.teal : AppColors.coral, fontSize: 12.5))),
+        ] else
+          const Spacer(),
+        _OutlineBtn(label: 'Update password', saving: _savingPw, onTap: _changePassword),
+      ]),
     ]),
   );
 
   // ── Payment details card (Section 15.7) ─────────────────────────────────
   // Required before any travel plan can be submitted — the account number
   // shown here is your own, never masked (masking only applies when
-  // someone ELSE views your plan's payment details).
-  Widget _paymentProfileCard(BuildContext context) => _SCard(
-    title: 'Payment Details',
-    child: _loadingProfile
-        ? const Center(child: Padding(
-            padding: EdgeInsets.symmetric(vertical: 12),
-            child: CircularProgressIndicator(strokeWidth: 2)))
-        : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(
-              'Used for travel-plan/per-diem payouts. Required before you can submit a travel plan.',
-              style: AppTheme.bodySub.copyWith(fontSize: 12.5, color: AppColors.textDim),
-            ),
-            const SizedBox(height: 12),
-            Row(children: [
-              Expanded(child: _SettingsField(label: 'Provider', ctrl: _paymentProviderCtrl, hint: 'e.g. SELCOM')),
-              const SizedBox(width: 14),
-              Expanded(child: _SettingsField(label: 'Account Number', ctrl: _paymentAccountNumberCtrl, hint: '1234567890123')),
-            ]),
-            const SizedBox(height: 14),
-            _SettingsField(label: 'Account Name', ctrl: _paymentAccountNameCtrl, hint: 'Full name on the account'),
-            const SizedBox(height: 16),
-            Row(children: [
-              if (_paymentProfileMsg != null) ...[
-                Icon(_paymentProfileMsg!.contains('failed') ? Symbols.error : Symbols.check_circle,
-                    size: 14, color: _paymentProfileMsg!.contains('failed') ? AppColors.coral : AppColors.teal),
-                const SizedBox(width: 6),
-                Text(_paymentProfileMsg!, style: AppTheme.bodySub.copyWith(
-                    color: _paymentProfileMsg!.contains('failed') ? AppColors.coral : AppColors.teal, fontSize: 12.5)),
+  // someone ELSE views your plan's payment details). Provider picker is a
+  // client-side convenience over the same free-text `provider` column —
+  // no backend schema change, "Other" still accepts any text.
+  Widget _paymentProfileCard(BuildContext context) {
+    final isBank = _paymentProviderCtrl.text.trim() == 'Bank';
+    final isKnownProvider = _providers.contains(_paymentProviderCtrl.text.trim());
+    final nameMismatch = _paymentAccountNameCtrl.text.trim().isNotEmpty &&
+        _paymentAccountNameCtrl.text.trim().toLowerCase() != _nameCtrl.text.trim().toLowerCase();
+
+    return _SCard(
+      title: 'Payout Details',
+      child: _loadingProfile
+          ? const Center(child: Padding(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: CircularProgressIndicator(strokeWidth: 2)))
+          : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(
+                'Used for travel-plan/per-diem payouts. Required before you can submit a travel plan.',
+                style: AppTheme.bodySub.copyWith(fontSize: 12.5, color: AppColors.textDim),
+              ),
+              if (!_payoutReady) ...[
+                const SizedBox(height: 12),
+                Container(
+                  width: double.infinity, padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(color: AppColors.amberSoft, borderRadius: BorderRadius.circular(8)),
+                  child: Row(children: [
+                    Icon(Symbols.warning, size: 14, color: AppColors.amber),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text('Not set up — travel plan submission is blocked.',
+                        style: TextStyle(color: AppColors.amber, fontSize: 12))),
+                  ]),
+                ),
               ],
-              const Spacer(),
-              _TealBtn(label: 'Save payment details', saving: _savingPaymentProfile, onTap: _savePaymentProfile),
+              const SizedBox(height: 14),
+              Text('PROVIDER', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+              const SizedBox(height: 8),
+              Wrap(spacing: 8, runSpacing: 8, children: [
+                for (final p in _providers)
+                  _ProviderChip(label: p, selected: _paymentProviderCtrl.text.trim() == p,
+                      onTap: () => setState(() => _paymentProviderCtrl.text = p)),
+                _ProviderChip(label: 'Other', selected: !isKnownProvider && _paymentProviderCtrl.text.trim().isNotEmpty,
+                    onTap: () => setState(() => _paymentProviderCtrl.text = '')),
+              ]),
+              if (!isKnownProvider) ...[
+                const SizedBox(height: 10),
+                _SettingsField(label: '', ctrl: _paymentProviderCtrl, hint: 'Provider name'),
+              ],
+              const SizedBox(height: 14),
+              Row(children: [
+                Expanded(child: _SettingsField(
+                    label: isBank ? 'Account Number' : 'Mobile Number',
+                    ctrl: _paymentAccountNumberCtrl,
+                    hint: isBank ? '0150 2345 6789 01' : '+255 7XX XXX XXX',
+                    onChanged: (_) => setState(() {}))),
+                const SizedBox(width: 14),
+                Expanded(child: _SettingsField(label: 'Name on Account', ctrl: _paymentAccountNameCtrl,
+                    hint: 'Must match your ID', onChanged: (_) => setState(() {}))),
+              ]),
+              if (nameMismatch) ...[
+                const SizedBox(height: 8),
+                Row(children: [
+                  Icon(Symbols.info, size: 13, color: AppColors.amber),
+                  const SizedBox(width: 6),
+                  Expanded(child: Text('Differs from your profile name — Finance may hold the payout for review.',
+                      style: TextStyle(color: AppColors.amber, fontSize: 11))),
+                ]),
+              ],
+              const SizedBox(height: 16),
+              Row(children: [
+                if (_paymentProfileMsg != null) ...[
+                  Icon(_paymentProfileMsg!.contains('failed') ? Symbols.error : Symbols.check_circle,
+                      size: 14, color: _paymentProfileMsg!.contains('failed') ? AppColors.coral : AppColors.teal),
+                  const SizedBox(width: 6),
+                  Text(_paymentProfileMsg!, style: AppTheme.bodySub.copyWith(
+                      color: _paymentProfileMsg!.contains('failed') ? AppColors.coral : AppColors.teal, fontSize: 12.5)),
+                ],
+                const Spacer(),
+                _TealBtn(label: 'Save payment details', saving: _savingPaymentProfile, onTap: _savePaymentProfile),
+              ]),
             ]),
-          ]),
-  );
+    );
+  }
 
   // ── Section content ───────────────────────────────────────────────────────
   Widget _buildSectionContent(BuildContext context) => switch (_section) {
@@ -596,6 +942,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _profileSection(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
+      _identityHeaderCard(context),
+      const SizedBox(height: 16),
       _profileCard(context),
       const SizedBox(height: 16),
       _paymentProfileCard(context),
@@ -1848,10 +2196,11 @@ class _ToggleRow extends StatelessWidget {
 
 class _SettingsField extends StatelessWidget {
   const _SettingsField({required this.label, required this.ctrl,
-      required this.hint, this.obscure = false});
+      required this.hint, this.obscure = false, this.onChanged});
   final String label, hint;
   final TextEditingController ctrl;
   final bool obscure;
+  final ValueChanged<String>? onChanged;
 
   @override
   Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -1864,13 +2213,114 @@ class _SettingsField extends StatelessWidget {
           borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       child: TextField(
-        controller: ctrl, obscureText: obscure, style: AppTheme.bodySm,
+        controller: ctrl, obscureText: obscure, style: AppTheme.bodySm, onChanged: onChanged,
         decoration: InputDecoration(hintText: hint,
             hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
             border: InputBorder.none, isDense: false, contentPadding: EdgeInsets.zero),
       ),
     ),
   ]);
+}
+
+class _ReadOnlyField extends StatelessWidget {
+  const _ReadOnlyField({required this.label, required this.value});
+  final String label, value;
+
+  @override
+  Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    Row(children: [
+      Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 9.5)),
+      const SizedBox(width: 4),
+      Icon(Symbols.lock, size: 10, color: context.pal.textDim),
+    ]),
+    const SizedBox(height: 3),
+    Text(value, style: AppTheme.bodySm.copyWith(color: context.pal.textDim, fontSize: 12.5)),
+  ]);
+}
+
+class _HeaderMeta extends StatelessWidget {
+  const _HeaderMeta({required this.icon, required this.text});
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Row(mainAxisSize: MainAxisSize.min, children: [
+    Icon(icon, size: 13, color: context.pal.textMute),
+    const SizedBox(width: 5),
+    Text(text, style: AppTheme.bodySub.copyWith(fontSize: 11.5, color: context.pal.textMute)),
+  ]);
+}
+
+class _ReadinessTile extends StatelessWidget {
+  const _ReadinessTile({required this.icon, required this.ok, required this.label, required this.note});
+  final IconData icon;
+  final bool ok;
+  final String label, note;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = ok ? AppColors.teal : AppColors.amber;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 11),
+      child: Row(children: [
+        Icon(ok ? Symbols.check_circle : Symbols.warning, size: 16, color: color),
+        const SizedBox(width: 10),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(label, style: AppTheme.bodySm.copyWith(fontSize: 12)),
+          Text(note, style: TextStyle(fontSize: 10.5, color: ok ? context.pal.textMute : AppColors.amber)),
+        ])),
+      ]),
+    );
+  }
+}
+
+class _ProviderChip extends StatelessWidget {
+  const _ProviderChip({required this.label, required this.selected, required this.onTap});
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: onTap,
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: selected ? AppColors.tealSoft : context.pal.surface2,
+        borderRadius: BorderRadius.circular(9),
+        border: Border.all(color: selected ? AppColors.teal.withValues(alpha: 0.5) : context.pal.border),
+      ),
+      child: Text(label, style: TextStyle(
+          fontSize: 12, color: selected ? context.pal.text : context.pal.textMute,
+          fontWeight: selected ? FontWeight.w600 : FontWeight.w400)),
+    ),
+  );
+}
+
+class _PasswordStrengthMeter extends StatelessWidget {
+  const _PasswordStrengthMeter({required this.score, required this.hasInput});
+  final int score;
+  final bool hasInput;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = [const Color(0xFF4E555D), AppColors.coral, AppColors.amber, AppColors.cyan, AppColors.teal];
+    const labels = ['', 'Weak', 'Fair', 'Good', 'Strong'];
+    final color = colors[score];
+
+    return Row(children: [
+      Expanded(child: Row(children: [
+        for (var i = 1; i <= 4; i++) ...[
+          if (i > 1) const SizedBox(width: 3),
+          Expanded(child: Container(height: 3, decoration: BoxDecoration(
+              color: i <= score ? color : context.pal.border, borderRadius: BorderRadius.circular(2)))),
+        ],
+      ])),
+      const SizedBox(width: 8),
+      SizedBox(width: 40, child: Text(hasInput ? labels[score] : '',
+          textAlign: TextAlign.right, style: TextStyle(fontSize: 10, color: color))),
+    ]);
+  }
 }
 
 // ── Invite dialog ───────────────────────────────────────────────────────────
