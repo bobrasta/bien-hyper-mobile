@@ -5,6 +5,23 @@ class FinanceReportService {
   static final instance = FinanceReportService._();
   final _dio = ApiClient.instance.dio;
 
+  // Stale-while-revalidate screen cache — see MachineService for the full
+  // reasoning. The date-range reports only cache the call with no explicit
+  // range (dateFrom/dateTo both null — the caller let the backend default
+  // to the current period, which is what FinanceDashboardScreen's default
+  // "This Month" period resolves to); a caller-supplied range is a genuine
+  // filter, same as a machine list's filtered query, so it isn't cached.
+  // The reports below that take no date range at all always cache.
+  static Map<String, dynamic>? cachedProfitLoss;
+  static Map<String, dynamic>? cachedCashFlow;
+  static Map<String, dynamic>? cachedVat;
+  static Map<String, dynamic>? cachedTrialBalance;
+  static Map<String, dynamic>? cachedBalanceSheet;
+  static Map<String, dynamic>? cachedArAging;
+  static Map<String, dynamic>? cachedApAging;
+  static Map<String, dynamic>? cachedStockValuation;
+  static List<Map<String, dynamic>>? cachedMonthlyTrend;
+
   Future<Map<String, dynamic>> _get(String path, {String? dateFrom, String? dateTo}) async {
     final res = await _dio.get(path, queryParameters: {
       'date_from': ?dateFrom,
@@ -14,28 +31,59 @@ class FinanceReportService {
     return raw is Map<String, dynamic> ? raw : {};
   }
 
-  Future<Map<String, dynamic>> vat({String? dateFrom, String? dateTo}) =>
-      _get('/finance-reports/vat', dateFrom: dateFrom, dateTo: dateTo);
+  Future<Map<String, dynamic>> vat({String? dateFrom, String? dateTo}) async {
+    final r = await _get('/finance-reports/vat', dateFrom: dateFrom, dateTo: dateTo);
+    if (dateFrom == null && dateTo == null) cachedVat = r;
+    return r;
+  }
 
-  Future<Map<String, dynamic>> profitLoss({String? dateFrom, String? dateTo}) =>
-      _get('/finance-reports/profit-loss', dateFrom: dateFrom, dateTo: dateTo);
+  Future<Map<String, dynamic>> profitLoss({String? dateFrom, String? dateTo}) async {
+    final r = await _get('/finance-reports/profit-loss', dateFrom: dateFrom, dateTo: dateTo);
+    if (dateFrom == null && dateTo == null) cachedProfitLoss = r;
+    return r;
+  }
 
-  Future<Map<String, dynamic>> trialBalance() => _get('/finance-reports/trial-balance');
+  Future<Map<String, dynamic>> trialBalance() async {
+    final r = await _get('/finance-reports/trial-balance');
+    cachedTrialBalance = r;
+    return r;
+  }
 
-  Future<Map<String, dynamic>> balanceSheet() => _get('/finance-reports/balance-sheet');
+  Future<Map<String, dynamic>> balanceSheet() async {
+    final r = await _get('/finance-reports/balance-sheet');
+    cachedBalanceSheet = r;
+    return r;
+  }
 
-  Future<Map<String, dynamic>> arAging() => _get('/finance-reports/ar-aging');
+  Future<Map<String, dynamic>> arAging() async {
+    final r = await _get('/finance-reports/ar-aging');
+    cachedArAging = r;
+    return r;
+  }
 
-  Future<Map<String, dynamic>> apAging() => _get('/finance-reports/ap-aging');
+  Future<Map<String, dynamic>> apAging() async {
+    final r = await _get('/finance-reports/ap-aging');
+    cachedApAging = r;
+    return r;
+  }
 
-  Future<Map<String, dynamic>> stockValuation() => _get('/finance-reports/stock-valuation');
+  Future<Map<String, dynamic>> stockValuation() async {
+    final r = await _get('/finance-reports/stock-valuation');
+    cachedStockValuation = r;
+    return r;
+  }
 
-  Future<Map<String, dynamic>> cashFlow({String? dateFrom, String? dateTo}) =>
-      _get('/finance-reports/cash-flow', dateFrom: dateFrom, dateTo: dateTo);
+  Future<Map<String, dynamic>> cashFlow({String? dateFrom, String? dateTo}) async {
+    final r = await _get('/finance-reports/cash-flow', dateFrom: dateFrom, dateTo: dateTo);
+    if (dateFrom == null && dateTo == null) cachedCashFlow = r;
+    return r;
+  }
 
   Future<List<Map<String, dynamic>>> monthlyTrend() async {
     final res = await _dio.get('/finance-reports/monthly-trend');
     final (data, _) = ApiClient.unwrapList(res);
-    return data.cast<Map<String, dynamic>>();
+    final list = data.cast<Map<String, dynamic>>();
+    cachedMonthlyTrend = list;
+    return list;
   }
 }

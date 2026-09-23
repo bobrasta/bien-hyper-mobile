@@ -57,6 +57,16 @@ class _VendorFeesScreenState extends State<VendorFeesScreen> with SingleTickerPr
   void initState() {
     super.initState();
     _tab = TabController(length: 3, vsync: this);
+    // Stale-while-revalidate — same reasoning as MachineListScreen's own
+    // fix: show the last-known bundle instantly on a fresh mount (this
+    // widget isn't kept alive across navigation), then quietly refresh.
+    final cached = VendorFeeService.cachedFees;
+    if (cached != null) {
+      _fees = cached;
+      _jobs = VendorFeeService.cachedDeliveryJobs ?? [];
+      _vendors = VendorFeeService.cachedVendors ?? [];
+      _loading = false;
+    }
     _load();
   }
 
@@ -67,7 +77,13 @@ class _VendorFeesScreenState extends State<VendorFeesScreen> with SingleTickerPr
   }
 
   Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      // Only show the blank/shimmer state when there's genuinely nothing
+      // to show yet — a background refresh of an already-populated bundle
+      // (or a return visit seeded from the cache above) updates silently.
+      if (_fees.isEmpty) _loading = true;
+      _error = null;
+    });
     try {
       final results = await Future.wait([
         VendorFeeService.instance.fees(),
@@ -118,7 +134,10 @@ class _VendorFeesScreenState extends State<VendorFeesScreen> with SingleTickerPr
         Expanded(
           child: _loading
               ? const Center(child: CircularProgressIndicator())
-              : _error != null
+              // A background refresh failing while stale-but-valid cached
+              // data is already showing shouldn't blow that away — only
+              // "genuinely nothing to show" surfaces the error screen.
+              : _error != null && _fees.isEmpty
                   ? ErrorView(message: _error!, onRetry: _load)
                   : TabBarView(controller: _tab, children: [
                       _feesTab(opsTier),
@@ -459,10 +478,22 @@ class _FeeDetailDialogState extends State<_FeeDetailDialog> {
   bool _busy = false;
 
   @override
-  void initState() { super.initState(); _load(); }
+  void initState() {
+    super.initState();
+    // Stale-while-revalidate — same reasoning as MachineDetailScreen's own
+    // fix: this dialog is a fresh widget/State every time it's opened (it
+    // only exists in the tree while `_openFee != null`), so seed from the
+    // last-known fetch of this exact fee if we have one.
+    final cached = VendorFeeService.cachedFeeById[widget.feeId];
+    if (cached != null) { _fee = cached; _loading = false; }
+    _load();
+  }
 
   Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      if (_fee == null) _loading = true;
+      _error = null;
+    });
     try {
       final fee = await VendorFeeService.instance.fee(widget.feeId);
       if (mounted) setState(() { _fee = fee; _loading = false; });
@@ -590,11 +621,14 @@ class _FeeDetailDialogState extends State<_FeeDetailDialog> {
       ]),
       body: _loading
           ? const SizedBox(height: 120, child: Center(child: CircularProgressIndicator()))
-          : _error != null
-              ? Text(_error!, style: TextStyle(color: AppColors.coral))
+          // A background refresh failing while stale-but-valid cached data
+          // is already showing shouldn't blow that away — only "genuinely
+          // nothing to show" (fee == null) surfaces the error text.
+          : fee == null
+              ? Text(_error ?? 'Not found', style: TextStyle(color: AppColors.coral))
               : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Row(children: [
-                    Expanded(child: Text(fee!.vendorName ?? '—', style: AppTheme.bodyStrong)),
+                    Expanded(child: Text(fee.vendorName ?? '—', style: AppTheme.bodyStrong)),
                     Text(tshFromDouble(fee.billedAmount), style: AppTheme.bodyStrong),
                   ]),
                   const SizedBox(height: 4),
@@ -894,10 +928,22 @@ class _JobDetailDialogState extends State<_JobDetailDialog> {
   bool _busy = false;
 
   @override
-  void initState() { super.initState(); _load(); }
+  void initState() {
+    super.initState();
+    // Stale-while-revalidate — same reasoning as MachineDetailScreen's own
+    // fix: this dialog is a fresh widget/State every time it's opened (it
+    // only exists in the tree while `_openJob != null`), so seed from the
+    // last-known fetch of this exact job if we have one.
+    final cached = VendorFeeService.cachedJobById[widget.jobId];
+    if (cached != null) { _job = cached; _loading = false; }
+    _load();
+  }
 
   Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      if (_job == null) _loading = true;
+      _error = null;
+    });
     try {
       final job = await VendorFeeService.instance.deliveryJob(widget.jobId);
       if (mounted) setState(() { _job = job; _loading = false; });
@@ -949,10 +995,13 @@ class _JobDetailDialogState extends State<_JobDetailDialog> {
       ]),
       body: _loading
           ? const SizedBox(height: 120, child: Center(child: CircularProgressIndicator()))
-          : _error != null
-              ? Text(_error!, style: TextStyle(color: AppColors.coral))
+          // A background refresh failing while stale-but-valid cached data
+          // is already showing shouldn't blow that away — only "genuinely
+          // nothing to show" (job == null) surfaces the error text.
+          : job == null
+              ? Text(_error ?? 'Not found', style: TextStyle(color: AppColors.coral))
               : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(job!.vendorName ?? '—', style: AppTheme.bodyStrong),
+                  Text(job.vendorName ?? '—', style: AppTheme.bodyStrong),
                   Text(job.destination ?? '—', style: TextStyle(color: AppColors.textMute, fontSize: 13)),
                   if (job.feeId != null) ...[
                     const SizedBox(height: 8),

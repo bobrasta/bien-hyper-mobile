@@ -7,13 +7,27 @@ class VendorFeeService {
   static final instance = VendorFeeService._();
   final _dio = ApiClient.instance.dio;
 
+  // Stale-while-revalidate screen cache — see MachineService for the full
+  // reasoning. cachedVendors/cachedFees/cachedDeliveryJobs only cover their
+  // unfiltered query (the only shape VendorFeesScreen ever calls them with);
+  // the *ById maps back the fee/job detail dialogs, keyed by the numeric id
+  // passed into fee()/deliveryJob() (matching their own returned object's
+  // .id, which is genuinely int here — see VendorFee/DeliveryJob models).
+  static List<Vendor>? cachedVendors;
+  static List<VendorFee>? cachedFees;
+  static final Map<int, VendorFee> cachedFeeById = {};
+  static List<DeliveryJob>? cachedDeliveryJobs;
+  static final Map<int, DeliveryJob> cachedJobById = {};
+
   Future<List<Vendor>> vendors({String? type, bool includeInactive = false}) async {
     final res = await _dio.get('/vendors', queryParameters: {
       'type': ?type,
       if (includeInactive) 'include_inactive': 1,
     });
     final (data, _) = ApiClient.unwrapList(res);
-    return data.map((j) => Vendor.fromJson(j as Map<String, dynamic>)).toList();
+    final list = data.map((j) => Vendor.fromJson(j as Map<String, dynamic>)).toList();
+    if (type == null) cachedVendors = list;
+    return list;
   }
 
   Future<Vendor> createVendor(Map<String, dynamic> data) async {
@@ -32,12 +46,16 @@ class VendorFeeService {
       'vendor_id': ?vendorId,
     });
     final (data, _) = ApiClient.unwrapList(res);
-    return data.map((j) => VendorFee.fromJson(j as Map<String, dynamic>)).toList();
+    final list = data.map((j) => VendorFee.fromJson(j as Map<String, dynamic>)).toList();
+    if (status == null && vendorId == null) cachedFees = list;
+    return list;
   }
 
   Future<VendorFee> fee(int id) async {
     final res = await _dio.get('/vendor-fees/$id');
-    return VendorFee.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+    final f = VendorFee.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+    cachedFeeById[id] = f;
+    return f;
   }
 
   Future<VendorFee> createFee({required int vendorId, int? deliveryJobId, required String description, required int billedAmount}) async {
@@ -93,12 +111,16 @@ class VendorFeeService {
       'vendor_id': ?vendorId,
     });
     final (data, _) = ApiClient.unwrapList(res);
-    return data.map((j) => DeliveryJob.fromJson(j as Map<String, dynamic>)).toList();
+    final list = data.map((j) => DeliveryJob.fromJson(j as Map<String, dynamic>)).toList();
+    if (status == null && vendorId == null) cachedDeliveryJobs = list;
+    return list;
   }
 
   Future<DeliveryJob> deliveryJob(int id) async {
     final res = await _dio.get('/delivery-jobs/$id');
-    return DeliveryJob.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+    final j = DeliveryJob.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+    cachedJobById[id] = j;
+    return j;
   }
 
   Future<DeliveryJob> createDeliveryJob({

@@ -54,13 +54,36 @@ class _ChartOfAccountsScreenState extends State<ChartOfAccountsScreen> with Sing
   List<ChartOfAccount> get _expenseAccounts => _accounts.where((a) => a.categoryType == 'expense').toList();
 
   @override
-  void initState() { super.initState(); _load(); }
+  void initState() {
+    super.initState();
+    // Stale-while-revalidate — same reasoning as MachineListScreen's own
+    // fix: show the last-known bundle instantly on a fresh mount (this
+    // widget isn't kept alive across navigation), then quietly refresh.
+    final cachedAccounts = AccountingService.cachedAccounts;
+    if (cachedAccounts != null) {
+      _accounts = cachedAccounts;
+      _journal = AccountingService.cachedJournal ?? [];
+      _categories = AccountingService.cachedCategories ?? [];
+      _expenseCategories = ExpenseService.cachedCategories ?? [];
+      _selected = cachedAccounts.where((a) => a.balance != 0).isNotEmpty
+          ? cachedAccounts.firstWhere((a) => a.balance != 0)
+          : (cachedAccounts.isNotEmpty ? cachedAccounts.first : null);
+      _loading = false;
+    }
+    _load();
+  }
 
   @override
   void dispose() { _tab.dispose(); super.dispose(); }
 
   Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      // Only show the blank/shimmer state when there's genuinely nothing
+      // to show yet — a background refresh of an already-populated bundle
+      // (or a return visit seeded from the cache above) updates silently.
+      if (_accounts.isEmpty) _loading = true;
+      _error = null;
+    });
     try {
       final results = await Future.wait([
         AccountingService.instance.accounts(),
@@ -179,7 +202,10 @@ class _ChartOfAccountsScreenState extends State<ChartOfAccountsScreen> with Sing
           Expanded(
             child: _loading
                 ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
-                : _error != null
+                // A background refresh failing while stale-but-valid cached
+                // data is already showing shouldn't blow that away — only
+                // the "genuinely nothing to show" case surfaces the error.
+                : _error != null && _accounts.isEmpty
                     ? ErrorView(message: _error!, onRetry: _load)
                     : TabBarView(controller: _tab, children: [
                         _accountsTab(context, pad),

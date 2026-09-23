@@ -20,19 +20,30 @@ class AccountingService {
   static final instance = AccountingService._();
   final _dio = ApiClient.instance.dio;
 
+  // Stale-while-revalidate screen cache — see MachineService for the full
+  // reasoning. cachedAccounts only covers the unfiltered query; the other
+  // two fetch methods take no filters at all, so they always cache.
+  static List<ChartOfAccount>? cachedAccounts;
+  static List<AccountCategoryOption>? cachedCategories;
+  static List<LedgerEntry>? cachedJournal;
+
   Future<List<ChartOfAccount>> accounts({String? category, String? status}) async {
     final res = await _dio.get('/accounting/accounts', queryParameters: {
       'category': ?category,
       'status':   ?status,
     });
     final (data, _) = ApiClient.unwrapList(res);
-    return data.map((j) => ChartOfAccount.fromJson(j as Map<String, dynamic>)).toList();
+    final accounts = data.map((j) => ChartOfAccount.fromJson(j as Map<String, dynamic>)).toList();
+    if (category == null && status == null) cachedAccounts = accounts;
+    return accounts;
   }
 
   Future<List<AccountCategoryOption>> categories() async {
     final res = await _dio.get('/accounting/categories');
     final (data, _) = ApiClient.unwrapList(res);
-    return data.map((j) => AccountCategoryOption.fromJson(j as Map<String, dynamic>)).toList();
+    final cats = data.map((j) => AccountCategoryOption.fromJson(j as Map<String, dynamic>)).toList();
+    cachedCategories = cats;
+    return cats;
   }
 
   Future<ChartOfAccount> createAccount(Map<String, dynamic> data) async {
@@ -50,7 +61,9 @@ class AccountingService {
   Future<List<LedgerEntry>> journal() async {
     final res = await _dio.get('/accounting/journal');
     final (data, _) = ApiClient.unwrapList(res);
-    return data.map((j) => LedgerEntry.fromJson(j as Map<String, dynamic>)).toList();
+    final entries = data.map((j) => LedgerEntry.fromJson(j as Map<String, dynamic>)).toList();
+    cachedJournal = entries;
+    return entries;
   }
 
   Future<Map<String, dynamic>> summary() async {

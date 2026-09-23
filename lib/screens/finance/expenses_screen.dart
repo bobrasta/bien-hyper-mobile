@@ -69,10 +69,28 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
   List<Expense> get _awaitingApproval => _expenses.where((e) => e.status == ExpenseStatus.pendingCto || e.status == ExpenseStatus.pendingDirector).toList();
 
   @override
-  void initState() { super.initState(); _load(); }
+  void initState() {
+    super.initState();
+    // Stale-while-revalidate — same reasoning as MachineListScreen's own
+    // fix: show the last-known bundle instantly on a fresh mount (this
+    // widget isn't kept alive across navigation), then quietly refresh.
+    final cached = ExpenseService.cachedDefaultList;
+    if (cached != null) {
+      _expenses = cached;
+      _categories = ExpenseService.cachedCategories ?? [];
+      _loading = false;
+    }
+    _load();
+  }
 
   Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      // Only show the blank/shimmer state when there's genuinely nothing
+      // to show yet — a background refresh of an already-populated list
+      // (or a return visit seeded from the cache above) updates silently.
+      if (_expenses.isEmpty) _loading = true;
+      _error = null;
+    });
     try {
       final results = await Future.wait([
         ExpenseService.instance.list(),
@@ -139,7 +157,11 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
             Expanded(
               child: _loading
                   ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
-                  : _error != null
+                  // A background refresh failing while stale-but-valid
+                  // cached data is already showing shouldn't blow that
+                  // away — only "genuinely nothing to show" surfaces the
+                  // error screen.
+                  : _error != null && _expenses.isEmpty
                       ? ErrorView(message: _error!, onRetry: _load)
                       : SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                           Container(

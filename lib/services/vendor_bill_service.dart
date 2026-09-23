@@ -6,6 +6,11 @@ class VendorBillService {
   static final instance = VendorBillService._();
   final _dio = ApiClient.instance.dio;
 
+  // Stale-while-revalidate screen cache — see MachineService for the full
+  // reasoning. cachedDefaultList only covers the unfiltered query.
+  static List<VendorBill>? cachedDefaultList;
+  static final Map<int, VendorBill> cachedById = {};
+
   Future<List<VendorBill>> list({int? supplierId, String? status, String? search}) async {
     final res = await _dio.get('/vendor-bills', queryParameters: {
       'supplier_id': ?supplierId,
@@ -13,12 +18,16 @@ class VendorBillService {
       'search':      ?search,
     });
     final (data, _) = ApiClient.unwrapList(res);
-    return data.map((j) => VendorBill.fromJson(j as Map<String, dynamic>)).toList();
+    final bills = data.map((j) => VendorBill.fromJson(j as Map<String, dynamic>)).toList();
+    if (supplierId == null && status == null && search == null) cachedDefaultList = bills;
+    return bills;
   }
 
   Future<VendorBill> get(int id) async {
     final res = await _dio.get('/vendor-bills/$id');
-    return VendorBill.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+    final bill = VendorBill.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+    cachedById[bill.id] = bill;
+    return bill;
   }
 
   Future<VendorBill> create(Map<String, dynamic> data) async {

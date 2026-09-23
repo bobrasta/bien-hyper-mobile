@@ -29,11 +29,22 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
   @override
   void initState() {
     super.initState();
+    // Stale-while-revalidate — same reasoning as MachineListScreen's own
+    // fix: show the last-known list instantly on a fresh mount (this widget
+    // isn't kept alive across navigation), then quietly refresh.
+    final cached = BankReconciliationService.cachedDefaultList;
+    if (cached != null) { _recons = cached; _loading = false; }
     _load();
   }
 
   Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      // Only show the blank/shimmer state when there's genuinely nothing
+      // to show yet — a background refresh of an already-populated list
+      // (or a return visit seeded from the cache above) updates silently.
+      if (_recons.isEmpty) _loading = true;
+      _error = null;
+    });
     try {
       final recons = await BankReconciliationService.instance.list();
       if (!mounted) return;
@@ -84,7 +95,10 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
               const SizedBox(height: 20),
               if (_loading)
                 const Center(child: Padding(padding: EdgeInsets.symmetric(vertical: 48), child: CircularProgressIndicator(strokeWidth: 2)))
-              else if (_error != null)
+              // A background refresh failing while stale-but-valid cached
+              // data is already showing shouldn't blow that away — only the
+              // "genuinely nothing to show" case surfaces the error screen.
+              else if (_error != null && _recons.isEmpty)
                 ErrorView(message: _error!, onRetry: _load)
               else if (_recons.isEmpty)
                 Padding(padding: const EdgeInsets.symmetric(vertical: 32), child: Center(child: Text('No reconciliations yet', style: TextStyle(color: context.pal.textMute))))

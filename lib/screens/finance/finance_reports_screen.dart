@@ -55,7 +55,33 @@ class _FinanceReportsScreenState extends State<FinanceReportsScreen> with Single
   bool    _exporting = false;
 
   @override
-  void initState() { super.initState(); _load(); }
+  void initState() {
+    super.initState();
+    // Stale-while-revalidate — same reasoning as MachineListScreen's own
+    // fix: show the last-known bundle instantly on a fresh mount (this
+    // widget isn't kept alive across navigation), then quietly refresh.
+    // _bs (balance sheet) is the anchor — it takes no date range at all,
+    // so FinanceReportService always caches it regardless of caller,
+    // making it a reliable "do we have anything to show" signal. The
+    // period-scoped reports (_pl/_cf) only seed if their own cache is set,
+    // which only happens on a default (null dateFrom/dateTo) call — the
+    // same "This Month" period this screen also defaults to, so it's still
+    // the right data when present; VAT (_vat) is never called with a null
+    // range by either screen so it simply won't seed, same as before.
+    final cachedBs = FinanceReportService.cachedBalanceSheet;
+    if (cachedBs != null) {
+      _bs  = cachedBs;
+      _pl  = FinanceReportService.cachedProfitLoss ?? {};
+      _cf  = FinanceReportService.cachedCashFlow ?? {};
+      _tb  = FinanceReportService.cachedTrialBalance ?? {};
+      _vat = FinanceReportService.cachedVat ?? {};
+      _ar  = FinanceReportService.cachedArAging ?? {};
+      _ap  = FinanceReportService.cachedApAging ?? {};
+      _sv  = FinanceReportService.cachedStockValuation ?? {};
+      _loading = false;
+    }
+    _load();
+  }
 
   @override
   void dispose() { _tab.dispose(); super.dispose(); }
@@ -90,7 +116,13 @@ class _FinanceReportsScreenState extends State<FinanceReportsScreen> with Single
   }
 
   Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      // Only show the blank/shimmer state when there's genuinely nothing
+      // to show yet — a background refresh of an already-populated bundle
+      // (or a return visit seeded from the cache above) updates silently.
+      if (_bs.isEmpty) _loading = true;
+      _error = null;
+    });
     try {
       final (start, end) = _rangeFor(_period);
       final from = _iso(start), to = _iso(end);
@@ -332,7 +364,10 @@ class _FinanceReportsScreenState extends State<FinanceReportsScreen> with Single
         Expanded(
           child: _loading
               ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
-              : _error != null
+              // A background refresh failing while stale-but-valid cached
+              // data is already showing shouldn't blow that away — only
+              // "genuinely nothing to show" surfaces the error screen.
+              : _error != null && _bs.isEmpty
                   ? ErrorView(message: _error!, onRetry: _load)
                   : TabBarView(controller: _tab, children: [
                       _tabScaffold(context, pad, wide, 0, _plView(context)),

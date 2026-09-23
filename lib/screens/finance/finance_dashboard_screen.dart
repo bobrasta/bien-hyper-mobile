@@ -99,10 +99,36 @@ class _FinanceDashboardScreenState extends State<FinanceDashboardScreen> {
   String? _error;
 
   @override
-  void initState() { super.initState(); _load(); }
+  void initState() {
+    super.initState();
+    // Stale-while-revalidate — same reasoning as MachineListScreen's own
+    // fix: show the last-known bundle instantly on a fresh mount (this
+    // widget isn't kept alive across navigation), then quietly refresh.
+    // Only seeds when cachedProfitLoss is set, which only happens on a
+    // default (dateFrom/dateTo both null) call — exactly what _period's
+    // default value of thisMonth resolves to below, so this is always the
+    // right data to seed with on a fresh mount.
+    final cachedPL = FinanceReportService.cachedProfitLoss;
+    if (cachedPL != null) {
+      _profitLoss = cachedPL;
+      _cashFlow   = FinanceReportService.cachedCashFlow ?? {};
+      _balance    = FinanceReportService.cachedBalanceSheet ?? {};
+      _arAging    = FinanceReportService.cachedArAging ?? {};
+      _journal    = AccountingService.cachedJournal ?? [];
+      _trend      = FinanceReportService.cachedMonthlyTrend ?? [];
+      _loading = false;
+    }
+    _load();
+  }
 
   Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      // Only show the blank/shimmer state when there's genuinely nothing
+      // to show yet — a background refresh of an already-populated bundle
+      // (or a return visit seeded from the cache above) updates silently.
+      if (_profitLoss.isEmpty) _loading = true;
+      _error = null;
+    });
     try {
       final (from, to) = _dateRangeFor(_period);
       final results = await Future.wait([
@@ -153,7 +179,10 @@ class _FinanceDashboardScreenState extends State<FinanceDashboardScreen> {
   @override
   Widget build(BuildContext context) {
     if (_loading) return const Center(child: CircularProgressIndicator(strokeWidth: 2));
-    if (_error != null) return ErrorView(message: _error!, onRetry: _load);
+    // A background refresh failing while stale-but-valid cached data is
+    // already showing shouldn't blow that away — only "genuinely nothing to
+    // show" surfaces the error screen.
+    if (_error != null && _profitLoss.isEmpty) return ErrorView(message: _error!, onRetry: _load);
 
     return LayoutBuilder(builder: (ctx, cst) {
       final pad  = cst.maxWidth < 560 ? 16.0 : 26.0;

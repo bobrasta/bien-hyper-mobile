@@ -7,15 +7,24 @@ class BankReconciliationService {
   static final instance = BankReconciliationService._();
   final _dio = ApiClient.instance.dio;
 
+  // Stale-while-revalidate screen cache — see MachineService for the full
+  // reasoning. list() takes no filters, so it's always the "default" query.
+  static List<BankReconciliation>? cachedDefaultList;
+  static final Map<int, BankReconciliation> cachedById = {};
+
   Future<List<BankReconciliation>> list() async {
     final res = await _dio.get('/bank-reconciliations');
     final (data, _) = ApiClient.unwrapList(res);
-    return data.map((j) => BankReconciliation.fromJson(j as Map<String, dynamic>)).toList();
+    final recons = data.map((j) => BankReconciliation.fromJson(j as Map<String, dynamic>)).toList();
+    cachedDefaultList = recons;
+    return recons;
   }
 
   Future<BankReconciliation> get(int id) async {
     final res = await _dio.get('/bank-reconciliations/$id');
-    return BankReconciliation.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+    final recon = BankReconciliation.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+    cachedById[recon.id] = recon;
+    return recon;
   }
 
   Future<BankReconciliation> create(Map<String, dynamic> data) async {
