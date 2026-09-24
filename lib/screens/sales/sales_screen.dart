@@ -664,7 +664,7 @@ class _NewDealDialogState extends State<_NewDealDialog> {
               child: Column(children: [
                 _SField('Hospital / Client', _hospCtrl, 'e.g. Mwananyamala Regional Hospital'),
                 const SizedBox(height: 14),
-                _SField('Contact Person', _contCtrl, 'e.g. Dr. James Mbeki'),
+                _SField('Contact person', _contCtrl, 'e.g. Dr. James Mbeki'),
                 const SizedBox(height: 14),
                 Row(children: [
                   Expanded(child: _SDrop(

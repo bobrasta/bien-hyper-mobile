@@ -1162,7 +1162,7 @@ class _EditMachineDialogState extends State<_EditMachineDialog> {
         Row(children: [
           Expanded(flex: 2, child: _MField('Model', _modelCtrl, '')),
           const SizedBox(width: 14),
-          Expanded(flex: 1, child: _MField('Serial No', _serialCtrl, '')),
+          Expanded(flex: 1, child: _MField('Serial no', _serialCtrl, '')),
         ]),
         const SizedBox(height: 14),
         Row(children: [
@@ -1191,11 +1191,11 @@ class _EditMachineDialogState extends State<_EditMachineDialog> {
             onChanged: (v) => setState(() => _status = v),
           )),
           const SizedBox(width: 14),
-          Expanded(child: _MField('Warranty Expiry', _warrantyCtrl, 'YYYY-MM-DD')),
+          Expanded(child: _MField('Warranty expiry', _warrantyCtrl, 'YYYY-MM-DD')),
         ]),
         const SizedBox(height: 14),
         Row(children: [
-          Expanded(child: _MField('Purchase Cost', _purchaseCostCtrl, 'e.g. 25000000')),
+          Expanded(child: _MField('Purchase cost', _purchaseCostCtrl, 'e.g. 25000000')),
           const SizedBox(width: 14),
           Expanded(child: _MDrop(
             label: 'Currency',
@@ -1351,7 +1351,7 @@ class _LogServiceDialogState extends State<_LogServiceDialog> {
         ),
       ]),
       const SizedBox(height: 14),
-      _MField('Next Service Date', _dateCtrl, 'YYYY-MM-DD'),
+      _MField('Next service date', _dateCtrl, 'YYYY-MM-DD'),
       if (_error != null) ...[
         const SizedBox(height: 10),
         Row(children: [

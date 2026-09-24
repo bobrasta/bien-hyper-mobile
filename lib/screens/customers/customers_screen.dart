@@ -775,12 +775,12 @@ class _AddContactDialogState extends State<_AddContactDialog> {
     saveLabel: 'Save Contact',
     child: Column(children: [
       Row(children: [
-        Expanded(child: _CField('First Name', _firstCtrl, 'Amina')),
+        Expanded(child: _CField('First name', _firstCtrl, 'Amina')),
         const SizedBox(width: 14),
-        Expanded(child: _CField('Last Name', _lastCtrl, 'Hassan')),
+        Expanded(child: _CField('Last name', _lastCtrl, 'Hassan')),
       ]),
       const SizedBox(height: 14),
-      _CField('Job Title', _titleCtrl, 'e.g. Head of Procurement'),
+      _CField('Job title', _titleCtrl, 'e.g. Head of Procurement'),
       const SizedBox(height: 14),
       Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('HOSPITAL', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
@@ -883,14 +883,11 @@ class _LogInteractionDialogState extends State<_LogInteractionDialog> {
       ),
       const SizedBox(height: 14),
       Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('SUMMARY'.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+        Text('Summary', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
         const SizedBox(height: 6),
-        Container(
-          height: 80,
-          decoration: BoxDecoration(color: context.pal.surface2,
-              borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-          child: TextField(controller: _summaryCtrl, maxLines: null, expands: true,
+        FieldFocusBox(
+          minHeight: 80,
+          builder: (context, focusNode) => TextField(controller: _summaryCtrl, focusNode: focusNode, maxLines: null, expands: true,
             style: AppTheme.bodySm,
             decoration: InputDecoration(hintText: 'What was discussed?',
                 hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
@@ -911,7 +908,7 @@ class _LogInteractionDialogState extends State<_LogInteractionDialog> {
         onChanged: (v) => setState(() => _outcome = v),
       ),
       const SizedBox(height: 14),
-      _CField('Next Action', _nextActionCtrl, 'e.g. Send formal proposal'),
+      _CField('Next action', _nextActionCtrl, 'e.g. Send formal proposal'),
       const SizedBox(height: 14),
       // Next action date picker
       Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -1217,12 +1214,12 @@ class _EditContactDialogState extends State<_EditContactDialog> {
       saveLabel: 'Save Changes',
       child: Column(children: [
         Row(children: [
-          Expanded(child: _CField('First Name', _firstCtrl, '')),
+          Expanded(child: _CField('First name', _firstCtrl, '')),
           const SizedBox(width: 14),
-          Expanded(child: _CField('Last Name', _lastCtrl, '')),
+          Expanded(child: _CField('Last name', _lastCtrl, '')),
         ]),
         const SizedBox(height: 14),
-        _CField('Job Title', _titleCtrl, ''),
+        _CField('Job title', _titleCtrl, ''),
         const SizedBox(height: 14),
         Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text('HOSPITAL', style: AppTheme.labelCaps.copyWith(fontSize: 10)),

@@ -867,12 +867,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 style: AppTheme.bodySub.copyWith(fontSize: 12.5, color: AppColors.textDim)),
             const SizedBox(height: 14),
             Row(children: [
-              Expanded(child: _SettingsField(label: 'Full Name', ctrl: _nameCtrl, hint: 'Your name')),
+              Expanded(child: _SettingsField(label: 'Full name', ctrl: _nameCtrl, hint: 'Your name')),
               const SizedBox(width: 14),
               Expanded(child: _SettingsField(label: 'Phone', ctrl: _phoneCtrl, hint: '+255 7XX XXX XXX')),
             ]),
             const SizedBox(height: 14),
-            _SettingsField(label: 'Work Email', ctrl: _emailCtrl, hint: 'your@email.com'),
+            _SettingsField(label: 'Work email', ctrl: _emailCtrl, hint: 'your@email.com'),
             const SizedBox(height: 14),
             _SettingsField(label: 'Bio', ctrl: _bioCtrl, maxLines: 3,
                 hint: 'A short line about your background — shown on your profile card.'),
@@ -967,18 +967,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
     title: 'Password & Security',
     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Expanded(child: _SettingsField(label: 'Current Password', ctrl: _oldPwCtrl,
+        Expanded(child: _SettingsField(label: 'Current password', ctrl: _oldPwCtrl,
             hint: '••••••••', obscure: true)),
         const SizedBox(width: 14),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          _SettingsField(label: 'New Password', ctrl: _newPwCtrl,
+          _SettingsField(label: 'New password', ctrl: _newPwCtrl,
               hint: 'At least 8 characters', obscure: true, onChanged: (_) => setState(() {})),
           const SizedBox(height: 8),
           _PasswordStrengthMeter(score: _pwStrengthScore, hasInput: _newPwCtrl.text.isNotEmpty),
         ])),
       ]),
       const SizedBox(height: 14),
-      _SettingsField(label: 'Confirm New Password', ctrl: _confirmPwCtrl, hint: '••••••••', obscure: true),
+      _SettingsField(label: 'Confirm new password', ctrl: _confirmPwCtrl, hint: '••••••••', obscure: true),
       const SizedBox(height: 16),
       Row(children: [
         if (_pwMsg != null) ...[
@@ -1052,7 +1052,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     hint: isBank ? '0150 2345 6789 01' : '+255 7XX XXX XXX',
                     onChanged: (_) => setState(() {}))),
                 const SizedBox(width: 14),
-                Expanded(child: _SettingsField(label: 'Name on Account', ctrl: _paymentAccountNameCtrl,
+                Expanded(child: _SettingsField(label: 'Name on account', ctrl: _paymentAccountNameCtrl,
                     hint: 'Must match your ID', onChanged: (_) => setState(() {}))),
               ]),
               if (nameMismatch) ...[
@@ -1158,7 +1158,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _SettingsField(label: 'Default per-diem rate (TZS/day)', ctrl: _perDiemDefaultRateCtrl, hint: '80000'),
           const SizedBox(height: 14),
           Row(children: [
-            Expanded(child: _SettingsField(label: 'Team Lead stage label', ctrl: _sigTeamLeadCtrl, hint: 'Technical supervisor')),
+            Expanded(child: _SettingsField(label: 'Team lead stage label', ctrl: _sigTeamLeadCtrl, hint: 'Technical supervisor')),
             const SizedBox(width: 14),
             Expanded(child: _SettingsField(label: 'CTO stage label', ctrl: _sigCtoCtrl, hint: 'CTO')),
           ]),
@@ -2581,7 +2581,7 @@ class _InviteDialogState extends State<_InviteDialog> {
               padding: const EdgeInsets.all(20),
               child: Column(children: [
                 Row(children: [
-                  Expanded(child: _SettingsField(label: 'Full Name', ctrl: _nameCtrl, hint: 'e.g. Asha Komba')),
+                  Expanded(child: _SettingsField(label: 'Full name', ctrl: _nameCtrl, hint: 'e.g. Asha Komba')),
                   const SizedBox(width: 14),
                   Expanded(child: _SettingsField(label: 'Email', ctrl: _emailCtrl, hint: 'email@company.tz')),
                 ]),

@@ -2174,7 +2174,7 @@ class _RegisterMachineDialogState extends State<_RegisterMachineDialog> {
           onCreateNew: (text) => setState(() => _model = text),
         ),
         const SizedBox(height: 12),
-        AppTextField(label: 'Serial Number', controller: _serialCtrl, hintText: 'e.g. BC68-0001'),
+        AppTextField(label: 'Serial number', controller: _serialCtrl, hintText: 'e.g. BC68-0001'),
         const SizedBox(height: 12),
         _ModalField(
           label: 'Equipment Type',
@@ -2688,11 +2688,11 @@ class _CompleteMachineDialogState extends State<_CompleteMachineDialog> {
       Expanded(child: Text('Hand Over — ${widget.machine.model}', overflow: TextOverflow.ellipsis, style: AppTheme.bodyStrong)),
     ]),
     content: SizedBox(width: 380, child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-      AppTextField(label: 'Serial Number', controller: _serialCtrl, hintText: widget.machine.serialNo),
+      AppTextField(label: 'Serial number', controller: _serialCtrl, hintText: widget.machine.serialNo),
       const SizedBox(height: 12),
       AppTextField(label: 'Ward / Location', controller: _wardCtrl, hintText: 'e.g. ICU'),
       const SizedBox(height: 12),
-      AppTextField(label: 'Warranty Expiry', controller: _warrantyCtrl, hintText: 'YYYY-MM-DD (defaults to today\'s install date otherwise)'),
+      AppTextField(label: 'Warranty expiry', controller: _warrantyCtrl, hintText: 'YYYY-MM-DD (defaults to today\'s install date otherwise)'),
       if (_error != null) ...[
         const SizedBox(height: 10),
         Text(_error!, style: TextStyle(color: AppColors.coral, fontSize: 12)),

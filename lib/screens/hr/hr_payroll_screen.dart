@@ -143,7 +143,7 @@ class _HrPayrollScreenState extends State<HrPayrollScreen> {
       title: Text('Payroll — $userName', style: AppTheme.cardTitle),
       content: SizedBox(width: 380, child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Expanded(child: LabeledTextField(label: 'Base Salary', controller: baseCtrl, keyboardType: TextInputType.number)),
+          Expanded(child: LabeledTextField(label: 'Base salary', controller: baseCtrl, keyboardType: TextInputType.number)),
           const SizedBox(width: 10),
           Expanded(child: LabeledTextField(label: 'Allowances', controller: allowCtrl, keyboardType: TextInputType.number)),
         ]),
@@ -163,7 +163,7 @@ class _HrPayrollScreenState extends State<HrPayrollScreen> {
         Row(children: [
           Expanded(child: LabeledTextField(label: 'HESLB', controller: heslbCtrl, keyboardType: TextInputType.number)),
           const SizedBox(width: 10),
-          Expanded(child: LabeledTextField(label: 'Other Deductions', controller: otherCtrl, keyboardType: TextInputType.number)),
+          Expanded(child: LabeledTextField(label: 'Other deductions', controller: otherCtrl, keyboardType: TextInputType.number)),
         ]),
         const SizedBox(height: 12),
         LabeledTextField(label: 'Notes (optional)', controller: notesCtrl, maxLines: 2),

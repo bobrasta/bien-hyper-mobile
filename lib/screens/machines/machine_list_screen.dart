@@ -1873,7 +1873,7 @@ class _ReceiveMachineDialogState extends State<_ReceiveMachineDialog> {
                                 ),
                               ),
                               const SizedBox(width: 14),
-                              Expanded(child: _DField('Serial Number', _serialCtrl, 'e.g. BC68-0001')),
+                              Expanded(child: _DField('Serial number', _serialCtrl, 'e.g. BC68-0001')),
                             ]),
                             const SizedBox(height: 14),
                             Row(children: [
@@ -1914,13 +1914,13 @@ class _ReceiveMachineDialogState extends State<_ReceiveMachineDialog> {
                             ]),
                             const SizedBox(height: 14),
                             Row(children: [
-                              Expanded(child: _DField('Arrival Date', _arrivalCtrl, 'YYYY-MM-DD')),
+                              Expanded(child: _DField('Arrival date', _arrivalCtrl, 'YYYY-MM-DD')),
                               const SizedBox(width: 14),
-                              Expanded(child: _DField('Warranty Expiry', _warrantyCtrl, 'YYYY-MM-DD')),
+                              Expanded(child: _DField('Warranty expiry', _warrantyCtrl, 'YYYY-MM-DD')),
                             ]),
                             const SizedBox(height: 14),
                             Row(children: [
-                              Expanded(child: _DField('Purchase Cost', _purchaseCostCtrl, 'e.g. 25000000')),
+                              Expanded(child: _DField('Purchase cost', _purchaseCostCtrl, 'e.g. 25000000')),
                               const SizedBox(width: 14),
                               Expanded(
                                 child: _DDropdown(

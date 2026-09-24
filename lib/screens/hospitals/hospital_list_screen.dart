@@ -745,9 +745,9 @@ class _AddHospitalDialogState extends State<_AddHospitalDialog> {
               padding: const EdgeInsets.all(20),
               child: Column(children: [
                 Row(children: [
-                  Expanded(flex: 3, child: _HField('Hospital Name', _nameCtrl, 'e.g. Mwananyamala Regional Hospital')),
+                  Expanded(flex: 3, child: _HField('Hospital name', _nameCtrl, 'e.g. Mwananyamala Regional Hospital')),
                   const SizedBox(width: 14),
-                  Expanded(flex: 1, child: _HField('Short Code', _codeCtrl, 'e.g. MRH')),
+                  Expanded(flex: 1, child: _HField('Short code', _codeCtrl, 'e.g. MRH')),
                 ]),
                 const SizedBox(height: 14),
                 Row(children: [
@@ -771,7 +771,7 @@ class _AddHospitalDialogState extends State<_AddHospitalDialog> {
                 ]),
                 const SizedBox(height: 14),
                 Row(children: [
-                  Expanded(child: _HField('Contact Person', _contactCtrl, 'e.g. Dr. Amina Hassan')),
+                  Expanded(child: _HField('Contact person', _contactCtrl, 'e.g. Dr. Amina Hassan')),
                   const SizedBox(width: 14),
                   Expanded(child: _HField('Phone', _phoneCtrl, '+255 ...')),
                 ]),
@@ -1308,9 +1308,9 @@ class _EditHospitalDialogState extends State<_EditHospitalDialog> {
               padding: const EdgeInsets.all(20),
               child: Column(children: [
                 Row(children: [
-                  Expanded(flex: 3, child: _HField('Hospital Name', _nameCtrl, '')),
+                  Expanded(flex: 3, child: _HField('Hospital name', _nameCtrl, '')),
                   const SizedBox(width: 14),
-                  Expanded(flex: 1, child: _HField('Short Code', _codeCtrl, '')),
+                  Expanded(flex: 1, child: _HField('Short code', _codeCtrl, '')),
                 ]),
                 const SizedBox(height: 14),
                 Row(children: [
@@ -1331,7 +1331,7 @@ class _EditHospitalDialogState extends State<_EditHospitalDialog> {
                 ]),
                 const SizedBox(height: 14),
                 Row(children: [
-                  Expanded(child: _HField('Contact Person', _contactCtrl, '')),
+                  Expanded(child: _HField('Contact person', _contactCtrl, '')),
                   const SizedBox(width: 14),
                   Expanded(child: _HField('Phone', _phoneCtrl, '')),
                 ]),

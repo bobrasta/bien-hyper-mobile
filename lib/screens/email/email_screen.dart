@@ -692,11 +692,11 @@ class _AccountDialogState extends State<_AccountDialog> {
                       Row(children: [
                         Expanded(child: _aField('Label',      _labelCtrl,    'My Work Email')),
                         const SizedBox(width: 12),
-                        Expanded(child: _aField('From Name',  _nameCtrl,     'Edmund Salaho')),
+                        Expanded(child: _aField('From name',  _nameCtrl,     'Edmund Salaho')),
                       ]),
                       const SizedBox(height: 10),
                       Row(children: [
-                        Expanded(child: _aField('From Email', _emailCtrl, 'info@medequip.tz')),
+                        Expanded(child: _aField('From email', _emailCtrl, 'info@medequip.tz')),
                         const SizedBox(width: 12),
                         Expanded(child: _aField('Username',   _userCtrl,  'info@medequip.tz')),
                       ]),
@@ -705,14 +705,14 @@ class _AccountDialogState extends State<_AccountDialog> {
                           obscure: true),
                       const SizedBox(height: 10),
                       Row(children: [
-                        Expanded(child: _aField('IMAP Host', _imapHostCtrl, 'imap.gmail.com')),
+                        Expanded(child: _aField('IMAP host', _imapHostCtrl, 'imap.gmail.com')),
                         const SizedBox(width: 12),
                         SizedBox(width: 80, child: _aField('Port', TextEditingController(text: '$_imapPort'), '993',
                             onChanged: (v) => setState(() => _imapPort = int.tryParse(v) ?? _imapPort))),
                       ]),
                       const SizedBox(height: 10),
                       Row(children: [
-                        Expanded(child: _aField('SMTP Host', _smtpHostCtrl, 'smtp.gmail.com')),
+                        Expanded(child: _aField('SMTP host', _smtpHostCtrl, 'smtp.gmail.com')),
                         const SizedBox(width: 12),
                         SizedBox(width: 80, child: _aField('Port', TextEditingController(text: '$_smtpPort'), '465',
                             onChanged: (v) => setState(() => _smtpPort = int.tryParse(v) ?? _smtpPort))),

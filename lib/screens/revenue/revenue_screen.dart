@@ -12,6 +12,7 @@ import '../../services/setting_service.dart';
 import '../../utils/api_error.dart';
 import '../../widgets/common/error_view.dart';
 import '../../widgets/common/kpi_card.dart';
+import '../../widgets/common/labeled_field.dart' show FieldFocusBox;
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/format.dart';
@@ -1042,18 +1043,15 @@ class _NewInvoiceDialogState extends State<_NewInvoiceDialog> {
                       (v) => setState(() => _machine = v)),
                 const SizedBox(height: 14),
                 Row(children: [
-                  Expanded(child: _RField('Invoice Type', _type,
+                  Expanded(child: _RField('Invoice type', _type,
                       const ['Monthly Service', 'Repair', 'Installation', 'Spare Parts', 'Training'],
                       (v) => setState(() => _type = v))),
                   const SizedBox(width: 14),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('AMOUNT (TSh)'.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+                    Text('Amount (TSh)', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
                     const SizedBox(height: 6),
-                    Container(
-                      decoration: BoxDecoration(color: context.pal.surface2,
-                          borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                      child: TextField(controller: _amountCtrl,
+                    FieldFocusBox(
+                      builder: (context, focusNode) => TextField(controller: _amountCtrl, focusNode: focusNode,
                         keyboardType: TextInputType.number, style: AppTheme.bodySm,
                         decoration: InputDecoration(hintText: '0',
                             hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),

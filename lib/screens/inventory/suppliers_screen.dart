@@ -475,9 +475,9 @@ class _SupplierFormModalState extends State<_SupplierFormModal> {
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
               child: Column(children: [
                 Row(children: [
-                  Expanded(child: _Fld('Company Name', _nameCtrl, 'e.g. Mindray East Africa')),
+                  Expanded(child: _Fld('Company name', _nameCtrl, 'e.g. Mindray East Africa')),
                   const SizedBox(width: 14),
-                  SizedBox(width: 120, child: _Fld('Short Code', _codeCtrl, 'MINDRAY')),
+                  SizedBox(width: 120, child: _Fld('Short code', _codeCtrl, 'MINDRAY')),
                 ]),
                 const SizedBox(height: 14),
                 Row(children: [
@@ -489,7 +489,7 @@ class _SupplierFormModalState extends State<_SupplierFormModal> {
                 ]),
                 const SizedBox(height: 14),
                 Row(children: [
-                  Expanded(child: _Fld('Contact Person', _cNameCtrl, 'e.g. Sales Team')),
+                  Expanded(child: _Fld('Contact person', _cNameCtrl, 'e.g. Sales Team')),
                   const SizedBox(width: 14),
                   Expanded(child: _Fld('Email', _emailCtrl, 'sales@supplier.com')),
                   const SizedBox(width: 14),
