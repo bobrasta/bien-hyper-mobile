@@ -28,10 +28,9 @@ GitHub repo → Settings → Secrets and variables → Actions:
 
 | Name | Kind | Value |
 |---|---|---|
-| `VPS_HOST` | secret | VPS hostname/IP |
-| `VPS_USER` | secret | SSH user that owns the updates folder |
-| `VPS_SSH_KEY` | secret | private key for that user (dedicated deploy key) |
-| `VPS_UPDATES_DIR` | secret | absolute path served at `UPDATE_BASE_URL` |
+| `VPS_HOST` | secret | VPS IP |
+| `VPS_KNOWN_HOSTS` | secret | pinned SSH host key line for the VPS |
+| `VPS_UPDATES_KEY` | secret | upload-only key for `hmdeploy` (forced command `hypermed-publish-update`) |
 | `UPDATE_BASE_URL` | variable | e.g. `https://app.hypermed.co.tz/updates` |
 | `API_BASE_URL` | variable | optional; baked into builds (else the default in `api_client.dart`) |
 | `UPDATE_SIGNING_KEY` | secret | Ed25519 private key (PEM) that signs `latest.json` — **required** |
@@ -54,5 +53,5 @@ Sign by hand (e.g. an emergency re-publish):
 
     tool/sign_update_manifest.py dist/latest.json --key-file ~/.config/hypermed/update-signing-key.pem
 
-Without the VPS secrets the workflow still builds and creates the GitHub
+All of these are already set. Without the VPS secrets the workflow still builds and creates the GitHub
 Release, it just skips the VPS upload.
