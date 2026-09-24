@@ -290,6 +290,7 @@ class _TechnicianDashboardScreenState extends State<TechnicianDashboardScreen> {
       if (mounted) setState(() => _payrollLoading = false);
       return;
     }
+    if (!mounted) return;
     setState(() {
       if (_payrollHistory.isEmpty) _payrollLoading = true;
       _payrollForbidden = false;
@@ -315,6 +316,7 @@ class _TechnicianDashboardScreenState extends State<TechnicianDashboardScreen> {
       if (mounted) setState(() => _attendanceLoading = false);
       return;
     }
+    if (!mounted) return;
     setState(() {
       if (_attendance.isEmpty) _attendanceLoading = true;
       _attendanceForbidden = false;
