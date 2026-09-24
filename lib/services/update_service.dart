@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:crypto/crypto.dart';
+import 'package:cryptography/cryptography.dart' as cg;
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -130,6 +132,13 @@ class UpdateService {
     'UPDATE_FEED_URL',
     defaultValue: 'https://app.hypermed.co.tz/updates/latest.json',
   );
+  /// Ed25519 public keys allowed to sign latest.json (base64, raw 32
+  /// bytes). The private half lives only in the release pipeline
+  /// (UPDATE_SIGNING_KEY secret; backup at ~/.config/hypermed on the
+  /// release machine) — see tool/sign_update_manifest.py. To rotate: add the
+  /// new key here, ship a release signed with the OLD key, then switch the
+  /// pipeline to the new key and drop the old one in a later release.
+  static const trustedKeys = ['gs3MGeLeGciVoEC/ndTVQVbu7iov/CLZR48f7Un7i8Y='];
   static const checkInterval = Duration(hours: 4);
   static const immediateGrace = Duration(seconds: 60);
   static const _modeKey = 'update_mode';
@@ -233,11 +242,16 @@ class UpdateService {
 
     state.value = state.value.copyWith(phase: UpdatePhase.checking);
     try {
-      final res = await _dio.get<Map<String, dynamic>>(
-        feedUrl,
-        queryParameters: {'t': DateTime.now().millisecondsSinceEpoch},
-      );
-      final m = UpdateManifest.fromJson(res.data!, _platform);
+      final t = {'t': DateTime.now().millisecondsSinceEpoch};
+      final body = await _dio.get<List<int>>(feedUrl,
+          queryParameters: t, options: Options(responseType: ResponseType.bytes));
+      final sig = await _dio.get<String>('$feedUrl.sig',
+          queryParameters: t, options: Options(responseType: ResponseType.plain));
+      final bytes = body.data!;
+      if (!await verifyManifestSignature(bytes, sig.data ?? '')) {
+        throw const _UpdateError('The update feed failed its signature check — update skipped.');
+      }
+      final m = UpdateManifest.fromJson(jsonDecode(utf8.decode(bytes)) as Map<String, dynamic>, _platform);
       final current = currentVersion.value;
       final required = m.minVersion != null && compareVersions(current, m.minVersion!) < 0;
 
@@ -455,6 +469,24 @@ nohup "${installDir.path}/$exeName" >/dev/null 2>&1 &
 class _UpdateError implements Exception {
   const _UpdateError(this.message);
   final String message;
+}
+
+/// True when [signatureB64] is a valid Ed25519 signature of [manifest] by
+/// any of [UpdateService.trustedKeys] (or [keys], for tests).
+Future<bool> verifyManifestSignature(List<int> manifest, String signatureB64, {List<String>? keys}) async {
+  final List<int> sig;
+  try {
+    sig = base64.decode(signatureB64.trim());
+  } catch (_) {
+    return false;
+  }
+  if (sig.length != 64) return false;
+  final algo = cg.Ed25519();
+  for (final k in keys ?? UpdateService.trustedKeys) {
+    final pub = cg.SimplePublicKey(base64.decode(k), type: cg.KeyPairType.ed25519);
+    if (await algo.verify(manifest, signature: cg.Signature(sig, publicKey: pub))) return true;
+  }
+  return false;
 }
 
 /// Compares dotted numeric versions ("1.10.0" > "1.9.3"); ignores any

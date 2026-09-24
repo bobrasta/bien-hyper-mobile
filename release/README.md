@@ -34,6 +34,25 @@ GitHub repo → Settings → Secrets and variables → Actions:
 | `VPS_UPDATES_DIR` | secret | absolute path served at `UPDATE_BASE_URL` |
 | `UPDATE_BASE_URL` | variable | e.g. `https://app.hypermed.co.tz/updates` |
 | `API_BASE_URL` | variable | optional; baked into builds (else the default in `api_client.dart`) |
+| `UPDATE_SIGNING_KEY` | secret | Ed25519 private key (PEM) that signs `latest.json` — **required** |
+
+## Update signing
+
+`latest.json` is signed (`latest.json.sig`, Ed25519) by the pipeline, and the
+app refuses any feed that doesn't verify against the public key compiled into
+`UpdateService.trustedKeys`. Since the feed carries each package's SHA-256,
+this protects the installers too: someone who takes over the download server
+still can't push an update.
+
+The private key was generated on the release machine at
+`~/.config/hypermed/update-signing-key.pem` (mode 600) and copied into the
+`UPDATE_SIGNING_KEY` secret. **Back it up somewhere offline** (e.g. the external
+backup drive). If it's lost, installed apps can only be moved to a new key by
+reinstalling. To rotate, see the comment on `trustedKeys`.
+
+Sign by hand (e.g. an emergency re-publish):
+
+    tool/sign_update_manifest.py dist/latest.json --key-file ~/.config/hypermed/update-signing-key.pem
 
 Without the VPS secrets the workflow still builds and creates the GitHub
 Release, it just skips the VPS upload.

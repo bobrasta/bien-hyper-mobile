@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:bienhypermed/services/update_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -42,5 +44,29 @@ void main() {
     }
     expect(UpdateMode.parse('user'), isNull);
     expect(UpdateMode.parse(null), isNull);
+  });
+
+  // test/fixtures/latest.json(.sig) signed with the real release key by
+  // tool/sign_update_manifest.py — proves the Python signer and the Dart
+  // verifier agree byte-for-byte.
+  group('manifest signature', () {
+    final manifest = File('test/fixtures/latest.json').readAsBytesSync();
+    final sig = File('test/fixtures/latest.json.sig').readAsStringSync();
+
+    test('accepts the pipeline-signed feed', () async {
+      expect(await verifyManifestSignature(manifest, sig), isTrue);
+    });
+    test('rejects a feed changed by one byte', () async {
+      final tampered = List<int>.of(manifest)..[10] ^= 1;
+      expect(await verifyManifestSignature(tampered, sig), isFalse);
+    });
+    test('rejects a missing/garbage signature', () async {
+      expect(await verifyManifestSignature(manifest, ''), isFalse);
+      expect(await verifyManifestSignature(manifest, 'not-base64!!'), isFalse);
+    });
+    test('rejects a signature from an untrusted key', () async {
+      expect(await verifyManifestSignature(manifest, sig,
+          keys: const ['11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=']), isFalse);
+    });
   });
 }
