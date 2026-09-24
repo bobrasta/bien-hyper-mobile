@@ -915,8 +915,10 @@ class _TicketListRow extends StatelessWidget {
         Row(children: [
           AvatarWidget(initials: techInitials ?? ticket.technicianInitials, size: 18, variant: AvatarVariant.teal),
           const SizedBox(width: 6),
-          Text(techName ?? ticket.technicianName, style: AppTheme.bodySub.copyWith(fontSize: 11)),
-          const Spacer(),
+          Expanded(child: Text(techName ?? ticket.technicianName,
+              style: AppTheme.bodySub.copyWith(fontSize: 11),
+              maxLines: 1, overflow: TextOverflow.ellipsis)),
+          const SizedBox(width: 6),
           Text(ticket.createdAt, style: AppTheme.monoXs.copyWith(fontSize: 10.5, color: context.pal.textDim)),
         ]),
       ]),
