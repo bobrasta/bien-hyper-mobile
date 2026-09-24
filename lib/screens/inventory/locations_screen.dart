@@ -506,7 +506,7 @@ class _LocationFormModalState extends State<_LocationFormModal> {
                 const SizedBox(height: 12),
                 _Field('Code', _codeCtrl, hint: 'e.g. WH-01 (optional, must be unique)'),
                 const SizedBox(height: 12),
-                Text('TYPE', style: AppTheme.labelCaps),
+                Text('Type', style: AppTheme.fieldLabel),
                 const SizedBox(height: 6),
                 Container(
                   decoration: BoxDecoration(
@@ -567,7 +567,7 @@ class _Field extends StatelessWidget {
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      Text(label, style: AppTheme.labelCaps),
+      Text(label, style: AppTheme.fieldLabel),
       const SizedBox(height: 6),
       TextField(
         controller: ctrl,

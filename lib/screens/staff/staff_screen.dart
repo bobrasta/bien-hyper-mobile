@@ -1666,7 +1666,7 @@ class _NewTaskDialogState extends State<_NewTaskDialog> {
 
                 // Due Date
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('DUE DATE (REQUIRED)', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+                  Text('Due date (required)', style: AppTheme.fieldLabel),
                   const SizedBox(height: 6),
                   GestureDetector(
                     onTap: _pickDate,
@@ -1696,23 +1696,15 @@ class _NewTaskDialogState extends State<_NewTaskDialog> {
 
                 // Description
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('DESCRIPTION', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+                  Text('Description', style: AppTheme.fieldLabel),
                   const SizedBox(height: 6),
-                  Container(
-                    height: 64,
-                    decoration: BoxDecoration(
-                      color: context.pal.surface2, borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: context.pal.border)),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                    child: TextField(
-                      controller: _descCtrl, maxLines: null, expands: true,
-                      style: AppTheme.bodySm,
+                  FieldFocusBox(height: 64, builder: (context, focusNode) => TextField(focusNode: focusNode, controller: _descCtrl, maxLines: null, expands: true,
+                      style: AppTheme.fieldText,
                       decoration: InputDecoration(
                         hintText: 'Optional details…',
-                        hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
+                        hintStyle: AppTheme.fieldText.copyWith(color: context.pal.textDim),
                         border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero),
-                    ),
-                  ),
+                    ),),
                 ]),
 
                 if (_error != null) ...[
@@ -1967,12 +1959,12 @@ class _TF extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Text(label, style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+    Text(label, style: AppTheme.fieldLabel),
     const SizedBox(height: 6),
     FieldFocusBox(
-      builder: (context, focusNode) => TextField(controller: ctrl, focusNode: focusNode, style: AppTheme.bodySm,
+      builder: (context, focusNode) => TextField(controller: ctrl, focusNode: focusNode, style: AppTheme.fieldText,
         decoration: InputDecoration(hintText: hint,
-            hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
+            hintStyle: AppTheme.fieldText.copyWith(color: context.pal.textDim),
             border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero)),
     ),
   ]);
@@ -1990,7 +1982,7 @@ class _TDrop extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Text(label, style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+    Text(label, style: AppTheme.fieldLabel),
     const SizedBox(height: 6),
     Container(
       decoration: BoxDecoration(color: context.pal.surface2,

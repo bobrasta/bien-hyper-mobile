@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:io' show exit;
+
 import 'package:flutter/material.dart';
 import 'package:local_notifier/local_notifier.dart';
 import 'screens/auth/login_screen.dart';
@@ -5,8 +8,10 @@ import 'screens/trial/trial_expired_screen.dart' show TrialExpiredScreen, TrialP
 import 'services/auth_service.dart';
 import 'services/permission_service.dart';
 import 'services/trial_service.dart';
+import 'services/update_service.dart';
 import 'theme/app_theme.dart';
 import 'widgets/common/app_shell.dart';
+import 'widgets/common/update_widgets.dart' show UpdateRequiredGate;
 
 /// Global auth token — null means not logged in, non-null means authenticated.
 late final ValueNotifier<String?> authTokenNotifier;
@@ -18,6 +23,31 @@ final userNameNotifier = ValueNotifier<String>('');
 /// (e.g. the service-ticket acknowledge button). Null until login/profile
 /// resolves it.
 final userIdNotifier = ValueNotifier<int?>(null);
+
+/// Logged-in user's profile photo URL (null = show initials) and location
+/// (region, falling back to zone) — drive the top bar / sidebar identity.
+/// Set via [applyUserIdentity] from login, startup and profile changes.
+final userAvatarUrlNotifier = ValueNotifier<String?>(null);
+final userLocationNotifier = ValueNotifier<String?>(null);
+
+/// Push a UserResource-shaped map (login `user`, /auth/me) into the global
+/// identity notifiers the app shell listens to.
+void applyUserIdentity(Map<dynamic, dynamic> user) {
+  final name = user['name'] as String?;
+  if (name != null && name.isNotEmpty) userNameNotifier.value = name;
+  userAvatarUrlNotifier.value = user['avatar_url'] as String?;
+  final region = (user['region'] as String?)?.trim();
+  final zone = (user['zone'] as String?)?.trim();
+  userLocationNotifier.value =
+      (region != null && region.isNotEmpty) ? region : ((zone != null && zone.isNotEmpty) ? zone : null);
+}
+
+/// 'sales_manager' -> 'Sales Manager'.
+String roleDisplayName(String role) => role
+    .split('_')
+    .where((w) => w.isNotEmpty)
+    .map((w) => '${w[0].toUpperCase()}${w.substring(1)}')
+    .join(' ');
 
 /// Global trial status — checked once on startup.
 late final ValueNotifier<TrialStatus> trialNotifier;
@@ -233,6 +263,22 @@ void main() async {
 
   userRoleNotifier.value = storedRole ?? '';
 
+  // Clear the shell's photo/location on logout so the next user never
+  // briefly sees the previous one's.
+  authTokenNotifier.addListener(() {
+    if (authTokenNotifier.value == null) {
+      userAvatarUrlNotifier.value = null;
+      userLocationNotifier.value = null;
+    }
+  });
+  // Photo/location aren't persisted locally — fetch them in the background
+  // so the first frame isn't held up by the network.
+  if (stored != null) {
+    AuthService.instance.getProfile().then((p) {
+      if (p != null) applyUserIdentity(p);
+    });
+  }
+
   // Permission refresh, trial check, and local-notifier setup are all
   // independent of each other — run them concurrently instead of stacked
   // sequential awaits, so a slow/unreachable network only costs one wait
@@ -245,6 +291,16 @@ void main() async {
   ];
   await Future.wait(otherFutures);
   trialNotifier = ValueNotifier<TrialStatus>(await trialFuture);
+
+  // Installs an update downloaded last session ("install on next start")
+  // before any UI appears — the installer relaunches the app afterwards.
+  if (await UpdateService.instance.start()) exit(0);
+  // Company-wide update policy lives in backend settings, so it needs a
+  // session: read it now if logged in, and again after each login.
+  if (authTokenNotifier.value != null) unawaited(UpdateService.instance.refreshPolicy());
+  authTokenNotifier.addListener(() {
+    if (authTokenNotifier.value != null) unawaited(UpdateService.instance.refreshPolicy());
+  });
 
   runApp(const HypermedApp());
 }
@@ -282,7 +338,7 @@ class HypermedApp extends StatelessWidget {
             );
           },
         ),
-        home: ValueListenableBuilder<TrialStatus>(
+        home: UpdateRequiredGate(child: ValueListenableBuilder<TrialStatus>(
           valueListenable: trialNotifier,
           builder: (_, trial, _) {
             // Awaiting admin approval
@@ -300,7 +356,7 @@ class HypermedApp extends StatelessWidget {
                   token == null ? const LoginScreen() : const AppShell(),
             );
           },
-        ),
+        )),
       );
       },
     );

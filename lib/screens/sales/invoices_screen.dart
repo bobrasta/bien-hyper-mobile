@@ -936,25 +936,15 @@ Widget _field(String label, TextEditingController ctrl, BuildContext ctx,
   Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
     _label(label),
     const SizedBox(height: 5),
-    Container(
-      constraints: BoxConstraints(minHeight: maxLines > 1 ? 56 : 36),
-      decoration: BoxDecoration(
-        color: ctx.pal.surface2,
-        borderRadius: BorderRadius.circular(7),
-        border: Border.all(color: ctx.pal.border),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      child: TextField(
-        controller: ctrl, maxLines: maxLines,
+    FieldFocusBox(builder: (context, focusNode) => TextField(focusNode: focusNode, controller: ctrl, maxLines: maxLines,
         keyboardType: numeric ? TextInputType.number : TextInputType.text,
-        style: AppTheme.bodySm,
+        style: AppTheme.fieldText,
         decoration: InputDecoration(
           hintText: hint, border: InputBorder.none, isDense: true,
           contentPadding: EdgeInsets.zero,
-          hintStyle: AppTheme.bodySm.copyWith(color: ctx.pal.textDim),
+          hintStyle: AppTheme.fieldText.copyWith(color: ctx.pal.textDim),
         ),
-      ),
-    ),
+      ),),
   ]);
 
 // ── Credit Notes dialog ──────────────────────────────────────────────────────

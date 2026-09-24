@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../theme/app_palette.dart';
 import '../../theme/app_theme.dart';
-import 'labeled_field.dart' show FieldFocusBox;
+import 'labeled_field.dart' show FieldFocusBox, kFieldHeight;
 
 /// Text field styled to match every other boxed field in the app (see
 /// `LabeledTextField`): sentence-case label above, a bordered box that
@@ -26,7 +26,7 @@ class AppTextField extends StatelessWidget {
     this.maxLines = 1,
     this.textInputAction,
     this.autofocus = false,
-    this.height = 34,
+    this.height = kFieldHeight,
   });
 
   final TextEditingController? controller;
@@ -55,13 +55,13 @@ class AppTextField extends StatelessWidget {
 
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       if (label != null) ...[
-        Text(label!, style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+        Text(label!, style: AppTheme.fieldLabel),
         const SizedBox(height: 6),
       ],
       FieldFocusBox(
         minHeight: height,
         enabled: enabled,
-        padding: EdgeInsets.only(left: 12, right: multiline ? 12 : 0, top: multiline ? 12 : 0, bottom: multiline ? 12 : 0),
+        padding: EdgeInsets.only(left: 14, right: (multiline || trailing == null) ? 14 : 6, top: multiline ? 12 : 0, bottom: multiline ? 12 : 0),
         builder: (context, resolvedFocusNode) => Row(
           crossAxisAlignment: multiline ? CrossAxisAlignment.start : CrossAxisAlignment.center,
           children: [
@@ -85,10 +85,13 @@ class AppTextField extends StatelessWidget {
               expands: multiline,
               textInputAction: textInputAction,
               // autofocus: autofocus,
-              style: AppTheme.bodySm,
+              cursorColor: pal.text,
+              cursorWidth: 1.5,
+              style: AppTheme.fieldText,
               decoration: InputDecoration(
                 hintText: hintText,
-                hintStyle: AppTheme.bodySm.copyWith(color: pal.textDim),
+                hintStyle: AppTheme.fieldHint,
+                filled: false,
                 border: InputBorder.none,
                 // isDense: true,
                 contentPadding: EdgeInsets.zero,

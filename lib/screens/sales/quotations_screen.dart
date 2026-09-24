@@ -499,7 +499,7 @@ class _QuotationDetailScreenState extends State<QuotationDetailScreen> {
             if (loadError != null)
               Text(loadError, style: AppTheme.bodySub.copyWith(color: AppColors.coral))
             else ...[
-              Text('SHIP FROM LOCATION', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+              Text('Ship from location', style: AppTheme.fieldLabel),
               const SizedBox(height: 6),
               Container(height: 38,
                 decoration: BoxDecoration(color: ctx.pal.surface2,
@@ -1438,21 +1438,19 @@ class _InvItemPicker extends StatelessWidget {
 Widget _formField(String label, TextEditingController ctrl, String hint, BuildContext ctx,
     {int maxLines = 1, String? error, ValueChanged<String>? onChanged}) =>
     Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(label, style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+      Text(label, style: AppTheme.fieldLabel),
       const SizedBox(height: 5),
       FieldFocusBox(
-        minHeight: maxLines > 1 ? 60 : 36,
-        radius: 7,
+        minHeight: maxLines > 1 ? 60 : 0,
         hasError: error != null,
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         builder: (context, focusNode) => TextField(
           controller: ctrl, focusNode: focusNode, maxLines: maxLines,
           onChanged: onChanged,
-          style: AppTheme.bodySm,
+          style: AppTheme.fieldText,
           decoration: InputDecoration(
             hintText: hint, border: InputBorder.none, isDense: true,
             contentPadding: EdgeInsets.zero,
-            hintStyle: AppTheme.bodySm.copyWith(color: ctx.pal.textDim),
+            hintStyle: AppTheme.fieldText.copyWith(color: ctx.pal.textDim),
           ),
         ),
       ),
@@ -1480,7 +1478,7 @@ class _DatePickerField extends StatelessWidget {
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      Text(label, style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+      Text(label, style: AppTheme.fieldLabel),
       const SizedBox(height: 5),
       GestureDetector(
         onTap: () async {
@@ -1527,7 +1525,7 @@ class _DatePickerField extends StatelessWidget {
 Widget _dropField(String label, String value, List<String> items,
     ValueChanged<String> onChanged, BuildContext ctx) =>
     Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(label, style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+      Text(label, style: AppTheme.fieldLabel),
       const SizedBox(height: 5),
       Container(
         height: 36,

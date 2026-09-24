@@ -1,9 +1,9 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
-import '../../main.dart' show userNameNotifier, userRoleNotifier, nameInitials, allowedScreenKeys;
+import '../../main.dart' show userRoleNotifier, allowedScreenKeys;
 import '../../theme/app_colors.dart';
 import '../../theme/app_palette.dart';
-import 'avatar_widget.dart';
+import 'current_user_avatar.dart';
 import 'sidebar.dart'; // NavDestination
 
 // Flat list of all nav destinations (no section grouping — icon rail doesn't label sections).
@@ -67,14 +67,7 @@ class SidebarRail extends StatelessWidget {
           // Footer separator + avatar
           Container(width: 32, height: 1, color: context.pal.border),
           const SizedBox(height: 10),
-          ValueListenableBuilder<String>(
-            valueListenable: userNameNotifier,
-            builder: (_, name, _) => AvatarWidget(
-              initials: nameInitials(name),
-              size: 26,
-              variant: AvatarVariant.teal,
-            ),
-          ),
+          const CurrentUserAvatar(size: 26),
           const SizedBox(height: 16),
         ],
       ),

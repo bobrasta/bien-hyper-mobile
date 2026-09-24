@@ -5,24 +5,31 @@ import '../../theme/app_theme.dart';
 import '../../theme/app_palette.dart';
 import '../../utils/format.dart';
 
+/// Height of a single-line field (14px text + 12px vertical padding +
+/// border) — dropdown/date/static boxes use it so they line up with text
+/// fields in the same row.
+const double kFieldHeight = 44;
+
 /// The shared focus-reactive box every text-entry field sits in: a
-/// `surface2` container whose border lights up teal (with the same
-/// `tealGlow` shadow used for the sidebar's active-item glow elsewhere)
-/// while the field inside it has focus, and relaxes back to a plain
-/// `border` outline otherwise. One place owns the FocusNode + listener so
-/// every field call site just does `FieldFocusBox(builder: (focusNode) =>
+/// recessed (`bg`-filled) rounded box with a `borderStrong` outline at rest
+/// that turns the theme accent while focused, plus a solid translucent
+/// accent "halo" ring around the outside (a zero-blur spread shadow, not a
+/// soft glow). One place owns the FocusNode + listener so every field call
+/// site just does `FieldFocusBox(builder: (focusNode) =>
 /// TextField(focusNode: focusNode, ...))` instead of re-implementing focus
-/// tracking per screen.
+/// tracking per screen — a call site that doesn't pass the focusNode
+/// through never gets the focused look.
 class FieldFocusBox extends StatefulWidget {
   const FieldFocusBox({
     super.key,
     required this.builder,
-    this.minHeight = 38,
+    this.minHeight = 0,
     this.enabled = true,
     this.alignment,
-    this.padding = const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+    this.padding = const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
     this.hasError = false,
-    this.radius = 8,
+    this.radius = 10,
+    this.height,
   });
 
   final Widget Function(BuildContext context, FocusNode focusNode) builder;
@@ -34,6 +41,9 @@ class FieldFocusBox extends StatefulWidget {
   // user needs to see what's wrong before the field looks "fine" again.
   final bool hasError;
   final double radius;
+  // Fixed height — for multi-line fields using `expands: true`, which
+  // need a bounded height from their parent.
+  final double? height;
 
   @override
   State<FieldFocusBox> createState() => _FieldFocusBoxState();
@@ -58,22 +68,32 @@ class _FieldFocusBoxState extends State<FieldFocusBox> {
   }
 
   @override
-  Widget build(BuildContext context) => AnimatedContainer(
-    duration: const Duration(milliseconds: 120),
-    constraints: BoxConstraints(minHeight: widget.minHeight),
-    decoration: BoxDecoration(
-      color: widget.enabled ? context.pal.surface2 : context.pal.surface3,
-      borderRadius: BorderRadius.circular(widget.radius),
-      border: Border.all(
-        color: widget.hasError ? AppColors.coral : (_focused ? AppColors.teal : context.pal.border),
-        width: _focused || widget.hasError ? 1.4 : 1,
+  Widget build(BuildContext context) {
+    final pal = context.pal;
+    final Color borderColor = widget.hasError
+        ? AppColors.coral
+        : (_focused ? AppColors.teal : pal.borderStrong);
+    final Color haloColor = (widget.hasError ? AppColors.coral : AppColors.teal).withValues(alpha: 0.20);
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 160),
+      curve: Curves.easeOut,
+      height: widget.height,
+      constraints: widget.height == null ? BoxConstraints(minHeight: widget.minHeight) : null,
+      decoration: BoxDecoration(
+        color: widget.enabled ? pal.bg : pal.surface3,
+        borderRadius: BorderRadius.circular(widget.radius),
+        border: Border.all(color: borderColor, width: _focused ? 1.6 : 1.2),
+        boxShadow: [BoxShadow(
+          color: _focused ? haloColor : Colors.transparent,
+          spreadRadius: _focused ? 3 : 0,
+          blurRadius: 0,
+        )],
       ),
-      boxShadow: !widget.hasError && _focused ? [BoxShadow(color: AppColors.tealGlow, blurRadius: 8)] : null,
-    ),
-    padding: widget.padding,
-    alignment: widget.alignment,
-    child: widget.builder(context, _focusNode),
-  );
+      padding: widget.padding,
+      alignment: widget.alignment,
+      child: widget.builder(context, _focusNode),
+    );
+  }
 }
 
 /// The established boxed-field look used throughout the app (see
@@ -107,13 +127,11 @@ class LabeledTextField extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
     if (label.isNotEmpty) ...[
-      Text(label, style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+      Text(label, style: AppTheme.fieldLabel),
       const SizedBox(height: 6),
     ],
     FieldFocusBox(
-      minHeight: maxLines > 1 ? 56 : 38,
       enabled: enabled,
-      alignment: maxLines > 1 ? null : Alignment.centerLeft,
       builder: (context, focusNode) => TextField(
         controller: controller,
         focusNode: focusNode,
@@ -121,10 +139,13 @@ class LabeledTextField extends StatelessWidget {
         maxLines: maxLines,
         keyboardType: keyboardType,
         enabled: enabled,
-        style: AppTheme.bodySm.copyWith(color: enabled ? context.pal.text : context.pal.textDim),
+        cursorColor: context.pal.text,
+        cursorWidth: 1.5,
+        style: AppTheme.fieldText.copyWith(color: enabled ? context.pal.text : context.pal.textDim),
         decoration: InputDecoration(
           hintText: hint,
-          hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
+          hintStyle: AppTheme.fieldHint,
+          filled: false,
           border: InputBorder.none,
           isDense: true,
           contentPadding: EdgeInsets.zero,
@@ -161,21 +182,21 @@ class LabeledDropdown<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Text(label, style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+    Text(label, style: AppTheme.fieldLabel),
     const SizedBox(height: 6),
     Container(
       decoration: BoxDecoration(
-        color: enabled ? context.pal.surface2 : context.pal.surface3,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: context.pal.border),
+        color: enabled ? context.pal.bg : context.pal.surface3,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: context.pal.borderStrong, width: 1.2),
       ),
-      height: 38,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+      height: kFieldHeight,
+      padding: const EdgeInsets.symmetric(horizontal: 14),
       child: DropdownButtonHideUnderline(child: DropdownButton<T>(
         value: value,
         isExpanded: true,
         dropdownColor: context.pal.surface2,
-        style: AppTheme.bodySm.copyWith(color: enabled ? context.pal.text : context.pal.textDim),
+        style: AppTheme.fieldText.copyWith(color: enabled ? context.pal.text : context.pal.textDim),
         icon: Icon(Symbols.expand_more, size: 16, color: context.pal.textDim),
         items: items.map((v) => DropdownMenuItem(value: v, child: Text(displayBuilder(v), overflow: TextOverflow.ellipsis))).toList(),
         onChanged: enabled ? (v) { if (v != null) onChanged?.call(v); } : null,
@@ -195,17 +216,17 @@ class LabeledDateField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Text(label, style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+    Text(label, style: AppTheme.fieldLabel),
     const SizedBox(height: 6),
     GestureDetector(
       onTap: onTap,
       child: Container(
-        height: 38,
-        decoration: BoxDecoration(color: context.pal.surface2, borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-        padding: const EdgeInsets.symmetric(horizontal: 12),
+        height: kFieldHeight,
+        decoration: BoxDecoration(color: context.pal.bg, borderRadius: BorderRadius.circular(10), border: Border.all(color: context.pal.borderStrong, width: 1.2)),
+        padding: const EdgeInsets.symmetric(horizontal: 14),
         child: Row(children: [
           Expanded(child: Text(date != null ? formatDate(date!) : placeholder,
-              style: AppTheme.bodySm.copyWith(color: date != null ? context.pal.text : context.pal.textDim))),
+              style: AppTheme.fieldText.copyWith(color: date != null ? context.pal.text : context.pal.textDim))),
           Icon(Symbols.calendar_month, size: 15, color: context.pal.textDim),
         ]),
       ),
@@ -223,15 +244,15 @@ class LabeledStaticField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Text(label, style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+    Text(label, style: AppTheme.fieldLabel),
     const SizedBox(height: 6),
     Container(
-      height: 38,
+      height: kFieldHeight,
       alignment: Alignment.centerLeft,
-      decoration: BoxDecoration(color: context.pal.surface3, borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(color: context.pal.surface3, borderRadius: BorderRadius.circular(10), border: Border.all(color: context.pal.borderStrong, width: 1.2)),
+      padding: const EdgeInsets.symmetric(horizontal: 14),
       child: Row(children: [
-        Expanded(child: Text(value, style: AppTheme.bodySm.copyWith(color: context.pal.textDim), overflow: TextOverflow.ellipsis)),
+        Expanded(child: Text(value, style: AppTheme.fieldText.copyWith(color: context.pal.textDim), overflow: TextOverflow.ellipsis)),
         if (hint != null) Icon(Symbols.lock, size: 13, color: context.pal.textDim),
       ]),
     ),

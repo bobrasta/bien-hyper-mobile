@@ -475,7 +475,7 @@ class _NewExpenseDialogState extends State<_NewExpenseDialog> {
                     child: Text(_error!, style: TextStyle(color: AppColors.coral, fontSize: 12)),
                   ),
                 ],
-                _LabeledField('Description', (focusNode) => TextField(controller: _nameCtrl, focusNode: focusNode, style: AppTheme.bodySm,
+                _LabeledField('Description', (focusNode) => TextField(controller: _nameCtrl, focusNode: focusNode, style: AppTheme.fieldText,
                     decoration: const InputDecoration(border: InputBorder.none, isDense: true, hintText: 'e.g. Office rent'))),
                 const SizedBox(height: 14),
                 Row(children: [
@@ -500,7 +500,7 @@ class _NewExpenseDialogState extends State<_NewExpenseDialog> {
                 const SizedBox(height: 14),
                 Row(children: [
                   Expanded(child: _LabeledField('Amount (TSh, excl. VAT)', (focusNode) => TextField(controller: _amountCtrl, focusNode: focusNode,
-                      keyboardType: TextInputType.number, style: AppTheme.bodySm,
+                      keyboardType: TextInputType.number, style: AppTheme.fieldText,
                       decoration: const InputDecoration(border: InputBorder.none, isDense: true, hintText: '0')))),
                   const SizedBox(width: 14),
                   Expanded(child: _LabeledDropdown(
@@ -516,7 +516,7 @@ class _NewExpenseDialogState extends State<_NewExpenseDialog> {
                   )),
                 ]),
                 const SizedBox(height: 14),
-                _LabeledField('Reference (optional)', (focusNode) => TextField(controller: _refCtrl, focusNode: focusNode, style: AppTheme.bodySm,
+                _LabeledField('Reference (optional)', (focusNode) => TextField(controller: _refCtrl, focusNode: focusNode, style: AppTheme.fieldText,
                     decoration: const InputDecoration(border: InputBorder.none, isDense: true, hintText: 'Receipt / invoice no.'))),
                 const SizedBox(height: 10),
                 Row(children: [
@@ -582,7 +582,7 @@ class _LabeledField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Text(label, style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+    Text(label, style: AppTheme.fieldLabel),
     const SizedBox(height: 6),
     FieldFocusBox(builder: (context, focusNode) => fieldBuilder(focusNode)),
   ]);
@@ -597,7 +597,7 @@ class _LabeledDropdown<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Text(label, style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+    Text(label, style: AppTheme.fieldLabel),
     const SizedBox(height: 6),
     Container(
       decoration: BoxDecoration(color: context.pal.surface2, borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),

@@ -50,6 +50,8 @@ dependencies:
   mobile_scanner: ^7.4.0
   path_provider: ^2.1.5
   share_plus: ^10.1.4
+  package_info_plus: ^9.0.1
+  crypto: ^3.0.7
 
 dependency_overrides:
   # file_picker's Android implementation applies its own legacy Kotlin Gradle

@@ -11,6 +11,7 @@ import '../../utils/api_error.dart';
 import '../../utils/format.dart';
 import '../../widgets/common/app_button.dart';
 import '../../widgets/common/error_view.dart';
+import '../../widgets/common/labeled_field.dart' show FieldFocusBox;
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -871,25 +872,15 @@ class _DeliverModalState extends State<_DeliverModal> {
         }),
 
         // Notes
-        Container(
-          height: 60,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: context.pal.surface2,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: context.pal.border),
-          ),
-          child: TextField(
-            controller: _notesCtrl,
+        FieldFocusBox(builder: (context, focusNode) => TextField(focusNode: focusNode, controller: _notesCtrl,
             maxLines: 3,
-            style: AppTheme.bodySm,
+            style: AppTheme.fieldText,
             decoration: InputDecoration(
               hintText: 'Delivery notes (optional)…',
-              hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
+              hintStyle: AppTheme.fieldText.copyWith(color: context.pal.textDim),
               border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero,
             ),
-          ),
-        ),
+          ),),
         const SizedBox(height: 16),
 
         Row(children: [

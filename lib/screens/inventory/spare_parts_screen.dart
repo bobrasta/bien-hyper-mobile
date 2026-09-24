@@ -1020,17 +1020,17 @@ class _Field extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Text(label, style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+    Text(label, style: AppTheme.fieldLabel),
     const SizedBox(height: 6),
     FieldFocusBox(
       builder: (context, focusNode) => TextField(
         controller: ctrl,
         focusNode: focusNode,
         keyboardType: numeric ? TextInputType.number : TextInputType.text,
-        style: AppTheme.bodySm,
+        style: AppTheme.fieldText,
         onChanged: onChanged,
         decoration: InputDecoration(hintText: hint,
-            hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
+            hintStyle: AppTheme.fieldText.copyWith(color: context.pal.textDim),
             border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero),
       ),
     ),
@@ -1047,7 +1047,7 @@ class _Dropdown extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Text(label, style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+    Text(label, style: AppTheme.fieldLabel),
     const SizedBox(height: 6),
     Container(
       decoration: BoxDecoration(color: context.pal.surface2,

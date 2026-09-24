@@ -7,6 +7,7 @@ import '../../services/setting_service.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_palette.dart';
 import '../../widgets/common/fullscreen_editor_shell.dart';
+import '../../widgets/common/labeled_field.dart' show FieldFocusBox;
 
 const _kSettingKey = 'org_chart_json';
 
@@ -236,24 +237,15 @@ class _OrgChartEditorState extends State<OrgChartEditor> {
                 '— nodes are auto-arranged by hierarchy, then you can drag them freely.',
                 style: AppTheme.bodySub.copyWith(fontSize: 12)),
             const SizedBox(height: 10),
-            Container(
-              decoration: BoxDecoration(
-                color: ctx.pal.surface2,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: ctx.pal.border),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              child: TextField(
-                controller: ctrl,
+            FieldFocusBox(builder: (context, focusNode) => TextField(focusNode: focusNode, controller: ctrl,
                 maxLines: 10,
                 minLines: 6,
                 style: AppTheme.monoXs.copyWith(fontSize: 12),
                 decoration: const InputDecoration(
-                  border: InputBorder.none, isDense: true,
+                  border: InputBorder.none, contentPadding: EdgeInsets.zero, isDense: true,
                   hintText: 'flowchart TD\n    A[Director] --> B[Sales]\n    A --> C[Service]',
                 ),
-              ),
-            ),
+              ),),
             if (error != null) ...[
               const SizedBox(height: 8),
               Text(error!, style: AppTheme.bodySub.copyWith(color: Colors.redAccent, fontSize: 12)),
@@ -713,12 +705,12 @@ class _NodeDialogState extends State<_NodeDialog> {
       content: SizedBox(
         width: 360,
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('LABEL', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+          Text('Label', style: AppTheme.fieldLabel),
           const SizedBox(height: 6),
           TextField(controller: _labelCtrl, style: AppTheme.bodySm,
             decoration: const InputDecoration(hintText: 'e.g. Marketing', isDense: true)),
           const SizedBox(height: 14),
-          Text('REPORTS TO', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+          Text('Reports to', style: AppTheme.fieldLabel),
           const SizedBox(height: 6),
           DropdownButtonFormField<String?>(
             initialValue: _parentId,
@@ -731,7 +723,7 @@ class _NodeDialogState extends State<_NodeDialog> {
             onChanged: (v) => setState(() => _parentId = v),
           ),
           const SizedBox(height: 14),
-          Text('COLOR', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+          Text('Color', style: AppTheme.fieldLabel),
           const SizedBox(height: 6),
           Wrap(spacing: 8, runSpacing: 8, children: List.generate(_palette.length, (i) {
             final selected = i == _colorIndex;

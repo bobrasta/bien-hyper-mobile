@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
-import '../../main.dart' show userNameNotifier, userRoleNotifier, nameInitials, allowedScreenKeys, can;
+import '../../main.dart' show userNameNotifier, userRoleNotifier, userLocationNotifier, roleDisplayName, allowedScreenKeys, can;
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
-import 'avatar_widget.dart';
+import 'current_user_avatar.dart';
 import '../../theme/app_palette.dart';
 
 class NavDestination {
@@ -664,19 +664,20 @@ class _SidebarFooter extends StatelessWidget {
       ),
       child: Row(
         children: [
-          ValueListenableBuilder<String>(
-            valueListenable: userNameNotifier,
-            builder: (_, name, _) => AvatarWidget(
-              initials: nameInitials(name),
-              size: 26,
-              variant: AvatarVariant.teal,
-            ),
-          ),
+          const CurrentUserAvatar(size: 26),
           const SizedBox(width: 10),
           Expanded(
-            child: ValueListenableBuilder<String>(
-              valueListenable: userNameNotifier,
-              builder: (_, name, _) => Column(
+            child: ListenableBuilder(
+              listenable: Listenable.merge([userNameNotifier, userRoleNotifier, userLocationNotifier]),
+              builder: (_, _) {
+                final name = userNameNotifier.value;
+                final role = roleDisplayName(userRoleNotifier.value);
+                final location = userLocationNotifier.value;
+                final subtitle = [
+                  if (role.isNotEmpty) role,
+                  if (location != null && location.isNotEmpty) location,
+                ].join(' · ');
+                return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
@@ -684,10 +685,13 @@ class _SidebarFooter extends StatelessWidget {
                     style: AppTheme.bodyStrong.copyWith(fontSize: 12.5),
                     overflow: TextOverflow.ellipsis,
                   ),
-                  Text('Admin · Dar es Salaam',
-                    style: AppTheme.bodySub.copyWith(fontSize: 10.5, color: context.pal.textDim)),
+                  if (subtitle.isNotEmpty)
+                    Text(subtitle,
+                      style: AppTheme.bodySub.copyWith(fontSize: 10.5, color: context.pal.textDim),
+                      overflow: TextOverflow.ellipsis),
                 ],
-              ),
+              );
+              },
             ),
           ),
           Icon(Symbols.more_horiz, size: 18, color: context.pal.textDim),

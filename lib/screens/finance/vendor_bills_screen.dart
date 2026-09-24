@@ -605,7 +605,7 @@ class _InlineField extends StatelessWidget {
       controller: controller,
       focusNode: focusNode,
       keyboardType: number ? TextInputType.number : TextInputType.text,
-      style: AppTheme.bodySm.copyWith(fontSize: 12.5),
+      style: AppTheme.fieldText.copyWith(fontSize: 12.5),
       decoration: InputDecoration(border: InputBorder.none, isDense: true, hintText: hint,
           hintStyle: AppTheme.bodySub.copyWith(fontSize: 12, color: context.pal.textDim)),
     ),
@@ -621,7 +621,7 @@ class _Dropdown<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Text(label, style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+    Text(label, style: AppTheme.fieldLabel),
     const SizedBox(height: 6),
     Container(
       decoration: BoxDecoration(color: context.pal.surface2, borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),

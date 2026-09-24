@@ -883,14 +883,14 @@ class _LogInteractionDialogState extends State<_LogInteractionDialog> {
       ),
       const SizedBox(height: 14),
       Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('Summary', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+        Text('Summary', style: AppTheme.fieldLabel),
         const SizedBox(height: 6),
         FieldFocusBox(
           minHeight: 80,
           builder: (context, focusNode) => TextField(controller: _summaryCtrl, focusNode: focusNode, maxLines: null, expands: true,
-            style: AppTheme.bodySm,
+            style: AppTheme.fieldText,
             decoration: InputDecoration(hintText: 'What was discussed?',
-                hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
+                hintStyle: AppTheme.fieldText.copyWith(color: context.pal.textDim),
                 border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero)),
         ),
       ]),
@@ -912,7 +912,7 @@ class _LogInteractionDialogState extends State<_LogInteractionDialog> {
       const SizedBox(height: 14),
       // Next action date picker
       Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('NEXT ACTION DATE', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+        Text('Next action date', style: AppTheme.fieldLabel),
         const SizedBox(height: 6),
         GestureDetector(
           onTap: _pickDate,
@@ -1002,7 +1002,7 @@ class _ScheduleFollowupDialogState extends State<_ScheduleFollowupDialog> {
     title: 'Schedule Follow-up · ${widget.contact.fullName}',
     saveLabel: 'Schedule',
     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text('FOLLOW-UP DATE', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+      Text('Follow-up date', style: AppTheme.fieldLabel),
       const SizedBox(height: 8),
       GestureDetector(
         onTap: _pickDate,
@@ -1116,12 +1116,12 @@ class _CField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Text(label, style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+    Text(label, style: AppTheme.fieldLabel),
     const SizedBox(height: 6),
     FieldFocusBox(
-      builder: (context, focusNode) => TextField(controller: ctrl, focusNode: focusNode, style: AppTheme.bodySm,
+      builder: (context, focusNode) => TextField(controller: ctrl, focusNode: focusNode, style: AppTheme.fieldText,
         decoration: InputDecoration(hintText: hint,
-            hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
+            hintStyle: AppTheme.fieldText.copyWith(color: context.pal.textDim),
             border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero)),
     ),
   ]);
@@ -1137,7 +1137,7 @@ class _CDropdown extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Text(label, style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+    Text(label, style: AppTheme.fieldLabel),
     const SizedBox(height: 6),
     Container(
       decoration: BoxDecoration(color: context.pal.surface2,

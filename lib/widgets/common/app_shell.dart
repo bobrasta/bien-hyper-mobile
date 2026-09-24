@@ -62,6 +62,7 @@ import '../../theme/app_theme.dart';
 import 'sidebar.dart';
 import 'sidebar_rail.dart';
 import 'top_bar.dart';
+import 'update_widgets.dart' show UpdateBanner;
 
 import '../../theme/app_palette.dart';
 // ── Breakpoints (content-area width) ──────────────────────────────────────────
@@ -379,6 +380,7 @@ class _AppShellState extends State<AppShell> {
       child: Column(
         children: [
           TopBar(onOpenNotification: _openNotification, onOpenSearchResult: _openSearchResult),
+          const UpdateBanner(),
           _trialBanner(),
           Expanded(
             child: Row(
@@ -414,6 +416,7 @@ class _AppShellState extends State<AppShell> {
       decoration: _bgDecoration(context),
       child: Column(
         children: [
+          const UpdateBanner(),
           _trialBanner(),
           Expanded(child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,

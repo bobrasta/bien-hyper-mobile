@@ -178,7 +178,7 @@ class _TravelPlanDialogState extends State<TravelPlanDialog> {
             controller: ctrl,
             focusNode: focusNode,
             keyboardType: numeric ? TextInputType.number : TextInputType.text,
-            style: AppTheme.bodySm.copyWith(fontSize: 12),
+            style: AppTheme.fieldText.copyWith(fontSize: 12),
             onChanged: (_) => setState(() {}),
             decoration: const InputDecoration(
                 border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero),
@@ -311,16 +311,11 @@ class _TravelPlanDialogState extends State<TravelPlanDialog> {
                 ],
 
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('DESCRIPTION OF THE TRIP', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+                  Text('Description of the trip', style: AppTheme.fieldLabel),
                   const SizedBox(height: 6),
-                  Container(
-                    decoration: BoxDecoration(color: context.pal.surface2,
-                        borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    child: TextField(controller: _purposeCtrl, style: AppTheme.bodySm,
+                  FieldFocusBox(builder: (context, focusNode) => TextField(focusNode: focusNode, controller: _purposeCtrl, style: AppTheme.fieldText,
                         decoration: const InputDecoration(border: InputBorder.none, isDense: true,
-                            contentPadding: EdgeInsets.zero, hintText: 'What is this trip for?')),
-                  ),
+                            contentPadding: EdgeInsets.zero, hintText: 'What is this trip for?')),),
                 ]),
                 const SizedBox(height: 16),
 

@@ -1986,7 +1986,7 @@ class _ReceiveMachineDialogState extends State<_ReceiveMachineDialog> {
 Widget _dLoadingField(String label) => Builder(builder: (context) => Column(
   crossAxisAlignment: CrossAxisAlignment.start,
   children: [
-    Text(label, style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+    Text(label, style: AppTheme.fieldLabel),
     const SizedBox(height: 6),
     Container(
       height: 38,
@@ -2013,18 +2013,16 @@ class _DField extends StatelessWidget {
       ),
       const SizedBox(height: 6),
       FieldFocusBox(
-        minHeight: 38,
         alignment: Alignment.centerLeft,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
         builder: (context, focusNode) => TextField(
           controller: ctrl,
           focusNode: focusNode,
-          style: AppTheme.bodySm,
+          style: AppTheme.fieldText,
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
+            hintStyle: AppTheme.fieldText.copyWith(color: context.pal.textDim),
             border: InputBorder.none,
-            isDense: false,
+            isDense: true,
             contentPadding: EdgeInsets.zero,
           ),
         ),

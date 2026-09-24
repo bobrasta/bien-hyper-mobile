@@ -11,6 +11,7 @@ import '../../utils/api_error.dart';
 import '../../utils/format.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/common/error_view.dart';
+import '../../widgets/common/labeled_field.dart' show FieldFocusBox;
 
 class BankReconciliationScreen extends StatefulWidget {
   const BankReconciliationScreen({super.key});
@@ -273,14 +274,10 @@ class _NewReconDialogState extends State<_NewReconDialog> {
                 ]),
                 const SizedBox(height: 14),
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('STATEMENT CLOSING BALANCE (TSh)', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+                  Text('Statement closing balance (TSh)', style: AppTheme.fieldLabel),
                   const SizedBox(height: 6),
-                  Container(
-                    decoration: BoxDecoration(color: context.pal.surface2, borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                    child: TextField(controller: _balanceCtrl, keyboardType: TextInputType.number, style: AppTheme.bodySm,
-                        decoration: const InputDecoration(border: InputBorder.none, isDense: true, hintText: '0')),
-                  ),
+                  FieldFocusBox(builder: (context, focusNode) => TextField(focusNode: focusNode, controller: _balanceCtrl, keyboardType: TextInputType.number, style: AppTheme.fieldText,
+                        decoration: const InputDecoration(border: InputBorder.none, contentPadding: EdgeInsets.zero, isDense: true, hintText: '0')),),
                 ]),
               ]),
             ),
@@ -315,7 +312,7 @@ class _DateField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Text(label, style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+    Text(label, style: AppTheme.fieldLabel),
     const SizedBox(height: 6),
     GestureDetector(
       onTap: onTap,

@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
-import '../../main.dart' show authTokenNotifier, userNameNotifier, nameInitials, notificationCountNotifier;
+import '../../main.dart' show authTokenNotifier, notificationCountNotifier;
 import '../../models/notification.dart';
 import '../../models/search_result.dart';
 import '../../services/auth_service.dart';
@@ -10,7 +10,7 @@ import '../../services/search_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_palette.dart';
 import '../../theme/app_theme.dart';
-import 'avatar_widget.dart';
+import 'current_user_avatar.dart';
 
 class TopBar extends StatefulWidget {
   const TopBar({super.key, this.onMenuPressed, this.onOpenNotification, this.onOpenSearchResult});
@@ -413,14 +413,7 @@ class _TopBarState extends State<TopBar> {
           ),
 
           const SizedBox(width: 8),
-          ValueListenableBuilder<String>(
-            valueListenable: userNameNotifier,
-            builder: (_, name, _) => AvatarWidget(
-              initials: nameInitials(name),
-              size: 30,
-              variant: AvatarVariant.teal,
-            ),
-          ),
+          const CurrentUserAvatar(size: 30),
           const SizedBox(width: 4),
           GestureDetector(
             onTap: _confirmLogout,

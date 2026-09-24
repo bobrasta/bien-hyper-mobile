@@ -71,6 +71,7 @@ class _LoginScreenState extends State<LoginScreen>
       final userRole = user?['role'] as String?;
       final userId   = user?['id'];
       if (userName != null) userNameNotifier.value = userName;
+      if (user != null) applyUserIdentity(user);
       if (userId is num) userIdNotifier.value = userId.toInt();
       // Fetch permissions BEFORE setting the role — the sidebar/app-shell
       // rebuild the moment userRoleNotifier changes, and only listen to that

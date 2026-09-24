@@ -162,7 +162,7 @@ class _PerDiemReviseDialogState extends State<PerDiemReviseDialog> {
             controller: ctrl,
             focusNode: focusNode,
             keyboardType: numeric ? TextInputType.number : TextInputType.text,
-            style: AppTheme.bodySm.copyWith(fontSize: 12),
+            style: AppTheme.fieldText.copyWith(fontSize: 12),
             onChanged: (_) => setState(() {}),
             decoration: const InputDecoration(
                 border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero),
@@ -305,17 +305,12 @@ class _PerDiemReviseDialogState extends State<PerDiemReviseDialog> {
                     ),
                   ],
                   Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('REASON FOR THIS EDIT *', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+                    Text('Reason for this edit *', style: AppTheme.fieldLabel),
                     const SizedBox(height: 6),
-                    Container(
-                      decoration: BoxDecoration(color: context.pal.surface2,
-                          borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      child: TextField(controller: _reasonCtrl, style: AppTheme.bodySm,
+                    FieldFocusBox(builder: (context, focusNode) => TextField(focusNode: focusNode, controller: _reasonCtrl, style: AppTheme.fieldText,
                           onChanged: (_) => setState(() {}),
                           decoration: const InputDecoration(border: InputBorder.none, isDense: true,
-                              contentPadding: EdgeInsets.zero, hintText: 'e.g. Re-routed to Iringa (min. 10 characters)')),
-                    ),
+                              contentPadding: EdgeInsets.zero, hintText: 'e.g. Re-routed to Iringa (min. 10 characters)')),),
                   ]),
                   const SizedBox(height: 16),
                   Row(children: [

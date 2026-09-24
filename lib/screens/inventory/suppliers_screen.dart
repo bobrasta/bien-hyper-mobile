@@ -505,7 +505,7 @@ class _SupplierFormModalState extends State<_SupplierFormModal> {
                 // Lead time + Rating row
                 Row(children: [
                   Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('LEAD TIME (DAYS)', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+                    Text('Lead time (days)', style: AppTheme.fieldLabel),
                     const SizedBox(height: 6),
                     Row(children: [
                       GestureDetector(
@@ -524,7 +524,7 @@ class _SupplierFormModalState extends State<_SupplierFormModal> {
                   ]),
                   const SizedBox(width: 32),
                   Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('RATING', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+                    Text('Rating', style: AppTheme.fieldLabel),
                     const SizedBox(height: 6),
                     Row(children: List.generate(5, (i) => GestureDetector(
                       onTap: () => setState(() => _rating = i + 1),
@@ -586,13 +586,13 @@ class _Fld extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Text(label, style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+    Text(label, style: AppTheme.fieldLabel),
     const SizedBox(height: 6),
     FieldFocusBox(
       builder: (context, focusNode) => TextField(
-        controller: ctrl, focusNode: focusNode, style: AppTheme.bodySm,
+        controller: ctrl, focusNode: focusNode, style: AppTheme.fieldText,
         decoration: InputDecoration(hintText: hint,
-            hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
+            hintStyle: AppTheme.fieldText.copyWith(color: context.pal.textDim),
             border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero),
       ),
     ),
@@ -608,7 +608,7 @@ class _DD extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Text(label, style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+    Text(label, style: AppTheme.fieldLabel),
     const SizedBox(height: 6),
     Container(
       decoration: BoxDecoration(color: context.pal.surface2,

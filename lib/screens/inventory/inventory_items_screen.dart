@@ -616,7 +616,7 @@ class _RecordMovementModalState extends State<_RecordMovementModal> {
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('MOVEMENT TYPE', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+                Text('Movement type', style: AppTheme.fieldLabel),
                 const SizedBox(height: 6),
                 Container(
                   decoration: BoxDecoration(color: context.pal.surface2,
@@ -683,33 +683,21 @@ class _RecordMovementModalState extends State<_RecordMovementModal> {
                     ),
                 ],
                 const SizedBox(height: 12),
-                Text('QUANTITY', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+                Text('Quantity', style: AppTheme.fieldLabel),
                 const SizedBox(height: 6),
-                Container(
-                  decoration: BoxDecoration(color: context.pal.surface2,
-                      borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                  child: TextField(
-                    controller: _qtyCtrl,
-                    keyboardType: TextInputType.number, style: AppTheme.bodySm,
-                    decoration: InputDecoration(hintText: '1', hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
+                FieldFocusBox(builder: (context, focusNode) => TextField(focusNode: focusNode, controller: _qtyCtrl,
+                    keyboardType: TextInputType.number, style: AppTheme.fieldText,
+                    decoration: InputDecoration(hintText: '1', hintStyle: AppTheme.fieldText.copyWith(color: context.pal.textDim),
                         border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero),
-                  ),
-                ),
+                  ),),
                 const SizedBox(height: 12),
-                Text('NOTES (optional)', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+                Text('Notes (optional)', style: AppTheme.fieldLabel),
                 const SizedBox(height: 6),
-                Container(
-                  decoration: BoxDecoration(color: context.pal.surface2,
-                      borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                  child: TextField(
-                    controller: _notesCtrl, style: AppTheme.bodySm,
+                FieldFocusBox(builder: (context, focusNode) => TextField(focusNode: focusNode, controller: _notesCtrl, style: AppTheme.fieldText,
                     decoration: InputDecoration(hintText: 'e.g. received from supplier',
-                        hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
+                        hintStyle: AppTheme.fieldText.copyWith(color: context.pal.textDim),
                         border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero),
-                  ),
-                ),
+                  ),),
                 if (_error != null) ...[
                   const SizedBox(height: 8),
                   Text(_error!, style: TextStyle(color: AppColors.coral, fontSize: 12.5)),
@@ -1083,14 +1071,14 @@ class _Field extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Text(label, style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+    Text(label, style: AppTheme.fieldLabel),
     const SizedBox(height: 6),
     FieldFocusBox(
       builder: (context, focusNode) => TextField(
-        controller: ctrl, focusNode: focusNode, style: AppTheme.bodySm,
+        controller: ctrl, focusNode: focusNode, style: AppTheme.fieldText,
         keyboardType: numeric ? TextInputType.number : TextInputType.text,
         decoration: InputDecoration(hintText: hint,
-            hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
+            hintStyle: AppTheme.fieldText.copyWith(color: context.pal.textDim),
             border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero),
       ),
     ),
@@ -1107,7 +1095,7 @@ class _Dropdown extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Text(label, style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+    Text(label, style: AppTheme.fieldLabel),
     const SizedBox(height: 6),
     Container(
       decoration: BoxDecoration(color: context.pal.surface2,

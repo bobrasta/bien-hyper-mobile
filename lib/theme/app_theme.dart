@@ -229,23 +229,35 @@ class AppTheme {
         ),
         margin: EdgeInsets.zero,
       ),
+      // Matches FieldFocusBox (recessed bg fill, borderStrong outline,
+      // accent on focus) so stock TextField/TextFormFields look the same as
+      // the boxed fields.
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: p.surface1,
+        fillColor: p.bg,
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: p.border),
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(color: p.borderStrong, width: 1.2),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: p.border),
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(color: p.borderStrong, width: 1.2),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: p.blue, width: 1.5),
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(color: p.blue, width: 1.6),
         ),
-        hintStyle: GoogleFonts.inter(color: p.textDim, fontSize: 13),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(color: p.statusCritical, width: 1.2),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(color: p.statusCritical, width: 1.6),
+        ),
+        labelStyle: TextStyle(fontFamily: 'TildaSans', fontSize: 13, color: p.textMute),
+        hintStyle: TextStyle(fontFamily: 'TildaSans', fontSize: 14, color: p.textDim),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       ),
       scrollbarTheme: ScrollbarThemeData(
         thumbColor: WidgetStateProperty.all(p.border),
@@ -305,6 +317,13 @@ class AppTheme {
   // default rather than the active palette, which read fine by luck on dark
   // themes and was invisible (light text on a light menu) on light ones.
   static TextStyle get bodySm => TextStyle(fontFamily: 'TildaSans', fontSize: 12.5, color: pal.text);
+
+  // Text-entry fields — one definition for every field in the app (the
+  // look the Settings profile form set: sentence-case label above, 14px
+  // input). See FieldFocusBox / LabeledTextField / AppTextField.
+  static TextStyle get fieldLabel => TextStyle(fontFamily: 'TildaSans', fontSize: 13, fontWeight: FontWeight.w400, color: pal.textMute);
+  static TextStyle get fieldText => TextStyle(fontFamily: 'TildaSans', fontSize: 14, fontWeight: FontWeight.w400, color: pal.text);
+  static TextStyle get fieldHint => TextStyle(fontFamily: 'TildaSans', fontSize: 14, fontWeight: FontWeight.w400, color: pal.textDim);
   static TextStyle get bodySub => TextStyle(
     fontFamily: 'TildaSans',
     fontSize: 11.5, color: pal.textMute,

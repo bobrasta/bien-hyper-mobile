@@ -16,6 +16,7 @@ import '../../widgets/common/app_button.dart';
 import '../../widgets/common/app_dropdown.dart';
 import '../../widgets/common/error_view.dart';
 import '../../widgets/common/shimmer_box.dart';
+import '../../widgets/common/labeled_field.dart' show FieldFocusBox;
 
 class StockMovementsScreen extends StatefulWidget {
   const StockMovementsScreen({super.key});
@@ -347,7 +348,7 @@ class _RecordMovementModalState extends State<_RecordMovementModal> {
                 ),
                 const SizedBox(height: 12),
                 // Location picker
-                Text(_isTransfer ? 'FROM LOCATION' : 'LOCATION', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+                Text(_isTransfer ? 'From location' : 'Location', style: AppTheme.fieldLabel),
                 const SizedBox(height: 6),
                 Container(
                   decoration: BoxDecoration(color: context.pal.surface2,
@@ -370,7 +371,7 @@ class _RecordMovementModalState extends State<_RecordMovementModal> {
                 ),
                 if (_isTransfer) ...[
                   const SizedBox(height: 12),
-                  Text('TO LOCATION', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+                  Text('To location', style: AppTheme.fieldLabel),
                   const SizedBox(height: 6),
                   Container(
                     decoration: BoxDecoration(color: context.pal.surface2,
@@ -393,7 +394,7 @@ class _RecordMovementModalState extends State<_RecordMovementModal> {
                 // Type + qty row
                 Row(children: [
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('TYPE', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+                    Text('Type', style: AppTheme.fieldLabel),
                     const SizedBox(height: 6),
                     Container(
                       decoration: BoxDecoration(color: context.pal.surface2,
@@ -413,37 +414,25 @@ class _RecordMovementModalState extends State<_RecordMovementModal> {
                   ])),
                   const SizedBox(width: 14),
                   SizedBox(width: 100, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('QUANTITY', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+                    Text('Quantity', style: AppTheme.fieldLabel),
                     const SizedBox(height: 6),
-                    Container(
-                      decoration: BoxDecoration(color: context.pal.surface2,
-                          borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                      child: TextField(
-                        controller: _qtyCtrl, keyboardType: TextInputType.number,
-                        style: AppTheme.bodySm,
+                    FieldFocusBox(builder: (context, focusNode) => TextField(focusNode: focusNode, controller: _qtyCtrl, keyboardType: TextInputType.number,
+                        style: AppTheme.fieldText,
                         decoration: InputDecoration(hintText: '1',
-                            hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
+                            hintStyle: AppTheme.fieldText.copyWith(color: context.pal.textDim),
                             border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero),
-                      ),
-                    ),
+                      ),),
                   ])),
                 ]),
                 const SizedBox(height: 12),
-                Text(_needsApproval ? 'REASON (REQUIRED)' : 'NOTES', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+                Text(_needsApproval ? 'Reason (required)' : 'Notes', style: AppTheme.fieldLabel),
                 const SizedBox(height: 6),
-                Container(
-                  decoration: BoxDecoration(color: context.pal.surface2,
-                      borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                  child: TextField(
-                    controller: _notesCtrl, style: AppTheme.bodySm,
+                FieldFocusBox(builder: (context, focusNode) => TextField(focusNode: focusNode, controller: _notesCtrl, style: AppTheme.fieldText,
                     decoration: InputDecoration(
                         hintText: _needsApproval ? 'Why is this stock leaving the store?' : 'Optional reason or reference',
-                        hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
+                        hintStyle: AppTheme.fieldText.copyWith(color: context.pal.textDim),
                         border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero),
-                  ),
-                ),
+                  ),),
                 if (_needsApproval) ...[
                   const SizedBox(height: 8),
                   Container(

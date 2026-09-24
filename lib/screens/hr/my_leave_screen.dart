@@ -10,6 +10,7 @@ import '../../utils/api_error.dart';
 import '../../utils/format.dart';
 import '../../widgets/common/app_button.dart';
 import '../../widgets/common/error_view.dart';
+import '../../widgets/common/labeled_field.dart' show FieldFocusBox;
 
 class MyLeaveScreen extends StatefulWidget {
   const MyLeaveScreen({super.key});
@@ -331,7 +332,7 @@ class _RequestLeaveDialogState extends State<_RequestLeaveDialog> {
                   ),
                 ],
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('LEAVE TYPE', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+                  Text('Leave type', style: AppTheme.fieldLabel),
                   const SizedBox(height: 6),
                   Container(
                     decoration: BoxDecoration(color: context.pal.surface2, borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
@@ -365,15 +366,10 @@ class _RequestLeaveDialogState extends State<_RequestLeaveDialog> {
                 )),
                 const SizedBox(height: 10),
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('REASON (OPTIONAL)', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+                  Text('Reason (optional)', style: AppTheme.fieldLabel),
                   const SizedBox(height: 6),
-                  Container(
-                    height: 70,
-                    decoration: BoxDecoration(color: context.pal.surface2, borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                    child: TextField(controller: _reasonCtrl, maxLines: null, expands: true, style: AppTheme.bodySm,
-                        decoration: const InputDecoration(border: InputBorder.none, isDense: true, hintText: 'Any details HR should know—')),
-                  ),
+                  FieldFocusBox(height: 70, builder: (context, focusNode) => TextField(focusNode: focusNode, controller: _reasonCtrl, maxLines: null, expands: true, style: AppTheme.fieldText,
+                        decoration: const InputDecoration(border: InputBorder.none, contentPadding: EdgeInsets.zero, isDense: true, hintText: 'Any details HR should know—')),),
                 ]),
               ]),
             ),
@@ -408,7 +404,7 @@ class _DateField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Text(label, style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+    Text(label, style: AppTheme.fieldLabel),
     const SizedBox(height: 6),
     GestureDetector(
       onTap: onTap,
@@ -488,26 +484,17 @@ class _RunningLateDialogState extends State<_RunningLateDialog> {
               padding: const EdgeInsets.all(20),
               child: Column(children: [
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('EXPECTED ARRIVAL (OPTIONAL)', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+                  Text('Expected arrival (optional)', style: AppTheme.fieldLabel),
                   const SizedBox(height: 6),
-                  Container(
-                    decoration: BoxDecoration(color: context.pal.surface2, borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                    child: TextField(controller: _timeCtrl, style: AppTheme.bodySm,
-                        decoration: const InputDecoration(border: InputBorder.none, isDense: true, hintText: 'e.g. 9:30am')),
-                  ),
+                  FieldFocusBox(builder: (context, focusNode) => TextField(focusNode: focusNode, controller: _timeCtrl, style: AppTheme.fieldText,
+                        decoration: const InputDecoration(border: InputBorder.none, contentPadding: EdgeInsets.zero, isDense: true, hintText: 'e.g. 9:30am')),),
                 ]),
                 const SizedBox(height: 14),
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('REASON (OPTIONAL)', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+                  Text('Reason (optional)', style: AppTheme.fieldLabel),
                   const SizedBox(height: 6),
-                  Container(
-                    height: 70,
-                    decoration: BoxDecoration(color: context.pal.surface2, borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                    child: TextField(controller: _reasonCtrl, maxLines: null, expands: true, style: AppTheme.bodySm,
-                        decoration: const InputDecoration(border: InputBorder.none, isDense: true, hintText: 'e.g. Traffic, appointment—')),
-                  ),
+                  FieldFocusBox(height: 70, builder: (context, focusNode) => TextField(focusNode: focusNode, controller: _reasonCtrl, maxLines: null, expands: true, style: AppTheme.fieldText,
+                        decoration: const InputDecoration(border: InputBorder.none, contentPadding: EdgeInsets.zero, isDense: true, hintText: 'e.g. Traffic, appointment—')),),
                 ]),
               ]),
             ),

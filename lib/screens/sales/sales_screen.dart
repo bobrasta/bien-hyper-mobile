@@ -479,7 +479,7 @@ class _LeadEditDialogState extends State<_LeadEditDialog> {
             onChanged: (v) => setState(() => _stage = v)),
         const SizedBox(height: 14),
 
-        Text('SALES REP', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+        Text('Sales rep', style: AppTheme.fieldLabel),
         const SizedBox(height: 6),
         Container(
           decoration: BoxDecoration(color: context.pal.surface2,
@@ -502,7 +502,7 @@ class _LeadEditDialogState extends State<_LeadEditDialog> {
         ),
         const SizedBox(height: 14),
 
-        Text('FOLLOW-UP DATE', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+        Text('Follow-up date', style: AppTheme.fieldLabel),
         const SizedBox(height: 6),
         GestureDetector(
           onTap: () async {
@@ -689,7 +689,7 @@ class _NewDealDialogState extends State<_NewDealDialog> {
                   const SizedBox(width: 14),
                   Expanded(
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text('SALES REP', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+                      Text('Sales rep', style: AppTheme.fieldLabel),
                       const SizedBox(height: 6),
                       Container(
                         decoration: BoxDecoration(color: context.pal.surface2,
@@ -727,7 +727,7 @@ class _NewDealDialogState extends State<_NewDealDialog> {
                 ]),
                 const SizedBox(height: 14),
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('FOLLOW-UP DATE (OPTIONAL)', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+                  Text('Follow-up date (optional)', style: AppTheme.fieldLabel),
                   const SizedBox(height: 6),
                   GestureDetector(
                     onTap: () async {
@@ -799,14 +799,14 @@ class _SField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Text(label, style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+    Text(label, style: AppTheme.fieldLabel),
     const SizedBox(height: 6),
     FieldFocusBox(
       builder: (context, focusNode) => TextField(controller: ctrl, focusNode: focusNode,
         keyboardType: numeric ? TextInputType.number : TextInputType.text,
-        style: AppTheme.bodySm,
+        style: AppTheme.fieldText,
         decoration: InputDecoration(hintText: hint,
-            hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
+            hintStyle: AppTheme.fieldText.copyWith(color: context.pal.textDim),
             border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero)),
     ),
   ]);
@@ -822,7 +822,7 @@ class _SDrop extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Text(label, style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+    Text(label, style: AppTheme.fieldLabel),
     const SizedBox(height: 6),
     Container(
       decoration: BoxDecoration(color: context.pal.surface2,

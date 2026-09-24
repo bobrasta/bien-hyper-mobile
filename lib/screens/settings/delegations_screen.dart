@@ -9,6 +9,7 @@ import '../../theme/app_palette.dart';
 import '../../utils/api_error.dart';
 import '../../utils/format.dart';
 import '../../widgets/common/error_view.dart';
+import '../../widgets/common/labeled_field.dart' show FieldFocusBox;
 
 // Lets a Director temporarily hand their approval authority (finance,
 // payroll, credit notes, vendor bills, salary adjustments — everywhere
@@ -221,7 +222,7 @@ class _NewDelegationDialogState extends State<_NewDelegationDialog> {
     content: SizedBox(width: 360, child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
       if (_error != null) Padding(padding: const EdgeInsets.only(bottom: 10),
           child: Text(_error!, style: TextStyle(color: AppColors.coral, fontSize: 12))),
-      Text('DELEGATE TO', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+      Text('Delegate to', style: AppTheme.fieldLabel),
       const SizedBox(height: 6),
       Container(
         decoration: BoxDecoration(color: context.pal.surface2, borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
@@ -241,14 +242,10 @@ class _NewDelegationDialogState extends State<_NewDelegationDialog> {
         Expanded(child: _dateField(context, 'Ends', _endsAt, () => _pickDate(false))),
       ]),
       const SizedBox(height: 12),
-      Text('REASON (OPTIONAL)', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+      Text('Reason (optional)', style: AppTheme.fieldLabel),
       const SizedBox(height: 6),
-      Container(
-        decoration: BoxDecoration(color: context.pal.surface2, borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-        child: TextField(controller: _reasonCtrl, style: AppTheme.bodySm, maxLines: 2,
-            decoration: const InputDecoration(border: InputBorder.none, isDense: true, hintText: 'e.g. Annual leave 12–19 Sep')),
-      ),
+      FieldFocusBox(builder: (context, focusNode) => TextField(focusNode: focusNode, controller: _reasonCtrl, style: AppTheme.fieldText, maxLines: 2,
+            decoration: const InputDecoration(border: InputBorder.none, contentPadding: EdgeInsets.zero, isDense: true, hintText: 'e.g. Annual leave 12–19 Sep')),),
     ])),
     actions: [
       TextButton(onPressed: _saving ? null : () => Navigator.of(context).pop(false), child: const Text('Cancel')),
@@ -258,7 +255,7 @@ class _NewDelegationDialogState extends State<_NewDelegationDialog> {
   );
 
   Widget _dateField(BuildContext context, String label, DateTime date, VoidCallback onTap) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Text(label, style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+    Text(label, style: AppTheme.fieldLabel),
     const SizedBox(height: 6),
     GestureDetector(
       onTap: onTap,

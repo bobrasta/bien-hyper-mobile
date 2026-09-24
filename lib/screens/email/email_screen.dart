@@ -796,18 +796,18 @@ class _AccountDialogState extends State<_AccountDialog> {
   Widget _aField(String label, TextEditingController ctrl, String hint,
       {bool obscure = false, void Function(String)? onChanged}) =>
     Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(label, style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+      Text(label, style: AppTheme.fieldLabel),
       const SizedBox(height: 5),
       FieldFocusBox(
         builder: (context, focusNode) => TextField(
           controller: ctrl,
           focusNode: focusNode,
           obscureText: obscure,
-          style: AppTheme.bodySm,
+          style: AppTheme.fieldText,
           onChanged: onChanged,
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
+            hintStyle: AppTheme.fieldText.copyWith(color: context.pal.textDim),
             border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero),
         ),
       ),
@@ -1166,19 +1166,13 @@ class _ForwardDialogState extends State<_ForwardDialog> {
         _fField('To', _toCtrl, 'recipient@example.com', context),
         const SizedBox(height: 12),
         Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('NOTE', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+          Text('Note', style: AppTheme.fieldLabel),
           const SizedBox(height: 6),
-          Container(
-            height: 80,
-            decoration: BoxDecoration(color: context.pal.surface2,
-                borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-            child: TextField(controller: _bodyCtrl, maxLines: null, expands: true,
-              style: AppTheme.bodySm,
+          FieldFocusBox(height: 80, builder: (context, focusNode) => TextField(focusNode: focusNode, controller: _bodyCtrl, maxLines: null, expands: true,
+              style: AppTheme.fieldText,
               decoration: InputDecoration(hintText: 'Add a note (optional)…',
-                  hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
-                  border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero)),
-          ),
+                  hintStyle: AppTheme.fieldText.copyWith(color: context.pal.textDim),
+                  border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero)),),
         ]),
         if (_error != null) ...[
           const SizedBox(height: 8),
@@ -1206,13 +1200,12 @@ class _ForwardDialogState extends State<_ForwardDialog> {
 
   Widget _fField(String label, TextEditingController ctrl, String hint, BuildContext ctx) =>
     Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(label, style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+      Text(label, style: AppTheme.fieldLabel),
       const SizedBox(height: 6),
       FieldFocusBox(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        builder: (context, focusNode) => TextField(controller: ctrl, focusNode: focusNode, style: AppTheme.bodySm,
+        builder: (context, focusNode) => TextField(controller: ctrl, focusNode: focusNode, style: AppTheme.fieldText,
           decoration: InputDecoration(hintText: hint,
-              hintStyle: AppTheme.bodySm.copyWith(color: ctx.pal.textDim),
+              hintStyle: AppTheme.fieldText.copyWith(color: ctx.pal.textDim),
               border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero)),
       ),
     ]);

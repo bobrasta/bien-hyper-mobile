@@ -918,25 +918,16 @@ class _NotesContentState extends State<_NotesContent> {
             onPressed: _saving ? null : _save),
       ]),
       const SizedBox(height: 14),
-      Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: context.pal.surface1,
-          borderRadius: BorderRadius.circular(AppColors.rLg),
-          border: Border.all(color: context.pal.border),
-        ),
-        child: TextField(
-          controller: _controller,
+      FieldFocusBox(builder: (context, focusNode) => TextField(focusNode: focusNode, controller: _controller,
           maxLines: null,
           minLines: 12,
-          style: AppTheme.bodySm.copyWith(height: 1.7),
+          style: AppTheme.fieldText.copyWith(height: 1.7),
           decoration: InputDecoration(
             hintText: 'Add notes about this machine—',
-            hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
-            border: InputBorder.none,
+            hintStyle: AppTheme.fieldText.copyWith(color: context.pal.textDim),
+            border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero,
           ),
-        ),
-      ),
+        ),),
     ]);
   }
 }
@@ -949,12 +940,12 @@ class _MField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Text(label, style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+    Text(label, style: AppTheme.fieldLabel),
     const SizedBox(height: 6),
     FieldFocusBox(
-      builder: (context, focusNode) => TextField(controller: ctrl, focusNode: focusNode, style: AppTheme.bodySm,
+      builder: (context, focusNode) => TextField(controller: ctrl, focusNode: focusNode, style: AppTheme.fieldText,
         decoration: InputDecoration(hintText: hint,
-            hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
+            hintStyle: AppTheme.fieldText.copyWith(color: context.pal.textDim),
             border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero)),
     ),
   ]);
@@ -963,7 +954,7 @@ class _MField extends StatelessWidget {
 Widget _mLoadingField(String label) => Builder(builder: (context) => Column(
   crossAxisAlignment: CrossAxisAlignment.start,
   children: [
-    Text(label, style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+    Text(label, style: AppTheme.fieldLabel),
     const SizedBox(height: 6),
     Container(
       height: 38,
@@ -985,7 +976,7 @@ class _MDrop extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Text(label, style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+    Text(label, style: AppTheme.fieldLabel),
     const SizedBox(height: 6),
     Container(
       decoration: BoxDecoration(color: context.pal.surface2,
@@ -1336,19 +1327,13 @@ class _LogServiceDialogState extends State<_LogServiceDialog> {
       ]),
       const SizedBox(height: 14),
       Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('ISSUE / WORK DONE', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+        Text('Issue / work done', style: AppTheme.fieldLabel),
         const SizedBox(height: 6),
-        Container(
-          height: 72,
-          decoration: BoxDecoration(color: context.pal.surface2,
-              borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-          child: TextField(controller: _issueCtrl, maxLines: null, expands: true,
-            style: AppTheme.bodySm,
+        FieldFocusBox(height: 72, builder: (context, focusNode) => TextField(focusNode: focusNode, controller: _issueCtrl, maxLines: null, expands: true,
+            style: AppTheme.fieldText,
             decoration: InputDecoration(hintText: 'Describe the work performed—',
-                hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
-                border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero)),
-        ),
+                hintStyle: AppTheme.fieldText.copyWith(color: context.pal.textDim),
+                border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero)),),
       ]),
       const SizedBox(height: 14),
       _MField('Next service date', _dateCtrl, 'YYYY-MM-DD'),
@@ -1484,19 +1469,13 @@ class _RaiseTicketDialogState extends State<_RaiseTicketDialog> {
           ),
       const SizedBox(height: 14),
       Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('DESCRIPTION', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+        Text('Description', style: AppTheme.fieldLabel),
         const SizedBox(height: 6),
-        Container(
-          height: 80,
-          decoration: BoxDecoration(color: context.pal.surface2,
-              borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-          child: TextField(controller: _descCtrl, maxLines: null, expands: true,
-            style: AppTheme.bodySm,
+        FieldFocusBox(height: 80, builder: (context, focusNode) => TextField(focusNode: focusNode, controller: _descCtrl, maxLines: null, expands: true,
+            style: AppTheme.fieldText,
             decoration: InputDecoration(hintText: 'Describe the fault or required work—',
-                hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
-                border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero)),
-        ),
+                hintStyle: AppTheme.fieldText.copyWith(color: context.pal.textDim),
+                border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero)),),
       ]),
       if (_error != null) ...[
         const SizedBox(height: 10),
@@ -1618,23 +1597,14 @@ class _EditSpecsDialogState extends State<_EditSpecsDialog> {
   );
 
   Widget _specField(TextEditingController ctrl, String hint, BuildContext context) =>
-    Container(
-      decoration: BoxDecoration(
-        color: context.pal.surface2,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: context.pal.border),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      child: TextField(
-        controller: ctrl,
-        style: AppTheme.bodySm,
+    FieldFocusBox(builder: (context, focusNode) => TextField(focusNode: focusNode, controller: ctrl,
+        style: AppTheme.fieldText,
         decoration: InputDecoration(
           hintText: hint,
-          hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
+          hintStyle: AppTheme.fieldText.copyWith(color: context.pal.textDim),
           border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero,
         ),
-      ),
-    );
+      ),);
 }
 
 class _SpecEntry {

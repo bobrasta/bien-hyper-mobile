@@ -3136,7 +3136,7 @@ class _AddPartDialogState extends State<_AddPartDialog> {
         child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
           // Part selector
           Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('SPARE PART', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+            Text('Spare part', style: AppTheme.fieldLabel),
             const SizedBox(height: 6),
             _loadingParts
               ? Container(
@@ -3250,7 +3250,7 @@ class _AddPartDialogState extends State<_AddPartDialog> {
               Text('Select a part above first.', style: AppTheme.bodySub.copyWith(color: AppColors.amber, fontSize: 12))
             else ...[
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('SOURCE MACHINE', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+                Text('Source machine', style: AppTheme.fieldLabel),
                 const SizedBox(height: 6),
                 _loadingMachines
                   ? Container(
@@ -3479,7 +3479,7 @@ class _EditTicketDialogState extends State<_EditTicketDialog> {
         // Technician dropdown —reassignment is CTO/Director-only, mirroring
         // ServiceTicketController::update()'s hasCtoApprovalAuthority() gate.
         Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('ASSIGN TECHNICIAN', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+          Text('Assign technician', style: AppTheme.fieldLabel),
           const SizedBox(height: 6),
           !hasCtoApprovalAuthority(userRoleNotifier.value)
             ? Container(
@@ -3522,7 +3522,7 @@ class _EditTicketDialogState extends State<_EditTicketDialog> {
         ]),
         const SizedBox(height: 12),
         Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('STATUS', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+          Text('Status', style: AppTheme.fieldLabel),
           const SizedBox(height: 6),
           Container(
             decoration: BoxDecoration(color: context.pal.surface2,
