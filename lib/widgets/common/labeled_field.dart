@@ -1,16 +1,89 @@
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
+import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_palette.dart';
 import '../../utils/format.dart';
 
+/// The shared focus-reactive box every text-entry field sits in: a
+/// `surface2` container whose border lights up teal (with the same
+/// `tealGlow` shadow used for the sidebar's active-item glow elsewhere)
+/// while the field inside it has focus, and relaxes back to a plain
+/// `border` outline otherwise. One place owns the FocusNode + listener so
+/// every field call site just does `FieldFocusBox(builder: (focusNode) =>
+/// TextField(focusNode: focusNode, ...))` instead of re-implementing focus
+/// tracking per screen.
+class FieldFocusBox extends StatefulWidget {
+  const FieldFocusBox({
+    super.key,
+    required this.builder,
+    this.minHeight = 38,
+    this.enabled = true,
+    this.alignment,
+    this.padding = const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+    this.hasError = false,
+    this.radius = 8,
+  });
+
+  final Widget Function(BuildContext context, FocusNode focusNode) builder;
+  final double minHeight;
+  final bool enabled;
+  final Alignment? alignment;
+  final EdgeInsetsGeometry padding;
+  // A validation error always wins the border color, focused or not — the
+  // user needs to see what's wrong before the field looks "fine" again.
+  final bool hasError;
+  final double radius;
+
+  @override
+  State<FieldFocusBox> createState() => _FieldFocusBoxState();
+}
+
+class _FieldFocusBoxState extends State<FieldFocusBox> {
+  final _focusNode = FocusNode();
+  bool _focused = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _focusNode.addListener(() {
+      if (_focused != _focusNode.hasFocus) setState(() => _focused = _focusNode.hasFocus);
+    });
+  }
+
+  @override
+  void dispose() {
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AnimatedContainer(
+    duration: const Duration(milliseconds: 120),
+    constraints: BoxConstraints(minHeight: widget.minHeight),
+    decoration: BoxDecoration(
+      color: widget.enabled ? context.pal.surface2 : context.pal.surface3,
+      borderRadius: BorderRadius.circular(widget.radius),
+      border: Border.all(
+        color: widget.hasError ? AppColors.coral : (_focused ? AppColors.teal : context.pal.border),
+        width: _focused || widget.hasError ? 1.4 : 1,
+      ),
+      boxShadow: !widget.hasError && _focused ? [BoxShadow(color: AppColors.tealGlow, blurRadius: 8)] : null,
+    ),
+    padding: widget.padding,
+    alignment: widget.alignment,
+    child: widget.builder(context, _focusNode),
+  );
+}
+
 /// The established boxed-field look used throughout the app (see
 /// `_SettingsField` in settings_screen.dart, the inline fields in
-/// `_RequestLeaveDialog`/`_PaymentModal`): uppercase label above, a
-/// `surface2` box with a `border` outline, no Material floating label.
-/// Extracted here as a shared, public widget so every dialog looks and
-/// behaves the same instead of re-implementing it (or drifting from it —
-/// see feedback_dont_relabel_reuse_screens for why that matters).
+/// `_RequestLeaveDialog`/`_PaymentModal`): sentence-case label above, a
+/// `surface2` box with a `border` outline (teal + glow while focused), no
+/// Material floating label. Extracted here as a shared, public widget so
+/// every dialog looks and behaves the same instead of re-implementing it
+/// (or drifting from it — see feedback_dont_relabel_reuse_screens for why
+/// that matters).
 class LabeledTextField extends StatelessWidget {
   const LabeledTextField({
     super.key,
@@ -34,20 +107,16 @@ class LabeledTextField extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
     if (label.isNotEmpty) ...[
-      Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+      Text(label, style: AppTheme.labelCaps.copyWith(fontSize: 10)),
       const SizedBox(height: 6),
     ],
-    Container(
-      constraints: BoxConstraints(minHeight: maxLines > 1 ? 56 : 38),
-      decoration: BoxDecoration(
-        color: enabled ? context.pal.surface2 : context.pal.surface3,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: context.pal.border),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+    FieldFocusBox(
+      minHeight: maxLines > 1 ? 56 : 38,
+      enabled: enabled,
       alignment: maxLines > 1 ? null : Alignment.centerLeft,
-      child: TextField(
+      builder: (context, focusNode) => TextField(
         controller: controller,
+        focusNode: focusNode,
         obscureText: obscure,
         maxLines: maxLines,
         keyboardType: keyboardType,
@@ -92,7 +161,7 @@ class LabeledDropdown<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+    Text(label, style: AppTheme.labelCaps.copyWith(fontSize: 10)),
     const SizedBox(height: 6),
     Container(
       decoration: BoxDecoration(
@@ -126,7 +195,7 @@ class LabeledDateField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+    Text(label, style: AppTheme.labelCaps.copyWith(fontSize: 10)),
     const SizedBox(height: 6),
     GestureDetector(
       onTap: onTap,
@@ -154,7 +223,7 @@ class LabeledStaticField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+    Text(label, style: AppTheme.labelCaps.copyWith(fontSize: 10)),
     const SizedBox(height: 6),
     Container(
       height: 38,

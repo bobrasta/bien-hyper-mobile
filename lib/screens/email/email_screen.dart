@@ -9,6 +9,7 @@ import '../../theme/app_theme.dart';
 import '../../utils/api_error.dart';
 import '../../widgets/common/avatar_widget.dart';
 import '../../widgets/common/error_view.dart';
+import '../../widgets/common/labeled_field.dart' show FieldFocusBox;
 import '../../widgets/email/compose_modal.dart';
 import '../../theme/app_palette.dart';
 
@@ -795,14 +796,12 @@ class _AccountDialogState extends State<_AccountDialog> {
   Widget _aField(String label, TextEditingController ctrl, String hint,
       {bool obscure = false, void Function(String)? onChanged}) =>
     Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+      Text(label, style: AppTheme.labelCaps.copyWith(fontSize: 10)),
       const SizedBox(height: 5),
-      Container(
-        decoration: BoxDecoration(color: context.pal.surface2,
-            borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-        child: TextField(
+      FieldFocusBox(
+        builder: (context, focusNode) => TextField(
           controller: ctrl,
+          focusNode: focusNode,
           obscureText: obscure,
           style: AppTheme.bodySm,
           onChanged: onChanged,
@@ -1207,16 +1206,15 @@ class _ForwardDialogState extends State<_ForwardDialog> {
 
   Widget _fField(String label, TextEditingController ctrl, String hint, BuildContext ctx) =>
     Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+      Text(label, style: AppTheme.labelCaps.copyWith(fontSize: 10)),
       const SizedBox(height: 6),
-      Container(
-        decoration: BoxDecoration(color: ctx.pal.surface2,
-            borderRadius: BorderRadius.circular(8), border: Border.all(color: ctx.pal.border)),
+      FieldFocusBox(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        child: TextField(controller: ctrl, style: AppTheme.bodySm,
+        builder: (context, focusNode) => TextField(controller: ctrl, focusNode: focusNode, style: AppTheme.bodySm,
           decoration: InputDecoration(hintText: hint,
               hintStyle: AppTheme.bodySm.copyWith(color: ctx.pal.textDim),
-              border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero))),
+              border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero)),
+      ),
     ]);
 }
 

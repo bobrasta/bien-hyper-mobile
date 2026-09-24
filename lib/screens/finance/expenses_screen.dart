@@ -11,6 +11,7 @@ import '../../utils/api_error.dart';
 import '../../utils/format.dart';
 import '../../widgets/common/app_dropdown.dart';
 import '../../widgets/common/error_view.dart';
+import '../../widgets/common/labeled_field.dart' show FieldFocusBox;
 
 const _categoryIcons = <String, IconData>{
   'Salaries & Wages': Symbols.groups,
@@ -474,7 +475,7 @@ class _NewExpenseDialogState extends State<_NewExpenseDialog> {
                     child: Text(_error!, style: TextStyle(color: AppColors.coral, fontSize: 12)),
                   ),
                 ],
-                _LabeledField('Description', TextField(controller: _nameCtrl, style: AppTheme.bodySm,
+                _LabeledField('Description', (focusNode) => TextField(controller: _nameCtrl, focusNode: focusNode, style: AppTheme.bodySm,
                     decoration: const InputDecoration(border: InputBorder.none, isDense: true, hintText: 'e.g. Office rent'))),
                 const SizedBox(height: 14),
                 Row(children: [
@@ -498,7 +499,7 @@ class _NewExpenseDialogState extends State<_NewExpenseDialog> {
                 ]),
                 const SizedBox(height: 14),
                 Row(children: [
-                  Expanded(child: _LabeledField('Amount (TSh, excl. VAT)', TextField(controller: _amountCtrl,
+                  Expanded(child: _LabeledField('Amount (TSh, excl. VAT)', (focusNode) => TextField(controller: _amountCtrl, focusNode: focusNode,
                       keyboardType: TextInputType.number, style: AppTheme.bodySm,
                       decoration: const InputDecoration(border: InputBorder.none, isDense: true, hintText: '0')))),
                   const SizedBox(width: 14),
@@ -515,7 +516,7 @@ class _NewExpenseDialogState extends State<_NewExpenseDialog> {
                   )),
                 ]),
                 const SizedBox(height: 14),
-                _LabeledField('Reference (optional)', TextField(controller: _refCtrl, style: AppTheme.bodySm,
+                _LabeledField('Reference (optional)', (focusNode) => TextField(controller: _refCtrl, focusNode: focusNode, style: AppTheme.bodySm,
                     decoration: const InputDecoration(border: InputBorder.none, isDense: true, hintText: 'Receipt / invoice no.'))),
                 const SizedBox(height: 10),
                 Row(children: [
@@ -575,19 +576,15 @@ class _NewExpenseDialogState extends State<_NewExpenseDialog> {
 }
 
 class _LabeledField extends StatelessWidget {
-  const _LabeledField(this.label, this.field);
+  const _LabeledField(this.label, this.fieldBuilder);
   final String label;
-  final Widget field;
+  final Widget Function(FocusNode focusNode) fieldBuilder;
 
   @override
   Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+    Text(label, style: AppTheme.labelCaps.copyWith(fontSize: 10)),
     const SizedBox(height: 6),
-    Container(
-      decoration: BoxDecoration(color: context.pal.surface2, borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      child: field,
-    ),
+    FieldFocusBox(builder: (context, focusNode) => fieldBuilder(focusNode)),
   ]);
 }
 
@@ -600,7 +597,7 @@ class _LabeledDropdown<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+    Text(label, style: AppTheme.labelCaps.copyWith(fontSize: 10)),
     const SizedBox(height: 6),
     Container(
       decoration: BoxDecoration(color: context.pal.surface2, borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),

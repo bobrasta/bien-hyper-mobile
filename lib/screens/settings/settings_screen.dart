@@ -26,6 +26,7 @@ import '../../utils/responsive.dart';
 import '../../widgets/common/app_button.dart';
 import '../../widgets/common/app_dropdown.dart';
 import '../../widgets/common/avatar_widget.dart';
+import '../../widgets/common/labeled_field.dart' show FieldFocusBox;
 import '../../theme/app_palette.dart';
 
 // e.g. 'sales_manager' -> 'Sales Manager' —shared by the Roles tab and the
@@ -53,6 +54,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final _nameCtrl      = TextEditingController();
   final _emailCtrl     = TextEditingController();
   final _phoneCtrl     = TextEditingController();
+  final _bioCtrl       = TextEditingController();
+  final _newQualCtrl   = TextEditingController();
+  List<String> _qualifications = [];
   final _oldPwCtrl     = TextEditingController();
   final _newPwCtrl     = TextEditingController();
   final _confirmPwCtrl = TextEditingController();
@@ -162,6 +166,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _region = cachedProfile['region'] as String?;
       _zone = cachedProfile['zone'] as String?;
       _hireDate = cachedProfile['hire_date'] as String?;
+      _bioCtrl.text = cachedProfile['bio'] as String? ?? '';
+      _qualifications = ((cachedProfile['qualifications'] as List?) ?? []).cast<String>();
       final cachedPaymentProfile = cachedProfile['payment_profile'] as Map<String, dynamic>?;
       if (cachedPaymentProfile != null) {
         _paymentProviderCtrl.text      = cachedPaymentProfile['provider'] as String? ?? '';
@@ -360,6 +366,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   void dispose() {
     _nameCtrl.dispose(); _emailCtrl.dispose(); _phoneCtrl.dispose();
+    _bioCtrl.dispose(); _newQualCtrl.dispose();
     _oldPwCtrl.dispose(); _newPwCtrl.dispose(); _confirmPwCtrl.dispose();
     _paymentProviderCtrl.dispose(); _paymentAccountNumberCtrl.dispose(); _paymentAccountNameCtrl.dispose();
     _thresholdCtrl.dispose();
@@ -386,6 +393,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _region = profile['region'] as String?;
             _zone = profile['zone'] as String?;
             _hireDate = profile['hire_date'] as String?;
+            _bioCtrl.text = profile['bio'] as String? ?? '';
+            _qualifications = ((profile['qualifications'] as List?) ?? []).cast<String>();
             final paymentProfile = profile['payment_profile'] as Map<String, dynamic>?;
             if (paymentProfile != null) {
               _paymentProviderCtrl.text      = paymentProfile['provider'] as String? ?? '';
@@ -426,6 +435,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
         'name':  _nameCtrl.text.trim(),
         'email': _emailCtrl.text.trim(),
         'phone': _phoneCtrl.text.trim(),
+        'bio':   _bioCtrl.text.trim().isEmpty ? null : _bioCtrl.text.trim(),
+        'qualifications': _qualifications,
       });
       await AuthService.instance.updateStoredName(_nameCtrl.text.trim());
       userNameNotifier.value = _nameCtrl.text.trim();
@@ -433,6 +444,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
     } catch (e) {
       if (mounted) setState(() { _savingProfile = false; _profileMsg = 'Update failed.'; });
     }
+  }
+
+  void _addQualification() {
+    final v = _newQualCtrl.text.trim();
+    if (v.isEmpty || _qualifications.length >= 12 || _qualifications.contains(v)) return;
+    setState(() { _qualifications = [..._qualifications, v]; _newQualCtrl.clear(); });
+  }
+
+  void _removeQualification(String q) {
+    setState(() => _qualifications = _qualifications.where((x) => x != q).toList());
   }
 
   Future<void> _pickAndUploadAvatar() async {
@@ -754,6 +775,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ]),
         ),
+        if (_bioCtrl.text.trim().isNotEmpty || _qualifications.isNotEmpty) ...[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              if (_bioCtrl.text.trim().isNotEmpty) ...[
+                Text(_bioCtrl.text.trim(), style: AppTheme.bodySm.copyWith(color: context.pal.textMute, height: 1.4)),
+                if (_qualifications.isNotEmpty) const SizedBox(height: 10),
+              ],
+              if (_qualifications.isNotEmpty)
+                Wrap(spacing: 6, runSpacing: 6, children: [
+                  for (final q in _qualifications)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                      decoration: BoxDecoration(color: context.pal.surface2, borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: context.pal.border)),
+                      child: Text(q, style: AppTheme.bodySub.copyWith(fontSize: 11, color: context.pal.textMute)),
+                    ),
+                ]),
+            ]),
+          ),
+        ],
         if (stats.isNotEmpty) ...[
           Container(height: 1, color: context.pal.border),
           Padding(
@@ -831,6 +873,48 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ]),
             const SizedBox(height: 14),
             _SettingsField(label: 'Work Email', ctrl: _emailCtrl, hint: 'your@email.com'),
+            const SizedBox(height: 14),
+            _SettingsField(label: 'Bio', ctrl: _bioCtrl, maxLines: 3,
+                hint: 'A short line about your background — shown on your profile card.'),
+            const SizedBox(height: 14),
+            Text('Qualifications', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+            const SizedBox(height: 6),
+            Wrap(spacing: 6, runSpacing: 6, children: [
+              for (final q in _qualifications)
+                Container(
+                  padding: const EdgeInsets.only(left: 9, right: 4, top: 4, bottom: 4),
+                  decoration: BoxDecoration(color: context.pal.surface2, borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: context.pal.border)),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Text(q, style: AppTheme.bodySub.copyWith(fontSize: 11.5, color: context.pal.text)),
+                    const SizedBox(width: 4),
+                    GestureDetector(
+                      onTap: () => _removeQualification(q),
+                      child: Icon(Symbols.close, size: 13, color: context.pal.textDim),
+                    ),
+                  ]),
+                ),
+            ]),
+            const SizedBox(height: 8),
+            Row(children: [
+              Expanded(child: FieldFocusBox(
+                minHeight: 34,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                builder: (context, focusNode) => TextField(
+                  controller: _newQualCtrl,
+                  focusNode: focusNode,
+                  style: AppTheme.bodySm,
+                  onSubmitted: (_) => _addQualification(),
+                  decoration: InputDecoration(
+                    hintText: 'e.g. BSc Electronics & Telecommunication, 5 years experience',
+                    hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim, fontSize: 12),
+                    border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+              )),
+              const SizedBox(width: 8),
+              _OutlineBtn(label: 'Add', saving: false, onTap: _addQualification),
+            ]),
             if (_managerName != null || _positionDepartment != null || _region != null) ...[
               const SizedBox(height: 16),
               Container(height: 1, color: context.pal.border),
@@ -2264,24 +2348,23 @@ class _ToggleRow extends StatelessWidget {
 
 class _SettingsField extends StatelessWidget {
   const _SettingsField({required this.label, required this.ctrl,
-      required this.hint, this.obscure = false, this.onChanged});
+      required this.hint, this.obscure = false, this.onChanged, this.maxLines = 1});
   final String label, hint;
   final TextEditingController ctrl;
   final bool obscure;
   final ValueChanged<String>? onChanged;
+  final int maxLines;
 
   @override
   Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
     if (label.isNotEmpty) ...[
-      Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+      Text(label, style: AppTheme.labelCaps.copyWith(fontSize: 10)),
       const SizedBox(height: 6),
     ],
-    Container(
-      decoration: BoxDecoration(color: context.pal.surface2,
-          borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      child: TextField(
-        controller: ctrl, obscureText: obscure, style: AppTheme.bodySm, onChanged: onChanged,
+    FieldFocusBox(
+      minHeight: maxLines > 1 ? 56 : 38,
+      builder: (context, focusNode) => TextField(
+        controller: ctrl, focusNode: focusNode, obscureText: obscure, maxLines: maxLines, style: AppTheme.bodySm, onChanged: onChanged,
         decoration: InputDecoration(hintText: hint,
             hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
             border: InputBorder.none, isDense: false, contentPadding: EdgeInsets.zero),
@@ -2297,7 +2380,7 @@ class _ReadOnlyField extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
     Row(children: [
-      Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 9.5)),
+      Text(label, style: AppTheme.labelCaps.copyWith(fontSize: 9.5)),
       const SizedBox(width: 4),
       Icon(Symbols.lock, size: 10, color: context.pal.textDim),
     ]),
@@ -2550,7 +2633,7 @@ class _HDropdown extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+    Text(label, style: AppTheme.labelCaps.copyWith(fontSize: 10)),
     const SizedBox(height: 6),
     Container(
       decoration: BoxDecoration(color: context.pal.surface2,

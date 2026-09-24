@@ -10,6 +10,7 @@ import '../../theme/app_palette.dart';
 import '../../utils/api_error.dart';
 import '../../utils/format.dart';
 import '../../widgets/common/error_view.dart';
+import '../../widgets/common/labeled_field.dart' show FieldFocusBox;
 
 const _categoryOrder = ['asset', 'liability', 'equity', 'revenue', 'expense'];
 const _categoryLabels = {
@@ -680,18 +681,16 @@ class _AccountFormDialogState extends State<_AccountFormDialog> {
   );
 
   Widget _field(String label, TextEditingController ctrl, {bool number = false}) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+    Text(label, style: AppTheme.labelCaps.copyWith(fontSize: 10)),
     const SizedBox(height: 6),
-    Container(
-      decoration: BoxDecoration(color: context.pal.surface2, borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      child: TextField(controller: ctrl, style: AppTheme.bodySm, keyboardType: number ? TextInputType.number : TextInputType.text,
+    FieldFocusBox(
+      builder: (context, focusNode) => TextField(controller: ctrl, focusNode: focusNode, style: AppTheme.bodySm, keyboardType: number ? TextInputType.number : TextInputType.text,
           decoration: const InputDecoration(border: InputBorder.none, isDense: true)),
     ),
   ]);
 
   Widget _dropdown<T>(String label, T? value, List<DropdownMenuItem<T>> items, ValueChanged<T?> onChanged) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+    Text(label, style: AppTheme.labelCaps.copyWith(fontSize: 10)),
     const SizedBox(height: 6),
     Container(
       decoration: BoxDecoration(color: context.pal.surface2, borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
@@ -843,18 +842,16 @@ class _CategoryFormDialogState extends State<_CategoryFormDialog> {
   );
 
   Widget _field(String label, TextEditingController ctrl) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+    Text(label, style: AppTheme.labelCaps.copyWith(fontSize: 10)),
     const SizedBox(height: 6),
-    Container(
-      decoration: BoxDecoration(color: context.pal.surface2, borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      child: TextField(controller: ctrl, style: AppTheme.bodySm,
+    FieldFocusBox(
+      builder: (context, focusNode) => TextField(controller: ctrl, focusNode: focusNode, style: AppTheme.bodySm,
           decoration: const InputDecoration(border: InputBorder.none, isDense: true)),
     ),
   ]);
 
   Widget _dropdown<T>(String label, T? value, List<DropdownMenuItem<T>> items, ValueChanged<T?> onChanged) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+    Text(label, style: AppTheme.labelCaps.copyWith(fontSize: 10)),
     const SizedBox(height: 6),
     Container(
       decoration: BoxDecoration(color: context.pal.surface2, borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),

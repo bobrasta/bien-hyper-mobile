@@ -14,6 +14,7 @@ import '../../theme/app_palette.dart';
 import '../../utils/api_error.dart';
 import '../../utils/format.dart';
 import '../../widgets/common/error_view.dart';
+import '../../widgets/common/labeled_field.dart' show FieldFocusBox;
 
 class VendorBillsScreen extends StatefulWidget {
   const VendorBillsScreen({super.key});
@@ -597,11 +598,12 @@ class _InlineField extends StatelessWidget {
   final bool number;
 
   @override
-  Widget build(BuildContext context) => Container(
-    decoration: BoxDecoration(color: context.pal.surface2, borderRadius: BorderRadius.circular(7), border: Border.all(color: context.pal.border)),
+  Widget build(BuildContext context) => FieldFocusBox(
+    radius: 7,
     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-    child: TextField(
+    builder: (context, focusNode) => TextField(
       controller: controller,
+      focusNode: focusNode,
       keyboardType: number ? TextInputType.number : TextInputType.text,
       style: AppTheme.bodySm.copyWith(fontSize: 12.5),
       decoration: InputDecoration(border: InputBorder.none, isDense: true, hintText: hint,
@@ -619,7 +621,7 @@ class _Dropdown<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+    Text(label, style: AppTheme.labelCaps.copyWith(fontSize: 10)),
     const SizedBox(height: 6),
     Container(
       decoration: BoxDecoration(color: context.pal.surface2, borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),

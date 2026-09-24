@@ -14,6 +14,7 @@ import '../../utils/zones.dart';
 import '../../widgets/common/app_button.dart';
 import '../../widgets/common/app_dropdown.dart';
 import '../../widgets/common/error_view.dart';
+import '../../widgets/common/labeled_field.dart' show FieldFocusBox;
 import '../../widgets/common/shimmer_box.dart';
 import '../../widgets/common/status_badge.dart';
 import 'machine_map_screen.dart';
@@ -1985,7 +1986,7 @@ class _ReceiveMachineDialogState extends State<_ReceiveMachineDialog> {
 Widget _dLoadingField(String label) => Builder(builder: (context) => Column(
   crossAxisAlignment: CrossAxisAlignment.start,
   children: [
-    Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+    Text(label, style: AppTheme.labelCaps.copyWith(fontSize: 10)),
     const SizedBox(height: 6),
     Container(
       height: 38,
@@ -2007,29 +2008,24 @@ class _DField extends StatelessWidget {
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       Text(
-        label.toUpperCase(),
+        label,
         style: AppTheme.labelCaps.copyWith(fontSize: 10),
       ),
       const SizedBox(height: 6),
-      Container(
-        height: 38,
-        decoration: BoxDecoration(
-          color: context.pal.surface2,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: context.pal.border),
-        ),
+      FieldFocusBox(
+        minHeight: 38,
+        alignment: Alignment.centerLeft,
         padding: const EdgeInsets.symmetric(horizontal: 12),
-        child: Center(
-          child: TextField(
-            controller: ctrl,
-            style: AppTheme.bodySm,
-            decoration: InputDecoration(
-              hintText: hint,
-              hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
-              border: InputBorder.none,
-              isDense: false,
-              contentPadding: EdgeInsets.zero,
-            ),
+        builder: (context, focusNode) => TextField(
+          controller: ctrl,
+          focusNode: focusNode,
+          style: AppTheme.bodySm,
+          decoration: InputDecoration(
+            hintText: hint,
+            hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
+            border: InputBorder.none,
+            isDense: false,
+            contentPadding: EdgeInsets.zero,
           ),
         ),
       ),
@@ -2053,7 +2049,7 @@ class _DDropdown extends StatelessWidget {
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       Text(
-        label.toUpperCase(),
+        label,
         style: AppTheme.labelCaps.copyWith(fontSize: 10),
       ),
       const SizedBox(height: 6),

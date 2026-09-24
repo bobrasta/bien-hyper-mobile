@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import '../../theme/app_palette.dart';
 import '../../theme/app_theme.dart';
+import 'labeled_field.dart' show FieldFocusBox;
 
-/// Text field styled to match the plain dropdown containers already used
-/// next to it (e.g. the technician filter) — same height, fill, and
-/// radius, with an optional label, leading icon, and trailing widget slot.
-/// No border, at rest or focused — a flat filled box, nothing else. Single
-/// point of change for this look across the app: converge every ad-hoc
-/// `Container(...) + TextField(...)` onto this instead of restyling each
-/// one by hand.
+/// Text field styled to match every other boxed field in the app (see
+/// `LabeledTextField`): sentence-case label above, a bordered box that
+/// lights up teal with a glow while focused, with an optional leading
+/// icon and trailing widget slot. Single point of change for this look
+/// across the app: converge every ad-hoc `Container(...) + TextField(...)`
+/// onto this instead of restyling each one by hand.
 class AppTextField extends StatelessWidget {
   const AppTextField({
     super.key,
@@ -55,17 +55,14 @@ class AppTextField extends StatelessWidget {
 
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       if (label != null) ...[
-        Text(label!, style: AppTheme.bodyStrong.copyWith(fontSize: 12.5)),
+        Text(label!, style: AppTheme.labelCaps.copyWith(fontSize: 10)),
         const SizedBox(height: 6),
       ],
-      Container(
-        height: height,
+      FieldFocusBox(
+        minHeight: height,
+        enabled: enabled,
         padding: EdgeInsets.only(left: 12, right: multiline ? 12 : 0, top: multiline ? 12 : 0, bottom: multiline ? 12 : 0),
-        decoration: BoxDecoration(
-          color: enabled ? pal.surface1 : pal.surface1.withValues(alpha: 0.5),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Row(
+        builder: (context, resolvedFocusNode) => Row(
           crossAxisAlignment: multiline ? CrossAxisAlignment.start : CrossAxisAlignment.center,
           children: [
             if (icon != null) ...[
@@ -78,7 +75,7 @@ class AppTextField extends StatelessWidget {
             ],
             Expanded(child: TextField(
               controller: controller,
-              focusNode: focusNode,
+              focusNode: focusNode ?? resolvedFocusNode,
               enabled: enabled,
               onChanged: onChanged,
               onSubmitted: onSubmitted,

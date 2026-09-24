@@ -258,7 +258,7 @@ class _NewDelegationDialogState extends State<_NewDelegationDialog> {
   );
 
   Widget _dateField(BuildContext context, String label, DateTime date, VoidCallback onTap) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+    Text(label, style: AppTheme.labelCaps.copyWith(fontSize: 10)),
     const SizedBox(height: 6),
     GestureDetector(
       onTap: onTap,

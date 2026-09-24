@@ -8,6 +8,7 @@ import '../../theme/app_theme.dart';
 import '../../utils/api_error.dart';
 import '../../utils/format.dart';
 import '../../widgets/common/app_button.dart';
+import '../../widgets/common/labeled_field.dart' show FieldFocusBox;
 
 String _iso(DateTime d) =>
     '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
@@ -152,17 +153,14 @@ class _PerDiemReviseDialogState extends State<PerDiemReviseDialog> {
 
   Widget _miniField(String label, TextEditingController ctrl, {bool numeric = false}) =>
       Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 9)),
+        Text(label, style: AppTheme.labelCaps.copyWith(fontSize: 9)),
         const SizedBox(height: 4),
-        Container(
-          decoration: BoxDecoration(
-            color: context.pal.surface1,
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: context.pal.border),
-          ),
+        FieldFocusBox(
+          radius: 6,
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-          child: TextField(
+          builder: (context, focusNode) => TextField(
             controller: ctrl,
+            focusNode: focusNode,
             keyboardType: numeric ? TextInputType.number : TextInputType.text,
             style: AppTheme.bodySm.copyWith(fontSize: 12),
             onChanged: (_) => setState(() {}),

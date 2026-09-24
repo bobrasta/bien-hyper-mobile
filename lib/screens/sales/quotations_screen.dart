@@ -18,6 +18,7 @@ import '../../utils/pdf_download.dart';
 import '../../utils/whatsapp_share.dart';
 import '../../widgets/common/app_dropdown.dart';
 import '../../widgets/common/error_view.dart';
+import '../../widgets/common/labeled_field.dart' show FieldFocusBox;
 
 // ── Status colours ─────────────────────────────────────────────────────────────
 Color _statusColor(String status) => switch (status) {
@@ -1437,19 +1438,15 @@ class _InvItemPicker extends StatelessWidget {
 Widget _formField(String label, TextEditingController ctrl, String hint, BuildContext ctx,
     {int maxLines = 1, String? error, ValueChanged<String>? onChanged}) =>
     Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+      Text(label, style: AppTheme.labelCaps.copyWith(fontSize: 10)),
       const SizedBox(height: 5),
-      Container(
-        height: maxLines > 1 ? null : 36,
-        constraints: maxLines > 1 ? const BoxConstraints(minHeight: 60) : null,
-        decoration: BoxDecoration(
-          color: ctx.pal.surface2,
-          borderRadius: BorderRadius.circular(7),
-          border: Border.all(color: error != null ? AppColors.coral : ctx.pal.border),
-        ),
+      FieldFocusBox(
+        minHeight: maxLines > 1 ? 60 : 36,
+        radius: 7,
+        hasError: error != null,
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        child: TextField(
-          controller: ctrl, maxLines: maxLines,
+        builder: (context, focusNode) => TextField(
+          controller: ctrl, focusNode: focusNode, maxLines: maxLines,
           onChanged: onChanged,
           style: AppTheme.bodySm,
           decoration: InputDecoration(
@@ -1483,7 +1480,7 @@ class _DatePickerField extends StatelessWidget {
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+      Text(label, style: AppTheme.labelCaps.copyWith(fontSize: 10)),
       const SizedBox(height: 5),
       GestureDetector(
         onTap: () async {
@@ -1530,7 +1527,7 @@ class _DatePickerField extends StatelessWidget {
 Widget _dropField(String label, String value, List<String> items,
     ValueChanged<String> onChanged, BuildContext ctx) =>
     Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(label.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+      Text(label, style: AppTheme.labelCaps.copyWith(fontSize: 10)),
       const SizedBox(height: 5),
       Container(
         height: 36,
