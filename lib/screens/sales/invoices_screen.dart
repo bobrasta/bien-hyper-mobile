@@ -822,7 +822,9 @@ class _PaymentModalState extends State<_PaymentModal> {
   }
 
   @override
-  Widget build(BuildContext context) => GestureDetector(
+  // Hand-built card inside showDialog, not a Dialog — the Material wrapper
+  // is what its TextFields need.
+  Widget build(BuildContext context) => Material(type: MaterialType.transparency, child: GestureDetector(
     onTap: () => Navigator.of(context).pop(),
     child: Container(
       color: const Color(0xAA06070A),
@@ -925,7 +927,7 @@ class _PaymentModalState extends State<_PaymentModal> {
         ),
       ),
     ),
-  );
+  ));
 }
 
 Widget _label(String text) =>

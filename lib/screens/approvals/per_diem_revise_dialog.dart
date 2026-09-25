@@ -226,7 +226,9 @@ class _PerDiemReviseDialogState extends State<PerDiemReviseDialog> {
   @override
   Widget build(BuildContext context) {
     final wasPaid = widget.request.isPaid;
-    return GestureDetector(
+    // Opened via showDialog with a hand-built card, not a Dialog — so
+    // nothing above it provides the Material its TextFields require.
+    return Material(type: MaterialType.transparency, child: GestureDetector(
       onTap: widget.onClose,
       child: Container(
         color: const Color(0xAA06070A),
@@ -362,6 +364,6 @@ class _PerDiemReviseDialogState extends State<PerDiemReviseDialog> {
           ),
         ),
       ),
-    );
+    ));
   }
 }
