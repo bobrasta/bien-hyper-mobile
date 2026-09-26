@@ -8,9 +8,7 @@ import '../../theme/app_palette.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/api_error.dart';
 import '../../utils/format.dart';
-import '../../widgets/common/app_dropdown.dart';
-import '../../widgets/common/app_text_field.dart';
-import '../../widgets/common/labeled_field.dart' show kFieldHeight;
+import '../../widgets/common/labeled_field.dart';
 
 const activityTypes = <String, (String, IconData)>{
   'call':     ('Call', Symbols.call),
@@ -145,21 +143,22 @@ class _LogActivityDialogState extends State<_LogActivityDialog> {
               ),
           ]),
           const SizedBox(height: 14),
-          AppTextField(controller: _subject, label: 'What', hintText: 'e.g. Site visit — ultrasound room survey', autofocus: true),
+          LabeledTextField(controller: _subject, label: 'What', hint: 'e.g. Site visit — ultrasound room survey'),
           const SizedBox(height: 14),
-          AppSelectField<int?>(
+          LabeledDropdown<int?>(
             label: 'Deal (optional)',
             value: _leadId,
-            hint: 'Not linked to a deal',
-            items: [
-              const AppSelectItem<int?>(value: null, label: 'Not linked to a deal'),
-              for (final l in _openLeads) AppSelectItem<int?>(value: l.id, label: '${l.hospital} · ${l.machineType}'),
-            ],
+            items: [null, for (final l in _openLeads) l.id],
+            displayBuilder: (id) {
+              if (id == null) return 'Not linked to a deal';
+              final l = _openLeads.firstWhere((l) => l.id == id);
+              return '${l.hospital} · ${l.machineType}';
+            },
             onChanged: (v) => setState(() => _leadId = v),
           ),
           if (_leadId == null) ...[
             const SizedBox(height: 14),
-            AppTextField(controller: _client, label: 'Client (optional)', hintText: 'Hospital or clinic name'),
+            LabeledTextField(controller: _client, label: 'Client (optional)', hint: 'Hospital or clinic name'),
           ],
           const SizedBox(height: 14),
           Text(future ? 'Planned for' : 'When', style: AppTheme.fieldLabel),
@@ -170,7 +169,7 @@ class _LogActivityDialogState extends State<_LogActivityDialog> {
             SizedBox(width: 120, child: _pickerBox(Symbols.schedule, formatTime(_at), _pickTime)),
           ]),
           const SizedBox(height: 14),
-          AppTextField(controller: _note, label: 'Note (optional)', maxLines: 3),
+          LabeledTextField(controller: _note, label: 'Note (optional)', maxLines: 3),
           const SizedBox(height: 20),
           Row(mainAxisAlignment: MainAxisAlignment.end, children: [
             TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
