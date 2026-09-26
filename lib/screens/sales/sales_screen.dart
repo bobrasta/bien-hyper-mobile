@@ -400,6 +400,8 @@ class _LeadEditDialogState extends State<_LeadEditDialog> {
   late String _stage;
   int? _assignedTo;
   DateTime? _followUpDate;
+  DateTime? _closeDate;
+  String _forecast = 'pipeline';
   List<StaffMember> _staff = [];
   bool _saving = false;
   bool _loadingStaff = true;
@@ -425,6 +427,8 @@ class _LeadEditDialogState extends State<_LeadEditDialog> {
     };
     _assignedTo = widget.lead.assignedTo;
     _followUpDate = widget.lead.followUpDate != null ? DateTime.tryParse(widget.lead.followUpDate!) : null;
+    _closeDate = widget.lead.expectedCloseDate != null ? DateTime.tryParse(widget.lead.expectedCloseDate!) : null;
+    _forecast = widget.lead.forecastCategory.apiValue;
     _loadStaff();
   }
 
@@ -445,6 +449,8 @@ class _LeadEditDialogState extends State<_LeadEditDialog> {
         'stage': _stage,
         'assigned_to': _assignedTo,
         'follow_up_date': _followUpDate != null ? _isoDate(_followUpDate!) : null,
+        'expected_close_date': _closeDate != null ? _isoDate(_closeDate!) : null,
+        'forecast_category': _forecast,
       });
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
@@ -533,6 +539,12 @@ class _LeadEditDialogState extends State<_LeadEditDialog> {
             ]),
           ),
         ),
+        const SizedBox(height: 14),
+        _ForecastFields(
+          closeDate: _closeDate, forecast: _forecast,
+          onCloseDate: (d) => setState(() => _closeDate = d),
+          onForecast: (v) => setState(() => _forecast = v),
+        ),
         const SizedBox(height: 20),
 
         Row(children: [
@@ -582,6 +594,8 @@ class _NewDealDialogState extends State<_NewDealDialog> {
   String  _source  = 'other';
   int?    _assignedTo;
   DateTime? _followUpDate;
+  DateTime? _closeDate;
+  String  _forecast = 'pipeline';
   List<StaffMember> _staff = [];
   bool   _loadingStaff = true;
   bool   _saving   = false;
@@ -621,6 +635,8 @@ class _NewDealDialogState extends State<_NewDealDialog> {
         'source_notes': _sourceNotesCtrl.text.trim().isEmpty ? null : _sourceNotesCtrl.text.trim(),
         'assigned_to': _assignedTo,
         'follow_up_date': _followUpDate != null ? _isoDate(_followUpDate!) : null,
+        'expected_close_date': _closeDate != null ? _isoDate(_closeDate!) : null,
+        'forecast_category': _forecast,
       });
       widget.onSaved?.call();
     } catch (e) {
@@ -759,6 +775,12 @@ class _NewDealDialogState extends State<_NewDealDialog> {
                     ),
                   ),
                 ]),
+                const SizedBox(height: 14),
+                _ForecastFields(
+                  closeDate: _closeDate, forecast: _forecast,
+                  onCloseDate: (d) => setState(() => _closeDate = d),
+                  onForecast: (v) => setState(() => _forecast = v),
+                ),
               ]),
             ),
             Padding(
@@ -809,6 +831,62 @@ class _SField extends StatelessWidget {
             hintStyle: AppTheme.fieldText.copyWith(color: context.pal.textDim),
             border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero)),
     ),
+  ]);
+}
+
+// Expected close date + the rep's forecast call — what the sales dashboard's
+// quarter forecast is built from. Side by side, shared by both lead dialogs.
+class _ForecastFields extends StatelessWidget {
+  const _ForecastFields({required this.closeDate, required this.forecast,
+      required this.onCloseDate, required this.onForecast});
+  final DateTime? closeDate;
+  final String forecast;
+  final ValueChanged<DateTime?> onCloseDate;
+  final ValueChanged<String> onForecast;
+
+  @override
+  Widget build(BuildContext context) => Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text('Expected close', style: AppTheme.fieldLabel),
+      const SizedBox(height: 6),
+      GestureDetector(
+        onTap: () async {
+          final now = DateTime.now();
+          final picked = await showDatePicker(
+            context: context,
+            initialDate: closeDate ?? now,
+            firstDate: now.subtract(const Duration(days: 365)),
+            lastDate: now.add(const Duration(days: 365 * 3)),
+          );
+          if (picked != null) onCloseDate(picked);
+        },
+        child: Container(
+          height: 38,
+          decoration: BoxDecoration(color: context.pal.surface2,
+              borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Row(children: [
+            Icon(Symbols.flag, size: 14, color: context.pal.textDim),
+            const SizedBox(width: 8),
+            Expanded(child: Text(
+              closeDate != null ? _isoDate(closeDate!) : 'Not set',
+              style: AppTheme.bodySm.copyWith(color: closeDate != null ? null : context.pal.textDim),
+            )),
+            if (closeDate != null)
+              GestureDetector(onTap: () => onCloseDate(null),
+                  child: Icon(Symbols.close, size: 13, color: context.pal.textDim)),
+          ]),
+        ),
+      ),
+    ])),
+    const SizedBox(width: 14),
+    Expanded(child: _SDrop(
+      label: 'Forecast',
+      value: forecast,
+      items: [for (final c in ForecastCategory.values) c.apiValue],
+      display: [for (final c in ForecastCategory.values) c.label],
+      onChanged: onForecast,
+    )),
   ]);
 }
 

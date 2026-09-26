@@ -317,6 +317,10 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
             _metaField(context, 'SOURCE', lead.source?.label ?? '—'),
             if (lead.demoDate != null) _metaField(context, 'DEMO DATE', lead.demoDate!, color: lead.isDemoOverdue ? AppColors.amber : null),
             if (lead.followUpDate != null) _metaField(context, 'FOLLOW-UP', lead.followUpDate!, color: lead.isFollowUpDue ? AppColors.amber : null),
+            if (lead.expectedCloseDate != null) _metaField(context, 'EXPECTED CLOSE', lead.expectedCloseDate!),
+            _metaField(context, 'FORECAST', lead.forecastCategory.label,
+                color: lead.forecastCategory == ForecastCategory.commit ? AppColors.teal
+                    : lead.forecastCategory == ForecastCategory.bestCase ? AppColors.amber : null),
             _metaField(context, 'DAYS OPEN', '${lead.daysOpen}'),
             if ((lead.sourceNotes ?? '').isNotEmpty) _metaField(context, 'SOURCE NOTES', lead.sourceNotes!),
           ]),
