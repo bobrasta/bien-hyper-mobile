@@ -92,6 +92,9 @@ const _screenKeys = [
   // Section 16: Vendor Fees/Delivery Jobs/Vendors registry, one combined
   // screen key like 'finance' or 'inventory' already are.
   'vendor_fees',
+  // Section 19: Tenders & Contracts + Device Registrations share one gate
+  // (screens.tenders), like 'inventory' covers its sub-screens.
+  'tenders',
 ];
 
 /// Returns the set of screen keys accessible for the current user. Primarily
@@ -112,7 +115,7 @@ Set<String>? allowedScreenKeys(String role) {
 
 Set<String>? _legacyAllowedScreenKeys(String role) => switch (role) {
   'super_admin' || 'admin' => null,
-  'cto'            => {'dashboard', 'approvals', 'machines', 'detail', 'hospitals', 'service', 'inventory', 'finance', 'staff', 'my_leave', 'reports', 'settings', 'notifications'},
+  'cto'            => {'dashboard', 'approvals', 'machines', 'detail', 'hospitals', 'service', 'inventory', 'finance', 'tenders', 'staff', 'my_leave', 'reports', 'settings', 'notifications'},
   // No 'staff' or 'inventory' — a technician does the repair work, not
   // staff task assignment or stock management.
   'technician'     => {'dashboard', 'machines', 'detail', 'hospitals', 'service', 'my_leave', 'my_service_reports', 'my_travel_plans', 'reports', 'settings', 'notifications'},
@@ -133,7 +136,7 @@ Set<String>? _legacyAllowedScreenKeys(String role) => switch (role) {
     'hr_leave_calendar', 'hr_attendance', 'hr_payroll', 'hr_approvals',
     'hr_reports', 'hr_settings', 'reports', 'settings', 'notifications',
   },
-  'procurement_manager' => {'dashboard', 'approvals', 'inventory', 'vendor_fees', 'staff', 'my_leave', 'reports', 'settings', 'notifications'},
+  'procurement_manager' => {'dashboard', 'approvals', 'inventory', 'vendor_fees', 'tenders', 'staff', 'my_leave', 'reports', 'settings', 'notifications'},
   // No 'staff' (the task-assignment board) — accountant handles payments,
   // not staff task assignment.
   'accountant'     => {'dashboard', 'approvals', 'revenue', 'finance', 'vendor_fees', 'my_leave', 'reports', 'settings', 'notifications'},

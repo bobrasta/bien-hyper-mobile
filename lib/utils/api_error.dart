@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
 import '../theme/app_colors.dart';
@@ -43,7 +44,16 @@ String friendlyError(Object e) {
 }
 
 String? _serverMessage(DioException e) {
-  final data = e.response?.data;
+  var data = e.response?.data;
+  // File downloads use ResponseType.bytes, so an error body arrives as raw
+  // bytes rather than a decoded map — decode it to reach the message.
+  if (data is List<int>) {
+    try {
+      data = jsonDecode(utf8.decode(data));
+    } catch (_) {
+      return null;
+    }
+  }
   if (data is Map && data['message'] is String) return data['message'] as String;
   return null;
 }

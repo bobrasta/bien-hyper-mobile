@@ -50,6 +50,10 @@ const _business = [
   // procurement_manager/logistics hold real authority here but no
   // 'finance' key at all (same reasoning as hypermed-web's Nav.php).
   NavDestination(icon: Symbols.local_shipping,          label: 'Vendors',    key: 'vendor_fees'),
+  // Section 19 — government tenders run alongside direct Sales; both entries
+  // are gated by screens.tenders (procurement staff, CTO read-only, admin tier).
+  NavDestination(icon: Symbols.gavel,                   label: 'Tenders & Contracts', key: 'tenders'),
+  NavDestination(icon: Symbols.verified,                label: 'Device Registrations', key: 'tender_devices'),
   NavDestination(icon: Symbols.groups,                  label: 'Customers',  key: 'customers'),
   NavDestination(icon: Symbols.mail,                    label: 'Email',      key: 'email'),
 ];
@@ -152,6 +156,7 @@ class Sidebar extends StatelessWidget {
           if (key.startsWith('inventory_')) return allowed.contains('inventory');
           if (key.startsWith('sales_'))     return allowed.contains('sales');
           if (key.startsWith('finance_'))   return allowed.contains('finance');
+          if (key == 'tender_devices')      return allowed.contains('tenders');
           return allowed.contains(key);
         }
 

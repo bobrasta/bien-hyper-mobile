@@ -51,6 +51,8 @@ import '../../screens/settings/notification_templates_screen.dart';
 import '../../screens/settings/activity_log_screen.dart';
 import '../../screens/settings/downloads_screen.dart';
 import '../../screens/notifications/notifications_screen.dart';
+import '../../screens/procurement/device_registrations_screen.dart';
+import '../../screens/procurement/tenders_screen.dart';
 import '../../screens/staff/staff_screen.dart';
 import '../../main.dart' show trialNotifier, userRoleNotifier, allowedScreenKeys, defaultScreenKey;
 import '../../models/notification.dart';
@@ -114,6 +116,7 @@ class _AppShellState extends State<AppShell> {
     if (key.startsWith('sales_'))     permKey = 'sales';
     if (key.startsWith('finance_'))   permKey = 'finance';
     if (key == 'machines_map')        permKey = 'machines';
+    if (key == 'tender_devices')      permKey = 'tenders';
     return (allowed == null || allowed.contains(permKey))
         ? key
         : defaultScreenKey(userRoleNotifier.value);
@@ -178,6 +181,11 @@ class _AppShellState extends State<AppShell> {
         _navigateToEntity('staff', entityId: entityId);
       case NotificationType.stockPullRequired:
         _navigate('sales_orders');
+      case NotificationType.tenderDeadline:
+      case NotificationType.tenderOverdue:
+        _navigateToEntity('tenders', entityId: entityId);
+      case NotificationType.deviceRenewal:
+        _navigateToEntity('tender_devices', entityId: entityId);
       default:
         _navigate('notifications');
     }
@@ -255,6 +263,8 @@ class _AppShellState extends State<AppShell> {
     'finance_reports'        => const FinanceReportsScreen(),
     'finance_bank_rec'       => const BankReconciliationScreen(),
     'vendor_fees'            => const VendorFeesScreen(),
+    'tenders'                => TendersScreen(key: ValueKey('tenders-$_pendingEntityId'), initialTenderId: _pendingEntityId),
+    'tender_devices'         => DeviceRegistrationsScreen(key: ValueKey('devices-$_pendingEntityId'), initialDeviceId: _pendingEntityId),
     'email'     => const EmailScreen(),
     'sales' || 'sales_leads' => SalesScreen(initialLeadId: _pendingEntityId),
     'sales_dashboard'         => SalesDashboardScreen(onNavigateTo: _navigate),

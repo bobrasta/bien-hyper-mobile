@@ -31,6 +31,9 @@ enum NotificationType {
   poApproved,
   poRejected,
   lowStockAlert,
+  tenderDeadline,
+  tenderOverdue,
+  deviceRenewal,
   system,
 }
 
@@ -64,6 +67,9 @@ extension NotificationTypeX on NotificationType {
     NotificationType.poApproved         => 'Purchase Order Approved',
     NotificationType.poRejected         => 'Purchase Order Rejected',
     NotificationType.lowStockAlert      => 'Low Stock',
+    NotificationType.tenderDeadline     => 'Tender Deadline',
+    NotificationType.tenderOverdue      => 'Tender Deadline Overdue',
+    NotificationType.deviceRenewal      => 'Registration Renewal',
     NotificationType.system             => 'System',
   };
 
@@ -97,6 +103,9 @@ extension NotificationTypeX on NotificationType {
     NotificationType.poApproved         => 'Updates',
     NotificationType.poRejected         => 'Updates',
     NotificationType.lowStockAlert      => 'Service',
+    NotificationType.tenderDeadline     => 'Updates',
+    NotificationType.tenderOverdue      => 'Updates',
+    NotificationType.deviceRenewal      => 'Updates',
     NotificationType.system             => 'System',
   };
 
@@ -131,6 +140,9 @@ extension NotificationTypeX on NotificationType {
     NotificationType.warrantyExpiring   => null,
     NotificationType.stockPullRequired  => null,
     NotificationType.lowStockAlert      => null,
+    NotificationType.tenderDeadline     => 'View Tender',
+    NotificationType.tenderOverdue      => 'View Tender',
+    NotificationType.deviceRenewal      => 'View Registration',
     NotificationType.system             => null,
   };
 
@@ -163,6 +175,9 @@ extension NotificationTypeX on NotificationType {
     NotificationType.poApproved        => Symbols.check_circle,
     NotificationType.poRejected        => Symbols.cancel,
     NotificationType.lowStockAlert     => Symbols.production_quantity_limits,
+    NotificationType.tenderDeadline    => Symbols.gavel,
+    NotificationType.tenderOverdue     => Symbols.report,
+    NotificationType.deviceRenewal     => Symbols.event_repeat,
     NotificationType.system            => Symbols.info,
   };
 
@@ -195,6 +210,9 @@ extension NotificationTypeX on NotificationType {
     NotificationType.poApproved        => AppColors.teal,
     NotificationType.poRejected        => AppColors.coral,
     NotificationType.lowStockAlert     => AppColors.amber,
+    NotificationType.tenderDeadline    => AppColors.amber,
+    NotificationType.tenderOverdue     => AppColors.coral,
+    NotificationType.deviceRenewal     => AppColors.amber,
     NotificationType.system            => AppColors.textMute,
   };
 }
@@ -232,6 +250,9 @@ NotificationType _parseType(String s) => switch (s) {
   'po_approved'           => NotificationType.poApproved,
   'po_rejected'           => NotificationType.poRejected,
   'low_stock_alert'       => NotificationType.lowStockAlert,
+  'tender_deadline'       => NotificationType.tenderDeadline,
+  'tender_overdue'        => NotificationType.tenderOverdue,
+  'device_renewal'        => NotificationType.deviceRenewal,
   'system'               => NotificationType.system,
   _                      => NotificationType.serviceDue,
 };
