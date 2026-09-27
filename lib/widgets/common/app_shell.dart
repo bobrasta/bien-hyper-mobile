@@ -53,6 +53,7 @@ import '../../screens/settings/downloads_screen.dart';
 import '../../screens/notifications/notifications_screen.dart';
 import '../../screens/procurement/device_registrations_screen.dart';
 import '../../screens/procurement/tenders_screen.dart';
+import '../../screens/procurement/shipments_screen.dart';
 import '../../screens/staff/staff_screen.dart';
 import '../../main.dart' show trialNotifier, userRoleNotifier, allowedScreenKeys, defaultScreenKey;
 import '../../models/notification.dart';
@@ -186,6 +187,8 @@ class _AppShellState extends State<AppShell> {
         _navigateToEntity('tenders', entityId: entityId);
       case NotificationType.deviceRenewal:
         _navigateToEntity('tender_devices', entityId: entityId);
+      case NotificationType.shipmentUpdate:
+        _navigateToEntity('shipments', entityId: entityId);
       default:
         _navigate('notifications');
     }
@@ -263,6 +266,7 @@ class _AppShellState extends State<AppShell> {
     'finance_reports'        => const FinanceReportsScreen(),
     'finance_bank_rec'       => const BankReconciliationScreen(),
     'vendor_fees'            => const VendorFeesScreen(),
+    'shipments'              => ShipmentsScreen(key: ValueKey('shipments-$_pendingEntityId'), initialShipmentId: _pendingEntityId),
     'tenders'                => TendersScreen(key: ValueKey('tenders-$_pendingEntityId'), initialTenderId: _pendingEntityId),
     'tender_devices'         => DeviceRegistrationsScreen(key: ValueKey('devices-$_pendingEntityId'), initialDeviceId: _pendingEntityId),
     'email'     => const EmailScreen(),

@@ -4,6 +4,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
+import '../common/labeled_field.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_palette.dart';
 import '../../theme/app_theme.dart';
@@ -453,6 +454,8 @@ class ProcFilterChip extends StatelessWidget {
   );
 }
 
+/// List search box — the Settings field look (FieldFocusBox: recessed box,
+/// teal outline + halo while focused) with a leading search icon.
 class ProcSearchField extends StatelessWidget {
   const ProcSearchField({super.key, required this.hint, this.onChanged, this.width = 260});
   final String hint;
@@ -461,17 +464,25 @@ class ProcSearchField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final pal = context.pal;
-    return SizedBox(width: width, height: 30, child: TextField(
-      onChanged: onChanged,
-      style: AppTheme.bodySm.copyWith(fontSize: 12),
-      decoration: InputDecoration(
-        isDense: true, hintText: hint, hintStyle: AppTheme.bodySub.copyWith(fontSize: 11.5, color: pal.textDim),
-        prefixIcon: Icon(Symbols.search, size: 14, color: pal.textDim),
-        prefixIconConstraints: const BoxConstraints(minWidth: 30),
-        filled: true, fillColor: pal.surface1, contentPadding: const EdgeInsets.symmetric(vertical: 8),
-        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: pal.border)),
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: AppColors.green)),
-      ),
+    return SizedBox(width: width, child: FieldFocusBox(
+      minHeight: kFieldHeight,
+      alignment: Alignment.centerLeft,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      builder: (context, focusNode) => Row(children: [
+        Icon(Symbols.search, size: 16, color: pal.textDim),
+        const SizedBox(width: 8),
+        Expanded(child: TextField(
+          focusNode: focusNode,
+          onChanged: onChanged,
+          cursorColor: pal.text,
+          cursorWidth: 1.5,
+          style: AppTheme.fieldText.copyWith(color: pal.text),
+          decoration: InputDecoration(
+            hintText: hint, hintStyle: AppTheme.fieldHint,
+            filled: false, border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero,
+          ),
+        )),
+      ]),
     ));
   }
 }

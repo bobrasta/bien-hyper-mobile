@@ -12,6 +12,7 @@ import '../../utils/api_error.dart';
 import '../../utils/format.dart';
 import '../../widgets/common/app_button.dart';
 import '../../widgets/common/error_view.dart';
+import '../../widgets/common/labeled_field.dart';
 
 // UI-hint approximations only, same fail-safe rule as the rest of this
 // app's client-side role checks — the real gates are
@@ -362,14 +363,27 @@ class _FieldLabel extends StatelessWidget {
   );
 }
 
-InputDecoration _fieldDecoration(BuildContext context) => InputDecoration(
-  isDense: true,
-  filled: true,
-  fillColor: context.pal.surface2,
-  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: context.pal.border)),
-  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: context.pal.border)),
-);
+/// Compact Settings-style field for the goods-list rows (item / serial / qty).
+class _InlineField extends StatelessWidget {
+  const _InlineField({required this.controller, required this.hint, this.number = false});
+  final TextEditingController controller;
+  final String hint;
+  final bool number;
+  @override
+  Widget build(BuildContext context) => FieldFocusBox(
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+    builder: (context, focusNode) => TextField(
+      controller: controller,
+      focusNode: focusNode,
+      keyboardType: number ? TextInputType.number : null,
+      cursorColor: context.pal.text,
+      cursorWidth: 1.5,
+      style: AppTheme.fieldText.copyWith(color: context.pal.text),
+      decoration: InputDecoration(hintText: hint, hintStyle: AppTheme.fieldHint, filled: false,
+          border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero),
+    ),
+  );
+}
 
 // ── Create Vendor Fee ────────────────────────────────────────────────────
 
@@ -431,30 +445,25 @@ class _CreateFeeDialogState extends State<_CreateFeeDialog> {
           decoration: BoxDecoration(color: AppColors.coralSoft, borderRadius: BorderRadius.circular(8)),
           child: Text(_error!, style: TextStyle(color: AppColors.coral, fontSize: 12))),
       ],
-      const _FieldLabel('VENDOR *'),
-      DropdownButtonFormField<Vendor>(
-        initialValue: _vendor,
-        decoration: _fieldDecoration(context),
-        items: widget.vendors.map((v) => DropdownMenuItem(value: v, child: Text('${v.name} (${v.typeLabel})', overflow: TextOverflow.ellipsis))).toList(),
+      LabeledDropdown<Vendor?>(
+        label: 'Vendor',
+        value: _vendor,
+        items: [null, ...widget.vendors],
+        displayBuilder: (v) => v == null ? 'Select…' : '${v.name} (${v.typeLabel})',
         onChanged: (v) => setState(() => _vendor = v),
       ),
       const SizedBox(height: 14),
-      const _FieldLabel('DELIVERY JOB (USIRI only — optional)'),
-      DropdownButtonFormField<DeliveryJob?>(
-        initialValue: _job,
-        decoration: _fieldDecoration(context),
-        items: [
-          const DropdownMenuItem(value: null, child: Text('— Not linked —')),
-          ...widget.deliveryJobs.map((j) => DropdownMenuItem(value: j, child: Text(j.jobNumber))),
-        ],
+      LabeledDropdown<DeliveryJob?>(
+        label: 'Delivery job · USIRI only, optional',
+        value: _job,
+        items: [null, ...widget.deliveryJobs],
+        displayBuilder: (j) => j == null ? 'Not linked' : j.jobNumber,
         onChanged: (j) => setState(() => _job = j),
       ),
       const SizedBox(height: 14),
-      const _FieldLabel('DESCRIPTION *'),
-      TextField(controller: _descCtrl, decoration: _fieldDecoration(context)),
+      LabeledTextField(label: 'Description', controller: _descCtrl),
       const SizedBox(height: 14),
-      const _FieldLabel('BILLED AMOUNT (TZS) *'),
-      TextField(controller: _amountCtrl, keyboardType: TextInputType.number, decoration: _fieldDecoration(context)),
+      LabeledTextField(label: 'Billed amount (TZS)', controller: _amountCtrl, keyboardType: TextInputType.number),
     ]),
   );
 }
@@ -715,16 +724,21 @@ class _ReceiptUploadDialogState extends State<_ReceiptUploadDialog> {
   Widget build(BuildContext context) => AlertDialog(
     title: const Text('Attach receipt'),
     content: SizedBox(width: 380, child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-      DropdownButtonFormField<String>(
-        initialValue: _type,
-        decoration: const InputDecoration(labelText: 'Receipt type'),
-        items: const [DropdownMenuItem(value: 'efd', child: Text('EFD')), DropdownMenuItem(value: 'other', child: Text('Other'))],
-        onChanged: (v) => setState(() => _type = v ?? 'efd'),
+      LabeledDropdown<String>(
+        label: 'Receipt type',
+        value: _type,
+        items: const ['efd', 'other'],
+        displayBuilder: (v) => v == 'efd' ? 'EFD' : 'Other',
+        onChanged: (v) => setState(() => _type = v),
       ),
-      TextField(controller: _numberCtrl, decoration: const InputDecoration(labelText: 'Receipt number')),
-      TextField(controller: _issuerCtrl, decoration: const InputDecoration(labelText: 'Issuer name')),
-      TextField(controller: _tinCtrl, decoration: const InputDecoration(labelText: 'Issuer TIN (optional)')),
-      TextField(controller: _amountCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Amount (TZS)')),
+      const SizedBox(height: 12),
+      LabeledTextField(label: 'Receipt number', controller: _numberCtrl),
+      const SizedBox(height: 12),
+      LabeledTextField(label: 'Issuer name', controller: _issuerCtrl),
+      const SizedBox(height: 12),
+      LabeledTextField(label: 'Issuer TIN (optional)', controller: _tinCtrl),
+      const SizedBox(height: 12),
+      LabeledTextField(label: 'Amount (TZS)', controller: _amountCtrl, keyboardType: TextInputType.number),
       const SizedBox(height: 8),
       Row(children: [
         Text('Date: ${_date.toIso8601String().substring(0, 10)}'),
@@ -763,7 +777,7 @@ class _PaymentReferenceDialogState extends State<_PaymentReferenceDialog> {
   @override
   Widget build(BuildContext context) => AlertDialog(
     title: const Text('Approve & release payment'),
-    content: TextField(controller: _ctrl, decoration: const InputDecoration(labelText: 'Transfer reference'), autofocus: true),
+    content: SizedBox(width: 380, child: LabeledTextField(label: 'Transfer reference', controller: _ctrl)),
     actions: [
       TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
       FilledButton(onPressed: () => Navigator.pop(context, _ctrl.text), child: const Text('Approve & Pay')),
@@ -786,7 +800,7 @@ class _ReasonDialogState extends State<_ReasonDialog> {
   @override
   Widget build(BuildContext context) => AlertDialog(
     title: Text(widget.title),
-    content: TextField(controller: _ctrl, decoration: InputDecoration(labelText: widget.minLength > 0 ? 'Reason (min. ${widget.minLength} characters)' : 'Reason'), maxLines: 3, autofocus: true),
+    content: SizedBox(width: 380, child: LabeledTextField(label: widget.minLength > 0 ? 'Reason (min. ${widget.minLength} characters)' : 'Reason', controller: _ctrl, maxLines: 3)),
     actions: [
       TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
       FilledButton(onPressed: () => Navigator.pop(context, _ctrl.text), child: const Text('Confirm')),
@@ -869,32 +883,29 @@ class _CreateJobDialogState extends State<_CreateJobDialog> {
       ],
       if (widget.deliveryVendors.isEmpty)
         Text('No delivery-type vendors yet — add one first.', style: TextStyle(color: AppColors.amber, fontSize: 12.5)),
-      const _FieldLabel('JOB NUMBER *'),
-      TextField(controller: _numberCtrl, decoration: _fieldDecoration(context)),
+      LabeledTextField(label: 'Job number', controller: _numberCtrl),
       const SizedBox(height: 14),
-      const _FieldLabel('VENDOR (USIRI / delivery) *'),
-      DropdownButtonFormField<Vendor>(
-        initialValue: _vendor,
-        decoration: _fieldDecoration(context),
-        items: widget.deliveryVendors.map((v) => DropdownMenuItem(value: v, child: Text(v.name))).toList(),
+      LabeledDropdown<Vendor?>(
+        label: 'Vendor · USIRI / delivery',
+        value: _vendor,
+        items: [null, ...widget.deliveryVendors],
+        displayBuilder: (v) => v == null ? 'Select…' : v.name,
         onChanged: (v) => setState(() => _vendor = v),
       ),
       const SizedBox(height: 14),
-      const _FieldLabel('DESTINATION NAME'),
-      TextField(controller: _destCtrl, decoration: _fieldDecoration(context)),
+      LabeledTextField(label: 'Destination name', controller: _destCtrl),
       const SizedBox(height: 14),
-      const _FieldLabel('DESTINATION ADDRESS'),
-      TextField(controller: _addressCtrl, decoration: _fieldDecoration(context), maxLines: 2),
+      LabeledTextField(label: 'Destination address', controller: _addressCtrl, maxLines: 2),
       const SizedBox(height: 14),
-      const _FieldLabel('GOODS LIST *'),
+      const _FieldLabel('Goods list'),
       ..._lines.map((l) => Padding(
         padding: const EdgeInsets.only(bottom: 8),
         child: Row(children: [
-          Expanded(flex: 2, child: TextField(controller: l.itemCtrl, decoration: _fieldDecoration(context).copyWith(hintText: 'Item'))),
+          Expanded(flex: 2, child: _InlineField(controller: l.itemCtrl, hint: 'Item')),
           const SizedBox(width: 8),
-          Expanded(child: TextField(controller: l.serialCtrl, decoration: _fieldDecoration(context).copyWith(hintText: 'Serial'))),
+          Expanded(child: _InlineField(controller: l.serialCtrl, hint: 'Serial')),
           const SizedBox(width: 8),
-          SizedBox(width: 60, child: TextField(controller: l.qtyCtrl, keyboardType: TextInputType.number, decoration: _fieldDecoration(context).copyWith(hintText: 'Qty'))),
+          SizedBox(width: 60, child: _InlineField(controller: l.qtyCtrl, hint: 'Qty', number: true)),
           IconButton(icon: const Icon(Symbols.close, size: 16), onPressed: () => setState(() => _lines.remove(l))),
         ]),
       )),
@@ -1058,7 +1069,7 @@ class _DeliveryNoteDialogState extends State<_DeliveryNoteDialog> {
   Widget build(BuildContext context) => AlertDialog(
     title: const Text('Attach signed delivery note'),
     content: SizedBox(width: 420, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-      TextField(controller: _receiverCtrl, decoration: const InputDecoration(labelText: "Receiver's full name")),
+      LabeledTextField(label: "Receiver's full name", controller: _receiverCtrl),
       const SizedBox(height: 8),
       Row(children: [
         Text('Date: ${_date.toIso8601String().substring(0, 10)}'),
@@ -1073,11 +1084,11 @@ class _DeliveryNoteDialogState extends State<_DeliveryNoteDialog> {
       ..._lines.map((l) => Padding(
         padding: const EdgeInsets.only(top: 6),
         child: Row(children: [
-          Expanded(flex: 2, child: TextField(controller: l.itemCtrl, decoration: const InputDecoration(hintText: 'Item'))),
+          Expanded(flex: 2, child: _InlineField(controller: l.itemCtrl, hint: 'Item')),
           const SizedBox(width: 6),
-          Expanded(child: TextField(controller: l.serialCtrl, decoration: const InputDecoration(hintText: 'Serial'))),
+          Expanded(child: _InlineField(controller: l.serialCtrl, hint: 'Serial')),
           const SizedBox(width: 6),
-          SizedBox(width: 50, child: TextField(controller: l.qtyCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(hintText: 'Qty'))),
+          SizedBox(width: 50, child: _InlineField(controller: l.qtyCtrl, hint: 'Qty', number: true)),
         ]),
       )),
     ]))),
@@ -1177,53 +1188,37 @@ class _VendorFormDialogState extends State<_VendorFormDialog> {
           decoration: BoxDecoration(color: AppColors.coralSoft, borderRadius: BorderRadius.circular(8)),
           child: Text(_error!, style: TextStyle(color: AppColors.coral, fontSize: 12))),
       ],
-      const _FieldLabel('NAME *'),
-      TextField(controller: _nameCtrl, decoration: _fieldDecoration(context)),
+      LabeledTextField(label: 'Name', controller: _nameCtrl),
       const SizedBox(height: 14),
-      const _FieldLabel('TYPE *'),
-      DropdownButtonFormField<String>(
-        initialValue: _type,
-        decoration: _fieldDecoration(context),
-        items: const [
-          DropdownMenuItem(value: 'clearing', child: Text('Clearing / transit')),
-          DropdownMenuItem(value: 'delivery', child: Text('Delivery')),
-          DropdownMenuItem(value: 'other', child: Text('Other')),
-        ],
-        onChanged: (v) => setState(() => _type = v ?? 'clearing'),
+      LabeledDropdown<String>(
+        label: 'Type',
+        value: _type,
+        items: const ['clearing', 'delivery', 'other'],
+        displayBuilder: (v) => switch (v) { 'clearing' => 'Clearing / transit', 'delivery' => 'Delivery', _ => 'Other' },
+        onChanged: (v) => setState(() => _type = v),
       ),
       const SizedBox(height: 14),
-      const _FieldLabel('TIN'),
-      TextField(controller: _tinCtrl, decoration: _fieldDecoration(context)),
+      LabeledTextField(label: 'Tin', controller: _tinCtrl),
       const SizedBox(height: 14),
-      const _FieldLabel('PAYMENT ACCOUNT TYPE'),
-      DropdownButtonFormField<String?>(
-        initialValue: _accountType,
-        decoration: _fieldDecoration(context),
-        items: const [
-          DropdownMenuItem(value: null, child: Text('—')),
-          DropdownMenuItem(value: 'bank', child: Text('Bank')),
-          DropdownMenuItem(value: 'mobile_money', child: Text('Mobile money')),
-        ],
+      LabeledDropdown<String?>(
+        label: 'Payment account type',
+        value: _accountType,
+        items: const [null, 'bank', 'mobile_money'],
+        displayBuilder: (v) => switch (v) { 'bank' => 'Bank', 'mobile_money' => 'Mobile money', _ => '—' },
         onChanged: (v) => setState(() => _accountType = v),
       ),
       const SizedBox(height: 14),
-      const _FieldLabel('ACCOUNT NAME'),
-      TextField(controller: _accountNameCtrl, decoration: _fieldDecoration(context)),
+      LabeledTextField(label: 'Account name', controller: _accountNameCtrl),
       const SizedBox(height: 14),
-      const _FieldLabel('ACCOUNT NUMBER'),
-      TextField(controller: _accountNumberCtrl, decoration: _fieldDecoration(context)),
+      LabeledTextField(label: 'Account number', controller: _accountNumberCtrl),
       const SizedBox(height: 14),
-      const _FieldLabel('BANK NAME'),
-      TextField(controller: _bankNameCtrl, decoration: _fieldDecoration(context)),
+      LabeledTextField(label: 'Bank name', controller: _bankNameCtrl),
       const SizedBox(height: 14),
-      const _FieldLabel('CONTACT NAME'),
-      TextField(controller: _contactNameCtrl, decoration: _fieldDecoration(context)),
+      LabeledTextField(label: 'Contact name', controller: _contactNameCtrl),
       const SizedBox(height: 14),
-      const _FieldLabel('CONTACT PHONE'),
-      TextField(controller: _contactPhoneCtrl, decoration: _fieldDecoration(context)),
+      LabeledTextField(label: 'Contact phone', controller: _contactPhoneCtrl),
       const SizedBox(height: 14),
-      const _FieldLabel('CONTACT EMAIL'),
-      TextField(controller: _contactEmailCtrl, decoration: _fieldDecoration(context)),
+      LabeledTextField(label: 'Contact email', controller: _contactEmailCtrl),
       if (widget.vendor != null) ...[
         const SizedBox(height: 14),
         Row(children: [

@@ -98,11 +98,14 @@ const _financeChildren = [
 ];
 
 // Sub-items of the Tendering, Compliance & Delivering Logistics department.
-// Each child keeps its own gate: tenders/tender_devices = screens.tenders
-// (Section 19 — procurement staff, CTO read-only, admin tier); vendor_fees =
+// Each child keeps its own gate: shipments = screens.shipments (Section 18 —
+// procurement/logistics staff; CTO, MD, Sales Manager read-only);
+// tenders/tender_devices = screens.tenders (Section 19 — procurement staff,
+// CTO read-only, admin tier); vendor_fees =
 // Section 16, which finance also holds (it verifies receipts), so a finance
 // user sees the group with just that one row.
 const _tenderingChildren = [
+  (key: 'shipments',       icon: Symbols.flight_land,    label: 'Shipments'),
   (key: 'tenders',         icon: Symbols.gavel,          label: 'Tenders & Contracts'),
   (key: 'tender_devices',  icon: Symbols.verified,       label: 'Device Registrations'),
   (key: 'vendor_fees',     icon: Symbols.local_shipping, label: 'Vendors & Delivery'),

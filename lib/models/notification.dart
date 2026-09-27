@@ -34,6 +34,7 @@ enum NotificationType {
   tenderDeadline,
   tenderOverdue,
   deviceRenewal,
+  shipmentUpdate,
   system,
 }
 
@@ -70,6 +71,7 @@ extension NotificationTypeX on NotificationType {
     NotificationType.tenderDeadline     => 'Tender Deadline',
     NotificationType.tenderOverdue      => 'Tender Deadline Overdue',
     NotificationType.deviceRenewal      => 'Registration Renewal',
+    NotificationType.shipmentUpdate     => 'Shipment Update',
     NotificationType.system             => 'System',
   };
 
@@ -106,6 +108,7 @@ extension NotificationTypeX on NotificationType {
     NotificationType.tenderDeadline     => 'Updates',
     NotificationType.tenderOverdue      => 'Updates',
     NotificationType.deviceRenewal      => 'Updates',
+    NotificationType.shipmentUpdate     => 'Updates',
     NotificationType.system             => 'System',
   };
 
@@ -143,6 +146,7 @@ extension NotificationTypeX on NotificationType {
     NotificationType.tenderDeadline     => 'View Tender',
     NotificationType.tenderOverdue      => 'View Tender',
     NotificationType.deviceRenewal      => 'View Registration',
+    NotificationType.shipmentUpdate     => 'View Shipment',
     NotificationType.system             => null,
   };
 
@@ -178,6 +182,7 @@ extension NotificationTypeX on NotificationType {
     NotificationType.tenderDeadline    => Symbols.gavel,
     NotificationType.tenderOverdue     => Symbols.report,
     NotificationType.deviceRenewal     => Symbols.event_repeat,
+    NotificationType.shipmentUpdate    => Symbols.local_shipping,
     NotificationType.system            => Symbols.info,
   };
 
@@ -213,6 +218,7 @@ extension NotificationTypeX on NotificationType {
     NotificationType.tenderDeadline    => AppColors.amber,
     NotificationType.tenderOverdue     => AppColors.coral,
     NotificationType.deviceRenewal     => AppColors.amber,
+    NotificationType.shipmentUpdate    => AppColors.cyan,
     NotificationType.system            => AppColors.textMute,
   };
 }
@@ -253,6 +259,8 @@ NotificationType _parseType(String s) => switch (s) {
   'tender_deadline'       => NotificationType.tenderDeadline,
   'tender_overdue'        => NotificationType.tenderOverdue,
   'device_renewal'        => NotificationType.deviceRenewal,
+  'shipment_created'      => NotificationType.shipmentUpdate,
+  'shipment_status'       => NotificationType.shipmentUpdate,
   'system'               => NotificationType.system,
   _                      => NotificationType.serviceDue,
 };

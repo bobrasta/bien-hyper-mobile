@@ -15,6 +15,8 @@ import '../../utils/format.dart';
 import '../../utils/pdf_download.dart';
 import '../../widgets/common/error_view.dart';
 import '../../widgets/procurement/proc_widgets.dart';
+import 'shipment_detail_screen.dart';
+import 'shipment_forms.dart';
 import 'tender_forms.dart';
 import 'tenders_screen.dart' show deadlineColor;
 
@@ -151,13 +153,7 @@ class _TenderDetailScreenState extends State<TenderDetailScreen> {
             const SizedBox(height: 14),
             _documents(context, t, readOnly),
             const SizedBox(height: 14),
-            ProcPanel(title: 'Linked shipments · Section 18', icon: Symbols.flight, iconColor: AppColors.cyan,
-              child: Padding(padding: const EdgeInsets.all(14), child: Row(children: [
-                Icon(Symbols.info, size: 15, color: pal.textDim),
-                const SizedBox(width: 10),
-                Expanded(child: Text('Shipments (Section 18) aren\'t built yet. Once they are, a tender at "Contract signed" can create and link its shipments here.',
-                    style: AppTheme.bodySub.copyWith(fontSize: 11.5, color: pal.textDim))),
-              ]))),
+            _shipments(context, t, readOnly),
           ]);
           final side = Column(children: [
             _statusPanel(context, t),
@@ -199,6 +195,43 @@ class _TenderDetailScreenState extends State<TenderDetailScreen> {
           );
         }))),
       ])),
+    );
+  }
+
+  Widget _shipments(BuildContext context, Tender t, bool readOnly) {
+    final pal = context.pal;
+    final rows = [for (final x in (t.raw['shipments'] as List? ?? [])) Map<String, dynamic>.from(x as Map)];
+    return ProcPanel(
+      title: 'Linked shipments · Section 18', icon: Symbols.flight_land, iconColor: AppColors.cyan,
+      trailing: readOnly ? null : TextButton(
+        onPressed: () async {
+          final s = await showShipmentForm(context, tenderId: t.id);
+          if (s == null || !context.mounted) return;
+          await Navigator.of(context).push(MaterialPageRoute(builder: (_) => ShipmentDetailScreen(shipmentId: s.id)));
+          _load();
+        },
+        child: const Text('New shipment', style: TextStyle(fontSize: 11.5))),
+      child: rows.isEmpty
+          ? Padding(padding: const EdgeInsets.all(14), child: Text('No shipments linked to this tender yet.',
+              style: AppTheme.bodySub.copyWith(fontSize: 11.5, color: pal.textDim)))
+          : Column(children: [
+              for (final r in rows) InkWell(
+                onTap: () async {
+                  await Navigator.of(context).push(MaterialPageRoute(builder: (_) => ShipmentDetailScreen(shipmentId: (r['id'] as num).toInt())));
+                  _load();
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+                  decoration: BoxDecoration(border: Border(bottom: BorderSide(color: pal.border.withValues(alpha: 0.5)))),
+                  child: Row(children: [
+                    SizedBox(width: 120, child: Text('${r['reference']}', style: procMono(context, color: pal.text))),
+                    Expanded(child: Text('${r['description']}', overflow: TextOverflow.ellipsis, style: AppTheme.bodySm.copyWith(fontSize: 12))),
+                    const SizedBox(width: 10),
+                    Text('${r['step']}/${r['last_step']} · ${r['status_label']}', style: AppTheme.bodySub.copyWith(fontSize: 11, color: pal.textMute)),
+                  ]),
+                ),
+              ),
+            ]),
     );
   }
 
