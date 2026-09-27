@@ -245,8 +245,8 @@ class _ShipmentSettingsScreenState extends State<ShipmentSettingsScreen> {
 
   Widget _recipients(BuildContext context, ShipmentSettings s) => ProcPanel(
     title: 'Recipients · by role', icon: Symbols.notifications_active, iconColor: AppColors.amber,
-    footer: const ProcNote('In-app on creation and every status change. Wording is edited under Notification Wording. '
-        'Email isn\'t sent yet — the notification engine has no email channel.'),
+    footer: const ProcNote('On creation and every status change: in-app, plus an email copy (sent from the VPS, '
+        'from no-reply@hypermed.co.tz). Wording is edited under Notification Wording.'),
     child: Column(children: [
       for (final r in s.leadershipRoles) RecipientRow(initials: _roleLabel(r).substring(0, 2).toUpperCase(), role: _roleLabel(r), tag: 'always'),
       const RecipientRow(initials: 'DM', role: 'Manager of the shipment\'s department', tag: 'per shipment', tagTone: ProcTone.violet),
