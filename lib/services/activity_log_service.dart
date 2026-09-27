@@ -25,7 +25,8 @@ class ActivityLogEntry {
     subjectType: j['subject_type'] as String? ?? '—',
     subjectId: (j['subject_id'] as num?)?.toInt(),
     causerName: j['causer_name'] as String?,
-    changes: (j['changes'] as Map?)?.cast<String, dynamic>(),
+    // An entry with no field diff can arrive as [] (empty PHP array).
+    changes: j['changes'] is Map ? (j['changes'] as Map).cast<String, dynamic>() : null,
     createdAt: j['created_at'] as String?,
   );
 }
