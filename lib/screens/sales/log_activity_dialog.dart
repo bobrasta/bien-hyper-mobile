@@ -90,19 +90,23 @@ class _LogActivityDialogState extends State<_LogActivityDialog> {
     }
   }
 
-  Widget _pickerBox(IconData icon, String text, VoidCallback onTap) => GestureDetector(
-    onTap: onTap,
-    child: Container(
-      height: kFieldHeight,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(color: context.pal.surface2, borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-      child: Row(children: [
-        Icon(icon, size: 15, color: context.pal.textDim),
-        const SizedBox(width: 8),
-        Text(text, style: AppTheme.bodySm),
-      ]),
+  // Same box as LabeledDateField (the Settings field look), for the time.
+  Widget _timeField() => Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+    Text('Time', style: AppTheme.fieldLabel),
+    const SizedBox(height: 6),
+    GestureDetector(
+      onTap: _pickTime,
+      child: Container(
+        height: kFieldHeight,
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        decoration: BoxDecoration(color: context.pal.bg, borderRadius: BorderRadius.circular(10), border: Border.all(color: context.pal.borderStrong, width: 1.2)),
+        child: Row(children: [
+          Expanded(child: Text(formatTime(_at), style: AppTheme.fieldText.copyWith(color: context.pal.text))),
+          Icon(Symbols.schedule, size: 15, color: context.pal.textDim),
+        ]),
+      ),
     ),
-  );
+  ]);
 
   @override
   Widget build(BuildContext context) {
@@ -161,12 +165,10 @@ class _LogActivityDialogState extends State<_LogActivityDialog> {
             LabeledTextField(controller: _client, label: 'Client (optional)', hint: 'Hospital or clinic name'),
           ],
           const SizedBox(height: 14),
-          Text(future ? 'Planned for' : 'When', style: AppTheme.fieldLabel),
-          const SizedBox(height: 6),
-          Row(children: [
-            Expanded(child: _pickerBox(Symbols.event, formatDate(_at), _pickDate)),
-            const SizedBox(width: 10),
-            SizedBox(width: 120, child: _pickerBox(Symbols.schedule, formatTime(_at), _pickTime)),
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Expanded(child: LabeledDateField(label: future ? 'Planned for' : 'When', date: _at, onTap: _pickDate)),
+            const SizedBox(width: 12),
+            SizedBox(width: 140, child: _timeField()),
           ]),
           const SizedBox(height: 14),
           LabeledTextField(controller: _note, label: 'Note (optional)', maxLines: 3),

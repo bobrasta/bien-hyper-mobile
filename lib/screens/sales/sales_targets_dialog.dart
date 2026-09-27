@@ -7,6 +7,7 @@ import '../../theme/app_palette.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/api_error.dart';
 import '../../utils/format.dart';
+import '../../widgets/common/labeled_field.dart';
 
 const _monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -161,29 +162,32 @@ class _SalesTargetsDialogState extends State<_SalesTargetsDialog> {
         ?action,
         const SizedBox(width: 6),
       ])),
-      for (final c in cells) SizedBox(width: 62, child: Padding(padding: const EdgeInsets.symmetric(horizontal: 3), child: Center(child: c))),
+      for (final c in cells) SizedBox(width: 66, child: Padding(padding: const EdgeInsets.symmetric(horizontal: 3), child: Center(child: c))),
       SizedBox(width: 110, child: Align(alignment: Alignment.centerRight, child: total)),
     ]),
   );
 
-  Widget _cellField(BuildContext context, TextEditingController c) => SizedBox(
-    height: 32,
-    child: TextField(
+  // The Settings field look (FieldFocusBox), sized down for a grid cell.
+  Widget _cellField(BuildContext context, TextEditingController c) => FieldFocusBox(
+    radius: 8,
+    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+    builder: (context, focusNode) => TextField(
       controller: c,
+      focusNode: focusNode,
       onChanged: (_) => setState(() {}),
       textAlign: TextAlign.center,
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
       inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
-      style: AppTheme.monoXs.copyWith(fontSize: 11.5, color: context.pal.text),
+      cursorColor: context.pal.text,
+      cursorWidth: 1.5,
+      style: AppTheme.fieldText.copyWith(fontSize: 13),
       decoration: InputDecoration(
-        isDense: true,
         hintText: '0',
-        contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-        filled: true,
-        fillColor: context.pal.surface2,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(6), borderSide: BorderSide(color: context.pal.border)),
-        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(6), borderSide: BorderSide(color: context.pal.border)),
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(6), borderSide: BorderSide(color: AppColors.green)),
+        hintStyle: AppTheme.fieldHint.copyWith(fontSize: 13),
+        filled: false,
+        border: InputBorder.none,
+        isDense: true,
+        contentPadding: EdgeInsets.zero,
       ),
     ),
   );
