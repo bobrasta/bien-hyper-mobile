@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
+import '../../main.dart' show can;
 import '../../services/accounting_service.dart';
 import '../../services/download_manager.dart';
 import '../../services/finance_report_service.dart';
@@ -10,6 +11,7 @@ import '../../theme/app_palette.dart';
 import '../../utils/api_error.dart';
 import '../../utils/format.dart';
 import '../../widgets/common/error_view.dart';
+import 'financial_statements_dialog.dart';
 
 // Redesign ported from "Financial Reports Redesign.dc.html" — grouped tabs,
 // a computed check-strip + insight card per report, and a real period
@@ -302,6 +304,21 @@ class _FinanceReportsScreenState extends State<FinanceReportsScreen> with Single
               const SizedBox(height: 3),
               Text(periodRelevant ? _periodLabel : 'All-time position, updated on every load', style: AppTheme.bodySub.copyWith(fontSize: 12)),
             ])),
+            if (can('finance.export_reports')) ...[
+              if (cst.maxWidth < 760)
+                IconButton.outlined(
+                  tooltip: 'Financial statements',
+                  onPressed: () => showFinancialStatementsDialog(context),
+                  icon: const Icon(Symbols.picture_as_pdf, size: 16),
+                )
+              else
+                OutlinedButton.icon(
+                  onPressed: () => showFinancialStatementsDialog(context),
+                  icon: const Icon(Symbols.picture_as_pdf, size: 15),
+                  label: const Text('Financial statements'),
+                ),
+              const SizedBox(width: 8),
+            ],
             OutlinedButton.icon(
               onPressed: _exporting ? null : _export,
               icon: _exporting ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Symbols.download, size: 15),

@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'api_client.dart';
 
 class FinanceReportService {
@@ -85,5 +86,25 @@ class FinanceReportService {
     final list = data.cast<Map<String, dynamic>>();
     cachedMonthlyTrend = list;
     return list;
+  }
+
+  // Annual financial statements (FinancialStatementsController). The
+  // profile is the narrative around the ledger figures — directors,
+  // auditor, policies — edited from the export dialog.
+  Future<Map<String, dynamic>> statementsProfile() => _get('/finance-reports/financial-statements/profile');
+
+  Future<Map<String, dynamic>> saveStatementsProfile(Map<String, dynamic> profile) async {
+    final res = await _dio.put('/finance-reports/financial-statements/profile', data: profile);
+    final raw = ApiClient.unwrap(res);
+    return raw is Map<String, dynamic> ? raw : {};
+  }
+
+  Future<List<int>> statementsPdf({required int year, required bool audited, required String signDate}) async {
+    final res = await _dio.get<List<int>>(
+      '/finance-reports/financial-statements/pdf',
+      queryParameters: {'year': year, 'audited': audited ? 1 : 0, 'sign_date': signDate},
+      options: Options(responseType: ResponseType.bytes),
+    );
+    return res.data!;
   }
 }
