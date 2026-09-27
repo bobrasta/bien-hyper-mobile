@@ -116,6 +116,8 @@ class KpiCard extends StatelessWidget {
                   SizedBox(height: narrow ? 6 : 10),
 
                   // Delta row — hide note text on narrow
+                  // The note shrinks (ellipsis) so a long note can't
+                  // overflow a narrow card; the pill keeps its size.
                   Row(children: [
                     Container(
                       padding: EdgeInsets.symmetric(
@@ -145,7 +147,8 @@ class KpiCard extends StatelessWidget {
                     ),
                     if (!narrow) ...[
                       const SizedBox(width: 6),
-                      Text(deltaNote!, style: AppTheme.bodySub.copyWith(fontSize: 12)),
+                      Expanded(child: Text(deltaNote!, maxLines: 1, overflow: TextOverflow.ellipsis,
+                          style: AppTheme.bodySub.copyWith(fontSize: 12))),
                     ],
                   ]),
                 ],
