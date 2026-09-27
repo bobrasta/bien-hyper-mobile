@@ -116,6 +116,7 @@ class _AppShellState extends State<AppShell> {
     final allowed = allowedScreenKeys(userRoleNotifier.value);
     String permKey = key;
     if (key.startsWith('inventory_')) permKey = 'inventory';
+    if (key == 'inventory_suppliers' && allowed != null && !allowed.contains('inventory') && allowed.contains('shipments')) permKey = 'shipments';
     if (key.startsWith('sales_'))     permKey = 'sales';
     if (key.startsWith('finance_'))   permKey = 'finance';
     if (key == 'machines_map')        permKey = 'machines';

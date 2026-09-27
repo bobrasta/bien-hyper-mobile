@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
+import '../../main.dart' show can;
 import '../../models/supplier.dart';
 import '../../services/supplier_service.dart';
 import '../../theme/app_colors.dart';
@@ -19,6 +20,10 @@ class SuppliersScreen extends StatefulWidget {
 }
 
 class _SuppliersScreenState extends State<SuppliersScreen> {
+  // Suppliers is a shared top-level page (inventory + the shipments
+  // department) — reading is open, changing it needs catalog authority,
+  // same as SupplierController's write gate.
+  bool get _canEdit => can('inventory.manage_catalog') || can('authority.admin_tier');
   String? _typeFilter;
   String  _search = '';
   Supplier? _selected;
@@ -113,7 +118,7 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
               ]),
             ),
             const SizedBox(width: 8),
-            AppButton(label: 'Add Supplier', icon: Symbols.add, variant: BtnVariant.primary,
+            if (_canEdit) AppButton(label: 'Add Supplier', icon: Symbols.add, variant: BtnVariant.primary,
                 onPressed: () => setState(() => _showAdd = true)),
           ]),
         ),
@@ -153,7 +158,7 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
                   ...filtered.map((s) => _SupplierRow(
                     supplier: s, selected: _selected == s,
                     onTap: () => setState(() => _selected = _selected == s ? null : s),
-                    onEdit: () => setState(() { _selected = s; _showEdit = true; }),
+                    onEdit: _canEdit ? () => setState(() { _selected = s; _showEdit = true; }) : null,
                   )),
               ]),
             ),
@@ -164,7 +169,7 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
             Expanded(flex: 2, child: _SupplierDetailPanel(
               supplier: _selected!,
               onClose: () => setState(() => _selected = null),
-              onEdit:  () => setState(() => _showEdit = true),
+              onEdit:  _canEdit ? () => setState(() => _showEdit = true) : null,
             )),
           ],
         ])),
@@ -316,6 +321,7 @@ class _SupplierDetailPanel extends StatelessWidget {
         const SizedBox(height: 6),
         Text(supplier.notes!, style: AppTheme.bodySub.copyWith(fontSize: 12.5)),
       ],
+      if (onEdit != null) ...[
       const SizedBox(height: 20),
       SizedBox(width: double.infinity, child: GestureDetector(
         onTap: onEdit,
@@ -325,6 +331,7 @@ class _SupplierDetailPanel extends StatelessWidget {
           child: Center(child: Text('Edit Supplier', style: AppTheme.bodySm)),
         ),
       )),
+      ],
     ]),
   );
 

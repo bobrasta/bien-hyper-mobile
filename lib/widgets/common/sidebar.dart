@@ -27,6 +27,10 @@ const _operations = [
   NavDestination(icon: Symbols.build_circle,            label: 'Service',    key: 'service'),
   // 'inventory' key triggers the expandable group — rendered separately below
   NavDestination(icon: Symbols.inventory_2,             label: 'Inventory',  key: 'inventory'),
+  // Suppliers sits outside both the Inventory group and Tendering &
+  // Logistics: stores and the shipments department both use it, and it
+  // appears once. Key kept as inventory_suppliers (search/deep links).
+  NavDestination(icon: Symbols.business,                label: 'Suppliers',  key: 'inventory_suppliers'),
   // Task-assignment/availability board — Operations' job, not HR's.
   NavDestination(icon: Symbols.badge,                   label: 'Staff',      key: 'staff'),
   // Every role can request their own leave — this is personal self-service,
@@ -128,7 +132,6 @@ const _system = [
 // Sub-items shown when Inventory group is expanded
 const _inventoryChildren = [
   (key: 'inventory_items',        icon: Symbols.list_alt,            label: 'Items'),
-  (key: 'inventory_suppliers',    icon: Symbols.business,            label: 'Suppliers'),
   (key: 'inventory_movements',    icon: Symbols.swap_vert,           label: 'Movements'),
   (key: 'inventory_requisitions', icon: Symbols.assignment,          label: 'Requisitions'),
   (key: 'inventory_orders',       icon: Symbols.receipt_long,        label: 'Purchase Orders'),
@@ -166,6 +169,7 @@ class Sidebar extends StatelessWidget {
           // permission like module-specific pages are.
           if (key == 'my_performance') return true;
           if (allowed == null) return true;
+          if (key == 'inventory_suppliers') return allowed.contains('inventory') || allowed.contains('shipments');
           if (key.startsWith('inventory_')) return allowed.contains('inventory');
           if (key.startsWith('sales_'))     return allowed.contains('sales');
           if (key.startsWith('finance_'))   return allowed.contains('finance');
@@ -253,18 +257,20 @@ class _InventoryGroup extends StatefulWidget {
 }
 
 class _InventoryGroupState extends State<_InventoryGroup> {
+  // Suppliers keeps its inventory_ key but lives outside this group.
+  bool _ownsKey(String k) => k.startsWith('inventory_') && k != 'inventory_suppliers';
   late bool _open;
 
   @override
   void initState() {
     super.initState();
-    _open = widget.activeKey.startsWith('inventory_');
+    _open = _ownsKey(widget.activeKey);
   }
 
   @override
   void didUpdateWidget(_InventoryGroup old) {
     super.didUpdateWidget(old);
-    if (widget.activeKey.startsWith('inventory_')) _open = true;
+    if (_ownsKey(widget.activeKey)) _open = true;
   }
 
   @override
