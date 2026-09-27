@@ -32,6 +32,11 @@ jobs:
           echo "version=$V" >> "$GITHUB_OUTPUT"
       - name: Release notes from tag message
         run: |
+          # actions/checkout leaves the pushed tag as a lightweight ref, so
+          # %(contents) would read the commit message. Re-fetch the real
+          # annotated tag object first.
+          if [ "${{ github.ref_type }}" = "tag" ]; then git fetch --force origin "refs/tags/${GITHUB_REF_NAME}:refs/tags/${GITHUB_REF_NAME}"; fi
+          [ "$(git cat-file -t "refs/tags/${GITHUB_REF_NAME}" 2>/dev/null)" = "tag" ] || { echo "Hypermed ${{ steps.v.outputs.version }}" > notes.txt; exit 0; }
           git for-each-ref "refs/tags/${GITHUB_REF_NAME}" --format='%(contents)' | sed '/-----BEGIN PGP/,$d' > notes.txt || true
           [ -s notes.txt ] || echo "Hypermed ${{ steps.v.outputs.version }}" > notes.txt
       - uses: actions/upload-artifact@v4
