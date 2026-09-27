@@ -27,7 +27,10 @@ String _roleLabel(String role) => switch (role) {
 };
 
 class ShipmentSettingsScreen extends StatefulWidget {
-  const ShipmentSettingsScreen({super.key});
+  const ShipmentSettingsScreen({super.key, this.embedded = false});
+  /// Shown in the shell from the sidebar ("Module Settings") rather than
+  /// pushed from the Shipments list — no back button then.
+  final bool embedded;
   @override
   State<ShipmentSettingsScreen> createState() => _ShipmentSettingsScreenState();
 }
@@ -140,8 +143,9 @@ class _ShipmentSettingsScreenState extends State<ShipmentSettingsScreen> {
     return Scaffold(
       backgroundColor: pal.bg,
       body: SafeArea(child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Padding(padding: const EdgeInsets.only(left: 8, top: 6), child: Align(alignment: Alignment.centerLeft,
-            child: TextButton.icon(onPressed: () => Navigator.pop(context), icon: const Icon(Symbols.arrow_back, size: 16), label: const Text('Shipments')))),
+        if (!widget.embedded)
+          Padding(padding: const EdgeInsets.only(left: 8, top: 6), child: Align(alignment: Alignment.centerLeft,
+              child: TextButton.icon(onPressed: () => Navigator.pop(context), icon: const Icon(Symbols.arrow_back, size: 16), label: const Text('Shipments')))),
         ProcPageHeader(
           title: 'Shipments settings',
           breadcrumb: const ['Shipments', 'Settings'],

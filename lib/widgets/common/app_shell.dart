@@ -54,6 +54,8 @@ import '../../screens/notifications/notifications_screen.dart';
 import '../../screens/procurement/device_registrations_screen.dart';
 import '../../screens/procurement/tenders_screen.dart';
 import '../../screens/procurement/shipments_screen.dart';
+import '../../screens/procurement/shipment_registers_screen.dart';
+import '../../screens/procurement/shipment_settings_screen.dart';
 import '../../screens/staff/staff_screen.dart';
 import '../../main.dart' show trialNotifier, userRoleNotifier, allowedScreenKeys, defaultScreenKey;
 import '../../models/notification.dart';
@@ -118,6 +120,7 @@ class _AppShellState extends State<AppShell> {
     if (key.startsWith('finance_'))   permKey = 'finance';
     if (key == 'machines_map')        permKey = 'machines';
     if (key == 'tender_devices')      permKey = 'tenders';
+    if (const {'tmda_permits', 'clearing_fees', 'shipment_settings'}.contains(key)) permKey = 'shipments';
     return (allowed == null || allowed.contains(permKey))
         ? key
         : defaultScreenKey(userRoleNotifier.value);
@@ -266,6 +269,9 @@ class _AppShellState extends State<AppShell> {
     'finance_reports'        => const FinanceReportsScreen(),
     'finance_bank_rec'       => const BankReconciliationScreen(),
     'vendor_fees'            => const VendorFeesScreen(),
+    'tmda_permits'           => const TmdaPermitsScreen(),
+    'clearing_fees'          => const ClearingFeesScreen(),
+    'shipment_settings'      => const ShipmentSettingsScreen(embedded: true),
     'shipments'              => ShipmentsScreen(key: ValueKey('shipments-$_pendingEntityId'), initialShipmentId: _pendingEntityId),
     'tenders'                => TendersScreen(key: ValueKey('tenders-$_pendingEntityId'), initialTenderId: _pendingEntityId),
     'tender_devices'         => DeviceRegistrationsScreen(key: ValueKey('devices-$_pendingEntityId'), initialDeviceId: _pendingEntityId),

@@ -105,10 +105,13 @@ const _financeChildren = [
 // Section 16, which finance also holds (it verifies receipts), so a finance
 // user sees the group with just that one row.
 const _tenderingChildren = [
-  (key: 'shipments',       icon: Symbols.flight_land,    label: 'Shipments'),
-  (key: 'tenders',         icon: Symbols.gavel,          label: 'Tenders & Contracts'),
-  (key: 'tender_devices',  icon: Symbols.verified,       label: 'Device Registrations'),
-  (key: 'vendor_fees',     icon: Symbols.local_shipping, label: 'Vendors & Delivery'),
+  (key: 'shipments',         icon: Symbols.flight_land,    label: 'Shipments'),
+  (key: 'tenders',           icon: Symbols.gavel,          label: 'Tenders & Contracts'),
+  (key: 'tender_devices',    icon: Symbols.verified,       label: 'Device Registrations'),
+  (key: 'tmda_permits',      icon: Symbols.verified_user,  label: 'TMDA Permits'),
+  (key: 'clearing_fees',     icon: Symbols.receipt_long,   label: 'Clearing Fees'),
+  (key: 'vendor_fees',       icon: Symbols.local_shipping, label: 'Vendors & Delivery'),
+  (key: 'shipment_settings', icon: Symbols.tune,           label: 'Module Settings'),
 ];
 
 const _system = [
@@ -167,6 +170,7 @@ class Sidebar extends StatelessWidget {
           if (key.startsWith('sales_'))     return allowed.contains('sales');
           if (key.startsWith('finance_'))   return allowed.contains('finance');
           if (key == 'tender_devices')      return allowed.contains('tenders');
+          if (const {'tmda_permits', 'clearing_fees', 'shipment_settings'}.contains(key)) return allowed.contains('shipments');
           if (key == 'tendering')           return _tenderingChildren.any((c) => canShow(c.key));
           return allowed.contains(key);
         }
