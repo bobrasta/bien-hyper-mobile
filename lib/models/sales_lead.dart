@@ -54,6 +54,36 @@ LeadSource? _parseSource(String? s) => switch (s) {
   _              => null,
 };
 
+// The rep's own confidence call on a deal, used by the sales dashboard's
+// forecast. Unset is treated as pipeline.
+enum ForecastCategory { commit, bestCase, pipeline }
+
+extension ForecastCategoryX on ForecastCategory {
+  String get label => switch (this) {
+    ForecastCategory.commit   => 'Commit',
+    ForecastCategory.bestCase => 'Best case',
+    ForecastCategory.pipeline => 'Pipeline',
+  };
+
+  String get hint => switch (this) {
+    ForecastCategory.commit   => 'I\'m confident this closes by the date',
+    ForecastCategory.bestCase => 'Could close by the date if things go well',
+    ForecastCategory.pipeline => 'Too early to call',
+  };
+
+  String get apiValue => switch (this) {
+    ForecastCategory.commit   => 'commit',
+    ForecastCategory.bestCase => 'best_case',
+    ForecastCategory.pipeline => 'pipeline',
+  };
+}
+
+ForecastCategory parseForecastCategory(String? s) => switch (s) {
+  'commit'    => ForecastCategory.commit,
+  'best_case' => ForecastCategory.bestCase,
+  _           => ForecastCategory.pipeline,
+};
+
 class LeadEvent {
   final String type;
   final String title;
@@ -88,6 +118,8 @@ class SalesLead {
   final PipelineStage stage;
   final String? demoDate;
   final String? followUpDate;
+  final String? expectedCloseDate;
+  final ForecastCategory forecastCategory;
   final int?    assignedTo;
   final String? assigneeName;
   final List<LeadEvent> events;
@@ -109,6 +141,8 @@ class SalesLead {
     required this.stage,
     this.demoDate,
     this.followUpDate,
+    this.expectedCloseDate,
+    this.forecastCategory = ForecastCategory.pipeline,
     this.assignedTo,
     this.assigneeName,
     this.events = const [],
@@ -133,6 +167,8 @@ class SalesLead {
     stage:       _parseStage(j['stage'] as String? ?? 'lead'),
     demoDate:    j['demo_date']    as String?,
     followUpDate: j['follow_up_date'] as String?,
+    expectedCloseDate: j['expected_close_date'] as String?,
+    forecastCategory: parseForecastCategory(j['forecast_category'] as String?),
     assignedTo:  (j['assigned_to'] as num?)?.toInt(),
     assigneeName: j['assignee'] is Map ? (j['assignee'] as Map)['name'] as String? : null,
     events:      j['events'] is List

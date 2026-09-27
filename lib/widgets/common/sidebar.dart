@@ -80,6 +80,9 @@ const _hr = [
 // entry for the identical screen would be the same duplication we removed
 // from HR.
 const _salesChildren = [
+  // TEMPORARY — Sales Dashboard v3 trial, side by side with the live one
+  // until approved. Remove once it replaces sales_dashboard.
+  (key: 'sales_dashboard_trial', icon: Symbols.science,   label: 'Dashboard (trial)'),
   (key: 'sales_leads',       icon: Symbols.trending_up,   label: 'Leads'),
   (key: 'sales_quotations',  icon: Symbols.request_quote, label: 'Quotations'),
   (key: 'sales_orders',      icon: Symbols.shopping_cart, label: 'Sales Orders'),

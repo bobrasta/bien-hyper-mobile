@@ -208,11 +208,14 @@ class LabeledDropdown<T> extends StatelessWidget {
 /// The established boxed date-picker field (see `_DateField` in
 /// my_leave_screen.dart).
 class LabeledDateField extends StatelessWidget {
-  const LabeledDateField({super.key, required this.label, required this.date, required this.onTap, this.placeholder = 'Select date'});
+  const LabeledDateField({super.key, required this.label, required this.date, required this.onTap, this.placeholder = 'Select date', this.onClear});
   final String label;
   final DateTime? date;
   final VoidCallback onTap;
   final String placeholder;
+  // Optional — shows a clear (×) button while a date is set, for fields
+  // where "no date" is a valid answer.
+  final VoidCallback? onClear;
 
   @override
   Widget build(BuildContext context) => Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -227,6 +230,10 @@ class LabeledDateField extends StatelessWidget {
         child: Row(children: [
           Expanded(child: Text(date != null ? formatDate(date!) : placeholder,
               style: AppTheme.fieldText.copyWith(color: date != null ? context.pal.text : context.pal.textDim))),
+          if (date != null && onClear != null) ...[
+            GestureDetector(onTap: onClear, child: Icon(Symbols.close, size: 14, color: context.pal.textDim)),
+            const SizedBox(width: 8),
+          ],
           Icon(Symbols.calendar_month, size: 15, color: context.pal.textDim),
         ]),
       ),

@@ -7,7 +7,7 @@ import '../../theme/app_colors.dart';
 import '../../utils/api_error.dart';
 import '../../utils/format.dart';
 import '../../widgets/common/error_view.dart';
-import '../../widgets/common/labeled_field.dart' show FieldFocusBox;
+import '../../widgets/common/labeled_field.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_palette.dart';
 import 'lead_detail_screen.dart';
@@ -400,6 +400,8 @@ class _LeadEditDialogState extends State<_LeadEditDialog> {
   late String _stage;
   int? _assignedTo;
   DateTime? _followUpDate;
+  DateTime? _closeDate;
+  String _forecast = 'pipeline';
   List<StaffMember> _staff = [];
   bool _saving = false;
   bool _loadingStaff = true;
@@ -425,6 +427,8 @@ class _LeadEditDialogState extends State<_LeadEditDialog> {
     };
     _assignedTo = widget.lead.assignedTo;
     _followUpDate = widget.lead.followUpDate != null ? DateTime.tryParse(widget.lead.followUpDate!) : null;
+    _closeDate = widget.lead.expectedCloseDate != null ? DateTime.tryParse(widget.lead.expectedCloseDate!) : null;
+    _forecast = widget.lead.forecastCategory.apiValue;
     _loadStaff();
   }
 
@@ -445,6 +449,8 @@ class _LeadEditDialogState extends State<_LeadEditDialog> {
         'stage': _stage,
         'assigned_to': _assignedTo,
         'follow_up_date': _followUpDate != null ? _isoDate(_followUpDate!) : null,
+        'expected_close_date': _closeDate != null ? _isoDate(_closeDate!) : null,
+        'forecast_category': _forecast,
       });
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
@@ -479,59 +485,16 @@ class _LeadEditDialogState extends State<_LeadEditDialog> {
             onChanged: (v) => setState(() => _stage = v)),
         const SizedBox(height: 14),
 
-        Text('Sales rep', style: AppTheme.fieldLabel),
-        const SizedBox(height: 6),
-        Container(
-          decoration: BoxDecoration(color: context.pal.surface2,
-              borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-          height: 38,
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: _loadingStaff
-              ? const Center(child: SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)))
-              : DropdownButtonHideUnderline(child: DropdownButton<int?>(
-                  value: _assignedTo, isExpanded: true,
-                  hint: Text('Unassigned', style: AppTheme.bodySub.copyWith(fontSize: 12)),
-                  dropdownColor: context.pal.surface2, style: AppTheme.bodySm,
-                  icon: Icon(Symbols.expand_more, size: 14, color: context.pal.textDim),
-                  items: [
-                    const DropdownMenuItem<int?>(value: null, child: Text('Unassigned')),
-                    ..._staff.map((s) => DropdownMenuItem<int?>(value: s.id, child: Text(s.name))),
-                  ],
-                  onChanged: (v) => setState(() => _assignedTo = v),
-                )),
-        ),
+        _RepDropdown(loading: _loadingStaff, staff: _staff, value: _assignedTo,
+            onChanged: (v) => setState(() => _assignedTo = v)),
         const SizedBox(height: 14),
-
-        Text('Follow-up date', style: AppTheme.fieldLabel),
-        const SizedBox(height: 6),
-        GestureDetector(
-          onTap: () async {
-            final now = DateTime.now();
-            final picked = await showDatePicker(
-              context: context,
-              initialDate: _followUpDate ?? now,
-              firstDate: now.subtract(const Duration(days: 365)),
-              lastDate: now.add(const Duration(days: 365 * 2)),
-            );
-            if (picked != null) setState(() => _followUpDate = picked);
-          },
-          child: Container(
-            height: 38,
-            decoration: BoxDecoration(color: context.pal.surface2,
-                borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Row(children: [
-              Icon(Symbols.event, size: 14, color: context.pal.textDim),
-              const SizedBox(width: 8),
-              Expanded(child: Text(
-                _followUpDate != null ? _isoDate(_followUpDate!) : 'No follow-up scheduled',
-                style: AppTheme.bodySm.copyWith(color: _followUpDate != null ? null : context.pal.textDim),
-              )),
-              if (_followUpDate != null)
-                GestureDetector(onTap: () => setState(() => _followUpDate = null),
-                    child: Icon(Symbols.close, size: 13, color: context.pal.textDim)),
-            ]),
-          ),
+        _FollowUpField(label: 'Follow-up date', date: _followUpDate,
+            onChanged: (d) => setState(() => _followUpDate = d)),
+        const SizedBox(height: 14),
+        _ForecastFields(
+          closeDate: _closeDate, forecast: _forecast,
+          onCloseDate: (d) => setState(() => _closeDate = d),
+          onForecast: (v) => setState(() => _forecast = v),
         ),
         const SizedBox(height: 20),
 
@@ -582,6 +545,8 @@ class _NewDealDialogState extends State<_NewDealDialog> {
   String  _source  = 'other';
   int?    _assignedTo;
   DateTime? _followUpDate;
+  DateTime? _closeDate;
+  String  _forecast = 'pipeline';
   List<StaffMember> _staff = [];
   bool   _loadingStaff = true;
   bool   _saving   = false;
@@ -621,6 +586,8 @@ class _NewDealDialogState extends State<_NewDealDialog> {
         'source_notes': _sourceNotesCtrl.text.trim().isEmpty ? null : _sourceNotesCtrl.text.trim(),
         'assigned_to': _assignedTo,
         'follow_up_date': _followUpDate != null ? _isoDate(_followUpDate!) : null,
+        'expected_close_date': _closeDate != null ? _isoDate(_closeDate!) : null,
+        'forecast_category': _forecast,
       });
       widget.onSaved?.call();
     } catch (e) {
@@ -688,29 +655,8 @@ class _NewDealDialogState extends State<_NewDealDialog> {
                   )),
                   const SizedBox(width: 14),
                   Expanded(
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text('Sales rep', style: AppTheme.fieldLabel),
-                      const SizedBox(height: 6),
-                      Container(
-                        decoration: BoxDecoration(color: context.pal.surface2,
-                            borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                        child: _loadingStaff
-                            ? const Center(child: SizedBox(width: 14, height: 14,
-                                child: CircularProgressIndicator(strokeWidth: 2)))
-                            : DropdownButtonHideUnderline(child: DropdownButton<int?>(
-                                value: _assignedTo, isExpanded: true,
-                                hint: Text('Unassigned', style: AppTheme.bodySub.copyWith(fontSize: 12)),
-                                dropdownColor: context.pal.surface2, style: AppTheme.bodySm,
-                                icon: Icon(Symbols.expand_more, size: 14, color: context.pal.textDim),
-                                items: [
-                                  const DropdownMenuItem<int?>(value: null, child: Text('Unassigned')),
-                                  ..._staff.map((s) => DropdownMenuItem<int?>(value: s.id, child: Text(s.name))),
-                                ],
-                                onChanged: (v) => setState(() => _assignedTo = v),
-                              )),
-                      ),
-                    ]),
+                    child: _RepDropdown(loading: _loadingStaff, staff: _staff, value: _assignedTo,
+                        onChanged: (v) => setState(() => _assignedTo = v)),
                   ),
                 ]),
                 const SizedBox(height: 14),
@@ -726,39 +672,14 @@ class _NewDealDialogState extends State<_NewDealDialog> {
                   Expanded(child: _SField('Source Notes (optional)', _sourceNotesCtrl, 'e.g. tender ref #, referrer name')),
                 ]),
                 const SizedBox(height: 14),
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('Follow-up date (optional)', style: AppTheme.fieldLabel),
-                  const SizedBox(height: 6),
-                  GestureDetector(
-                    onTap: () async {
-                      final now = DateTime.now();
-                      final picked = await showDatePicker(
-                        context: context,
-                        initialDate: _followUpDate ?? now,
-                        firstDate: now.subtract(const Duration(days: 30)),
-                        lastDate: now.add(const Duration(days: 365 * 2)),
-                      );
-                      if (picked != null) setState(() => _followUpDate = picked);
-                    },
-                    child: Container(
-                      height: 38,
-                      decoration: BoxDecoration(color: context.pal.surface2,
-                          borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      child: Row(children: [
-                        Icon(Symbols.event, size: 14, color: context.pal.textDim),
-                        const SizedBox(width: 8),
-                        Expanded(child: Text(
-                          _followUpDate != null ? _isoDate(_followUpDate!) : 'No follow-up scheduled',
-                          style: AppTheme.bodySm.copyWith(color: _followUpDate != null ? null : context.pal.textDim),
-                        )),
-                        if (_followUpDate != null)
-                          GestureDetector(onTap: () => setState(() => _followUpDate = null),
-                              child: Icon(Symbols.close, size: 13, color: context.pal.textDim)),
-                      ]),
-                    ),
-                  ),
-                ]),
+                _FollowUpField(label: 'Follow-up date (optional)', date: _followUpDate,
+                    onChanged: (d) => setState(() => _followUpDate = d)),
+                const SizedBox(height: 14),
+                _ForecastFields(
+                  closeDate: _closeDate, forecast: _forecast,
+                  onCloseDate: (d) => setState(() => _closeDate = d),
+                  onForecast: (v) => setState(() => _forecast = v),
+                ),
               ]),
             ),
             Padding(
@@ -812,6 +733,92 @@ class _SField extends StatelessWidget {
   ]);
 }
 
+// Expected close date + the rep's forecast call — what the sales dashboard's
+// quarter forecast is built from. Side by side, shared by both lead dialogs.
+class _ForecastFields extends StatelessWidget {
+  const _ForecastFields({required this.closeDate, required this.forecast,
+      required this.onCloseDate, required this.onForecast});
+  final DateTime? closeDate;
+  final String forecast;
+  final ValueChanged<DateTime?> onCloseDate;
+  final ValueChanged<String> onForecast;
+
+  @override
+  Widget build(BuildContext context) => Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    Expanded(child: LabeledDateField(
+      label: 'Expected close',
+      date: closeDate,
+      placeholder: 'Not set',
+      onClear: () => onCloseDate(null),
+      onTap: () async {
+        final now = DateTime.now();
+        final picked = await showDatePicker(
+          context: context,
+          initialDate: closeDate ?? now,
+          firstDate: now.subtract(const Duration(days: 365)),
+          lastDate: now.add(const Duration(days: 365 * 3)),
+        );
+        if (picked != null) onCloseDate(picked);
+      },
+    )),
+    const SizedBox(width: 14),
+    Expanded(child: LabeledDropdown<String>(
+      label: 'Forecast',
+      value: forecast,
+      items: [for (final c in ForecastCategory.values) c.apiValue],
+      displayBuilder: (v) => parseForecastCategory(v).label,
+      onChanged: (v) => onForecast(v),
+    )),
+  ]);
+}
+
+// Sales rep picker, shared by both lead dialogs.
+class _RepDropdown extends StatelessWidget {
+  const _RepDropdown({required this.loading, required this.staff, required this.value, required this.onChanged});
+  final bool loading;
+  final List<StaffMember> staff;
+  final int? value;
+  final ValueChanged<int?> onChanged;
+
+  @override
+  Widget build(BuildContext context) => LabeledDropdown<int?>(
+    label: 'Sales rep',
+    // A rep id the staff list doesn't (yet) contain would have no item to
+    // show — fall back to Unassigned rather than breaking the dropdown.
+    value: staff.any((s) => s.id == value) ? value : null,
+    items: [null, for (final s in staff) s.id],
+    displayBuilder: (id) => id == null ? (loading ? 'Loading…' : 'Unassigned') : staff.firstWhere((s) => s.id == id).name,
+    onChanged: loading ? null : onChanged,
+    enabled: !loading,
+  );
+}
+
+// Follow-up date with a clear button, shared by both lead dialogs.
+class _FollowUpField extends StatelessWidget {
+  const _FollowUpField({required this.label, required this.date, required this.onChanged});
+  final String label;
+  final DateTime? date;
+  final ValueChanged<DateTime?> onChanged;
+
+  @override
+  Widget build(BuildContext context) => LabeledDateField(
+    label: label,
+    date: date,
+    placeholder: 'No follow-up scheduled',
+    onClear: () => onChanged(null),
+    onTap: () async {
+      final now = DateTime.now();
+      final picked = await showDatePicker(
+        context: context,
+        initialDate: date ?? now,
+        firstDate: now.subtract(const Duration(days: 365)),
+        lastDate: now.add(const Duration(days: 365 * 2)),
+      );
+      if (picked != null) onChanged(picked);
+    },
+  );
+}
+
 class _SDrop extends StatelessWidget {
   const _SDrop({required this.label, required this.value, required this.items,
       this.display, required this.onChanged});
@@ -821,23 +828,11 @@ class _SDrop extends StatelessWidget {
   final ValueChanged<String> onChanged;
 
   @override
-  Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Text(label, style: AppTheme.fieldLabel),
-    const SizedBox(height: 6),
-    Container(
-      decoration: BoxDecoration(color: context.pal.surface2,
-          borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-      height: 38,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: DropdownButtonHideUnderline(child: DropdownButton<String>(
-        value: value, isExpanded: true,
-        dropdownColor: context.pal.surface2, style: AppTheme.bodySm,
-        icon: Icon(Symbols.expand_more, size: 16, color: context.pal.textDim),
-        items: items.asMap().entries.map((e) =>
-            DropdownMenuItem(value: e.value,
-                child: Text(display != null ? display![e.key] : e.value))).toList(),
-        onChanged: (v) { if (v != null) onChanged(v); },
-      )),
-    ),
-  ]);
+  Widget build(BuildContext context) => LabeledDropdown<String>(
+    label: label,
+    value: value,
+    items: items,
+    displayBuilder: (v) => display != null ? display![items.indexOf(v)] : v,
+    onChanged: onChanged,
+  );
 }
