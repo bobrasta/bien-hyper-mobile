@@ -10,13 +10,13 @@ class ApiClient {
   ApiClient._();
   static final instance = ApiClient._();
 
-  // Default points at the Railway-hosted backend so every device (phone,
-  // tablet, laptop) reaches the same real data without extra build flags —
-  // set for the multi-device demo. Override back to local dev with:
-  //   flutter run --dart-define=API_BASE_URL=http://hypermed.local:8080/api/v1
+  // Default points at the production backend on the company VPS so every
+  // device reaches the same real data without extra build flags. Override
+  // for local dev with:
+  //   flutter run --dart-define=API_BASE_URL=http://127.0.0.1:8002/api/v1
   static const baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'https://hypermed-api-production.up.railway.app/api/v1',
+    defaultValue: 'https://api.hypermed.co.tz/api/v1',
   );
 
   // In-memory cache store shared across all requests — 10 MB cap.
