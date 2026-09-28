@@ -8,6 +8,7 @@ import '../../theme/app_palette.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/api_error.dart';
 import '../../widgets/common/error_view.dart';
+import '../../main.dart' show roleDisplayName;
 
 /// Attendance — ported from HR Redesign spec 1f: KPI row, inline per-person
 /// state pills ("click a state to set it" — no dialog for the common case),
@@ -270,7 +271,7 @@ class _HrAttendanceScreenState extends State<HrAttendanceScreen> {
             const SizedBox(width: 11),
             SizedBox(width: 118, child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
               Text(s.name, style: AppTheme.bodySm.copyWith(fontSize: 12.5), maxLines: 1, overflow: TextOverflow.ellipsis),
-              Text(s.positionTitle ?? s.role, style: AppTheme.bodySub.copyWith(fontSize: 10.5), maxLines: 1, overflow: TextOverflow.ellipsis),
+              Text(s.positionTitle ?? roleDisplayName(s.role), style: AppTheme.bodySub.copyWith(fontSize: 10.5), maxLines: 1, overflow: TextOverflow.ellipsis),
             ])),
             SizedBox(width: 90, child: Text(clock, style: AppTheme.monoXs.copyWith(fontSize: 10.5, color: current == 'absent' ? AppColors.coral : context.pal.textDim))),
             const SizedBox(width: 10),

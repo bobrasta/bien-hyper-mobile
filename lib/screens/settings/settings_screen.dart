@@ -41,10 +41,7 @@ import '../../widgets/common/labeled_field.dart';
 
 // e.g. 'sales_manager' -> 'Sales Manager' —shared by the Roles tab and the
 // Invite dialog's role dropdown.
-String _roleLabel(String name) => name
-    .split('_')
-    .map((w) => w.isEmpty ? w : '${w[0].toUpperCase()}${w.substring(1)}')
-    .join(' ');
+String _roleLabel(String name) => name.replaceAll('_', ' ').trim().toUpperCase();
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key, this.onNavigateTo});
   final void Function(String key)? onNavigateTo;
@@ -3766,7 +3763,7 @@ class _MemberRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final roleLabel = member.role.replaceAll('_', ' ');
+    final roleLabel = _roleLabel(member.role);
     final roleColor = switch (member.role.toLowerCase()) {
       'admin' => AppColors.teal,
       'finance' => AppColors.amber,

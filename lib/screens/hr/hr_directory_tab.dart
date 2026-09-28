@@ -19,6 +19,7 @@ import '../../utils/format.dart';
 import '../../widgets/common/error_view.dart';
 import 'staff_hr_dialogs.dart';
 import '../../widgets/common/labeled_field.dart';
+import '../../main.dart' show roleDisplayName;
 
 /// Directory — ported from HR Redesign spec 1c: a staff rail, a profile
 /// centre with a tab strip (only Profile has real content, matching what
@@ -268,7 +269,7 @@ class _HrDirectoryTabState extends State<HrDirectoryTab> {
               const SizedBox(width: 10),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
                 Text(s.name, style: AppTheme.bodySm.copyWith(fontSize: 12.5, color: active ? AppColors.cyan : context.pal.text), maxLines: 1, overflow: TextOverflow.ellipsis),
-                Text(s.positionTitle ?? s.role, style: AppTheme.bodySub.copyWith(fontSize: 11), maxLines: 1, overflow: TextOverflow.ellipsis),
+                Text(s.positionTitle ?? roleDisplayName(s.role), style: AppTheme.bodySub.copyWith(fontSize: 11), maxLines: 1, overflow: TextOverflow.ellipsis),
               ])),
               if (_flagged(s)) Icon(Symbols.warning, size: 14, color: AppColors.amber, fill: 1),
             ]),

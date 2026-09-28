@@ -42,12 +42,8 @@ void applyUserIdentity(Map<dynamic, dynamic> user) {
       (region != null && region.isNotEmpty) ? region : ((zone != null && zone.isNotEmpty) ? zone : null);
 }
 
-/// 'sales_manager' -> 'Sales Manager'.
-String roleDisplayName(String role) => role
-    .split('_')
-    .where((w) => w.isNotEmpty)
-    .map((w) => '${w[0].toUpperCase()}${w.substring(1)}')
-    .join(' ');
+/// Role names are shown in ALL CAPS app-wide: 'sales_manager' -> 'SALES MANAGER'.
+String roleDisplayName(String role) => role.replaceAll('_', ' ').trim().toUpperCase();
 
 /// Global trial status — checked once on startup.
 late final ValueNotifier<TrialStatus> trialNotifier;

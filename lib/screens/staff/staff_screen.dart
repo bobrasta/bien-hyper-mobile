@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
-import '../../main.dart' show userRoleNotifier, hasStaffManageAuthority, hasTaskManageAuthority;
+import '../../main.dart' show userRoleNotifier, hasStaffManageAuthority, hasTaskManageAuthority, roleDisplayName;
 import '../../models/service_ticket.dart';
 import '../../models/task_item.dart';
 import '../../services/staff_service.dart';
@@ -15,6 +15,8 @@ import '../../widgets/common/app_dropdown.dart';
 import '../../widgets/common/avatar_widget.dart';
 import '../../widgets/common/labeled_field.dart';
 import '../../theme/app_palette.dart';
+import '../../services/role_service.dart';
+import '../../models/permission.dart';
 
 // ── Local data models ───────────────────────────────────────────────────────
 class _Task {
@@ -1308,7 +1310,7 @@ class _TeamMemberRow extends StatelessWidget {
               color: isFiltered ? AppColors.violet
                   : _isAssigned ? AppColors.violet : context.pal.text),
               overflow: TextOverflow.ellipsis),
-            Text('${member.role} · ${member.zone}',
+            Text('${roleDisplayName(member.role)} · ${member.zone}',
                 style: AppTheme.bodySub.copyWith(fontSize: 10)),
           ])),
           Container(
@@ -1753,7 +1755,7 @@ class _NewTaskDialogState extends State<_NewTaskDialog> {
         selectedLabel: _assignee?.name,
         items: widget.teamMembers.map((m) => AppSelectItem(
           value: m.id,
-          label: '${m.name} — ${m.role}${m.zone.isNotEmpty ? ' — ${m.zone}' : ''}',
+          label: '${m.name} — ${roleDisplayName(m.role)}${m.zone.isNotEmpty ? ' — ${m.zone}' : ''}',
           leading: AvatarWidget(initials: m.initials, size: 18, variant: m.variant),
         )).toList(),
         onSelected: (item) {
@@ -1786,27 +1788,21 @@ class _NewStaffDialogState extends State<_NewStaffDialog> {
   bool    _saving = false;
   String? _error;
 
-  // Ordered so the manager tiers sit next to their department's staff tier.
-  static const _roleOrder = [
-    'super_admin', 'admin', 'cto',
-    'sales_manager', 'sales',
-    'finance_manager', 'finance',
-    'technician', 'team_leader', 'cs', 'storekeeper', 'hr',
-  ];
-  static const _roleLabels = {
-    'super_admin':     'Super Admin',
-    'admin':           'Director',
-    'cto':             'CTO',
-    'sales_manager':   'Sales Manager',
-    'sales':           'Sales Staff',
-    'finance_manager': 'Finance Manager',
-    'finance':         'Accountant',
-    'technician':      'Technician',
-    'team_leader':     'Team Leader',
-    'cs':              'Customer Service',
-    'storekeeper':     'Storekeeper',
-    'hr':              'HR',
-  };
+  // Roles come from the Role Builder (roles table) — no hard-coded list —
+  // and display in ALL CAPS.
+  List<String> _roles = [for (final r in RoleService.cachedList ?? const <RoleSummary>[]) r.name];
+
+  @override
+  void initState() {
+    super.initState();
+    RoleService.instance.list().then((list) {
+      if (!mounted) return;
+      setState(() {
+        _roles = [for (final r in list) r.name];
+        if (_roles.isNotEmpty && !_roles.contains(_role)) _role = _roles.first;
+      });
+    }).catchError((_) {});
+  }
 
   @override
   void dispose() {
@@ -1885,8 +1881,8 @@ class _NewStaffDialogState extends State<_NewStaffDialog> {
                   Expanded(child: _TDrop(
                     label: 'Role',
                     value: _role,
-                    items: _roleOrder,
-                    display: _roleOrder.map((r) => _roleLabels[r]!).toList(),
+                    items: _roles.isEmpty ? [_role] : _roles,
+                    display: (_roles.isEmpty ? [_role] : _roles).map(roleDisplayName).toList(),
                     onChanged: (v) => setState(() => _role = v),
                   )),
                   const SizedBox(width: 14),

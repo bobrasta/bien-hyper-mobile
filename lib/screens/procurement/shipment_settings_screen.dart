@@ -17,14 +17,8 @@ import '../../widgets/common/labeled_field.dart';
 import '../../widgets/procurement/proc_widgets.dart';
 import 'tender_forms.dart' show ProcDialog;
 
-String _roleLabel(String role) => switch (role) {
-  'super_admin' => 'Managing Director',
-  'cto' => 'CTO',
-  'sales_manager' => 'Sales Manager',
-  'procurement_manager' => 'Procurement lead',
-  'admin' => 'Admin',
-  _ => role.replaceAll('_', ' '),
-};
+// Role names are shown in ALL CAPS app-wide.
+String _roleLabel(String role) => role.replaceAll('_', ' ').trim().toUpperCase();
 
 class ShipmentSettingsScreen extends StatefulWidget {
   const ShipmentSettingsScreen({super.key, this.embedded = false});

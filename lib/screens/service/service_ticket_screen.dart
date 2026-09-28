@@ -3,7 +3,7 @@ import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../../main.dart' show allowedScreenKeys, hasCtoApprovalAuthority, hasDirectorAuthority, hasServiceTicketResolveAuthority, userRoleNotifier, userIdNotifier;
+import '../../main.dart' show allowedScreenKeys, hasCtoApprovalAuthority, hasDirectorAuthority, hasServiceTicketResolveAuthority, userRoleNotifier, userIdNotifier, roleDisplayName;
 import '../../utils/csv_export.dart';
 import '../../models/inventory_item.dart';
 import '../../models/machine.dart';
@@ -1276,7 +1276,7 @@ class _TicketDetailPanel extends StatelessWidget {
               const SizedBox(height: 4),
               Text(tech.name, style: AppTheme.bodyStrong.copyWith(fontSize: 14)),
               const SizedBox(height: 2),
-              Text(tech.role, style: AppTheme.bodySub.copyWith(fontSize: 12)),
+              Text(roleDisplayName(tech.role), style: AppTheme.bodySub.copyWith(fontSize: 12)),
               if (tech.zone != null) ...[
                 const SizedBox(height: 2),
                 Row(children: [
@@ -2000,7 +2000,7 @@ class _NewTicketModalState extends State<_NewTicketModal> {
                           selectedLabel: _selectedTech?.name,
                           items: _staff.map((s) => AppSelectItem(
                             value: s.id,
-                            label: [s.name, s.role, s.zone].where((v) => v != null && v.isNotEmpty).join(' — '),
+                            label: [s.name, roleDisplayName(s.role), s.zone].where((v) => v != null && v.isNotEmpty).join(' — '),
                           )).toList(),
                           onSelected: (item) => setState(() =>
                             _selectedTech = item == null ? null
@@ -3469,7 +3469,7 @@ class _EditTicketDialogState extends State<_EditTicketDialog> {
                   selectedLabel: _selectedTech?.name,
                   items: items.map((s) => AppSelectItem(
                     value: s.id,
-                    label: [s.name, s.role, s.zone].where((v) => v != null && v.isNotEmpty).join(' — '),
+                    label: [s.name, roleDisplayName(s.role), s.zone].where((v) => v != null && v.isNotEmpty).join(' — '),
                   )).toList(),
                   onSelected: (item) => setState(() =>
                     _selectedTech = item == null ? null : items.firstWhere((s) => s.id == item.value)),

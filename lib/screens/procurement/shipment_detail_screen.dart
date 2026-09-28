@@ -20,14 +20,8 @@ import 'shipments_screen.dart' show shipmentFlagColor, directionIcon;
 
 String _tsh(int v) => 'TSh ${v.toString().replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (_) => ',')}';
 
-String _roleLabel(String role) => switch (role) {
-  'super_admin' => 'Managing Director',
-  'cto' => 'CTO',
-  'sales_manager' => 'Sales Manager',
-  'procurement_manager' => 'Procurement lead',
-  'admin' => 'Admin',
-  _ => role.replaceAll('_', ' '),
-};
+// Role names are shown in ALL CAPS app-wide.
+String _roleLabel(String role) => role.replaceAll('_', ' ').trim().toUpperCase();
 
 String _initials(String name) {
   final p = name.trim().split(RegExp(r'\s+')).where((x) => x.isNotEmpty).toList();

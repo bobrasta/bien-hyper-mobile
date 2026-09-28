@@ -346,10 +346,7 @@ class _RolesGraphViewState extends State<RolesGraphView> {
     );
   }
 
-  String _roleLabel(String name) => name
-      .split('_')
-      .map((w) => w.isEmpty ? w : '${w[0].toUpperCase()}${w.substring(1)}')
-      .join(' ');
+  String _roleLabel(String name) => name.replaceAll('_', ' ').trim().toUpperCase();
 
   Widget _buildDetailPanel(BuildContext context) {
     if (_selectedRole != null) return _roleDetail(context, _selectedRole!);
