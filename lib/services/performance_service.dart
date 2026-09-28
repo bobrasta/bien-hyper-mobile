@@ -97,18 +97,39 @@ class MyFieldPerformance {
   );
 }
 
+/// One tile of the profile header's role-specific stat strip.
+class ProfileStat {
+  const ProfileStat({required this.value, required this.label, this.isMoney = false, this.highlight = false});
+  final int value;
+  final String label;
+  final bool isMoney;
+  final bool highlight;
+
+  factory ProfileStat.fromJson(Map<String, dynamic> j) => ProfileStat(
+    value: (j['value'] as num? ?? 0).toInt(),
+    label: j['label'] as String? ?? '',
+    isMoney: j['format'] == 'money',
+    highlight: j['highlight'] == true,
+  );
+}
+
 class MyPerformance {
-  const MyPerformance({required this.period, required this.tasks, this.sales, this.field});
+  const MyPerformance({required this.period, required this.tasks, this.sales, this.field, this.profileStats});
   final String period;
   final TaskStats tasks;
   final MySalesPerformance? sales;
   final MyFieldPerformance? field;
+  // Null on a backend that predates role-based profile stats.
+  final List<ProfileStat>? profileStats;
 
   factory MyPerformance.fromJson(Map<String, dynamic> j) => MyPerformance(
     period: j['period'] as String? ?? '',
     tasks: TaskStats.fromJson(j['tasks'] as Map<String, dynamic>? ?? {}),
     sales: j['sales'] != null ? MySalesPerformance.fromJson(j['sales'] as Map<String, dynamic>) : null,
     field: j['field'] != null ? MyFieldPerformance.fromJson(j['field'] as Map<String, dynamic>) : null,
+    profileStats: (j['profile_stats'] as List?)
+        ?.map((e) => ProfileStat.fromJson(e as Map<String, dynamic>))
+        .toList(),
   );
 }
 

@@ -12,6 +12,7 @@ import '../../main.dart'
         userPermissionsNotifier,
         userAvatarUrlNotifier,
         applyUserIdentity,
+        allowedScreenKeys,
         can;
 import '../../models/expense.dart';
 import '../../models/permission.dart';
@@ -965,24 +966,57 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _emailCtrl.text.trim().isNotEmpty &&
       _phoneCtrl.text.trim().isNotEmpty;
 
-  List<(String, String)> get _headerStats {
+  // (value, label, highlight). Role-specific set from the backend; the
+  // field/sales fallback only covers an older backend without it.
+  List<(String, String, bool)> get _headerStats {
+    final roleStats = _myPerformance?.profileStats;
+    if (roleStats != null) {
+      return [
+        for (final st in roleStats)
+          (st.isMoney ? tshShort(st.value) : _thousands(st.value), st.label, st.highlight),
+      ];
+    }
     final f = _myPerformance?.field;
     final s = _myPerformance?.sales;
     if (f != null) {
       return [
-        ('${f.machinesInstalledAllTime}', 'Installations'),
-        ('${f.ticketsResolvedAllTime}', 'Services'),
-        ('${f.hospitalsServed}', 'Hospitals'),
+        ('${f.machinesInstalledAllTime}', 'Installations', false),
+        ('${f.ticketsResolvedAllTime}', 'Services', false),
+        ('${f.hospitalsServed}', 'Hospitals', false),
       ];
     }
     if (s != null) {
       return [
-        (tshShort(s.pipelineValue), 'Pipeline'),
-        ('${s.dealsWonAllTime}', 'Deals won'),
-        ('${s.accountsServed}', 'Accounts'),
+        (tshShort(s.pipelineValue), 'Pipeline', false),
+        ('${s.dealsWonAllTime}', 'Deals won', false),
+        ('${s.accountsServed}', 'Accounts', false),
       ];
     }
     return const [];
+  }
+
+  static String _thousands(int n) =>
+      n.toString().replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (_) => ',');
+
+  // The header's one shortcut, per role as in the design mock — each points
+  // at the screen that role actually works in. Falls back to My performance
+  // when the role can't open its usual screen.
+  (String, IconData, String) get _headerCta {
+    final role = userRoleNotifier.value;
+    final cta = switch (role) {
+      'technician' => ('Service record', Symbols.build, 'my_service_reports'),
+      'team_leader' => ('Service tickets', Symbols.build, 'service'),
+      'sales' || 'sales_manager' => ('My pipeline', Symbols.filter_alt, 'sales'),
+      'accountant' || 'finance' || 'finance_manager' => ('Finance', Symbols.account_balance, 'finance'),
+      'super_admin' || 'admin' => ('Company overview', Symbols.monitoring, 'dashboard'),
+      'cto' => ('Fleet status', Symbols.precision_manufacturing, 'machines'),
+      'storekeeper' || 'procurement_manager' || 'logistics' => ('Stock levels', Symbols.inventory_2, 'inventory'),
+      'hr' => ('People overview', Symbols.groups, 'hr_dashboard'),
+      _ => null,
+    };
+    final allowed = allowedScreenKeys(role);
+    if (cta != null && (allowed == null || allowed.contains(cta.$3))) return cta;
+    return ('My performance', Symbols.trending_up, 'my_performance');
   }
 
   Widget _identityHeaderCard(BuildContext context) {
@@ -1138,11 +1172,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                 ),
                 AppButton(
-                  label: 'My performance',
-                  icon: Symbols.trending_up,
+                  label: _headerCta.$1,
+                  icon: _headerCta.$2,
                   variant: BtnVariant.ghost,
                   small: true,
-                  onPressed: () => widget.onNavigateTo?.call('my_performance'),
+                  onPressed: () => widget.onNavigateTo?.call(_headerCta.$3),
                 ),
               ],
             ),
@@ -1245,7 +1279,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   // Joined tiles: the outer box's border colour shows through 1px gaps
   // between the tiles as dividers.
-  Widget _headerStatTiles(BuildContext context, List<(String, String)> stats) => Container(
+  Widget _headerStatTiles(BuildContext context, List<(String, String, bool)> stats) => Container(
     decoration: BoxDecoration(
       color: context.pal.border,
       borderRadius: BorderRadius.circular(11),
@@ -1269,7 +1303,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 children: [
                   Text(
                     stats[i].$1,
-                    style: AppTheme.pageTitle.copyWith(fontSize: 22, height: 1),
+                    style: AppTheme.pageTitle.copyWith(
+                      fontSize: 22,
+                      height: 1,
+                      color: stats[i].$3 ? AppColors.green : null,
+                    ),
                   ),
                   const SizedBox(height: 4),
                   Text(
