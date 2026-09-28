@@ -594,49 +594,30 @@ class _AppSearchableSelectFieldState<T> extends State<AppSearchableSelectField<T
           Text(widget.label!, style: AppTheme.fieldLabel),
           const SizedBox(height: 6),
         ],
-        SizedBox(key: _triggerKey, width: widget.width, child: FieldFocusBox(
-          focusNode: _focusNode,
-          height: kFieldHeight,
-          alignment: Alignment.centerLeft,
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          builder: (context, focusNode) => Row(children: [
-            Icon(Symbols.search, size: 16, color: context.pal.textDim),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Focus(
-                onKeyEvent: _handleKey,
-                child: TextField(
-                  controller: _controller,
-                  focusNode: _focusNode,
-                  onChanged: _onChanged,
-                  onSubmitted: (_) { if (_highlight >= 0) _selectIndex(_highlight); },
-                  // Desktop platforms default onTapOutside to an immediate
-                  // unfocus() on raw pointer-down — the results panel lives
-                  // in a separate Overlay, so every tap on a row counted as
-                  // "outside" and closed the panel (via _onFocusChange)
-                  // before the tap gesture could resolve into onTap, so
-                  // _pick() never ran at all. The existing full-screen
-                  // GestureDetector in _openPanel() already handles the
-                  // legitimate "click elsewhere closes it" case, correctly
-                  // ordered as a real tap — so the built-in behavior here is
-                  // just redundant and actively broken; disable it.
-                  onTapOutside: (_) {},
-                  cursorColor: context.pal.text,
-                  cursorWidth: 1.5,
-                  style: AppTheme.fieldText,
-                  decoration: InputDecoration(
-                    hintText: widget.hint, hintStyle: AppTheme.fieldHint,
-                    filled: false, border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero,
-                  ),
-                ),
-              ),
-            ),
-            if (hasValue && !_focusNode.hasFocus)
-              GestureDetector(
-                onTap: _clear,
-                child: Icon(Symbols.close, size: 15, color: context.pal.textDim),
-              ),
-          ]),
+        // The Settings text input (LabeledTextField) with this combobox's
+        // own FocusNode (keyboard navigation + panel open/close hang off it).
+        SizedBox(key: _triggerKey, width: widget.width, child: Focus(
+          onKeyEvent: _handleKey,
+          child: LabeledTextField(
+            label: '',
+            controller: _controller,
+            focusNode: _focusNode,
+            prefixIcon: Symbols.search,
+            hint: widget.hint,
+            onChanged: _onChanged,
+            onSubmitted: (_) { if (_highlight >= 0) _selectIndex(_highlight); },
+            // Desktop platforms default onTapOutside to an immediate
+            // unfocus() on raw pointer-down — the results panel lives in a
+            // separate Overlay, so every tap on a row counted as "outside"
+            // and closed the panel (via _onFocusChange) before the tap could
+            // resolve into onTap, so _pick() never ran. The full-screen
+            // GestureDetector in _openPanel() already handles "click
+            // elsewhere closes it" correctly — so disable the built-in one.
+            onTapOutside: (_) {},
+            suffix: hasValue && !_focusNode.hasFocus
+                ? GestureDetector(onTap: _clear, child: Icon(Symbols.close, size: 15, color: context.pal.textDim))
+                : null,
+          ),
         )),
       ]),
     );

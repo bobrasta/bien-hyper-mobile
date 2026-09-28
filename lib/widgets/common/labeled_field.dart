@@ -139,6 +139,12 @@ class LabeledTextField extends StatelessWidget {
     this.onChanged,
     this.onSubmitted,
     this.hasError = false,
+    this.prefixIcon,
+    this.suffix,
+    this.focusNode,
+    this.autofocus = false,
+    this.onTap,
+    this.onTapOutside,
   });
 
   final String label;
@@ -152,6 +158,15 @@ class LabeledTextField extends StatelessWidget {
   final ValueChanged<String>? onSubmitted;
   // Coral border (+ coral halo while focused) — wins over the focus accent.
   final bool hasError;
+  // Search boxes and similar: leading icon / trailing widget inside the box.
+  final IconData? prefixIcon;
+  final Widget? suffix;
+  // Caller-owned node for fields whose focus also drives something else
+  // (search overlays, combobox keyboard navigation).
+  final FocusNode? focusNode;
+  final bool autofocus;
+  final VoidCallback? onTap;
+  final TapRegionCallback? onTapOutside;
 
   @override
   Widget build(BuildContext context) => Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -162,36 +177,50 @@ class LabeledTextField extends StatelessWidget {
     FieldFocusBox(
       enabled: enabled,
       hasError: hasError,
-      builder: (context, focusNode) => TextField(
-        controller: controller,
-        focusNode: focusNode,
-        obscureText: obscure,
-        maxLines: obscure ? 1 : maxLines,
-        keyboardType: keyboardType,
-        enabled: enabled,
-        onChanged: onChanged,
-        onSubmitted: onSubmitted,
-        cursorColor: context.pal.text,
-        cursorWidth: 1.5,
-        style: AppTheme.fieldText.copyWith(color: enabled ? context.pal.text : context.pal.textDim),
-        decoration: InputDecoration(
-          hintText: hint,
-          hintStyle: AppTheme.fieldHint,
-          filled: false,
-          border: InputBorder.none,
-          isDense: true,
-          contentPadding: EdgeInsets.zero,
-        ),
-      ),
+      focusNode: focusNode,
+      builder: (context, node) {
+        final field = TextField(
+          controller: controller,
+          focusNode: node,
+          autofocus: autofocus,
+          obscureText: obscure,
+          maxLines: obscure ? 1 : maxLines,
+          keyboardType: keyboardType,
+          enabled: enabled,
+          onChanged: onChanged,
+          onSubmitted: onSubmitted,
+          onTap: onTap,
+          onTapOutside: onTapOutside,
+          cursorColor: context.pal.text,
+          cursorWidth: 1.5,
+          style: AppTheme.fieldText.copyWith(color: enabled ? context.pal.text : context.pal.textDim),
+          decoration: InputDecoration(
+            hintText: hint,
+            hintStyle: AppTheme.fieldHint,
+            filled: false,
+            border: InputBorder.none,
+            isDense: true,
+            contentPadding: EdgeInsets.zero,
+          ),
+        );
+        if (prefixIcon == null && suffix == null) return field;
+        return Row(children: [
+          if (prefixIcon != null) ...[
+            Icon(prefixIcon, size: 16, color: context.pal.textDim),
+            const SizedBox(width: 8),
+          ],
+          Expanded(child: field),
+          if (suffix != null) ...[const SizedBox(width: 8), suffix!],
+        ]);
+      },
     ),
   ]);
 }
 
-/// Search box in the Settings field look — search icon + bare TextField in a
-/// FieldFocusBox. Use for every list/table filter box instead of hand-built
-/// surface-coloured containers. [width] null = fill the parent (wrap it in
-/// Expanded inside a Row).
-class SearchField extends StatelessWidget {
+/// Search box — the Settings text input (LabeledTextField) with a search
+/// icon. Use for every list/table filter. [width] null = fill the parent
+/// (wrap it in Expanded inside a Row).
+class SearchField extends StatefulWidget {
   const SearchField({
     super.key,
     required this.hint,
@@ -210,32 +239,31 @@ class SearchField extends StatelessWidget {
   final bool autofocus;
 
   @override
+  State<SearchField> createState() => _SearchFieldState();
+}
+
+class _SearchFieldState extends State<SearchField> {
+  TextEditingController? _own;
+  TextEditingController get _ctrl => widget.controller ?? (_own ??= TextEditingController());
+
+  @override
+  void dispose() {
+    _own?.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final pal = context.pal;
-    final box = FieldFocusBox(
-      minHeight: kFieldHeight,
-      alignment: Alignment.centerLeft,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      builder: (context, focusNode) => Row(children: [
-        Icon(Symbols.search, size: 16, color: pal.textDim),
-        const SizedBox(width: 8),
-        Expanded(child: TextField(
-          controller: controller,
-          focusNode: focusNode,
-          autofocus: autofocus,
-          onChanged: onChanged,
-          onSubmitted: onSubmitted,
-          cursorColor: pal.text,
-          cursorWidth: 1.5,
-          style: AppTheme.fieldText.copyWith(color: pal.text),
-          decoration: InputDecoration(
-            hintText: hint, hintStyle: AppTheme.fieldHint,
-            filled: false, border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero,
-          ),
-        )),
-      ]),
+    final field = LabeledTextField(
+      label: '',
+      controller: _ctrl,
+      hint: widget.hint,
+      prefixIcon: Symbols.search,
+      autofocus: widget.autofocus,
+      onChanged: widget.onChanged,
+      onSubmitted: widget.onSubmitted,
     );
-    return width == null ? box : SizedBox(width: width, child: box);
+    return widget.width == null ? field : SizedBox(width: widget.width, child: field);
   }
 }
 

@@ -229,63 +229,45 @@ class _TopBarState extends State<TopBar> {
                       ),
                     ]),
                   ),
-                  // Settings field look (see FieldFocusBox), driven by this
+                  // The Settings text input (LabeledTextField), driven by this
                   // field's own FocusNode because the results overlay needs it.
-                  child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 420), child: FieldFocusBox(
+                  child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 420), child: LabeledTextField(
+                    label: '',
+                    controller: _searchCtrl,
                     focusNode: _searchFocus,
-                    height: 38,
-                    alignment: Alignment.centerLeft,
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    builder: (context, _) => Row(children: [
-                      Icon(Symbols.search, size: 16, color: context.pal.textDim),
-                      const SizedBox(width: 8),
-                      Expanded(child: Padding(
-                        padding: const EdgeInsets.only(right: 8.0),
-                        child: TextField(
-                          controller: _searchCtrl,
-                          focusNode: _searchFocus,
-                          cursorColor: context.pal.text,
-                          cursorWidth: 1.5,
-                          style: AppTheme.fieldText,
-                          onChanged: (v) {
-                            _onSearchChanged(v);
-                            if (v.trim().isNotEmpty && !_searchOverlayController.isShowing) {
-                              _searchOverlayController.show();
-                            } else if (v.trim().isEmpty) {
+                    prefixIcon: Symbols.search,
+                    hint: 'Search machines, hospitals, tickets…',
+                    onChanged: (v) {
+                      _onSearchChanged(v);
+                      if (v.trim().isNotEmpty && !_searchOverlayController.isShowing) {
+                        _searchOverlayController.show();
+                      } else if (v.trim().isEmpty) {
+                        _searchOverlayController.hide();
+                      }
+                    },
+                    onTap: () {
+                      if (_searchCtrl.text.trim().isNotEmpty && !_searchOverlayController.isShowing) {
+                        _searchOverlayController.show();
+                      }
+                    },
+                    suffix: _searchCtrl.text.isEmpty
+                        ? Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: context.pal.surface3,
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(color: context.pal.border),
+                            ),
+                            child: Text('⌘K', style: AppTheme.monoXs),
+                          )
+                        : GestureDetector(
+                            onTap: () {
+                              _searchCtrl.clear();
+                              _onSearchChanged('');
                               _searchOverlayController.hide();
-                            }
-                          },
-                          onTap: () {
-                            if (_searchCtrl.text.trim().isNotEmpty && !_searchOverlayController.isShowing) {
-                              _searchOverlayController.show();
-                            }
-                          },
-                          decoration: InputDecoration(
-                            hintText: 'Search machines, hospitals, tickets…', hintStyle: AppTheme.fieldHint,
-                            filled: false, border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero,
+                            },
+                            child: Icon(Symbols.close, size: 15, color: context.pal.textDim),
                           ),
-                        ),
-                      )),
-                      if (_searchCtrl.text.isEmpty)
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: context.pal.surface3,
-                            borderRadius: BorderRadius.circular(4),
-                            border: Border.all(color: context.pal.border),
-                          ),
-                          child: Text('⌘K', style: AppTheme.monoXs),
-                        )
-                      else
-                        GestureDetector(
-                          onTap: () {
-                            _searchCtrl.clear();
-                            _onSearchChanged('');
-                            _searchOverlayController.hide();
-                          },
-                          child: Icon(Symbols.close, size: 15, color: context.pal.textDim),
-                        ),
-                    ]),
                   )),
                 ),
               ),
