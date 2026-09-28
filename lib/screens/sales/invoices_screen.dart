@@ -313,32 +313,59 @@ class _InvoiceTable extends StatelessWidget {
   final int total;
   final int outstandingTotal;
 
-  String _dueNote(Invoice inv) {
-    if (inv.isPaid) return 'settled';
+  static const _months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+  // Column layout shared by header, rows and footer so everything lines up.
+  // Fixed widths for the numeric/status columns; client + order flex.
+  static const double _wInv = 168, _wMoney = 116, _wOut = 124, _wStatus = 104, _wDue = 118, _wAction = 96, _gap = 18;
+
+  // "03 Oct" + a relative note ("in 21 days" / "6 days late" / "settled").
+  (String, String, Color?) _due(BuildContext context, Invoice inv) {
     final d = DateTime.tryParse(inv.dueDate);
-    if (d == null) return '';
-    final days = d.difference(DateTime.now()).inDays;
-    return days < 0 ? '${-days}d overdue' : 'due in $days days';
+    if (d == null) return ('—', 'not issued', null);
+    final date = '${d.day.toString().padLeft(2, '0')} ${_months[d.month - 1]}${d.year != DateTime.now().year ? ' ${d.year}' : ''}';
+    if (inv.isPaid) return (date, 'settled', AppColors.green);
+    final today = DateTime.now();
+    final days = DateTime(d.year, d.month, d.day).difference(DateTime(today.year, today.month, today.day)).inDays;
+    if (days < 0) return (date, '${-days} day${days == -1 ? '' : 's'} late', AppColors.coral);
+    if (days == 0) return (date, 'due today', AppColors.amber);
+    return (date, 'in $days day${days == 1 ? '' : 's'}', null);
   }
+
+  Widget _head(String t, {TextAlign align = TextAlign.left}) =>
+      Text(t, textAlign: align, maxLines: 1, style: AppTheme.labelCaps.copyWith(fontSize: 10, letterSpacing: 1.1));
 
   @override
   Widget build(BuildContext context) {
+    // Fixed columns need ~880px; below this the table scrolls sideways
+    // instead of squeezing the client column to nothing.
+    return LayoutBuilder(builder: (context, c) => c.maxWidth >= 1150
+        ? _table(context)
+        : SingleChildScrollView(scrollDirection: Axis.horizontal, child: SizedBox(width: 1150, height: c.maxHeight, child: _table(context))));
+  }
+
+  Widget _table(BuildContext context) {
+    final paidTotal = items.fold<int>(0, (s, i) => s + i.amountPaid);
+    final money = AppTheme.monoSm.copyWith(fontSize: 13);
     return Container(
       decoration: BoxDecoration(color: context.pal.surface1, borderRadius: BorderRadius.circular(14), border: Border.all(color: context.pal.border)),
       clipBehavior: Clip.antiAlias,
       child: Column(children: [
         Container(
-          height: 38, padding: const EdgeInsets.symmetric(horizontal: 16),
-          color: context.pal.surface2,
+          height: 44, padding: const EdgeInsets.symmetric(horizontal: 22),
+          decoration: BoxDecoration(border: Border(bottom: BorderSide(color: context.pal.divider))),
           child: Row(children: [
-            SizedBox(width: 138, child: Text('INV NUMBER', style: AppTheme.labelCaps.copyWith(fontSize: 9.5))),
-            Expanded(flex: 3, child: Text('CLIENT', style: AppTheme.labelCaps.copyWith(fontSize: 9.5))),
-            Expanded(child: Text('ORDER', style: AppTheme.labelCaps.copyWith(fontSize: 9.5))),
-            Expanded(child: Text('TOTAL', textAlign: TextAlign.right, style: AppTheme.labelCaps.copyWith(fontSize: 9.5))),
-            Expanded(child: Text('BALANCE', textAlign: TextAlign.right, style: AppTheme.labelCaps.copyWith(fontSize: 9.5))),
-            Expanded(child: Text('STATUS', textAlign: TextAlign.right, style: AppTheme.labelCaps.copyWith(fontSize: 9.5))),
-            Expanded(child: Text('DUE DATE', style: AppTheme.labelCaps.copyWith(fontSize: 9.5))),
-            const SizedBox(width: 56),
+            SizedBox(width: _wInv, child: _head('INVOICE')),
+            Expanded(flex: 3, child: _head('CLIENT')),
+            Expanded(flex: 2, child: _head('ORDER')),
+            SizedBox(width: _wMoney, child: _head('TOTAL', align: TextAlign.right)),
+            SizedBox(width: _wMoney, child: _head('PAID', align: TextAlign.right)),
+            SizedBox(width: _wOut, child: _head('OUTSTANDING', align: TextAlign.right)),
+            const SizedBox(width: _gap),
+            SizedBox(width: _wStatus, child: _head('STATUS', align: TextAlign.right)),
+            const SizedBox(width: 14),
+            SizedBox(width: _wDue, child: _head('DUE')),
+            const SizedBox(width: _wAction),
           ]),
         ),
         Expanded(child: items.isEmpty
@@ -348,31 +375,56 @@ class _InvoiceTable extends StatelessWidget {
                 separatorBuilder: (_, _) => Container(width: double.infinity, height: 1, color: context.pal.divider),
                 itemBuilder: (_, i) {
                   final inv = items[i];
-                  final color = _statusColor(inv.status);
-                  final note = _dueNote(inv);
-                  return GestureDetector(
+                  final st = inv.effectiveStatus;
+                  final color = _badgeColor(context, st);
+                  final (dueDate, dueNote, noteColor) = _due(context, inv);
+                  final (actionLabel, actionDanger) = switch (st) {
+                    PaymentStatus.paid || PaymentStatus.waived || PaymentStatus.cancelled => ('View', false),
+                    PaymentStatus.partial => ('Record', false),
+                    PaymentStatus.overdue => ('Remind', true),
+                    _ => ('Remind', false),
+                  };
+                  return InkWell(
                     onTap: () => onSelect(inv),
                     child: Container(
-                      height: 54, padding: const EdgeInsets.symmetric(horizontal: 16),
+                      height: 64, padding: const EdgeInsets.symmetric(horizontal: 22),
                       child: Row(children: [
-                        SizedBox(width: 138, child: Row(children: [
-                          Container(width: 3, height: 24, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2))),
-                          const SizedBox(width: 9),
-                          Expanded(child: Text(inv.invoiceNumber, style: AppTheme.monoXs.copyWith(fontSize: 11.5, color: context.pal.textMute))),
+                        SizedBox(width: _wInv, child: Row(children: [
+                          Container(width: 3, height: 28, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2))),
+                          const SizedBox(width: 14),
+                          Expanded(child: Text(inv.invoiceNumber, maxLines: 1, overflow: TextOverflow.ellipsis,
+                              style: AppTheme.monoSm.copyWith(fontSize: 12.5, color: context.pal.text))),
                         ])),
-                        Expanded(flex: 3, child: Text(inv.displayName, style: AppTheme.bodySm.copyWith(fontSize: 12.5), maxLines: 1, overflow: TextOverflow.ellipsis)),
-                        Expanded(child: Text(inv.salesOrderNumber ?? '—', style: AppTheme.monoXs.copyWith(fontSize: 11, color: context.pal.textDim))),
-                        Expanded(child: Text(tshFromDouble(inv.total), textAlign: TextAlign.right, style: AppTheme.monoSm.copyWith(fontSize: 12.5))),
-                        Expanded(child: Text(inv.balanceDue > 0 ? tshFromDouble(inv.balanceDue) : '—', textAlign: TextAlign.right, style: AppTheme.monoSm.copyWith(fontSize: 12.5, color: inv.balanceDue > 0 ? AppColors.amber : context.pal.textDim))),
-                        Expanded(child: Align(alignment: Alignment.centerRight, child: _StatusBadge(inv.effectiveStatus))),
-                        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Text(inv.dueDate.length >= 10 ? inv.dueDate.substring(0, 10) : inv.dueDate, style: AppTheme.monoXs.copyWith(fontSize: 11)),
-                          if (note.isNotEmpty) Text(note, style: AppTheme.bodySub.copyWith(fontSize: 10, color: inv.isPaid ? AppColors.green : AppColors.amber)),
+                        Expanded(flex: 3, child: Padding(
+                          padding: const EdgeInsets.only(right: 12),
+                          child: Text(inv.displayName, style: AppTheme.bodySm.copyWith(fontSize: 14, color: context.pal.text), maxLines: 1, overflow: TextOverflow.ellipsis),
+                        )),
+                        Expanded(flex: 2, child: Text(inv.salesOrderNumber ?? '—', maxLines: 1, overflow: TextOverflow.ellipsis,
+                            style: AppTheme.monoXs.copyWith(fontSize: 11.5, color: context.pal.textDim))),
+                        SizedBox(width: _wMoney, child: Text(tshFromDouble(inv.total), textAlign: TextAlign.right, style: money.copyWith(color: context.pal.text))),
+                        SizedBox(width: _wMoney, child: Text(tshFromDouble(inv.amountPaid), textAlign: TextAlign.right,
+                            style: money.copyWith(color: inv.amountPaid > 0 ? AppColors.green : context.pal.textDim))),
+                        SizedBox(width: _wOut, child: Text(tshFromDouble(inv.balanceDue), textAlign: TextAlign.right,
+                            style: money.copyWith(color: inv.balanceDue > 0 ? AppColors.amber : context.pal.textDim))),
+                        const SizedBox(width: _gap),
+                        SizedBox(width: _wStatus, child: Align(alignment: Alignment.centerRight, child: _StatusBadge(st))),
+                        const SizedBox(width: 14),
+                        SizedBox(width: _wDue, child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Text(dueDate, maxLines: 1, style: AppTheme.monoXs.copyWith(fontSize: 12, color: context.pal.text)),
+                          const SizedBox(height: 2),
+                          Text(dueNote, maxLines: 1, overflow: TextOverflow.ellipsis,
+                              style: AppTheme.bodySub.copyWith(fontSize: 11, color: noteColor ?? context.pal.textMute)),
                         ])),
-                        SizedBox(width: 56, child: Align(alignment: Alignment.centerRight, child: OutlinedButton(
+                        SizedBox(width: _wAction, child: Align(alignment: Alignment.centerRight, child: OutlinedButton(
                           onPressed: () => onSelect(inv),
-                          style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 10), minimumSize: const Size(0, 26)),
-                          child: Text(inv.isPaid ? 'View' : 'Remind', style: const TextStyle(fontSize: 11)),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 14),
+                            minimumSize: const Size(72, 34),
+                            foregroundColor: actionDanger ? AppColors.coral : context.pal.text,
+                            side: BorderSide(color: actionDanger ? AppColors.coral : context.pal.borderStrong),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                          child: Text(actionLabel, maxLines: 1, softWrap: false, style: const TextStyle(fontSize: 12.5)),
                         ))),
                       ]),
                     ),
@@ -380,21 +432,34 @@ class _InvoiceTable extends StatelessWidget {
                 },
               )),
         Container(
-          height: 46, padding: const EdgeInsets.symmetric(horizontal: 16),
-          decoration: BoxDecoration(color: context.pal.surface2, border: Border(top: BorderSide(color: context.pal.divider))),
+          height: 58, padding: const EdgeInsets.symmetric(horizontal: 22),
+          decoration: BoxDecoration(border: Border(top: BorderSide(color: context.pal.divider))),
           child: Row(children: [
-            SizedBox(width: 138, child: Text('TOTAL', style: AppTheme.labelCaps.copyWith(fontSize: 10))),
-            const Expanded(flex: 3, child: SizedBox()),
-            const Expanded(child: SizedBox()),
-            Expanded(child: Text(tshFromDouble(total), textAlign: TextAlign.right, style: AppTheme.bodyStrong.copyWith(fontSize: 13.5))),
-            Expanded(child: Text(tshFromDouble(outstandingTotal), textAlign: TextAlign.right, style: AppTheme.bodyStrong.copyWith(fontSize: 13.5, color: AppColors.amber))),
-            const Expanded(child: SizedBox()), const Expanded(child: SizedBox()), const SizedBox(width: 56),
+            SizedBox(width: _wInv, child: Text('TOTAL', style: AppTheme.labelCaps.copyWith(fontSize: 11, color: context.pal.text))),
+            Expanded(flex: 5, child: Text('Outstanding is total − amount paid, computed per row', maxLines: 2,
+                style: AppTheme.bodySub.copyWith(fontSize: 11.5))),
+            SizedBox(width: _wMoney, child: Text(tshFromDouble(total), textAlign: TextAlign.right, style: money.copyWith(fontSize: 14, color: context.pal.text))),
+            SizedBox(width: _wMoney, child: Text(tshFromDouble(paidTotal), textAlign: TextAlign.right, style: money.copyWith(fontSize: 14, color: AppColors.green))),
+            SizedBox(width: _wOut, child: Text(tshFromDouble(outstandingTotal), textAlign: TextAlign.right, style: money.copyWith(fontSize: 14, color: AppColors.amber))),
+            const SizedBox(width: _gap + _wStatus + 14 + _wDue + _wAction),
           ]),
         ),
       ]),
     );
   }
 }
+
+// Badge/marker colours for the invoice list (design: part paid = cyan,
+// sent/pending = amber, overdue = coral, paid = green, draft-like = grey).
+Color _badgeColor(BuildContext context, PaymentStatus s) => switch (s) {
+  PaymentStatus.paid      => AppColors.green,
+  PaymentStatus.partial   => AppColors.cyan,
+  PaymentStatus.overdue   => AppColors.coral,
+  PaymentStatus.sent      => AppColors.amber,
+  PaymentStatus.pending   => AppColors.amber,
+  PaymentStatus.waived    => AppColors.violet,
+  PaymentStatus.cancelled => context.pal.textDim,
+};
 
 // ── Status badge ───────────────────────────────────────────────────────────────
 
@@ -403,15 +468,16 @@ class _StatusBadge extends StatelessWidget {
   final PaymentStatus status;
   @override
   Widget build(BuildContext context) {
-    final color = _statusColor(status);
+    final color = _badgeColor(context, status);
+    final label = status == PaymentStatus.partial ? 'PART PAID' : status.label.toUpperCase();
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(4),
+        color: color.withValues(alpha: 0.13),
+        borderRadius: BorderRadius.circular(5),
       ),
-      child: Text(status.label,
-          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: color)),
+      child: Text(label, maxLines: 1, softWrap: false,
+          style: AppTheme.monoXs.copyWith(fontSize: 10.5, fontWeight: FontWeight.w600, letterSpacing: 1.1, color: color)),
     );
   }
 }
