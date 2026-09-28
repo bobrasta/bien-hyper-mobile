@@ -316,8 +316,15 @@ class _InvoiceTable extends StatelessWidget {
   static const _months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
   // Column layout shared by header, rows and footer so everything lines up.
-  // Fixed widths for the numeric/status columns; client + order flex.
-  static const double _wInv = 168, _wMoney = 116, _wOut = 124, _wStatus = 104, _wDue = 118, _wAction = 96, _gap = 18;
+  // All proportional (flex) so the table always fits its width; the client
+  // name ellipsizes and numbers scale down rather than overflow.
+  static const int _fInv = 15, _fClient = 26, _fOrder = 13, _fMoney = 11, _fOut = 12, _fStatus = 11, _fDue = 12, _fAction = 9;
+  static const double _gap = 14;
+
+  // Single-line cell text that shrinks to fit a narrow column instead of
+  // overflowing (used for money / dates).
+  static Widget _fit(Widget child, {Alignment align = Alignment.centerRight}) =>
+      FittedBox(fit: BoxFit.scaleDown, alignment: align, child: child);
 
   // "03 Oct" + a relative note ("in 21 days" / "6 days late" / "settled").
   (String, String, Color?) _due(BuildContext context, Invoice inv) {
@@ -337,14 +344,6 @@ class _InvoiceTable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Fixed columns need ~880px; below this the table scrolls sideways
-    // instead of squeezing the client column to nothing.
-    return LayoutBuilder(builder: (context, c) => c.maxWidth >= 1150
-        ? _table(context)
-        : SingleChildScrollView(scrollDirection: Axis.horizontal, child: SizedBox(width: 1150, height: c.maxHeight, child: _table(context))));
-  }
-
-  Widget _table(BuildContext context) {
     final paidTotal = items.fold<int>(0, (s, i) => s + i.amountPaid);
     final money = AppTheme.monoSm.copyWith(fontSize: 13);
     return Container(
@@ -355,17 +354,17 @@ class _InvoiceTable extends StatelessWidget {
           height: 44, padding: const EdgeInsets.symmetric(horizontal: 22),
           decoration: BoxDecoration(border: Border(bottom: BorderSide(color: context.pal.divider))),
           child: Row(children: [
-            SizedBox(width: _wInv, child: _head('INVOICE')),
-            Expanded(flex: 3, child: _head('CLIENT')),
-            Expanded(flex: 2, child: _head('ORDER')),
-            SizedBox(width: _wMoney, child: _head('TOTAL', align: TextAlign.right)),
-            SizedBox(width: _wMoney, child: _head('PAID', align: TextAlign.right)),
-            SizedBox(width: _wOut, child: _head('OUTSTANDING', align: TextAlign.right)),
+            Expanded(flex: _fInv, child: _head('INVOICE')),
+            Expanded(flex: _fClient, child: _head('CLIENT')),
+            Expanded(flex: _fOrder, child: _head('ORDER')),
+            Expanded(flex: _fMoney, child: _fit(_head('TOTAL', align: TextAlign.right))),
+            Expanded(flex: _fMoney, child: _fit(_head('PAID', align: TextAlign.right))),
+            Expanded(flex: _fOut, child: _fit(_head('OUTSTANDING', align: TextAlign.right))),
             const SizedBox(width: _gap),
-            SizedBox(width: _wStatus, child: _head('STATUS', align: TextAlign.right)),
-            const SizedBox(width: 14),
-            SizedBox(width: _wDue, child: _head('DUE')),
-            const SizedBox(width: _wAction),
+            Expanded(flex: _fStatus, child: _fit(_head('STATUS', align: TextAlign.right))),
+            const SizedBox(width: _gap),
+            Expanded(flex: _fDue, child: _head('DUE')),
+            const Spacer(flex: _fAction),
           ]),
         ),
         Expanded(child: items.isEmpty
@@ -389,33 +388,33 @@ class _InvoiceTable extends StatelessWidget {
                     child: Container(
                       height: 64, padding: const EdgeInsets.symmetric(horizontal: 22),
                       child: Row(children: [
-                        SizedBox(width: _wInv, child: Row(children: [
+                        Expanded(flex: _fInv, child: Row(children: [
                           Container(width: 3, height: 28, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2))),
                           const SizedBox(width: 14),
                           Expanded(child: Text(inv.invoiceNumber, maxLines: 1, overflow: TextOverflow.ellipsis,
                               style: AppTheme.monoSm.copyWith(fontSize: 12.5, color: context.pal.text))),
                         ])),
-                        Expanded(flex: 3, child: Padding(
+                        Expanded(flex: _fClient, child: Padding(
                           padding: const EdgeInsets.only(right: 12),
                           child: Text(inv.displayName, style: AppTheme.bodySm.copyWith(fontSize: 14, color: context.pal.text), maxLines: 1, overflow: TextOverflow.ellipsis),
                         )),
-                        Expanded(flex: 2, child: Text(inv.salesOrderNumber ?? '—', maxLines: 1, overflow: TextOverflow.ellipsis,
+                        Expanded(flex: _fOrder, child: Text(inv.salesOrderNumber ?? '—', maxLines: 1, overflow: TextOverflow.ellipsis,
                             style: AppTheme.monoXs.copyWith(fontSize: 11.5, color: context.pal.textDim))),
-                        SizedBox(width: _wMoney, child: Text(tshFromDouble(inv.total), textAlign: TextAlign.right, style: money.copyWith(color: context.pal.text))),
-                        SizedBox(width: _wMoney, child: Text(tshFromDouble(inv.amountPaid), textAlign: TextAlign.right,
-                            style: money.copyWith(color: inv.amountPaid > 0 ? AppColors.green : context.pal.textDim))),
-                        SizedBox(width: _wOut, child: Text(tshFromDouble(inv.balanceDue), textAlign: TextAlign.right,
-                            style: money.copyWith(color: inv.balanceDue > 0 ? AppColors.amber : context.pal.textDim))),
+                        Expanded(flex: _fMoney, child: _fit(Text(tshFromDouble(inv.total), maxLines: 1, style: money.copyWith(color: context.pal.text)))),
+                        Expanded(flex: _fMoney, child: _fit(Text(tshFromDouble(inv.amountPaid), maxLines: 1,
+                            style: money.copyWith(color: inv.amountPaid > 0 ? AppColors.green : context.pal.textDim)))),
+                        Expanded(flex: _fOut, child: _fit(Text(tshFromDouble(inv.balanceDue), maxLines: 1,
+                            style: money.copyWith(color: inv.balanceDue > 0 ? AppColors.amber : context.pal.textDim)))),
                         const SizedBox(width: _gap),
-                        SizedBox(width: _wStatus, child: Align(alignment: Alignment.centerRight, child: _StatusBadge(st))),
-                        const SizedBox(width: 14),
-                        SizedBox(width: _wDue, child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Text(dueDate, maxLines: 1, style: AppTheme.monoXs.copyWith(fontSize: 12, color: context.pal.text)),
+                        Expanded(flex: _fStatus, child: _fit(_StatusBadge(st))),
+                        const SizedBox(width: _gap),
+                        Expanded(flex: _fDue, child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          _fit(Text(dueDate, maxLines: 1, style: AppTheme.monoXs.copyWith(fontSize: 12, color: context.pal.text)), align: Alignment.centerLeft),
                           const SizedBox(height: 2),
                           Text(dueNote, maxLines: 1, overflow: TextOverflow.ellipsis,
                               style: AppTheme.bodySub.copyWith(fontSize: 11, color: noteColor ?? context.pal.textMute)),
                         ])),
-                        SizedBox(width: _wAction, child: Align(alignment: Alignment.centerRight, child: OutlinedButton(
+                        Expanded(flex: _fAction, child: Align(alignment: Alignment.centerRight, child: _fit(OutlinedButton(
                           onPressed: () => onSelect(inv),
                           style: OutlinedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(horizontal: 14),
@@ -425,7 +424,7 @@ class _InvoiceTable extends StatelessWidget {
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                           ),
                           child: Text(actionLabel, maxLines: 1, softWrap: false, style: const TextStyle(fontSize: 12.5)),
-                        ))),
+                        )))),
                       ]),
                     ),
                   );
@@ -435,13 +434,16 @@ class _InvoiceTable extends StatelessWidget {
           height: 58, padding: const EdgeInsets.symmetric(horizontal: 22),
           decoration: BoxDecoration(border: Border(top: BorderSide(color: context.pal.divider))),
           child: Row(children: [
-            SizedBox(width: _wInv, child: Text('TOTAL', style: AppTheme.labelCaps.copyWith(fontSize: 11, color: context.pal.text))),
-            Expanded(flex: 5, child: Text('Outstanding is total − amount paid, computed per row', maxLines: 2,
+            Expanded(flex: _fInv, child: Text('TOTAL', style: AppTheme.labelCaps.copyWith(fontSize: 11, color: context.pal.text))),
+            Expanded(flex: _fClient + _fOrder, child: Text('Outstanding is total − amount paid, computed per row', maxLines: 2, overflow: TextOverflow.ellipsis,
                 style: AppTheme.bodySub.copyWith(fontSize: 11.5))),
-            SizedBox(width: _wMoney, child: Text(tshFromDouble(total), textAlign: TextAlign.right, style: money.copyWith(fontSize: 14, color: context.pal.text))),
-            SizedBox(width: _wMoney, child: Text(tshFromDouble(paidTotal), textAlign: TextAlign.right, style: money.copyWith(fontSize: 14, color: AppColors.green))),
-            SizedBox(width: _wOut, child: Text(tshFromDouble(outstandingTotal), textAlign: TextAlign.right, style: money.copyWith(fontSize: 14, color: AppColors.amber))),
-            const SizedBox(width: _gap + _wStatus + 14 + _wDue + _wAction),
+            Expanded(flex: _fMoney, child: _fit(Text(tshFromDouble(total), maxLines: 1, style: money.copyWith(fontSize: 14, color: context.pal.text)))),
+            Expanded(flex: _fMoney, child: _fit(Text(tshFromDouble(paidTotal), maxLines: 1, style: money.copyWith(fontSize: 14, color: AppColors.green)))),
+            Expanded(flex: _fOut, child: _fit(Text(tshFromDouble(outstandingTotal), maxLines: 1, style: money.copyWith(fontSize: 14, color: AppColors.amber)))),
+            const SizedBox(width: _gap),
+            const Spacer(flex: _fStatus),
+            const SizedBox(width: _gap),
+            const Spacer(flex: _fDue + _fAction),
           ]),
         ),
       ]),
