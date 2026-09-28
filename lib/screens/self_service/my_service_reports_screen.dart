@@ -118,23 +118,15 @@ class _FilterRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Wrap(spacing: 10, runSpacing: 10, children: [
     SearchField(width: 220, hint: 'Ticket number', controller: ticketCtrl, onSubmitted: (_) => onSearch()),
-    Container(
-      height: kFieldHeight,
-      padding: const EdgeInsets.symmetric(horizontal: 14),
-      decoration: BoxDecoration(color: context.pal.bg, borderRadius: BorderRadius.circular(10), border: Border.all(color: context.pal.borderStrong, width: 1.2)),
-      child: DropdownButtonHideUnderline(child: DropdownButton<String?>(
-        value: typeFilter,
-        hint: Text('All types', style: AppTheme.fieldText),
-        dropdownColor: context.pal.surface2,
-        style: AppTheme.fieldText.copyWith(color: context.pal.text),
-        icon: Icon(Symbols.expand_more, size: 16, color: context.pal.textDim),
-        items: const [
+    DropdownFieldBox<String?>(
+      value: typeFilter,
+      hint: 'All types',
+      items: const [
           DropdownMenuItem(value: null, child: Text('All types')),
           DropdownMenuItem(value: 'repair', child: Text('Service reports')),
           DropdownMenuItem(value: 'installation', child: Text('Installation reports')),
         ],
-        onChanged: onTypeChanged,
-      )),
+      onChanged: onTypeChanged,
     ),
     GestureDetector(
       onTap: onSearch,

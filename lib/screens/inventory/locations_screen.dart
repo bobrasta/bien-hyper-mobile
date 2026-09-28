@@ -482,27 +482,13 @@ class _LocationFormModalState extends State<_LocationFormModal> {
                 const SizedBox(height: 12),
                 Text('Type', style: AppTheme.fieldLabel),
                 const SizedBox(height: 6),
-                Container(
-                  decoration: BoxDecoration(
-                    color: context.pal.bg,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: context.pal.borderStrong, width: 1.2),
-                  ),
-                  height: kFieldHeight,
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<String>(
-                      value: _type,
-                      isExpanded: true,
-                      dropdownColor: context.pal.surface2,
-                      style: AppTheme.bodySm,
-                      items: List.generate(_types.length, (i) => DropdownMenuItem(
+                DropdownFieldBox<String>(
+                  value: _type,
+                  items: List.generate(_types.length, (i) => DropdownMenuItem(
                         value: _types[i],
                         child: Text(_typeLabels[i], style: AppTheme.bodySm),
                       )),
-                      onChanged: (v) { if (v != null) setState(() => _type = v); },
-                    ),
-                  ),
+                  onChanged: (v) { if (v != null) setState(() => _type = v); },
                 ),
                 const SizedBox(height: 12),
                 _Field('Address', _addressCtrl, hint: 'Physical address (optional)', maxLines: 2),

@@ -855,27 +855,15 @@ class _PaymentModalState extends State<_PaymentModal> {
                 const SizedBox(height: 12),
                 _label('Payment Method'),
                 const SizedBox(height: 5),
-                Container(
-                  height: kFieldHeight,
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                  decoration: BoxDecoration(
-                    color: context.pal.bg,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: context.pal.borderStrong, width: 1.2),
-                  ),
-                  child: DropdownButtonHideUnderline(child: DropdownButton<String>(
-                    value: _method, isExpanded: true,
-                    dropdownColor: context.pal.surface2,
-                    style: AppTheme.bodySm,
-                    icon: Icon(Symbols.expand_more, size: 14, color: context.pal.textDim),
-                    items: const [
+                DropdownFieldBox<String>(
+                  value: _method,
+                  items: const [
                       DropdownMenuItem(value: 'cash',          child: Text('Cash')),
                       DropdownMenuItem(value: 'bank_transfer', child: Text('Bank Transfer')),
                       DropdownMenuItem(value: 'mobile_money',  child: Text('Mobile Money')),
                       DropdownMenuItem(value: 'cheque',        child: Text('Cheque')),
                     ],
-                    onChanged: (v) { if (v != null) setState(() => _method = v); },
-                  )),
+                  onChanged: (v) { if (v != null) setState(() => _method = v); },
                 ),
                 const SizedBox(height: 12),
                 _field('Reference / Transaction ID', _refCtrl, context,

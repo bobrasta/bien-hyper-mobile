@@ -11,7 +11,7 @@ import '../../utils/api_error.dart';
 import '../../utils/format.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/common/error_view.dart';
-import '../../widgets/common/labeled_field.dart' show FieldFocusBox;
+import '../../widgets/common/labeled_field.dart';
 
 class BankReconciliationScreen extends StatefulWidget {
   const BankReconciliationScreen({super.key});
@@ -311,22 +311,7 @@ class _DateField extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Text(label, style: AppTheme.fieldLabel),
-    const SizedBox(height: 6),
-    GestureDetector(
-      onTap: onTap,
-      child: Container(
-        height: 38,
-        decoration: BoxDecoration(color: context.pal.surface2, borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        child: Row(children: [
-          Expanded(child: Text(formatDate(date), style: AppTheme.bodySm)),
-          Icon(Symbols.calendar_month, size: 15, color: context.pal.textDim),
-        ]),
-      ),
-    ),
-  ]);
+  Widget build(BuildContext context) => LabeledDateField(label: label, date: date, onTap: onTap);
 }
 
 // ── Reconciliation Detail ────────────────────────────────────────────────────

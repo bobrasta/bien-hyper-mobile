@@ -11,6 +11,7 @@ import '../../theme/app_colors.dart';
 import '../../theme/app_palette.dart';
 import '../../theme/app_theme.dart';
 import 'current_user_avatar.dart';
+import 'labeled_field.dart';
 
 class TopBar extends StatefulWidget {
   const TopBar({super.key, this.onMenuPressed, this.onOpenNotification, this.onOpenSearchResult});
@@ -230,26 +231,12 @@ class _TopBarState extends State<TopBar> {
                   ),
                   // Settings field look (see FieldFocusBox), driven by this
                   // field's own FocusNode because the results overlay needs it.
-                  child: ListenableBuilder(listenable: _searchFocus, builder: (context, row) => AnimatedContainer(
-                    duration: const Duration(milliseconds: 160),
-                    curve: Curves.easeOut,
-                    constraints: const BoxConstraints(maxWidth: 420),
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: context.pal.bg,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: _searchFocus.hasFocus ? AppColors.teal : context.pal.borderStrong,
-                        width: _searchFocus.hasFocus ? 1.6 : 1.2,
-                      ),
-                      boxShadow: [BoxShadow(
-                        color: _searchFocus.hasFocus ? AppColors.teal.withValues(alpha: 0.20) : Colors.transparent,
-                        spreadRadius: _searchFocus.hasFocus ? 3 : 0,
-                      )],
-                    ),
+                  child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 420), child: FieldFocusBox(
+                    focusNode: _searchFocus,
+                    height: 38,
+                    alignment: Alignment.centerLeft,
                     padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: row,
-                  ), child: Row(children: [
+                    builder: (context, _) => Row(children: [
                       Icon(Symbols.search, size: 16, color: context.pal.textDim),
                       const SizedBox(width: 8),
                       Expanded(child: Padding(
@@ -257,7 +244,9 @@ class _TopBarState extends State<TopBar> {
                         child: TextField(
                           controller: _searchCtrl,
                           focusNode: _searchFocus,
-                          style: AppTheme.bodySm,
+                          cursorColor: context.pal.text,
+                          cursorWidth: 1.5,
+                          style: AppTheme.fieldText,
                           onChanged: (v) {
                             _onSearchChanged(v);
                             if (v.trim().isNotEmpty && !_searchOverlayController.isShowing) {
@@ -272,9 +261,8 @@ class _TopBarState extends State<TopBar> {
                             }
                           },
                           decoration: InputDecoration(
-                            hintText: 'Search machines, hospitals, tickets…',
-                            hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
-                            border: InputBorder.none, isDense: false, contentPadding: EdgeInsets.symmetric(horizontal: 8),
+                            hintText: 'Search machines, hospitals, tickets…', hintStyle: AppTheme.fieldHint,
+                            filled: false, border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero,
                           ),
                         ),
                       )),
@@ -298,7 +286,7 @@ class _TopBarState extends State<TopBar> {
                           child: Icon(Symbols.close, size: 15, color: context.pal.textDim),
                         ),
                     ]),
-                  ),
+                  )),
                 ),
               ),
             ),

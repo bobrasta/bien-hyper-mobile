@@ -15,7 +15,6 @@ import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common/app_button.dart';
 import '../../widgets/common/app_dropdown.dart';
-import '../../widgets/common/app_text_field.dart';
 import '../../widgets/common/avatar_widget.dart';
 import '../../widgets/common/labeled_field.dart';
 import '../../widgets/common/status_badge.dart';
@@ -978,20 +977,12 @@ class _MDrop extends StatelessWidget {
   Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
     Text(label, style: AppTheme.fieldLabel),
     const SizedBox(height: 6),
-    Container(
-      decoration: BoxDecoration(color: context.pal.bg,
-          borderRadius: BorderRadius.circular(10), border: Border.all(color: context.pal.borderStrong, width: 1.2)),
-      height: kFieldHeight,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: DropdownButtonHideUnderline(child: DropdownButton<String>(
-        value: value, isExpanded: true,
-        dropdownColor: context.pal.surface2, style: AppTheme.bodySm,
-        icon: Icon(Symbols.expand_more, size: 16, color: context.pal.textDim),
-        items: items.asMap().entries.map((e) => DropdownMenuItem(
+    DropdownFieldBox<String>(
+      value: value,
+      items: items.asMap().entries.map((e) => DropdownMenuItem(
             value: e.value,
             child: Text(display != null ? display![e.key] : e.value))).toList(),
-        onChanged: (v) { if (v != null) onChanged(v); },
-      )),
+      onChanged: (v) { if (v != null) onChanged(v); },
     ),
   ]);
 }
@@ -1676,7 +1667,7 @@ class _AllocateMachineDialogState extends State<_AllocateMachineDialog> {
         onSelected: (item) => setState(() { _hospitalId = item?.value; _hospitalName = item?.label; }),
       ),
       const SizedBox(height: 14),
-      AppTextField(controller: _reasonCtrl, label: 'Reason (optional)', hintText: 'e.g. Sold via Quotation Q-100'),
+      LabeledTextField(label: 'Reason (optional)', controller: _reasonCtrl, hint: 'e.g. Sold via Quotation Q-100'),
       if (_error != null) ...[
         const SizedBox(height: 10),
         Text(_error!, style: TextStyle(color: AppColors.coral, fontSize: 12)),

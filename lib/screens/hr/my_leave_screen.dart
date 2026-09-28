@@ -7,7 +7,6 @@ import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_palette.dart';
 import '../../utils/api_error.dart';
-import '../../utils/format.dart';
 import '../../widgets/common/app_button.dart';
 import '../../widgets/common/error_view.dart';
 import '../../widgets/common/labeled_field.dart';
@@ -334,18 +333,12 @@ class _RequestLeaveDialogState extends State<_RequestLeaveDialog> {
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text('Leave type', style: AppTheme.fieldLabel),
                   const SizedBox(height: 6),
-                  Container(
-                    decoration: BoxDecoration(color: context.pal.bg, borderRadius: BorderRadius.circular(10), border: Border.all(color: context.pal.borderStrong, width: 1.2)),
-                    height: kFieldHeight,
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: _loadingTypes
-                        ? const Center(child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)))
-                        : DropdownButtonHideUnderline(child: DropdownButton<LeaveTypeCatalogEntry>(
-                            value: _type, isExpanded: true, dropdownColor: context.pal.surface2, style: AppTheme.bodySm,
-                            icon: Icon(Symbols.expand_more, size: 16, color: context.pal.textDim),
-                            items: _types.map((t) => DropdownMenuItem(value: t, child: Text(t.label))).toList(),
-                            onChanged: (v) => setState(() => _type = v),
-                          )),
+                  DropdownFieldBox<LeaveTypeCatalogEntry>(
+                    value: _loadingTypes ? null : _type,
+                    enabled: !_loadingTypes,
+                    hint: _loadingTypes ? 'Loading…' : null,
+                    items: _loadingTypes ? const [] : _types.map((t) => DropdownMenuItem(value: t, child: Text(t.label))).toList(),
+                    onChanged: (v) => setState(() => _type = v),
                   ),
                   if (_type?.requiresManualDays == true) ...[
                     const SizedBox(height: 6),
@@ -403,22 +396,7 @@ class _DateField extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Text(label, style: AppTheme.fieldLabel),
-    const SizedBox(height: 6),
-    GestureDetector(
-      onTap: onTap,
-      child: Container(
-        height: 38,
-        decoration: BoxDecoration(color: context.pal.surface2, borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        child: Row(children: [
-          Expanded(child: Text(formatDate(date), style: AppTheme.bodySm)),
-          Icon(Symbols.calendar_month, size: 15, color: context.pal.textDim),
-        ]),
-      ),
-    ),
-  ]);
+  Widget build(BuildContext context) => LabeledDateField(label: label, date: date, onTap: onTap);
 }
 
 // ── Running Late dialog ──────────────────────────────────────────────────────

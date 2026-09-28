@@ -37,6 +37,7 @@ import '../../widgets/common/app_dropdown.dart';
 import '../../widgets/common/avatar_widget.dart';
 import '../../theme/app_palette.dart';
 import '../../widgets/common/update_widgets.dart' show AppUpdatesCard;
+import '../../widgets/common/labeled_field.dart';
 
 // e.g. 'sales_manager' -> 'Sales Manager' —shared by the Roles tab and the
 // Invite dialog's role dropdown.
@@ -2217,34 +2218,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   );
 
   // ── Tab 0: Members ────────────────────────────────────────────────────────
-  Widget _memberSearchField(BuildContext context) => Container(
-    height: 32,
-    decoration: BoxDecoration(
-      color: context.pal.surface1,
-      borderRadius: BorderRadius.circular(8),
-      border: Border.all(color: context.pal.border),
-    ),
-    padding: const EdgeInsets.symmetric(horizontal: 10),
-    child: Row(
-      children: [
-        Icon(Symbols.search, size: 14, color: context.pal.textDim),
-        const SizedBox(width: 6),
-        Expanded(
-          child: TextField(
-            controller: _memberSearchCtrl,
-            style: AppTheme.bodySub.copyWith(fontSize: 12),
-            decoration: InputDecoration(
-              isDense: false,
-              border: InputBorder.none,
-              contentPadding: EdgeInsets.zero,
-              hintText: 'Search members…',
-              hintStyle: AppTheme.bodySub.copyWith(fontSize: 12),
-            ),
-            onChanged: (v) => setState(() => _memberSearch = v),
-          ),
-        ),
-      ],
-    ),
+  Widget _memberSearchField(BuildContext context) => SearchField(
+    hint: 'Search members…',
+    controller: _memberSearchCtrl,
+    onChanged: (v) => setState(() => _memberSearch = v),
   );
 
   Widget _memberRoleFilterDropdown(BuildContext context) {
@@ -2757,13 +2734,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
         title: Text('New Role', style: AppTheme.cardTitle),
         content: SizedBox(
           width: 320,
-          child: TextField(
+          child: LabeledTextField(
+            label: 'Role name',
             controller: ctrl,
-            autofocus: true,
-            style: AppTheme.bodySm,
-            decoration: const InputDecoration(
-              labelText: 'Role name (e.g. regional_sales_lead)',
-            ),
+            hint: 'e.g. regional_sales_lead',
           ),
         ),
         actions: [
@@ -3014,26 +2988,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   const SizedBox(width: 16),
                   SizedBox(
                     width: 220,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: context.pal.surface2,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: context.pal.border),
-                      ),
-                      height: 38,
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<AppThemeMode>(
-                          value: mode,
-                          isExpanded: true,
-                          dropdownColor: context.pal.surface2,
-                          style: AppTheme.bodySm,
-                          icon: Icon(
-                            Symbols.expand_more,
-                            size: 16,
-                            color: context.pal.textDim,
-                          ),
-                          items: AppTheme.pickerOrder
+                    child: DropdownFieldBox<AppThemeMode>(
+                      value: mode,
+                      items: AppTheme.pickerOrder
                               .map(
                                 (e) => DropdownMenuItem(
                                   value: e.$1,
@@ -3041,11 +2998,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 ),
                               )
                               .toList(),
-                          onChanged: (v) {
+                      onChanged: (v) {
                             if (v != null) themeNotifier.value = v;
                           },
-                        ),
-                      ),
                     ),
                   ),
                 ],
@@ -3405,20 +3360,10 @@ class _ManagePermissionsDialogState extends State<_ManagePermissionsDialog> {
                     const SizedBox(height: 16),
                     Text('ADD OVERRIDE', style: AppTheme.labelCaps),
                     const SizedBox(height: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10),
-                      decoration: BoxDecoration(
-                        color: context.pal.surface2,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: context.pal.border),
-                      ),
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<String>(
-                          isExpanded: true,
-                          hint: const Text('Choose a permission'),
-                          dropdownColor: context.pal.surface2,
-                          value: _newKey,
-                          items: allPerms
+                    DropdownFieldBox<String>(
+                      value: _newKey,
+                      hint: 'Choose a permission',
+                      items: allPerms
                               .map(
                                 (p) => DropdownMenuItem(
                                   value: p.key,
@@ -3426,9 +3371,7 @@ class _ManagePermissionsDialogState extends State<_ManagePermissionsDialog> {
                                 ),
                               )
                               .toList(),
-                          onChanged: (v) => setState(() => _newKey = v),
-                        ),
-                      ),
+                      onChanged: (v) => setState(() => _newKey = v),
                     ),
                     const SizedBox(height: 8),
                     Row(
@@ -3449,12 +3392,7 @@ class _ManagePermissionsDialogState extends State<_ManagePermissionsDialog> {
                       ],
                     ),
                     const SizedBox(height: 8),
-                    TextField(
-                      controller: _reasonCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Reason (optional)',
-                      ),
-                    ),
+                    LabeledTextField(label: 'Reason (optional)', controller: _reasonCtrl),
                     const SizedBox(height: 12),
                     SizedBox(
                       width: double.infinity,
@@ -4061,7 +3999,9 @@ class _ToggleRow extends StatelessWidget {
   );
 }
 
-class _SettingsField extends StatefulWidget {
+// The Settings text input — now the shared LabeledTextField (FieldFocusBox),
+// so this page and every other screen draw fields from one piece of code.
+class _SettingsField extends StatelessWidget {
   const _SettingsField({
     required this.label,
     required this.ctrl,
@@ -4078,106 +4018,18 @@ class _SettingsField extends StatefulWidget {
   final ValueChanged<String>? onChanged;
   final ValueChanged<String>? onSubmitted;
   final int maxLines;
-  // Coral border (+ coral halo while focused) — wins over the focus accent.
   final bool hasError;
 
   @override
-  State<_SettingsField> createState() => _SettingsFieldState();
-}
-
-class _SettingsFieldState extends State<_SettingsField> {
-  final _focusNode = FocusNode();
-  bool _focused = false;
-  static const _radius = 10.0;
-
-  @override
-  void initState() {
-    super.initState();
-    _focusNode.addListener(() {
-      if (mounted) setState(() => _focused = _focusNode.hasFocus);
-    });
-  }
-
-  @override
-  void dispose() {
-    _focusNode.dispose();
-    super.dispose();
-  }
-
-  OutlineInputBorder _border(Color color, [double width = 1.2]) =>
-      OutlineInputBorder(
-        borderRadius: BorderRadius.circular(_radius),
-        borderSide: BorderSide(color: color, width: width),
-      );
-
-  @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      if (widget.label.isNotEmpty) ...[
-        Text(
-          widget.label,
-          style: AppTheme.bodySm.copyWith(
-            fontSize: 13,
-            fontWeight: FontWeight.w400,
-            color: context.pal.textMute,
-          ),
-        ),
-        const SizedBox(height: 6),
-      ],
-      AnimatedContainer(
-        duration: const Duration(milliseconds: 160),
-        curve: Curves.easeOut,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(_radius),
-          boxShadow: [
-            BoxShadow(
-              // Theme accent (the same token every other focus/active
-              // state uses) at 20% — a solid ring, not a soft glow.
-              color: _focused
-                  ? (widget.hasError ? AppColors.coral : AppColors.teal).withValues(alpha: 0.20)
-                  : Colors.transparent,
-              spreadRadius: _focused ? 3 : 0,
-              blurRadius: 0,
-            ),
-          ],
-        ),
-        child: TextField(
-          controller: widget.ctrl,
-          focusNode: _focusNode,
-          obscureText: widget.obscure,
-          maxLines: widget.obscure ? 1 : widget.maxLines,
-          onChanged: widget.onChanged,
-          onSubmitted: widget.onSubmitted,
-          cursorColor: context.pal.text,
-          cursorWidth: 1.5,
-          style: AppTheme.bodySm.copyWith(
-            fontSize: 14,
-            fontWeight: FontWeight.w400,
-          ),
-          decoration: InputDecoration(
-            hintText: widget.hint,
-            hintStyle: AppTheme.bodySm.copyWith(
-              fontSize: 14,
-              color: context.pal.textDim,
-            ),
-            filled: true,
-            // Recessed: the page background, a step darker than the card
-            // the field sits on (lighter on light themes, same idea).
-            fillColor: context.pal.bg,
-            isDense: true,
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 14,
-              vertical: 12,
-            ),
-            border: _border(context.pal.borderStrong),
-            enabledBorder: _border(widget.hasError ? AppColors.coral : context.pal.borderStrong),
-            focusedBorder: _border(widget.hasError ? AppColors.coral : AppColors.teal, 1.6),
-          ),
-        ),
-      ),
-    ],
+  Widget build(BuildContext context) => LabeledTextField(
+    label: label,
+    controller: ctrl,
+    hint: hint,
+    obscure: obscure,
+    maxLines: maxLines,
+    onChanged: onChanged,
+    onSubmitted: onSubmitted,
+    hasError: hasError,
   );
 }
 
@@ -4654,26 +4506,9 @@ class _HDropdown extends StatelessWidget {
     children: [
       Text(label, style: AppTheme.fieldLabel),
       const SizedBox(height: 6),
-      Container(
-        decoration: BoxDecoration(
-          color: context.pal.surface2,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: context.pal.border),
-        ),
-        height: 38,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        child: DropdownButtonHideUnderline(
-          child: DropdownButton<String>(
-            value: value,
-            isExpanded: true,
-            dropdownColor: context.pal.surface2,
-            style: AppTheme.bodySm,
-            icon: Icon(
-              Symbols.expand_more,
-              size: 16,
-              color: context.pal.textDim,
-            ),
-            items: items
+      DropdownFieldBox<String>(
+        value: value,
+        items: items
                 .asMap()
                 .entries
                 .map(
@@ -4683,11 +4518,9 @@ class _HDropdown extends StatelessWidget {
                   ),
                 )
                 .toList(),
-            onChanged: (v) {
+        onChanged: (v) {
               if (v != null) onChanged(v);
             },
-          ),
-        ),
       ),
     ],
   );

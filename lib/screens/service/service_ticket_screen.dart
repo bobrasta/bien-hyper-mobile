@@ -27,7 +27,6 @@ import '../../utils/api_error.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/common/app_button.dart';
 import '../../widgets/common/app_dropdown.dart';
-import '../../widgets/common/app_text_field.dart';
 import '../../widgets/common/avatar_widget.dart';
 import '../../widgets/common/error_view.dart';
 import '../../widgets/common/scan_or_type_field.dart';
@@ -362,32 +361,14 @@ class _ServiceTicketScreenState extends State<ServiceTicketScreen> {
     final options = _technicianOptions;
     final technicians = options.entries.toList()
       ..sort((a, b) => a.value.compareTo(b.value));
-    return Container(
-      height: kFieldHeight,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: context.pal.bg,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: context.pal.borderStrong, width: 1.2),
-      ),
-      child: DropdownButtonHideUnderline(child: DropdownButton<int?>(
-        value: _technicianFilter,
-        isExpanded: true,
-        isDense: true,
-        icon: Icon(Symbols.expand_more, size: 16, color: context.pal.textDim),
-        style: AppTheme.bodySm.copyWith(color: context.pal.text),
-        dropdownColor: context.pal.surface1,
-        hint: Row(children: [
-          Icon(Symbols.engineering, size: 15, color: context.pal.textDim),
-          const SizedBox(width: 6),
-          Text('All Technicians', style: AppTheme.bodySm.copyWith(color: context.pal.textDim)),
-        ]),
-        items: [
-          DropdownMenuItem<int?>(value: null, child: Text('All Technicians', style: AppTheme.bodySm)),
-          ...technicians.map((s) => DropdownMenuItem<int?>(value: s.key, child: Text(s.value, style: AppTheme.bodySm))),
-        ],
-        onChanged: _setTechnicianFilter,
-      )),
+    return DropdownFieldBox<int?>(
+      value: _technicianFilter,
+      active: _technicianFilter != null,
+      items: [
+        const DropdownMenuItem<int?>(value: null, child: Text('All technicians')),
+        ...technicians.map((s) => DropdownMenuItem<int?>(value: s.key, child: Text(s.value, overflow: TextOverflow.ellipsis))),
+      ],
+      onChanged: _setTechnicianFilter,
     );
   }
 
@@ -708,11 +689,10 @@ class _ServiceTicketScreenState extends State<ServiceTicketScreen> {
             const SizedBox(height: 12),
             LayoutBuilder(builder: (ctx, cst) {
               final narrow = cst.maxWidth < 560;
-              final searchBox = AppTextField(
+              final searchBox = SearchField(
+                hint: 'Search by ticket, machine, or hospital…',
                 controller: _searchCtrl,
                 onChanged: (_) => _onSearchChanged(),
-                icon: Symbols.search,
-                hintText: 'Search by ticket, machine, or hospital…',
               );
               final techDropdown = _technicianDropdown(context);
               if (narrow) {
@@ -2029,12 +2009,11 @@ class _NewTicketModalState extends State<_NewTicketModal> {
                 ),
                 const SizedBox(height: 14),
                 // 5. Description
-                AppTextField(
-                  label: 'Issue Description',
+                LabeledTextField(
+                  label: 'Issue description',
                   controller: _descCtrl,
-                  maxLines: null,
-                  height: 80,
-                  hintText: 'Describe the issue in detail…',
+                  maxLines: 3,
+                  hint: 'Describe the issue in detail…',
                 ),
                 if (_error != null) ...[
                   const SizedBox(height: 8),
@@ -2176,14 +2155,14 @@ class _RegisterMachineDialogState extends State<_RegisterMachineDialog> {
           onCreateNew: (text) => setState(() => _model = text),
         ),
         const SizedBox(height: 12),
-        AppTextField(label: 'Serial number', controller: _serialCtrl, hintText: 'e.g. BC68-0001'),
+        LabeledTextField(label: 'Serial number', controller: _serialCtrl, hint: 'e.g. BC68-0001'),
         const SizedBox(height: 12),
         _ModalField(
           label: 'Equipment Type',
           child: _DropdownField(value: _type, items: _types, onChanged: (v) => setState(() => _type = v)),
         ),
         const SizedBox(height: 12),
-        AppTextField(label: 'Ward', controller: _wardCtrl, hintText: 'e.g. Laboratory'),
+        LabeledTextField(label: 'Ward', controller: _wardCtrl, hint: 'e.g. Laboratory'),
       ],
     ))),
     actions: [
@@ -2306,25 +2285,10 @@ class _DropdownField extends StatelessWidget {
   final ValueChanged<String> onChanged;
 
   @override
-  Widget build(BuildContext context) => Container(
-    decoration: BoxDecoration(
-      color: context.pal.bg,
-      borderRadius: BorderRadius.circular(10),
-      border: Border.all(color: context.pal.borderStrong, width: 1.2),
-    ),
-    height: kFieldHeight,
-    padding: const EdgeInsets.symmetric(horizontal: 12),
-    child: DropdownButtonHideUnderline(
-      child: DropdownButton<String>(
-        value: value,
-        isExpanded: true,
-        dropdownColor: context.pal.surface2,
-        style: AppTheme.bodySm,
-        icon: Icon(Symbols.expand_more, size: 16, color: context.pal.textDim),
-        items: items.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
-        onChanged: (v) { if (v != null) onChanged(v); },
-      ),
-    ),
+  Widget build(BuildContext context) => DropdownFieldBox<String>(
+    value: value,
+    items: items.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
+    onChanged: (v) { if (v != null) onChanged(v); },
   );
 }
 
@@ -2560,12 +2524,11 @@ class _ResolveDialogState extends State<_ResolveDialog> {
                'This will be included in service reports.',
             style: AppTheme.bodySub.copyWith(fontSize: 12.5)),
           const SizedBox(height: 14),
-          AppTextField(
+          LabeledTextField(
+            label: '',
             controller: _notesCtrl,
-            maxLines: null,
-            height: 110,
-            autofocus: true,
-            hintText: 'e.g. Replaced flow sensor, recalibrated unit, tested 3 cycles — all passed.',
+            maxLines: 4,
+            hint: 'e.g. Replaced flow sensor, recalibrated unit, tested 3 cycles — all passed.',
             onChanged: (_) => setState(() {}),
           ),
           const SizedBox(height: 14),
@@ -2690,11 +2653,11 @@ class _CompleteMachineDialogState extends State<_CompleteMachineDialog> {
       Expanded(child: Text('Hand Over — ${widget.machine.model}', overflow: TextOverflow.ellipsis, style: AppTheme.bodyStrong)),
     ]),
     content: SizedBox(width: 380, child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-      AppTextField(label: 'Serial number', controller: _serialCtrl, hintText: widget.machine.serialNo),
+      LabeledTextField(label: 'Serial number', controller: _serialCtrl, hint: widget.machine.serialNo),
       const SizedBox(height: 12),
-      AppTextField(label: 'Ward / Location', controller: _wardCtrl, hintText: 'e.g. ICU'),
+      LabeledTextField(label: 'Ward / Location', controller: _wardCtrl, hint: 'e.g. ICU'),
       const SizedBox(height: 12),
-      AppTextField(label: 'Warranty expiry', controller: _warrantyCtrl, hintText: 'YYYY-MM-DD (defaults to today\'s install date otherwise)'),
+      LabeledTextField(label: 'Warranty expiry', controller: _warrantyCtrl, hint: 'YYYY-MM-DD (defaults to today\'s install date otherwise)'),
       if (_error != null) ...[
         const SizedBox(height: 10),
         Text(_error!, style: TextStyle(color: AppColors.coral, fontSize: 12)),
@@ -2927,12 +2890,11 @@ class _OverrideBillingDialogState extends State<_OverrideBillingDialog> {
             onChanged: (v) => setState(() => _selectedLabel = v),
           ),
           const SizedBox(height: 14),
-          AppTextField(
+          LabeledTextField(
+            label: 'Reason (required)',
             controller: _reasonCtrl,
-            maxLines: null,
-            height: 90,
-            autofocus: true,
-            hintText: 'Reason (required) — e.g. Manufacturer rejected the warranty claim.',
+            maxLines: 3,
+            hint: 'e.g. Manufacturer rejected the warranty claim.',
           ),
         ]),
       ),
@@ -3522,32 +3484,23 @@ class _EditTicketDialogState extends State<_EditTicketDialog> {
         Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text('Status', style: AppTheme.fieldLabel),
           const SizedBox(height: 6),
-          Container(
-            decoration: BoxDecoration(color: context.pal.bg,
-                borderRadius: BorderRadius.circular(10), border: Border.all(color: context.pal.borderStrong, width: 1.2)),
-            height: kFieldHeight,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: DropdownButtonHideUnderline(child: DropdownButton<String>(
-              value: _status, isExpanded: true,
-              dropdownColor: context.pal.surface2, style: AppTheme.bodySm,
-              icon: Icon(Symbols.expand_more, size: 16, color: context.pal.textDim),
-              items: const [
+          DropdownFieldBox<String>(
+            value: _status,
+            items: const [
                 DropdownMenuItem(value: 'open',        child: Text('Open')),
                 DropdownMenuItem(value: 'in_progress', child: Text('In Progress')),
                 DropdownMenuItem(value: 'resolved',    child: Text('Resolved')),
                 DropdownMenuItem(value: 'overdue',     child: Text('Overdue')),
               ],
-              onChanged: (v) { if (v != null) setState(() => _status = v); },
-            )),
+            onChanged: (v) { if (v != null) setState(() => _status = v); },
           ),
         ]),
         const SizedBox(height: 12),
-        AppTextField(
-          label: 'Description / Notes',
+        LabeledTextField(
+          label: 'Description / notes',
           controller: _descCtrl,
-          maxLines: null,
-          height: 90,
-          hintText: 'Describe the issue or work required…',
+          maxLines: 3,
+          hint: 'Describe the issue or work required…',
         ),
         if (_error != null) ...[
           const SizedBox(height: 8),
@@ -3577,10 +3530,10 @@ class _EditTicketDialogState extends State<_EditTicketDialog> {
 // ── Shared field helper ─────────────────────────────────────────────────────
 Widget _ticketField(String label, TextEditingController ctrl, String hint,
     BuildContext context, {bool numeric = false}) =>
-  AppTextField(
+  LabeledTextField(
     label: label,
     controller: ctrl,
-    hintText: hint,
+    hint: hint,
     keyboardType: numeric ? const TextInputType.numberWithOptions(decimal: false) : TextInputType.text,
   );
 

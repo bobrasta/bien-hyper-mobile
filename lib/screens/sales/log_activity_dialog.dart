@@ -99,7 +99,7 @@ class _LogActivityDialogState extends State<_LogActivityDialog> {
       child: Container(
         height: kFieldHeight,
         padding: const EdgeInsets.symmetric(horizontal: 14),
-        decoration: BoxDecoration(color: context.pal.bg, borderRadius: BorderRadius.circular(10), border: Border.all(color: context.pal.borderStrong, width: 1.2)),
+        decoration: fieldBoxDecoration(context),
         child: Row(children: [
           Expanded(child: Text(formatTime(_at), style: AppTheme.fieldText.copyWith(color: context.pal.text))),
           Icon(Symbols.schedule, size: 15, color: context.pal.textDim),

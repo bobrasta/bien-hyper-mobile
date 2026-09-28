@@ -485,16 +485,10 @@ class _QuotationDetailScreenState extends State<QuotationDetailScreen> {
             else ...[
               Text('Ship from location', style: AppTheme.fieldLabel),
               const SizedBox(height: 6),
-              Container(height: kFieldHeight,
-                decoration: BoxDecoration(color: ctx.pal.bg,
-                    borderRadius: BorderRadius.circular(10), border: Border.all(color: ctx.pal.borderStrong, width: 1.2)),
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: DropdownButtonHideUnderline(child: DropdownButton<int>(
-                  value: locationId, isExpanded: true,
-                  dropdownColor: ctx.pal.surface2, style: AppTheme.bodySm,
-                  items: locations.map((l) => DropdownMenuItem(value: l.id, child: Text(l.name))).toList(),
-                  onChanged: (v) => setS(() => locationId = v),
-                )),
+              DropdownFieldBox<int>(
+                value: locationId,
+                items: locations.map((l) => DropdownMenuItem(value: l.id, child: Text(l.name))).toList(),
+                onChanged: (v) => setS(() => locationId = v),
               ),
             ],
             const SizedBox(height: 12),
@@ -1467,50 +1461,21 @@ class _DatePickerField extends StatelessWidget {
   final DateTime? firstDate;
 
   @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Text(label, style: AppTheme.fieldLabel),
-      const SizedBox(height: 5),
-      GestureDetector(
-        onTap: () async {
-          final now = DateTime.now();
-          final picked = await showDatePicker(
-            context: context,
-            initialDate: selected ?? now.add(const Duration(days: 30)),
-            firstDate: firstDate ?? now,
-            lastDate: now.add(const Duration(days: 365 * 5)),
-          );
-          if (picked != null) onPicked(picked);
-        },
-        child: Container(
-          height: 36,
-          decoration: BoxDecoration(
-            color: context.pal.surface2,
-            borderRadius: BorderRadius.circular(7),
-            border: Border.all(color: context.pal.border),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 10),
-          child: Row(children: [
-            Icon(Symbols.calendar_today, size: 14, color: context.pal.textDim),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                selected != null ? _isoDate(selected!) : 'Pick a date',
-                style: AppTheme.bodySm.copyWith(
-                  color: selected != null ? null : context.pal.textDim,
-                ),
-              ),
-            ),
-            if (selected != null)
-              GestureDetector(
-                onTap: () => onPicked(null),
-                child: Icon(Symbols.close, size: 13, color: context.pal.textDim),
-              ),
-          ]),
-        ),
-      ),
-    ],
+  Widget build(BuildContext context) => LabeledDateField(
+    label: label,
+    date: selected,
+    placeholder: 'Pick a date',
+    onClear: () => onPicked(null),
+    onTap: () async {
+      final now = DateTime.now();
+      final picked = await showDatePicker(
+        context: context,
+        initialDate: selected ?? now.add(const Duration(days: 30)),
+        firstDate: firstDate ?? now,
+        lastDate: now.add(const Duration(days: 365 * 5)),
+      );
+      if (picked != null) onPicked(picked);
+    },
   );
 }
 
@@ -1519,21 +1484,9 @@ Widget _dropField(String label, String value, List<String> items,
     Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Text(label, style: AppTheme.fieldLabel),
       const SizedBox(height: 5),
-      Container(
-        height: kFieldHeight,
-        padding: const EdgeInsets.symmetric(horizontal: 10),
-        decoration: BoxDecoration(
-          color: ctx.pal.bg,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: ctx.pal.borderStrong, width: 1.2),
-        ),
-        child: DropdownButtonHideUnderline(child: DropdownButton<String>(
-          value: value, isExpanded: true,
-          dropdownColor: ctx.pal.surface2,
-          style: AppTheme.bodySm,
-          icon: Icon(Symbols.expand_more, size: 14, color: ctx.pal.textDim),
-          items: items.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
-          onChanged: (v) { if (v != null) onChanged(v); },
-        )),
+      DropdownFieldBox<String>(
+        value: value,
+        items: items.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
+        onChanged: (v) { if (v != null) onChanged(v); },
       ),
     ]);

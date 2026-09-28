@@ -623,15 +623,10 @@ class _Dropdown<T> extends StatelessWidget {
   Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
     Text(label, style: AppTheme.fieldLabel),
     const SizedBox(height: 6),
-    Container(
-      decoration: BoxDecoration(color: context.pal.bg, borderRadius: BorderRadius.circular(10), border: Border.all(color: context.pal.borderStrong, width: 1.2)),
-      height: kFieldHeight,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: DropdownButtonHideUnderline(child: DropdownButton<T>(
-        value: value, isExpanded: true, dropdownColor: context.pal.surface2, style: AppTheme.bodySm,
-        icon: Icon(Symbols.expand_more, size: 16, color: context.pal.textDim),
-        items: items, onChanged: onChanged,
-      )),
+    DropdownFieldBox<T>(
+      value: value,
+      items: items,
+      onChanged: onChanged,
     ),
   ]);
 }
@@ -756,22 +751,15 @@ class _BillDetailSheetState extends State<_BillDetailSheet> {
                     Row(children: [
                       Expanded(child: _InlineField(controller: _amountCtrl, hint: 'Amount', number: true)),
                       const SizedBox(width: 8),
-                      Expanded(child: Container(
-                        decoration: BoxDecoration(color: context.pal.bg, borderRadius: BorderRadius.circular(10), border: Border.all(color: context.pal.borderStrong, width: 1.2)),
-                        height: kFieldHeight,
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                        child: DropdownButtonHideUnderline(child: DropdownButton<String>(
-                          value: _method, isExpanded: true, dropdownColor: context.pal.surface2,
-                          style: AppTheme.bodySm.copyWith(fontSize: 12.5),
-                          icon: Icon(Symbols.expand_more, size: 16, color: context.pal.textDim),
-                          items: const [
+                      Expanded(child: DropdownFieldBox<String>(
+                        value: _method,
+                        items: const [
                             DropdownMenuItem(value: 'cash', child: Text('Cash')),
                             DropdownMenuItem(value: 'bank_transfer', child: Text('Bank Transfer')),
                             DropdownMenuItem(value: 'mobile_money', child: Text('Mobile Money')),
                             DropdownMenuItem(value: 'cheque', child: Text('Cheque')),
                           ],
-                          onChanged: (v) => setState(() => _method = v ?? 'cash'),
-                        )),
+                        onChanged: (v) => setState(() => _method = v ?? 'cash'),
                       )),
                     ]),
                   ],

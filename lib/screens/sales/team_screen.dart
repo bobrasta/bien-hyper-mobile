@@ -8,9 +8,9 @@ import '../../theme/app_palette.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/api_error.dart';
 import '../../utils/format.dart';
-import '../../widgets/common/app_text_field.dart';
 import '../../widgets/common/avatar_widget.dart';
 import '../../widgets/common/error_view.dart';
+import '../../widgets/common/labeled_field.dart';
 
 // sales.create_subordinate_user has existed in the permission catalog since
 // the original access-control pass, granted to sales_manager, but nothing
@@ -288,11 +288,11 @@ class _AddSubordinateDialogState extends State<_AddSubordinateDialog> {
                 ],
                 Text('New reps join with the role Sales Rep, reporting to you.', style: AppTheme.bodySub.copyWith(fontSize: 12)),
                 const SizedBox(height: 14),
-                AppTextField(controller: _nameCtrl, hintText: 'Full name', autofocus: true),
+                LabeledTextField(label: 'Full name', controller: _nameCtrl),
                 const SizedBox(height: 12),
-                AppTextField(controller: _emailCtrl, hintText: 'Email address'),
+                LabeledTextField(label: 'Email address', controller: _emailCtrl, keyboardType: TextInputType.emailAddress),
                 const SizedBox(height: 12),
-                AppTextField(controller: _phoneCtrl, hintText: 'Phone (optional)'),
+                LabeledTextField(label: 'Phone (optional)', controller: _phoneCtrl, keyboardType: TextInputType.phone),
               ]),
             ),
             Padding(

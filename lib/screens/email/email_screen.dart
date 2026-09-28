@@ -9,7 +9,7 @@ import '../../theme/app_theme.dart';
 import '../../utils/api_error.dart';
 import '../../widgets/common/avatar_widget.dart';
 import '../../widgets/common/error_view.dart';
-import '../../widgets/common/labeled_field.dart' show FieldFocusBox;
+import '../../widgets/common/labeled_field.dart';
 import '../../widgets/email/compose_modal.dart';
 import '../../theme/app_palette.dart';
 
@@ -1059,16 +1059,8 @@ class _ReadingPaneState extends State<_ReadingPane> {
             border: Border.all(color: context.pal.border),
           ),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            TextField(
-              controller: _replyCtrl,
-              maxLines: 4, minLines: 3,
-              style: AppTheme.bodySm.copyWith(height: 1.6),
-              decoration: InputDecoration(
-                hintText: 'Reply to ${email.from}…',
-                hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
-                border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero,
-              ),
-            ),
+            LabeledTextField(label: '', controller: _replyCtrl, maxLines: 4, hint: 'Reply to ${email.from}…'),
+            const SizedBox(height: 10),
             Container(
               decoration: BoxDecoration(
                   border: Border(top: BorderSide(color: context.pal.divider))),

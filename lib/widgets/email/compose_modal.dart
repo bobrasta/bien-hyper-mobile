@@ -5,6 +5,7 @@ import '../../theme/app_colors.dart';
 import '../../theme/app_palette.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/api_error.dart';
+import '../common/labeled_field.dart';
 
 /// Full-screen overlay compose modal — renders its own semi-transparent
 /// backdrop, so show it via `showDialog(builder: (_) => ComposeModal(...))`
@@ -114,29 +115,24 @@ class _ComposeModalState extends State<ComposeModal> {
               ),
             ]),
           ),
-          _ComposeField(label: 'To',      ctrl: _toCtrl,      hint: 'recipient@example.com'),
-          _ComposeField(label: 'CC',      ctrl: _ccCtrl,      hint: ''),
-          if (_showBcc)
-            _ComposeField(label: 'BCC',   ctrl: _bccCtrl,     hint: ''),
-          _ComposeField(label: 'Subject', ctrl: _subjectCtrl, hint: 'Subject'),
-          // Body
-          Container(
-            constraints: const BoxConstraints(minHeight: 130, maxHeight: 240),
-            padding: const EdgeInsets.all(16),
-            child: TextField(
-              controller: _bodyCtrl,
-              maxLines: null,
-              expands: true,
-              style: AppTheme.bodySm.copyWith(height: 1.6),
-              decoration: InputDecoration(
-                hintText: 'Compose your message…',
-                hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
-                border: InputBorder.none,
-                isDense: true,
-                contentPadding: EdgeInsets.zero,
-              ),
-            ),
-          ),
+          // Fields — the shared Settings inputs (LabeledTextField), in a
+          // scroll area so the dialog never overflows short windows.
+          Flexible(child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              LabeledTextField(label: 'To', controller: _toCtrl, hint: 'recipient@example.com', keyboardType: TextInputType.emailAddress),
+              const SizedBox(height: 10),
+              LabeledTextField(label: 'CC', controller: _ccCtrl),
+              if (_showBcc) ...[
+                const SizedBox(height: 10),
+                LabeledTextField(label: 'BCC', controller: _bccCtrl),
+              ],
+              const SizedBox(height: 10),
+              LabeledTextField(label: 'Subject', controller: _subjectCtrl),
+              const SizedBox(height: 10),
+              LabeledTextField(label: 'Message', controller: _bodyCtrl, maxLines: 8, hint: 'Compose your message…'),
+            ]),
+          )),
           // Footer
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -179,35 +175,4 @@ class _ComposeModalState extends State<ComposeModal> {
       ),
     ),
   ));
-}
-
-class _ComposeField extends StatelessWidget {
-  const _ComposeField({required this.label, required this.ctrl, required this.hint});
-  final String label, hint;
-  final TextEditingController ctrl;
-
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-    decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: context.pal.divider))),
-    child: Row(children: [
-      SizedBox(width: 55,
-          child: Text(label, style: AppTheme.bodySub.copyWith(fontSize: 12))),
-      const SizedBox(width: 8),
-      Expanded(
-        child: TextField(
-          controller: ctrl,
-          style: AppTheme.bodySm,
-          decoration: InputDecoration(
-            hintText: hint,
-            hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
-            border: InputBorder.none,
-            isDense: true,
-            contentPadding: EdgeInsets.zero,
-          ),
-        ),
-      ),
-    ]),
-  );
 }

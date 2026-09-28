@@ -1089,18 +1089,10 @@ class _RField extends StatelessWidget {
   Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
     Text(label, style: AppTheme.fieldLabel),
     const SizedBox(height: 6),
-    Container(
-      decoration: BoxDecoration(color: context.pal.bg,
-          borderRadius: BorderRadius.circular(10), border: Border.all(color: context.pal.borderStrong, width: 1.2)),
-      height: kFieldHeight,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: DropdownButtonHideUnderline(child: DropdownButton<String>(
-        value: items.contains(value) ? value : items.first,
-        isExpanded: true, dropdownColor: context.pal.surface2, style: AppTheme.bodySm,
-        icon: Icon(Symbols.expand_more, size: 16, color: context.pal.textDim),
-        items: items.map((s) => DropdownMenuItem(value: s, child: Text(s, overflow: TextOverflow.ellipsis))).toList(),
-        onChanged: (v) { if (v != null) onChanged(v); },
-      )),
+    DropdownFieldBox<String>(
+      value: items.contains(value) ? value : items.first,
+      items: items.map((s) => DropdownMenuItem(value: s, child: Text(s, overflow: TextOverflow.ellipsis))).toList(),
+      onChanged: (v) { if (v != null) onChanged(v); },
     ),
   ]);
 }

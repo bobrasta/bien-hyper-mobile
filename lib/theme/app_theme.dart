@@ -320,7 +320,7 @@ class AppTheme {
 
   // Text-entry fields — one definition for every field in the app (the
   // look the Settings profile form set: sentence-case label above, 14px
-  // input). See FieldFocusBox / LabeledTextField / AppTextField.
+  // input). See FieldFocusBox / LabeledTextField / SearchField.
   static TextStyle get fieldLabel => TextStyle(fontFamily: 'TildaSans', fontSize: 13, fontWeight: FontWeight.w400, color: pal.textMute);
   static TextStyle get fieldText => TextStyle(fontFamily: 'TildaSans', fontSize: 14, fontWeight: FontWeight.w400, color: pal.text);
   static TextStyle get fieldHint => TextStyle(fontFamily: 'TildaSans', fontSize: 14, fontWeight: FontWeight.w400, color: pal.textDim);

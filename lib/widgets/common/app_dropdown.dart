@@ -5,6 +5,7 @@ import 'package:material_symbols_icons/symbols.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_palette.dart';
+import 'labeled_field.dart';
 
 // Case/whitespace/hyphen/punctuation-insensitive match key — "xray",
 // "x-ray" and "X Ray" all normalize the same way. Used as the default
@@ -109,21 +110,19 @@ class _DropdownShellState extends State<_DropdownShell> {
     link: _link,
     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       if (widget.label != null) ...[
-        Text(widget.label!.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+        Text(widget.label!, style: AppTheme.fieldLabel),
         const SizedBox(height: 6),
       ],
       GestureDetector(
         key: _triggerKey,
         onTap: _toggle,
-        child: Container(
-          height: 38, width: widget.width,
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          decoration: BoxDecoration(
-            color: context.pal.surface2,
-            border: Border.all(color: _open ? AppColors.blue.withValues(alpha: 0.55) : context.pal.border),
-          ),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          height: kFieldHeight, width: widget.width,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          decoration: fieldBoxDecoration(context, focused: _open),
           child: Row(children: [
-            Expanded(child: Text(widget.triggerText, style: AppTheme.bodySm.copyWith(fontSize: 12.5), maxLines: 1, overflow: TextOverflow.ellipsis)),
+            Expanded(child: Text(widget.triggerText, style: AppTheme.fieldText, maxLines: 1, overflow: TextOverflow.ellipsis)),
             if (widget.badge != null && widget.badge! > 0) ...[
               const SizedBox(width: 6),
               Container(
@@ -592,18 +591,15 @@ class _AppSearchableSelectFieldState<T> extends State<AppSearchableSelectField<T
       link: _link,
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         if (widget.label != null) ...[
-          Text(widget.label!.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+          Text(widget.label!, style: AppTheme.fieldLabel),
           const SizedBox(height: 6),
         ],
-        Container(
-          key: _triggerKey,
-          height: 38, width: widget.width,
+        SizedBox(key: _triggerKey, width: widget.width, child: FieldFocusBox(
+          focusNode: _focusNode,
+          height: kFieldHeight,
+          alignment: Alignment.centerLeft,
           padding: const EdgeInsets.symmetric(horizontal: 12),
-          decoration: BoxDecoration(
-            color: context.pal.surface2,
-            border: Border.all(color: _focusNode.hasFocus ? AppColors.blue.withValues(alpha: 0.55) : context.pal.border),
-          ),
-          child: Row(children: [
+          builder: (context, focusNode) => Row(children: [
             Icon(Symbols.search, size: 16, color: context.pal.textDim),
             const SizedBox(width: 8),
             Expanded(
@@ -625,12 +621,12 @@ class _AppSearchableSelectFieldState<T> extends State<AppSearchableSelectField<T
                   // ordered as a real tap — so the built-in behavior here is
                   // just redundant and actively broken; disable it.
                   onTapOutside: (_) {},
-                  style: AppTheme.bodySm.copyWith(fontSize: 12.5),
+                  cursorColor: context.pal.text,
+                  cursorWidth: 1.5,
+                  style: AppTheme.fieldText,
                   decoration: InputDecoration(
-                    isDense: true,
-                    border: InputBorder.none,
-                    hintText: widget.hint,
-                    hintStyle: AppTheme.bodySm.copyWith(fontSize: 12.5, color: context.pal.textDim),
+                    hintText: widget.hint, hintStyle: AppTheme.fieldHint,
+                    filled: false, border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero,
                   ),
                 ),
               ),
@@ -641,7 +637,7 @@ class _AppSearchableSelectFieldState<T> extends State<AppSearchableSelectField<T
                 child: Icon(Symbols.close, size: 15, color: context.pal.textDim),
               ),
           ]),
-        ),
+        )),
       ]),
     );
   }

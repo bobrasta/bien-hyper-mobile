@@ -6,6 +6,7 @@ import '../../services/auth_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_palette.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/common/labeled_field.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -303,60 +304,38 @@ class _AuthFieldState extends State<_AuthField> {
     if (mounted) setState(() => _focused = widget.focusNode.hasFocus);
   }
 
+  // Same field code as Settings (FieldFocusBox), with the login screen's
+  // own FocusNode passed through so the keyboard next/submit chain works.
   @override
-  Widget build(BuildContext context) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 180),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: _focused ? AppColors.teal : context.pal.borderStrong,
-          width: _focused ? 1.5 : 1.0,
-        ),
-        color: context.pal.surface2,
-        boxShadow: _focused
-            ? [BoxShadow(
-                color: AppColors.teal.withValues(alpha: 0.12),
-                blurRadius: 12,
-                spreadRadius: 0,
-              )]
-            : [],
-      ),
-      child: Row(children: [
-        const SizedBox(width: 14),
-        Icon(
-          widget.icon,
-          size: 16,
-          color: _focused ? AppColors.teal : context.pal.textDim,
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: TextField(
-            controller:       widget.controller,
-            focusNode:        widget.focusNode,
-            obscureText:      widget.obscure,
-            keyboardType:     widget.keyboardType,
-            textInputAction:  widget.textInputAction,
-            onSubmitted:      widget.onSubmitted,
-            style: TextStyle(
-              fontSize: 14,
-              color: context.pal.text,
-            ),
-            decoration: InputDecoration(
-              hintText: widget.hint,
-              hintStyle: TextStyle(
-                fontSize: 14,
-                color: context.pal.textDim,
-              ),
-              border:        InputBorder.none,
-              contentPadding: const EdgeInsets.symmetric(vertical: 15),
-            ),
+  Widget build(BuildContext context) => FieldFocusBox(
+    focusNode: widget.focusNode,
+    minHeight: 48,
+    alignment: Alignment.centerLeft,
+    padding: const EdgeInsets.symmetric(horizontal: 14),
+    builder: (context, focusNode) => Row(children: [
+      Icon(widget.icon, size: 16, color: _focused ? AppColors.teal : context.pal.textDim),
+      const SizedBox(width: 10),
+      Expanded(
+        child: TextField(
+          controller:       widget.controller,
+          focusNode:        focusNode,
+          obscureText:      widget.obscure,
+          keyboardType:     widget.keyboardType,
+          textInputAction:  widget.textInputAction,
+          onSubmitted:      widget.onSubmitted,
+          cursorColor: context.pal.text,
+          cursorWidth: 1.5,
+          style: AppTheme.fieldText,
+          decoration: InputDecoration(
+            hintText: widget.hint, hintStyle: AppTheme.fieldHint,
+            filled: false, border: InputBorder.none, isDense: true,
+            contentPadding: const EdgeInsets.symmetric(vertical: 14),
           ),
         ),
-        if (widget.suffix != null) widget.suffix!,
-      ]),
-    );
-  }
+      ),
+      if (widget.suffix != null) widget.suffix!,
+    ]),
+  );
 }
 
 // ── Login button ──────────────────────────────────────────────────────────────

@@ -350,44 +350,28 @@ class _RecordMovementModalState extends State<_RecordMovementModal> {
                 // Location picker
                 Text(_isTransfer ? 'From location' : 'Location', style: AppTheme.fieldLabel),
                 const SizedBox(height: 6),
-                Container(
-                  decoration: BoxDecoration(color: context.pal.bg,
-                      borderRadius: BorderRadius.circular(10), border: Border.all(color: context.pal.borderStrong, width: 1.2)),
-                  height: kFieldHeight,
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: DropdownButtonHideUnderline(child: DropdownButton<int?>(
-                    value: _locationId, isExpanded: true,
-                    dropdownColor: context.pal.surface2, style: AppTheme.bodySm,
-                    hint: Text('Select location…', style: AppTheme.bodySm.copyWith(color: context.pal.textDim)),
-                    icon: Icon(Symbols.expand_more, size: 16, color: context.pal.textDim),
-                    items: _locations.map((l) => DropdownMenuItem(
+                DropdownFieldBox<int?>(
+                  value: _locationId,
+                  hint: 'Select location…',
+                  items: _locations.map((l) => DropdownMenuItem(
                       value: l.id, child: Text(l.name, overflow: TextOverflow.ellipsis),
                     )).toList(),
-                    onChanged: (v) => setState(() {
+                  onChanged: (v) => setState(() {
                       _locationId = v;
                       if (_toLocationId == v) _toLocationId = null;
                     }),
-                  )),
                 ),
                 if (_isTransfer) ...[
                   const SizedBox(height: 12),
                   Text('To location', style: AppTheme.fieldLabel),
                   const SizedBox(height: 6),
-                  Container(
-                    decoration: BoxDecoration(color: context.pal.bg,
-                        borderRadius: BorderRadius.circular(10), border: Border.all(color: context.pal.borderStrong, width: 1.2)),
-                    height: kFieldHeight,
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: DropdownButtonHideUnderline(child: DropdownButton<int?>(
-                      value: _toLocationId, isExpanded: true,
-                      dropdownColor: context.pal.surface2, style: AppTheme.bodySm,
-                      hint: Text('Select destination…', style: AppTheme.bodySm.copyWith(color: context.pal.textDim)),
-                      icon: Icon(Symbols.expand_more, size: 16, color: context.pal.textDim),
-                      items: _locations.where((l) => l.id != _locationId).map((l) => DropdownMenuItem(
+                  DropdownFieldBox<int?>(
+                    value: _toLocationId,
+                    hint: 'Select destination…',
+                    items: _locations.where((l) => l.id != _locationId).map((l) => DropdownMenuItem(
                         value: l.id, child: Text(l.name, overflow: TextOverflow.ellipsis),
                       )).toList(),
-                      onChanged: (v) => setState(() => _toLocationId = v),
-                    )),
+                    onChanged: (v) => setState(() => _toLocationId = v),
                   ),
                 ],
                 const SizedBox(height: 12),
@@ -396,20 +380,12 @@ class _RecordMovementModalState extends State<_RecordMovementModal> {
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text('Type', style: AppTheme.fieldLabel),
                     const SizedBox(height: 6),
-                    Container(
-                      decoration: BoxDecoration(color: context.pal.bg,
-                          borderRadius: BorderRadius.circular(10), border: Border.all(color: context.pal.borderStrong, width: 1.2)),
-                      height: kFieldHeight,
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      child: DropdownButtonHideUnderline(child: DropdownButton<String>(
-                        value: _type, isExpanded: true,
-                        dropdownColor: context.pal.surface2, style: AppTheme.bodySm,
-                        icon: Icon(Symbols.expand_more, size: 16, color: context.pal.textDim),
-                        items: _types.asMap().entries.map((e) => DropdownMenuItem(
+                    DropdownFieldBox<String>(
+                      value: _type,
+                      items: _types.asMap().entries.map((e) => DropdownMenuItem(
                           value: e.value, child: Text(_typeLabels[e.key]),
                         )).toList(),
-                        onChanged: (v) { if (v != null) setState(() => _type = v); },
-                      )),
+                      onChanged: (v) { if (v != null) setState(() => _type = v); },
                     ),
                   ])),
                   const SizedBox(width: 14),

@@ -30,9 +30,13 @@ class FieldFocusBox extends StatefulWidget {
     this.hasError = false,
     this.radius = 10,
     this.height,
+    this.focusNode,
   });
 
   final Widget Function(BuildContext context, FocusNode focusNode) builder;
+  // Optional caller-owned node, for fields whose focus something else also
+  // drives (keyboard navigation, overlays). Otherwise the box owns one.
+  final FocusNode? focusNode;
   final double minHeight;
   final bool enabled;
   final Alignment? alignment;
@@ -50,50 +54,68 @@ class FieldFocusBox extends StatefulWidget {
 }
 
 class _FieldFocusBoxState extends State<FieldFocusBox> {
-  final _focusNode = FocusNode();
+  FocusNode? _ownNode;
+  FocusNode get _focusNode => widget.focusNode ?? (_ownNode ??= FocusNode());
   bool _focused = false;
+
+  void _onFocus() {
+    if (mounted && _focused != _focusNode.hasFocus) setState(() => _focused = _focusNode.hasFocus);
+  }
 
   @override
   void initState() {
     super.initState();
-    _focusNode.addListener(() {
-      if (_focused != _focusNode.hasFocus) setState(() => _focused = _focusNode.hasFocus);
-    });
+    _focusNode.addListener(_onFocus);
+    _focused = _focusNode.hasFocus;
+  }
+
+  @override
+  void didUpdateWidget(FieldFocusBox old) {
+    super.didUpdateWidget(old);
+    if (old.focusNode != widget.focusNode) {
+      (old.focusNode ?? _ownNode)?.removeListener(_onFocus);
+      _focusNode.addListener(_onFocus);
+    }
   }
 
   @override
   void dispose() {
-    _focusNode.dispose();
+    _focusNode.removeListener(_onFocus);
+    _ownNode?.dispose();
     super.dispose();
   }
 
   @override
-  Widget build(BuildContext context) {
-    final pal = context.pal;
-    final Color borderColor = widget.hasError
-        ? AppColors.coral
-        : (_focused ? AppColors.teal : pal.borderStrong);
-    final Color haloColor = (widget.hasError ? AppColors.coral : AppColors.teal).withValues(alpha: 0.20);
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 160),
-      curve: Curves.easeOut,
-      height: widget.height,
-      constraints: widget.height == null ? BoxConstraints(minHeight: widget.minHeight) : null,
-      decoration: BoxDecoration(
-        color: widget.enabled ? pal.bg : pal.surface3,
-        borderRadius: BorderRadius.circular(widget.radius),
-        border: Border.all(color: borderColor, width: _focused ? 1.6 : 1.2),
-        boxShadow: [BoxShadow(
-          color: _focused ? haloColor : Colors.transparent,
-          spreadRadius: _focused ? 3 : 0,
-          blurRadius: 0,
-        )],
-      ),
-      padding: widget.padding,
-      alignment: widget.alignment,
-      child: widget.builder(context, _focusNode),
-    );
-  }
+  Widget build(BuildContext context) => AnimatedContainer(
+    duration: const Duration(milliseconds: 160),
+    curve: Curves.easeOut,
+    height: widget.height,
+    constraints: widget.height == null ? BoxConstraints(minHeight: widget.minHeight) : null,
+    decoration: fieldBoxDecoration(context, focused: _focused, hasError: widget.hasError, enabled: widget.enabled, radius: widget.radius),
+    padding: widget.padding,
+    alignment: widget.alignment,
+    child: widget.builder(context, _focusNode),
+  );
+}
+
+/// The Settings field box — recessed bg fill, borderStrong outline that
+/// turns teal (coral on error) with a solid 20% halo while focused/open.
+/// The ONE definition of the look: FieldFocusBox, DropdownFieldBox,
+/// LabeledDateField and the combobox triggers all draw with this.
+BoxDecoration fieldBoxDecoration(BuildContext context, {bool focused = false, bool hasError = false, bool enabled = true, bool active = false, double radius = 10}) {
+  final pal = context.pal;
+  final accent = hasError ? AppColors.coral : AppColors.teal;
+  final lit = focused || active || hasError;
+  return BoxDecoration(
+    color: enabled ? pal.bg : pal.surface3,
+    borderRadius: BorderRadius.circular(radius),
+    border: Border.all(color: lit ? accent : pal.borderStrong, width: focused ? 1.6 : 1.2),
+    boxShadow: [BoxShadow(
+      color: focused ? accent.withValues(alpha: 0.20) : Colors.transparent,
+      spreadRadius: focused ? 3 : 0,
+      blurRadius: 0,
+    )],
+  );
 }
 
 /// The established boxed-field look used throughout the app (see
@@ -115,6 +137,8 @@ class LabeledTextField extends StatelessWidget {
     this.keyboardType,
     this.enabled = true,
     this.onChanged,
+    this.onSubmitted,
+    this.hasError = false,
   });
 
   final String label;
@@ -125,6 +149,9 @@ class LabeledTextField extends StatelessWidget {
   final TextInputType? keyboardType;
   final bool enabled;
   final ValueChanged<String>? onChanged;
+  final ValueChanged<String>? onSubmitted;
+  // Coral border (+ coral halo while focused) — wins over the focus accent.
+  final bool hasError;
 
   @override
   Widget build(BuildContext context) => Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -134,14 +161,16 @@ class LabeledTextField extends StatelessWidget {
     ],
     FieldFocusBox(
       enabled: enabled,
+      hasError: hasError,
       builder: (context, focusNode) => TextField(
         controller: controller,
         focusNode: focusNode,
         obscureText: obscure,
-        maxLines: maxLines,
+        maxLines: obscure ? 1 : maxLines,
         keyboardType: keyboardType,
         enabled: enabled,
         onChanged: onChanged,
+        onSubmitted: onSubmitted,
         cursorColor: context.pal.text,
         cursorWidth: 1.5,
         style: AppTheme.fieldText.copyWith(color: enabled ? context.pal.text : context.pal.textDim),
@@ -288,28 +317,59 @@ class LabeledDropdown<T> extends StatelessWidget {
   Widget build(BuildContext context) => Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
     Text(label, style: AppTheme.fieldLabel),
     const SizedBox(height: 6),
-    Container(
-      decoration: BoxDecoration(
-        color: enabled ? context.pal.bg : context.pal.surface3,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: context.pal.borderStrong, width: 1.2),
-      ),
-      height: kFieldHeight,
-      padding: const EdgeInsets.symmetric(horizontal: 14),
-      child: DropdownButtonHideUnderline(child: DropdownButton<T>(
-        value: value,
-        isExpanded: true,
-        dropdownColor: context.pal.surface2,
-        style: AppTheme.fieldText.copyWith(color: enabled ? context.pal.text : context.pal.textDim),
-        icon: Icon(Symbols.expand_more, size: 16, color: context.pal.textDim),
-        items: items.map((v) => DropdownMenuItem(value: v, child: Text(displayBuilder(v), overflow: TextOverflow.ellipsis))).toList(),
-        // DropdownButton only passes null when the picked item's value IS
-        // null, so forward it as-is — dropping it made a nullable option
-        // like "None" impossible to re-select.
-        onChanged: enabled ? (v) => onChanged?.call(v as T) : null,
-      )),
+    DropdownFieldBox<T>(
+      value: value,
+      enabled: enabled,
+      items: items.map((v) => DropdownMenuItem(value: v, child: Text(displayBuilder(v), overflow: TextOverflow.ellipsis))).toList(),
+      // DropdownButton only passes null when the picked item's value IS
+      // null, so forward it as-is — dropping it made a nullable option
+      // like "None" impossible to re-select.
+      onChanged: (v) => onChanged?.call(v as T),
     ),
   ]);
+}
+
+/// The Settings dropdown box on its own (no label) — the single place the
+/// app's dropdown field is drawn. LabeledDropdown uses it; use it directly
+/// for filter bars or wherever items are already DropdownMenuItems.
+class DropdownFieldBox<T> extends StatelessWidget {
+  const DropdownFieldBox({
+    super.key,
+    required this.value,
+    required this.items,
+    required this.onChanged,
+    this.hint,
+    this.enabled = true,
+    this.active = false,
+    this.width,
+  });
+
+  final T? value;
+  final List<DropdownMenuItem<T>> items;
+  final ValueChanged<T?>? onChanged;
+  final String? hint;
+  final bool enabled;
+  // Filter dropdowns: teal border while a filter is applied.
+  final bool active;
+  final double? width;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: width,
+    decoration: fieldBoxDecoration(context, enabled: enabled, active: active),
+    height: kFieldHeight,
+    padding: const EdgeInsets.symmetric(horizontal: 14),
+    child: DropdownButtonHideUnderline(child: DropdownButton<T>(
+      value: value,
+      isExpanded: true,
+      dropdownColor: context.pal.surface2,
+      style: AppTheme.fieldText.copyWith(color: enabled ? context.pal.text : context.pal.textDim),
+      icon: Icon(Symbols.expand_more, size: 16, color: context.pal.textDim),
+      hint: hint == null ? null : Text(hint!, style: AppTheme.fieldHint, overflow: TextOverflow.ellipsis),
+      items: items,
+      onChanged: enabled ? onChanged : null,
+    )),
+  );
 }
 
 /// The established boxed date-picker field (see `_DateField` in
@@ -332,7 +392,7 @@ class LabeledDateField extends StatelessWidget {
       onTap: onTap,
       child: Container(
         height: kFieldHeight,
-        decoration: BoxDecoration(color: context.pal.bg, borderRadius: BorderRadius.circular(10), border: Border.all(color: context.pal.borderStrong, width: 1.2)),
+        decoration: fieldBoxDecoration(context),
         padding: const EdgeInsets.symmetric(horizontal: 14),
         child: Row(children: [
           Expanded(child: Text(date != null ? formatDate(date!) : placeholder,
@@ -363,7 +423,7 @@ class LabeledStaticField extends StatelessWidget {
     Container(
       height: kFieldHeight,
       alignment: Alignment.centerLeft,
-      decoration: BoxDecoration(color: context.pal.surface3, borderRadius: BorderRadius.circular(10), border: Border.all(color: context.pal.borderStrong, width: 1.2)),
+      decoration: fieldBoxDecoration(context, enabled: false),
       padding: const EdgeInsets.symmetric(horizontal: 14),
       child: Row(children: [
         Expanded(child: Text(value, style: AppTheme.fieldText.copyWith(color: context.pal.textDim), overflow: TextOverflow.ellipsis)),

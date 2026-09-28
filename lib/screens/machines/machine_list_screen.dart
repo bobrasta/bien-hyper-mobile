@@ -2010,33 +2010,14 @@ class _DDropdown extends StatelessWidget {
         style: AppTheme.labelCaps.copyWith(fontSize: 10),
       ),
       const SizedBox(height: 6),
-      Container(
-        height: kFieldHeight,
-        decoration: BoxDecoration(
-          color: context.pal.bg,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: context.pal.borderStrong, width: 1.2),
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        child: DropdownButtonHideUnderline(
-          child: DropdownButton<String>(
-            value: value,
-            isExpanded: true,
-            dropdownColor: context.pal.surface2,
-            style: AppTheme.bodySm,
-            icon: Icon(
-              Symbols.expand_more,
-              size: 16,
-              color: context.pal.textDim,
-            ),
-            items: items
+      DropdownFieldBox<String>(
+        value: value,
+        items: items
                 .map((s) => DropdownMenuItem(value: s, child: Text(s)))
                 .toList(),
-            onChanged: (v) {
+        onChanged: (v) {
               if (v != null) onChanged(v);
             },
-          ),
-        ),
       ),
     ],
   );
