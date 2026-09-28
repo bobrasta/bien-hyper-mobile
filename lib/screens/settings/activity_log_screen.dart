@@ -120,34 +120,70 @@ class _EntryCard extends StatelessWidget {
   final ActivityLogEntry entry;
   final String dateLabel;
 
+  static final _typeWords = RegExp(r'(?<=[a-z])(?=[A-Z])');
+
+  (IconData, Color) _verbStyle() => switch (entry.description) {
+    'created' => (Symbols.add_circle, AppColors.green),
+    'deleted' => (Symbols.delete, AppColors.coral),
+    'updated' => (Symbols.edit, AppColors.cyan),
+    _ => (Symbols.bolt, AppColors.violet),
+  };
+
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(14),
-    decoration: BoxDecoration(color: context.pal.surface1, borderRadius: BorderRadius.circular(10), border: Border.all(color: context.pal.border)),
-    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Expanded(child: Text(entry.description, style: AppTheme.bodySm)),
-        Text(dateLabel, style: AppTheme.monoXs.copyWith(fontSize: 10.5, color: context.pal.textDim)),
-      ]),
-      const SizedBox(height: 8),
-      Row(children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-          decoration: BoxDecoration(color: AppColors.violet.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(4)),
-          child: Text('${entry.subjectType}${entry.subjectId != null ? ' #${entry.subjectId}' : ''}',
-              style: AppTheme.monoXs.copyWith(color: AppColors.violet, fontSize: 10)),
-        ),
-        const SizedBox(width: 8),
-        if (entry.causerName != null)
-          Text('by ${entry.causerName}', style: AppTheme.bodySub.copyWith(fontSize: 11.5, color: context.pal.textDim)),
-      ]),
-      if (entry.changes != null && entry.changes!.isNotEmpty) ...[
+  Widget build(BuildContext context) {
+    final (icon, color) = _verbStyle();
+    final type = entry.subjectType.split(_typeWords).join(' ');
+    final record = entry.subjectLabel ?? (entry.subjectId != null ? '#${entry.subjectId}' : '');
+    final isCreate = entry.description == 'created';
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(color: context.pal.surface1, borderRadius: BorderRadius.circular(10), border: Border.all(color: context.pal.border)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Padding(padding: const EdgeInsets.only(top: 1), child: Icon(icon, size: 16, color: color)),
+          const SizedBox(width: 8),
+          Expanded(child: Text(entry.summary ?? entry.description, style: AppTheme.bodySm.copyWith(fontSize: 13.5, color: context.pal.text))),
+          const SizedBox(width: 10),
+          Text(dateLabel, style: AppTheme.monoXs.copyWith(fontSize: 10.5, color: context.pal.textDim)),
+        ]),
         const SizedBox(height: 8),
-        Text(
-          entry.changes!.entries.map((e) => '${e.key}: ${e.value}').join('  ·  '),
-          style: AppTheme.monoXs.copyWith(fontSize: 10.5, color: context.pal.textMute),
-        ),
-      ],
-    ]),
-  );
+        Wrap(spacing: 8, runSpacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+            decoration: BoxDecoration(color: AppColors.violet.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(4)),
+            child: Text(record.isEmpty ? type : '$type · $record', style: AppTheme.monoXs.copyWith(color: AppColors.violet, fontSize: 10)),
+          ),
+          Text(
+            'by ${entry.causerName ?? 'System'}${entry.causerRole != null ? ' · ${entry.causerRole}' : ''}',
+            style: AppTheme.bodySub.copyWith(fontSize: 11.5, color: context.pal.textDim),
+          ),
+        ]),
+        if (entry.fieldChanges.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+            decoration: BoxDecoration(color: context.pal.surface2.withValues(alpha: 0.6), borderRadius: BorderRadius.circular(8)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              for (final c in entry.fieldChanges)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 2),
+                  child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    SizedBox(width: 150, child: Text(c.field, maxLines: 2, overflow: TextOverflow.ellipsis,
+                        style: AppTheme.bodySub.copyWith(fontSize: 11.5, color: context.pal.textMute))),
+                    Expanded(child: Text.rich(TextSpan(children: [
+                      if (!isCreate && c.oldValue != null) ...[
+                        TextSpan(text: c.oldValue, style: TextStyle(color: context.pal.textDim, decoration: TextDecoration.lineThrough)),
+                        TextSpan(text: '  →  ', style: TextStyle(color: context.pal.textDim)),
+                      ],
+                      TextSpan(text: c.newValue ?? '—', style: TextStyle(color: context.pal.text)),
+                    ]), style: AppTheme.monoXs.copyWith(fontSize: 11.5))),
+                  ]),
+                ),
+            ]),
+          ),
+        ],
+      ]),
+    );
+  }
 }
