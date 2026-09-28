@@ -20,6 +20,7 @@ import '../../widgets/common/app_dropdown.dart';
 import '../../widgets/common/error_view.dart';
 import '../../widgets/common/labeled_field.dart';
 import '../../widgets/common/period_filter.dart';
+import '../../widgets/common/sliver_table.dart';
 
 // ── Status colours ─────────────────────────────────────────────────────────────
 Color _statusColor(String status) => switch (status) {
@@ -140,9 +141,8 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
                 const SizedBox(height: 3),
                 Text('${_all.length} quotations · ${tshFromDouble(totalQuoted)} quoted · $converted converted to orders', style: AppTheme.bodySub.copyWith(fontSize: 12)),
               ])),
-              PeriodSelector(value: _period, onChanged: (p) { setState(() => _period = p); _load(); }),
-              const SizedBox(width: 8),
-              SearchField(width: 230, hint: 'Client or QT number…', controller: _searchCtrl),
+              const SizedBox(width: 12),
+              SearchField(width: 240, hint: 'Client or QT number…', controller: _searchCtrl),
               const SizedBox(width: 8),
               FilledButton.icon(onPressed: () => _openBuilder(), icon: const Icon(Symbols.add, size: 16), label: const Text('New quotation')),
             ]),
@@ -150,25 +150,27 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
           const SizedBox(height: 14),
           Padding(
             padding: EdgeInsets.symmetric(horizontal: pad),
-            child: _StatusChips(
-              current: _statusFilter,
-              counts: {for (final s in ['draft', 'sent', 'accepted', 'rejected', 'converted']) s: _all.where((q) => q.status == s).length},
-              total: _all.length,
-              onChanged: (s) { setState(() { _statusFilter = s; _applyFilter(); }); },
-            ),
+            child: Row(children: [
+              Expanded(child: _StatusChips(
+                current: _statusFilter,
+                counts: {for (final s in ['draft', 'sent', 'accepted', 'rejected', 'converted']) s: _all.where((q) => q.status == s).length},
+                total: _all.length,
+                onChanged: (s) { setState(() { _statusFilter = s; _applyFilter(); }); },
+              )),
+              const SizedBox(width: 8),
+              PeriodSelector(value: _period, onChanged: (p) { setState(() => _period = p); _load(); }),
+            ]),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 12),
+          // Everything below the filters scrolls as one; the table header pins.
           Expanded(
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(pad, 0, pad, pad),
-              child: _loading
-                  ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
-                  // A background refresh failing while stale-but-valid
-                  // cached data is already showing shouldn't blow that away.
-                  : _error != null && _all.isEmpty
-                      ? ErrorView(message: _error!, onRetry: _load)
-                      : _QuotationTable(items: _filtered, onSelect: _showDetailModal, openValue: openValue, convertedCount: converted, totalCount: _all.length),
-            ),
+            child: _loading
+                ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
+                // A background refresh failing while stale-but-valid
+                // cached data is already showing shouldn't blow that away.
+                : _error != null && _all.isEmpty
+                    ? ErrorView(message: _error!, onRetry: _load)
+                    : CustomScrollView(slivers: _QuotationTable(items: _filtered, onSelect: _showDetailModal, openValue: openValue, convertedCount: converted, totalCount: _all.length).slivers(context, pad: pad)),
           ),
         ]);
       }),
@@ -228,7 +230,7 @@ class _StatusChips extends StatelessWidget {
 
 // ── Quotation table ────────────────────────────────────────────────────────────
 
-class _QuotationTable extends StatelessWidget {
+class _QuotationTable {
   const _QuotationTable({required this.items, required this.onSelect, required this.openValue, required this.convertedCount, required this.totalCount});
   final List<Quotation> items;
   final ValueChanged<Quotation> onSelect;
@@ -246,14 +248,15 @@ class _QuotationTable extends StatelessWidget {
     return 'in $days days';
   }
 
-  @override
-  Widget build(BuildContext context) {
+  // Slivers for the page's single scroll view: pinned column header, lazy
+  // rows, footer at the end (see sliverTable).
+  List<Widget> slivers(BuildContext context, {required double pad}) {
     final total = items.fold<int>(0, (s, q) => s + q.totalAmount);
-    return Container(
-      decoration: BoxDecoration(color: context.pal.surface1, borderRadius: BorderRadius.circular(14), border: Border.all(color: context.pal.border)),
-      clipBehavior: Clip.antiAlias,
-      child: Column(children: [
-        Container(
+    return sliverTable(
+      context,
+      pad: pad,
+      headerHeight: 38,
+      header: Container(
           height: 38, padding: const EdgeInsets.symmetric(horizontal: 16),
           color: context.pal.surface2,
           child: Row(children: [
@@ -266,12 +269,9 @@ class _QuotationTable extends StatelessWidget {
             const SizedBox(width: 56),
           ]),
         ),
-        Expanded(child: items.isEmpty
-            ? Center(child: Text('No quotations found', style: AppTheme.bodySub))
-            : ListView.separated(
-                itemCount: items.length,
-                separatorBuilder: (_, _) => Container(width: double.infinity, height: 1, color: context.pal.divider),
-                itemBuilder: (_, i) {
+      itemCount: items.length,
+      emptyText: 'No quotations found',
+      itemBuilder: (context, i) {
                   final qt = items[i];
                   final color = _statusColor(qt.status);
                   final note = _validNote(qt);
@@ -307,9 +307,8 @@ class _QuotationTable extends StatelessWidget {
                       ]),
                     ),
                   );
-                },
-              )),
-        Container(
+      },
+      footer: Container(
           height: 46, padding: const EdgeInsets.symmetric(horizontal: 16),
           decoration: BoxDecoration(color: context.pal.surface2, border: Border(top: BorderSide(color: context.pal.divider))),
           child: Row(children: [
@@ -319,7 +318,6 @@ class _QuotationTable extends StatelessWidget {
             const Expanded(child: SizedBox()), const Expanded(child: SizedBox()), const Expanded(child: SizedBox()), const SizedBox(width: 56),
           ]),
         ),
-      ]),
     );
   }
 }

@@ -13,6 +13,7 @@ import '../../widgets/common/app_button.dart';
 import '../../widgets/common/error_view.dart';
 import '../../widgets/common/labeled_field.dart';
 import '../../widgets/common/period_filter.dart';
+import '../../widgets/common/sliver_table.dart';
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -136,9 +137,8 @@ class _SalesOrdersScreenState extends State<SalesOrdersScreen> {
               Text('${_all.length} orders · ${tshFromDouble(booked)} booked · ${_all.where((o) => o.status == 'pending').length} pending confirmation'
                   '${cancelled.isNotEmpty ? ' · ${cancelled.length} cancelled' : ''}', style: AppTheme.bodySub.copyWith(fontSize: 12)),
             ])),
-            PeriodSelector(value: _period, onChanged: (p) { setState(() => _period = p); _load(); }),
-            const SizedBox(width: 8),
-            SearchField(width: 220, hint: 'Client or SO number…', controller: _searchCtrl),
+            const SizedBox(width: 12),
+            SearchField(width: 240, hint: 'Client or SO number…', controller: _searchCtrl),
             const SizedBox(width: 8),
             FilledButton.icon(onPressed: () => widget.onNavigateTo?.call('sales_quotations'), icon: const Icon(Symbols.add, size: 16), label: const Text('New order')),
           ]),
@@ -155,20 +155,20 @@ class _SalesOrdersScreenState extends State<SalesOrdersScreen> {
             ),
             const Spacer(),
             Text('Showing ${_filtered.length} of ${_all.length}', style: AppTheme.bodySub.copyWith(fontSize: 11.5)),
+            const SizedBox(width: 12),
+            PeriodSelector(value: _period, onChanged: (p) { setState(() => _period = p); _load(); }),
           ]),
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 12),
+        // Everything below the filters scrolls as one; the table header pins.
         Expanded(
-          child: Padding(
-            padding: EdgeInsets.fromLTRB(pad, 0, pad, pad),
-            child: _loading
-                ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
-                // A background refresh failing while stale-but-valid cached
-                // data is already showing shouldn't blow that away.
-                : _error != null && _all.isEmpty
-                    ? ErrorView(message: _error!, onRetry: _load)
-                    : _OrderTable(items: _filtered, onSelect: _showDetailModal, booked: booked, cancelledTotal: cancelledTotal, cancelledCount: cancelled.length),
-          ),
+          child: _loading
+              ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
+              // A background refresh failing while stale-but-valid cached
+              // data is already showing shouldn't blow that away.
+              : _error != null && _all.isEmpty
+                  ? ErrorView(message: _error!, onRetry: _load)
+                  : CustomScrollView(slivers: _OrderTable(items: _filtered, onSelect: _showDetailModal, booked: booked, cancelledTotal: cancelledTotal, cancelledCount: cancelled.length).slivers(context, pad: pad)),
         ),
       ]);
     });
@@ -226,7 +226,7 @@ int _fulfilmentStep(SalesOrder so) => switch (so.status) {
   'pending' => 1, 'confirmed' => 2, 'delivering' => 3, 'delivered' => 4, _ => 0,
 };
 
-class _OrderTable extends StatelessWidget {
+class _OrderTable {
   const _OrderTable({required this.items, required this.onSelect, required this.booked, required this.cancelledTotal, required this.cancelledCount});
   final List<SalesOrder> items;
   final ValueChanged<SalesOrder> onSelect;
@@ -234,13 +234,14 @@ class _OrderTable extends StatelessWidget {
   final int cancelledTotal;
   final int cancelledCount;
 
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(color: context.pal.surface1, borderRadius: BorderRadius.circular(14), border: Border.all(color: context.pal.border)),
-      clipBehavior: Clip.antiAlias,
-      child: Column(children: [
-        Container(
+  // Slivers for the page's single scroll view: pinned column header, lazy
+  // rows, footer at the end (see sliverTable).
+  List<Widget> slivers(BuildContext context, {required double pad}) {
+    return sliverTable(
+      context,
+      pad: pad,
+      headerHeight: 38,
+      header: Container(
           height: 38, padding: const EdgeInsets.symmetric(horizontal: 16),
           color: context.pal.surface2,
           child: Row(children: [
@@ -253,12 +254,9 @@ class _OrderTable extends StatelessWidget {
             Expanded(child: Text('INVOICE', style: AppTheme.labelCaps.copyWith(fontSize: 9.5))),
           ]),
         ),
-        Expanded(child: items.isEmpty
-            ? Center(child: Text('No sales orders found', style: AppTheme.bodySub))
-            : ListView.separated(
-                itemCount: items.length,
-                separatorBuilder: (_, _) => Container(width: double.infinity, height: 1, color: context.pal.divider),
-                itemBuilder: (_, i) {
+      itemCount: items.length,
+      emptyText: 'No sales orders found',
+      itemBuilder: (context, i) {
                   final so = items[i];
                   final color = _statusColor(so.status);
                   final step = _fulfilmentStep(so);
@@ -298,9 +296,8 @@ class _OrderTable extends StatelessWidget {
                       ]),
                     ),
                   );
-                },
-              )),
-        Container(
+      },
+      footer: Container(
           height: 46, padding: const EdgeInsets.symmetric(horizontal: 16),
           decoration: BoxDecoration(color: context.pal.surface2, border: Border(top: BorderSide(color: context.pal.divider))),
           child: Row(children: [
@@ -311,7 +308,6 @@ class _OrderTable extends StatelessWidget {
             const Expanded(child: SizedBox()), const Expanded(child: SizedBox()), const Expanded(child: SizedBox()),
           ]),
         ),
-      ]),
     );
   }
 }

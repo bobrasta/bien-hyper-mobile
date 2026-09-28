@@ -156,24 +156,54 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
       ];
       final maxAging = agingRows.fold<num>(1, (a, r) => r.$2 > a ? r.$2 : a);
 
+      // Fixed: page head (title + totals, search, actions) and the filter
+      // row. Everything else — KPI cards and the table — scrolls together,
+      // with the table's column header pinned, so small screens keep most of
+      // their height for rows.
       return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Padding(
           padding: EdgeInsets.fromLTRB(pad, pad, pad, 0),
-          child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+          child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
             Container(width: 2, height: 36, decoration: BoxDecoration(color: AppColors.green, borderRadius: BorderRadius.circular(2))),
             const SizedBox(width: 13),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('Invoices', style: AppTheme.pageTitle.copyWith(fontSize: 23)),
               const SizedBox(height: 3),
               Text('${_all.length} invoices · ${tshFromDouble(totalRaised)} raised · ${tshFromDouble(outstanding)} outstanding'
-                  '${overdueCount > 0 ? ' · $overdueCount overdue' : ' · none overdue'}', style: AppTheme.bodySub.copyWith(fontSize: 12)),
+                  '${overdueCount > 0 ? ' · $overdueCount overdue' : ' · none overdue'}',
+                  maxLines: 1, overflow: TextOverflow.ellipsis, style: AppTheme.bodySub.copyWith(fontSize: 12)),
             ])),
+            const SizedBox(width: 12),
+            SearchField(width: 240, hint: 'Client or INV number…', controller: _searchCtrl),
+            const SizedBox(width: 8),
             OutlinedButton.icon(onPressed: _sendReminders, icon: const Icon(Symbols.notifications_active, size: 15), label: const Text('Send reminders')),
             const SizedBox(width: 8),
             FilledButton.icon(onPressed: () => widget.onNavigateTo?.call('sales_orders'), icon: const Icon(Symbols.add, size: 16), label: const Text('New invoice')),
           ]),
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 12),
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: pad),
+          child: Row(children: [
+            Expanded(child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: _StatusChips(current: _statusFilter, counts: {for (final s in PaymentStatus.values) s: _all.where((i) => i.effectiveStatus == s).length}, total: _all.length, onChanged: (s) => setState(() { _statusFilter = s; _applyFilter(); })),
+            )),
+            const SizedBox(width: 8),
+            PeriodSelector(value: _period, onChanged: (p) { setState(() => _period = p); _load(); }),
+          ]),
+        ),
+        const SizedBox(height: 12),
+        Expanded(
+          child: _loading
+              ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
+              // A background refresh failing while stale-but-valid cached
+              // data is already showing shouldn't blow that away — only
+              // surface the error when there's nothing else to show.
+              : _error != null && _all.isEmpty
+                  ? ErrorView(message: _error!, onRetry: _load)
+                  : CustomScrollView(slivers: [
+                      SliverToBoxAdapter(child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Padding(
           padding: EdgeInsets.symmetric(horizontal: pad),
           child: IntrinsicHeight(child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -227,30 +257,10 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
             )),
           ])),
         ),
-        const SizedBox(height: 14),
-        Padding(
-          padding: EdgeInsets.symmetric(horizontal: pad),
-          child: Row(children: [
-            _StatusChips(current: _statusFilter, counts: {for (final s in PaymentStatus.values) s: _all.where((i) => i.effectiveStatus == s).length}, total: _all.length, onChanged: (s) => setState(() { _statusFilter = s; _applyFilter(); })),
-            const Spacer(),
-            PeriodSelector(value: _period, onChanged: (p) { setState(() => _period = p); _load(); }),
-            const SizedBox(width: 8),
-            SearchField(width: 220, hint: 'Client or INV number…', controller: _searchCtrl),
-          ]),
-        ),
-        const SizedBox(height: 14),
-        Expanded(
-          child: Padding(
-            padding: EdgeInsets.fromLTRB(pad, 0, pad, pad),
-            child: _loading
-                ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
-                // A background refresh failing while stale-but-valid cached
-                // data is already showing shouldn't blow that away — only
-                // surface the error when there's nothing else to show.
-                : _error != null && _all.isEmpty
-                    ? ErrorView(message: _error!, onRetry: _load)
-                    : _InvoiceTable(items: _filtered, onSelect: _showDetailModal, total: totalRaised, outstandingTotal: outstanding),
-          ),
+                        const SizedBox(height: 14),
+                      ])),
+                      ..._InvoiceTable(items: _filtered, onSelect: _showDetailModal, total: totalRaised, outstandingTotal: outstanding).slivers(context, pad: pad),
+                    ]),
         ),
       ]);
     });
@@ -306,7 +316,7 @@ class _StatusChips extends StatelessWidget {
 
 // ── Invoice table ──────────────────────────────────────────────────────────────
 
-class _InvoiceTable extends StatelessWidget {
+class _InvoiceTable {
   const _InvoiceTable({required this.items, required this.onSelect, required this.total, required this.outstandingTotal});
   final List<Invoice>          items;
   final ValueChanged<Invoice>  onSelect;
@@ -342,18 +352,20 @@ class _InvoiceTable extends StatelessWidget {
   Widget _head(String t, {TextAlign align = TextAlign.left}) =>
       Text(t, textAlign: align, maxLines: 1, style: AppTheme.labelCaps.copyWith(fontSize: 10, letterSpacing: 1.1));
 
-  @override
-  Widget build(BuildContext context) {
+  // Pieces for a CustomScrollView: the column header pins while the page
+  // scrolls, rows are built lazily, footer closes the card.
+  List<Widget> slivers(BuildContext context, {required double pad}) {
     final paidTotal = items.fold<int>(0, (s, i) => s + i.amountPaid);
     final money = AppTheme.monoSm.copyWith(fontSize: 13);
-    return Container(
-      decoration: BoxDecoration(color: context.pal.surface1, borderRadius: BorderRadius.circular(14), border: Border.all(color: context.pal.border)),
-      clipBehavior: Clip.antiAlias,
-      child: Column(children: [
-        Container(
-          height: 44, padding: const EdgeInsets.symmetric(horizontal: 22),
-          decoration: BoxDecoration(border: Border(bottom: BorderSide(color: context.pal.divider))),
-          child: Row(children: [
+    final side = BorderSide(color: context.pal.border);
+    final header = Container(
+      height: 44, padding: const EdgeInsets.symmetric(horizontal: 22),
+      decoration: BoxDecoration(
+        color: context.pal.surface1,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+        border: Border(top: side, left: side, right: side, bottom: BorderSide(color: context.pal.divider)),
+      ),
+      child: Row(children: [
             Expanded(flex: _fInv, child: _head('INVOICE')),
             Expanded(flex: _fClient, child: _head('CLIENT')),
             Expanded(flex: _fOrder, child: _head('ORDER')),
@@ -366,13 +378,8 @@ class _InvoiceTable extends StatelessWidget {
             Expanded(flex: _fDue, child: _head('DUE')),
             const Spacer(flex: _fAction),
           ]),
-        ),
-        Expanded(child: items.isEmpty
-            ? Center(child: Text('No invoices found', style: AppTheme.bodySub))
-            : ListView.separated(
-                itemCount: items.length,
-                separatorBuilder: (_, _) => Container(width: double.infinity, height: 1, color: context.pal.divider),
-                itemBuilder: (_, i) {
+    );
+    Widget rowFor(int i) {
                   final inv = items[i];
                   final st = inv.effectiveStatus;
                   final color = _badgeColor(context, st);
@@ -383,7 +390,7 @@ class _InvoiceTable extends StatelessWidget {
                     PaymentStatus.overdue => ('Remind', true),
                     _ => ('Remind', false),
                   };
-                  return InkWell(
+      final row = InkWell(
                     onTap: () => onSelect(inv),
                     child: Container(
                       height: 64, padding: const EdgeInsets.symmetric(horizontal: 22),
@@ -428,11 +435,22 @@ class _InvoiceTable extends StatelessWidget {
                       ]),
                     ),
                   );
-                },
-              )),
-        Container(
+      return Container(
+        decoration: BoxDecoration(
+          color: context.pal.surface1,
+          border: Border(left: side, right: side, bottom: BorderSide(color: context.pal.divider)),
+        ),
+        child: row,
+      );
+    }
+    final footer = Container(
+      decoration: BoxDecoration(
+        color: context.pal.surface1,
+        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(14)),
+        border: Border(left: side, right: side, bottom: side),
+      ),
+      child: Container(
           height: 58, padding: const EdgeInsets.symmetric(horizontal: 22),
-          decoration: BoxDecoration(border: Border(top: BorderSide(color: context.pal.divider))),
           child: Row(children: [
             Expanded(flex: _fInv, child: Text('TOTAL', style: AppTheme.labelCaps.copyWith(fontSize: 11, color: context.pal.text))),
             Expanded(flex: _fClient + _fOrder, child: Text('Outstanding is total − amount paid, computed per row', maxLines: 2, overflow: TextOverflow.ellipsis,
@@ -446,9 +464,42 @@ class _InvoiceTable extends StatelessWidget {
             const Spacer(flex: _fDue + _fAction),
           ]),
         ),
-      ]),
     );
+    return [
+      SliverPersistentHeader(pinned: true, delegate: _PinnedBox(height: 44, pad: pad, child: header)),
+      if (items.isEmpty)
+        SliverPadding(
+          padding: EdgeInsets.symmetric(horizontal: pad),
+          sliver: SliverToBoxAdapter(child: Container(
+            height: 120, alignment: Alignment.center,
+            decoration: BoxDecoration(color: context.pal.surface1, border: Border(left: side, right: side)),
+            child: Text('No invoices found', style: AppTheme.bodySub),
+          )),
+        )
+      else
+        SliverPadding(
+          padding: EdgeInsets.symmetric(horizontal: pad),
+          sliver: SliverList(delegate: SliverChildBuilderDelegate((_, i) => rowFor(i), childCount: items.length)),
+        ),
+      SliverPadding(padding: EdgeInsets.fromLTRB(pad, 0, pad, pad), sliver: SliverToBoxAdapter(child: footer)),
+    ];
   }
+}
+
+/// Pinned sliver header of a fixed height, padded to the page gutter.
+class _PinnedBox extends SliverPersistentHeaderDelegate {
+  _PinnedBox({required this.height, required this.pad, required this.child});
+  final double height, pad;
+  final Widget child;
+  @override
+  double get minExtent => height;
+  @override
+  double get maxExtent => height;
+  @override
+  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) =>
+      Container(color: context.pal.bg, padding: EdgeInsets.symmetric(horizontal: pad), child: child);
+  @override
+  bool shouldRebuild(_PinnedBox old) => old.child != child || old.pad != pad || old.height != height;
 }
 
 // Badge/marker colours for the invoice list (design: part paid = cyan,
