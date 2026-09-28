@@ -3752,7 +3752,7 @@ class _MemberRow extends StatelessWidget {
 
   String _lastActiveLabel() {
     final dt = member.lastActiveAt;
-    if (dt == null) return '—';
+    if (dt == null) return 'Never'; // hasn't used the app since accounts were set up
     final diff = DateTime.now().difference(dt);
     if (diff.inMinutes < 5) return 'Just now';
     if (diff.inHours < 1) return '${diff.inMinutes}m ago';
