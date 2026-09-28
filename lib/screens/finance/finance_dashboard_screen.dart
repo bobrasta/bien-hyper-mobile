@@ -93,7 +93,8 @@ class _FinanceDashboardScreenState extends State<FinanceDashboardScreen> {
   Map<String, dynamic> _cashFlow   = {};
   List<LedgerEntry>    _journal    = [];
   List<Map<String, dynamic>> _trend = [];
-  _Period _period  = _Period.thisMonth;
+  // App-wide rule: show this year's figures unless the user picks otherwise.
+  _Period _period  = _Period.thisYear;
   bool    _loading = true;
   bool    _dismissedInsight = false;
   String? _error;
@@ -108,8 +109,11 @@ class _FinanceDashboardScreenState extends State<FinanceDashboardScreen> {
     // default (dateFrom/dateTo both null) call — exactly what _period's
     // default value of thisMonth resolves to below, so this is always the
     // right data to seed with on a fresh mount.
+    // (The P&L cache holds the backend's current-MONTH default, so it only
+    // seeds while this screen is on This Month — otherwise the year view
+    // would briefly show month figures under a "This Year" label.)
     final cachedPL = FinanceReportService.cachedProfitLoss;
-    if (cachedPL != null) {
+    if (cachedPL != null && _period == _Period.thisMonth) {
       _profitLoss = cachedPL;
       _cashFlow   = FinanceReportService.cachedCashFlow ?? {};
       _balance    = FinanceReportService.cachedBalanceSheet ?? {};

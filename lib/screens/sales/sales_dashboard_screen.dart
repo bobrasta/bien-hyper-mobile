@@ -31,7 +31,8 @@ class SalesDashboardScreen extends StatefulWidget {
 }
 
 class _SalesDashboardScreenState extends State<SalesDashboardScreen> {
-  String _period = 'quarter';
+  // App-wide rule: this year unless the user picks otherwise.
+  String _period = 'year';
   SalesOverview? _data;
   SalesDashboardData? _kpi;
   bool _loading = true;

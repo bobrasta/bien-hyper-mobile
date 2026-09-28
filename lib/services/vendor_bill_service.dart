@@ -1,5 +1,6 @@
 import '../models/vendor_bill.dart';
 import 'api_client.dart';
+import '../widgets/common/period_filter.dart';
 
 class VendorBillService {
   VendorBillService._();
@@ -11,15 +12,16 @@ class VendorBillService {
   static List<VendorBill>? cachedDefaultList;
   static final Map<int, VendorBill> cachedById = {};
 
-  Future<List<VendorBill>> list({int? supplierId, String? status, String? search}) async {
+  Future<List<VendorBill>> list({int? supplierId, String? status, String? search, Period? period}) async {
     final res = await _dio.get('/vendor-bills', queryParameters: {
+      ...?period?.query,
       'supplier_id': ?supplierId,
       'status':      ?status,
       'search':      ?search,
     });
     final (data, _) = ApiClient.unwrapList(res);
     final bills = data.map((j) => VendorBill.fromJson(j as Map<String, dynamic>)).toList();
-    if (supplierId == null && status == null && search == null) cachedDefaultList = bills;
+    if (supplierId == null && status == null && search == null && (period?.isDefault ?? false)) cachedDefaultList = bills;
     return bills;
   }
 

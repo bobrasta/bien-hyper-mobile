@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import '../models/quotation.dart';
 import 'api_client.dart';
+import '../widgets/common/period_filter.dart';
 
 class QuotationService {
   QuotationService._();
@@ -12,14 +13,15 @@ class QuotationService {
   static List<Quotation>? cachedDefaultList;
   static final Map<int, Quotation> cachedById = {};
 
-  Future<List<Quotation>> list({String? status, String? search}) async {
+  Future<List<Quotation>> list({String? status, String? search, Period? period}) async {
     final res = await _dio.get('/quotations', queryParameters: {
+      ...?period?.query,
       'status': ?status,
       'search': ?search,
     });
     final (data, _) = ApiClient.unwrapList(res);
     final quotations = data.map((j) => Quotation.fromJson(j as Map<String, dynamic>)).toList();
-    if (status == null && search == null) {
+    if (status == null && search == null && (period?.isDefault ?? false)) {
       cachedDefaultList = quotations;
     }
     return quotations;

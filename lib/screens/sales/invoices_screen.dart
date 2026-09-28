@@ -14,6 +14,7 @@ import '../../utils/whatsapp_share.dart';
 import '../../widgets/common/app_button.dart';
 import '../../widgets/common/error_view.dart';
 import '../../widgets/common/labeled_field.dart';
+import '../../widgets/common/period_filter.dart';
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -49,6 +50,7 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
   String?        _error;
   PaymentStatus? _statusFilter;
   Map<String, dynamic> _arAging = {};
+  Period _period = Period.defaultPeriod;
   final _searchCtrl = TextEditingController();
 
   @override
@@ -83,7 +85,7 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
     });
     try {
       final results = await Future.wait([
-        InvoiceService.instance.list(),
+        InvoiceService.instance.list(period: _period),
         FinanceReportService.instance.arAging(),
       ]);
       if (!mounted) return;
@@ -231,6 +233,8 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
           child: Row(children: [
             _StatusChips(current: _statusFilter, counts: {for (final s in PaymentStatus.values) s: _all.where((i) => i.effectiveStatus == s).length}, total: _all.length, onChanged: (s) => setState(() { _statusFilter = s; _applyFilter(); })),
             const Spacer(),
+            PeriodSelector(value: _period, onChanged: (p) { setState(() => _period = p); _load(); }),
+            const SizedBox(width: 8),
             SearchField(width: 220, hint: 'Client or INV number…', controller: _searchCtrl),
           ]),
         ),

@@ -19,6 +19,7 @@ import '../../utils/whatsapp_share.dart';
 import '../../widgets/common/app_dropdown.dart';
 import '../../widgets/common/error_view.dart';
 import '../../widgets/common/labeled_field.dart';
+import '../../widgets/common/period_filter.dart';
 
 // ── Status colours ─────────────────────────────────────────────────────────────
 Color _statusColor(String status) => switch (status) {
@@ -53,6 +54,7 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
   bool            _loading  = true;
   String?         _error;
   String?         _statusFilter;
+  Period          _period = Period.defaultPeriod;
   final _searchCtrl = TextEditingController();
 
   @override
@@ -90,7 +92,7 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
       _error = null;
     });
     try {
-      final data = await QuotationService.instance.list();
+      final data = await QuotationService.instance.list(period: _period);
       if (!mounted) return;
       setState(() { _all = data; _loading = false; });
       _applyFilter();
@@ -138,6 +140,8 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
                 const SizedBox(height: 3),
                 Text('${_all.length} quotations · ${tshFromDouble(totalQuoted)} quoted · $converted converted to orders', style: AppTheme.bodySub.copyWith(fontSize: 12)),
               ])),
+              PeriodSelector(value: _period, onChanged: (p) { setState(() => _period = p); _load(); }),
+              const SizedBox(width: 8),
               SearchField(width: 230, hint: 'Client or QT number…', controller: _searchCtrl),
               const SizedBox(width: 8),
               FilledButton.icon(onPressed: () => _openBuilder(), icon: const Icon(Symbols.add, size: 16), label: const Text('New quotation')),

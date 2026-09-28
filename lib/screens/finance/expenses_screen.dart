@@ -12,6 +12,7 @@ import '../../utils/format.dart';
 import '../../widgets/common/app_dropdown.dart';
 import '../../widgets/common/error_view.dart';
 import '../../widgets/common/labeled_field.dart';
+import '../../widgets/common/period_filter.dart';
 
 const _categoryIcons = <String, IconData>{
   'Salaries & Wages': Symbols.groups,
@@ -37,6 +38,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
   bool    _showCreate = false;
   String  _search = '';
   Set<int> _categoryFilter = {};
+  Period  _period = Period.defaultPeriod;
 
   Color _categoryColor(String? name) {
     if (name == null) return AppColors.textMute;
@@ -94,7 +96,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
     });
     try {
       final results = await Future.wait([
-        ExpenseService.instance.list(),
+        ExpenseService.instance.list(period: _period),
         ExpenseService.instance.categories(),
       ]);
       if (!mounted) return;
@@ -168,7 +170,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                           Container(
                             decoration: BoxDecoration(color: context.pal.surface1, borderRadius: BorderRadius.circular(14), border: Border.all(color: context.pal.border)),
                             child: Row(children: [
-                              Expanded(child: _stat('This month', tshFromDouble(_totalThisMonth), context.pal.text, '${_expenses.length} entries · ${_categories.length} categories')),
+                              Expanded(child: _stat(_period.label, tshFromDouble(_expenses.fold<double>(0, (s, e) => s + e.grossAmount)), context.pal.text, '${_expenses.length} entries · ${tshFromDouble(_totalThisMonth)} this month')),
                               Expanded(child: _stat('Awaiting approval', tshFromDouble(_awaitingApproval.fold<double>(0, (s, e) => s + e.grossAmount)), AppColors.amber, '${_awaitingApproval.length} entries pending', border: true)),
                               Expanded(child: _stat('VAT reclaimable', tshFromDouble(vatReclaimable), AppColors.cyan, '$vatCount entries with VAT', border: true)),
                               Expanded(child: _stat('vs last month', '${vsLastMonth >= 0 ? '+' : ''}${vsLastMonth.toStringAsFixed(1)}%', vsLastMonth > 0 ? AppColors.coral : AppColors.green, '${tshFromDouble(_totalLastMonth)} last month', border: true)),
@@ -176,6 +178,8 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                           ),
                           const SizedBox(height: 14),
                           Row(children: [
+                            PeriodSelector(value: _period, onChanged: (p) { setState(() => _period = p); _load(); }),
+                            const SizedBox(width: 8),
                             SearchField(
                               width: 260,
                               hint: 'Search description or reference…',

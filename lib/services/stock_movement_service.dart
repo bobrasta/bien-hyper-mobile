@@ -1,5 +1,6 @@
 import '../models/stock_movement.dart';
 import 'api_client.dart';
+import '../widgets/common/period_filter.dart';
 
 class StockMovementService {
   StockMovementService._();
@@ -13,8 +14,9 @@ class StockMovementService {
   static List<StockMovement>? cachedDefaultList;
   static final Map<int, List<StockMovement>> cachedByItemId = {};
 
-  Future<List<StockMovement>> list({int? inventoryItemId, String? type}) async {
+  Future<List<StockMovement>> list({int? inventoryItemId, String? type, Period? period}) async {
     final res = await _dio.get('/stock-movements', queryParameters: {
+      ...?period?.query,
       'inventory_item_id': ?inventoryItemId,
       'type':              ?type,
     });
@@ -22,7 +24,7 @@ class StockMovementService {
     final movements = data.map((j) => StockMovement.fromJson(j as Map<String, dynamic>)).toList();
     if (type == null) {
       if (inventoryItemId == null) {
-        cachedDefaultList = movements;
+        if (period?.isDefault ?? false) cachedDefaultList = movements;
       } else {
         cachedByItemId[inventoryItemId] = movements;
       }

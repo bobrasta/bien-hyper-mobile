@@ -12,6 +12,7 @@ import '../../utils/format.dart';
 import '../../widgets/common/app_button.dart';
 import '../../widgets/common/error_view.dart';
 import '../../widgets/common/labeled_field.dart';
+import '../../widgets/common/period_filter.dart';
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -46,6 +47,7 @@ class _SalesOrdersScreenState extends State<SalesOrdersScreen> {
   bool             _loading  = true;
   String?          _error;
   String?          _statusFilter;
+  Period           _period = Period.defaultPeriod;
   final _searchCtrl = TextEditingController();
 
   @override
@@ -76,7 +78,7 @@ class _SalesOrdersScreenState extends State<SalesOrdersScreen> {
       _error = null;
     });
     try {
-      final data = await SalesOrderService.instance.list();
+      final data = await SalesOrderService.instance.list(period: _period);
       if (!mounted) return;
       setState(() { _all = data; _loading = false; });
       _applyFilter();
@@ -134,6 +136,8 @@ class _SalesOrdersScreenState extends State<SalesOrdersScreen> {
               Text('${_all.length} orders · ${tshFromDouble(booked)} booked · ${_all.where((o) => o.status == 'pending').length} pending confirmation'
                   '${cancelled.isNotEmpty ? ' · ${cancelled.length} cancelled' : ''}', style: AppTheme.bodySub.copyWith(fontSize: 12)),
             ])),
+            PeriodSelector(value: _period, onChanged: (p) { setState(() => _period = p); _load(); }),
+            const SizedBox(width: 8),
             SearchField(width: 220, hint: 'Client or SO number…', controller: _searchCtrl),
             const SizedBox(width: 8),
             FilledButton.icon(onPressed: () => widget.onNavigateTo?.call('sales_quotations'), icon: const Icon(Symbols.add, size: 16), label: const Text('New order')),

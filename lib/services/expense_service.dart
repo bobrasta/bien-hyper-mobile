@@ -1,5 +1,6 @@
 import '../models/expense.dart';
 import 'api_client.dart';
+import '../widgets/common/period_filter.dart';
 
 class ExpenseService {
   ExpenseService._();
@@ -20,8 +21,9 @@ class ExpenseService {
     return cats;
   }
 
-  Future<List<Expense>> list({int? categoryId, String? paymentMode, String? dateFrom, String? dateTo, String? search}) async {
+  Future<List<Expense>> list({int? categoryId, String? paymentMode, String? dateFrom, String? dateTo, String? search, Period? period}) async {
     final res = await _dio.get('/expenses', queryParameters: {
+      ...?period?.query,
       'category_id':  ?categoryId,
       'payment_mode': ?paymentMode,
       'date_from':    ?dateFrom,
@@ -30,7 +32,7 @@ class ExpenseService {
     });
     final (data, _) = ApiClient.unwrapList(res);
     final expenses = data.map((j) => Expense.fromJson(j as Map<String, dynamic>)).toList();
-    if (categoryId == null && paymentMode == null && dateFrom == null && dateTo == null && search == null) {
+    if (categoryId == null && paymentMode == null && dateFrom == null && dateTo == null && search == null && (period?.isDefault ?? false)) {
       cachedDefaultList = expenses;
     }
     return expenses;

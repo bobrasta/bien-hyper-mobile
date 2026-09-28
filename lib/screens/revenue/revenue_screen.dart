@@ -20,6 +20,7 @@ import '../../utils/responsive.dart';
 import '../../widgets/common/app_button.dart';
 import '../../widgets/common/status_badge.dart';
 import '../../theme/app_palette.dart';
+import '../../widgets/common/period_filter.dart';
 
 Color _paymentStatusColor(PaymentStatus s) => switch (s) {
   PaymentStatus.paid      => AppColors.teal,
@@ -53,6 +54,7 @@ class _RevenueScreenState extends State<RevenueScreen> {
   double                     _monthlyTarget    = 0;
   bool                       _loading          = true;
   String?                    _error;
+  Period                     _period           = Period.defaultPeriod;
 
   // KPI totals derived from invoices
   double get _totalRevenue => _invoices.fold(0, (s, i) => s + i.total);
@@ -114,10 +116,12 @@ class _RevenueScreenState extends State<RevenueScreen> {
     });
     try {
       final results = await Future.wait([
-        InvoiceService.instance.list(),
+        InvoiceService.instance.list(period: _period),
         MachineService.instance.list(),
-        InvoiceService.instance.revenueByHospital(),
-        InvoiceService.instance.revenueSummary(),
+        InvoiceService.instance.revenueByHospital(period: _period),
+        // Monthly chart: Jan-Dec of the period's year (rolling 12 months
+        // for all-time / cross-year ranges).
+        InvoiceService.instance.revenueSummary(year: _period.year),
         HospitalService.instance.list(hasMachines: true),
       ]);
       final settings = await SettingService.instance.all();
@@ -183,7 +187,7 @@ class _RevenueScreenState extends State<RevenueScreen> {
             final actions = Row(mainAxisSize: MainAxisSize.min, children: [
               AppButton(label: 'Export', icon: Symbols.download, variant: BtnVariant.ghost),
               const SizedBox(width: 8),
-              AppButton(label: 'Jun 2025', icon: Symbols.calendar_month, variant: BtnVariant.normal),
+              PeriodSelector(value: _period, onChanged: (p) { setState(() => _period = p); _load(); }),
             ]);
             if (narrow) {
               return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

@@ -43,7 +43,8 @@ class FinanceReportsScreen extends StatefulWidget {
 class _FinanceReportsScreenState extends State<FinanceReportsScreen> with SingleTickerProviderStateMixin {
   late final TabController _tab = TabController(length: 8, vsync: this)..addListener(() => setState(() {}));
 
-  String _period = 'This month'; // This month | Quarter | Year | Custom
+  // App-wide rule: this year unless the user picks otherwise.
+  String _period = 'Year'; // This month | Quarter | Year | Custom
   DateTimeRange? _customRange;
   bool _compare = false;
   bool _hideNilTB = true;
@@ -73,8 +74,12 @@ class _FinanceReportsScreenState extends State<FinanceReportsScreen> with Single
     final cachedBs = FinanceReportService.cachedBalanceSheet;
     if (cachedBs != null) {
       _bs  = cachedBs;
-      _pl  = FinanceReportService.cachedProfitLoss ?? {};
-      _cf  = FinanceReportService.cachedCashFlow ?? {};
+      // P&L / cash-flow caches hold the backend's current-month default —
+      // only seed them while the screen is on This month.
+      if (_period == 'This month') {
+        _pl  = FinanceReportService.cachedProfitLoss ?? {};
+        _cf  = FinanceReportService.cachedCashFlow ?? {};
+      }
       _tb  = FinanceReportService.cachedTrialBalance ?? {};
       _vat = FinanceReportService.cachedVat ?? {};
       _ar  = FinanceReportService.cachedArAging ?? {};

@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import '../models/invoice.dart';
 import 'api_client.dart';
+import '../widgets/common/period_filter.dart';
 
 class InvoiceService {
   InvoiceService._();
@@ -14,8 +15,9 @@ class InvoiceService {
   static Map<String, dynamic>? cachedRevenueSummary;
   static List<Map<String, dynamic>>? cachedRevenueByHospital;
 
-  Future<List<Invoice>> list({String? status, String? search, int? salesOrderId, int? machineId}) async {
+  Future<List<Invoice>> list({String? status, String? search, int? salesOrderId, int? machineId, Period? period}) async {
     final res = await _dio.get('/invoices', queryParameters: {
+      ...?period?.query,
       'status':          ?status,
       'search':          ?search,
       'sales_order_id':  ?salesOrderId,
@@ -23,7 +25,7 @@ class InvoiceService {
     });
     final (data, _) = ApiClient.unwrapList(res);
     final invoices = data.map((j) => Invoice.fromJson(j as Map<String, dynamic>)).toList();
-    if (status == null && search == null && salesOrderId == null && machineId == null) {
+    if (status == null && search == null && salesOrderId == null && machineId == null && (period?.isDefault ?? false)) {
       cachedDefaultList = invoices;
     }
     return invoices;
@@ -65,10 +67,24 @@ class InvoiceService {
     return Invoice.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
   }
 
-  Future<Map<String, dynamic>> revenueSummary() async {
+  /// [year] = Jan-Dec of that year; null = rolling last 12 months.
+  Future<Map<String, dynamic>> revenueSummary({int? year}) async {
     try {
-      final res = await _dio.get('/revenue/summary');
+      final res = await _dio.get('/revenue/summary', queryParameters: {'year': ?year});
       final raw = ApiClient.unwrap(res);
+      // The API returns one row per month ({month, label, actual, target});
+      // the screen reads parallel lists, so reshape here. (Accepting only a
+      // Map used to drop every response and leave the chart empty.)
+      if (raw is List) {
+        final rows = raw.whereType<Map<String, dynamic>>().toList();
+        final shaped = <String, dynamic>{
+          'months': [for (final r in rows) (r['label'] ?? r['month'] ?? '').toString()],
+          'actual': [for (final r in rows) (r['actual'] as num?) ?? 0],
+          'target': [for (final r in rows) (r['target'] as num?) ?? 0],
+        };
+        if (year == null || year == DateTime.now().year) cachedRevenueSummary = shaped;
+        return shaped;
+      }
       if (raw is Map<String, dynamic>) { cachedRevenueSummary = raw; return raw; }
       return {};
     } catch (_) {
@@ -89,9 +105,12 @@ class InvoiceService {
     return res.data!;
   }
 
-  Future<List<Map<String, dynamic>>> revenueByHospital() async {
+  Future<List<Map<String, dynamic>>> revenueByHospital({Period? period}) async {
     try {
-      final res = await _dio.get('/revenue/by-hospital');
+      final res = await _dio.get('/revenue/by-hospital', queryParameters: {
+        'date_from': ?period?.fromIso,
+        'date_to': ?period?.toIso,
+      });
       final (data, _) = ApiClient.unwrapList(res);
       final list = data.whereType<Map<String, dynamic>>().toList();
       cachedRevenueByHospital = list;

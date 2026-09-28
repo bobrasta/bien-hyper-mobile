@@ -17,6 +17,7 @@ import '../../widgets/common/app_dropdown.dart';
 import '../../widgets/common/error_view.dart';
 import '../../widgets/common/shimmer_box.dart';
 import '../../widgets/common/labeled_field.dart';
+import '../../widgets/common/period_filter.dart';
 
 class StockMovementsScreen extends StatefulWidget {
   const StockMovementsScreen({super.key});
@@ -32,6 +33,7 @@ class _StockMovementsScreenState extends State<StockMovementsScreen> {
   List<StockMovement> _movements = [];
   bool   _loading = true;
   String? _error;
+  Period _period = Period.defaultPeriod;
 
   @override
   void initState() {
@@ -52,7 +54,7 @@ class _StockMovementsScreenState extends State<StockMovementsScreen> {
       _error = null;
     });
     try {
-      final data = await StockMovementService.instance.list(type: _typeFilter);
+      final data = await StockMovementService.instance.list(type: _typeFilter, period: _period);
       if (mounted) setState(() { _movements = data; _loading = false; });
     } catch (e) {
       if (mounted) setState(() { _error = friendlyError(e); _loading = false; });
@@ -112,6 +114,8 @@ class _StockMovementsScreenState extends State<StockMovementsScreen> {
               )),
             ]),
             const Spacer(),
+            PeriodSelector(value: _period, onChanged: (p) { setState(() => _period = p); _load(); }),
+            const SizedBox(width: 8),
             AppButton(label: 'Record Movement', icon: Symbols.add, variant: BtnVariant.primary,
                 onPressed: () => setState(() => _showRecord = true)),
           ]),

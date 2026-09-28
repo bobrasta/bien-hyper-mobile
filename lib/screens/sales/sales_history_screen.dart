@@ -11,6 +11,7 @@ import '../../utils/pdf_download.dart';
 import '../../widgets/common/error_view.dart';
 import '../../widgets/common/shimmer_box.dart';
 import '../../widgets/common/labeled_field.dart';
+import '../../widgets/common/period_filter.dart';
 
 class SalesHistoryScreen extends StatefulWidget {
   const SalesHistoryScreen({super.key});
@@ -23,7 +24,7 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
   List<Invoice> _invoices = [];
   bool    _loading = true;
   String? _error;
-  String  _period  = 'all';
+  Period  _period  = Period.defaultPeriod;
   String  _search  = '';
   final   _searchCtrl = TextEditingController();
 
@@ -54,7 +55,7 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
       _error = null;
     });
     try {
-      final data = await InvoiceService.instance.list();
+      final data = await InvoiceService.instance.list(period: _period);
       if (mounted) setState(() { _invoices = data; _loading = false; });
     } catch (e) {
       if (mounted) setState(() { _error = e.toString(); _loading = false; });
@@ -62,19 +63,9 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
   }
 
   List<Invoice> get _filtered {
-    final now = DateTime.now();
-    DateTime? since;
-    if (_period == 'month')   since = DateTime(now.year, now.month, 1);
-    if (_period == 'quarter') since = DateTime(now.year, ((now.month - 1) ~/ 3) * 3 + 1, 1);
-    if (_period == 'year')    since = DateTime(now.year, 1, 1);
-
+    // The period is applied by the API (date_from/date_to); only the
+    // search box filters on the device.
     var list = _invoices;
-    if (since != null) {
-      list = list.where((inv) {
-        final d = DateTime.tryParse(inv.issueDate);
-        return d != null && d.isAfter(since!.subtract(const Duration(days: 1)));
-      }).toList();
-    }
     if (_search.isNotEmpty) {
       final q = _search.toLowerCase();
       list = list.where((inv) =>
@@ -111,13 +102,11 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
                 Text('Sales History', style: AppTheme.pageTitle.copyWith(fontSize: 23)),
                 const SizedBox(height: 3),
                 Text(
-                  _loading ? 'Loading…' : '${_periodLabel(_period)} · ${items.length} invoice${items.length == 1 ? '' : 's'} · ${tshFromDouble(_totalRevenue)} revenue · ${tshFromDouble(_totalCollected)} collected',
+                  _loading ? 'Loading…' : '${_period.label} · ${items.length} invoice${items.length == 1 ? '' : 's'} · ${tshFromDouble(_totalRevenue)} revenue · ${tshFromDouble(_totalCollected)} collected',
                   style: AppTheme.bodySub.copyWith(fontSize: 12),
                 ),
               ])),
-              ...[
-                ('all', 'All time'), ('year', 'This year'), ('quarter', 'This quarter'), ('month', 'This month'),
-              ].map((p) => Padding(padding: const EdgeInsets.only(left: 6), child: _PeriodChip(label: p.$2, active: _period == p.$1, onTap: () => setState(() => _period = p.$1)))),
+              PeriodSelector(value: _period, onChanged: (p) { setState(() => _period = p); _load(); }),
               const SizedBox(width: 8),
               SizedBox(
                 width: 210,
@@ -209,8 +198,6 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
     ])),
   );
 
-  String _periodLabel(String p) => switch (p) { 'year' => 'This year', 'quarter' => 'This quarter', 'month' => 'This month', _ => 'All time' };
-
   String _avgDaysToPay(List<Invoice> items) {
     final paid = items.where((i) => i.isPaid && i.payments.isNotEmpty).toList();
     if (paid.isEmpty) return '—';
@@ -223,35 +210,6 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
     if (days.isEmpty) return '—';
     return (days.reduce((a, b) => a + b) / days.length).toStringAsFixed(1);
   }
-}
-
-// ── Period chip ────────────────────────────────────────────────────────────────
-
-class _PeriodChip extends StatelessWidget {
-  const _PeriodChip({
-    required this.label,
-    required this.active,
-    required this.onTap,
-  });
-  final String label;
-  final bool active;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) => GestureDetector(
-        onTap: onTap,
-        child: Container(
-          height: 30,
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: active ? AppColors.green.withValues(alpha: 0.10) : Colors.transparent,
-            borderRadius: BorderRadius.circular(9),
-            border: Border.all(color: active ? AppColors.green.withValues(alpha: 0.5) : context.pal.border),
-          ),
-          child: Text(label, style: AppTheme.bodySm.copyWith(fontSize: 12, color: active ? AppColors.green : context.pal.textMute)),
-        ),
-      );
 }
 
 // ── History row ────────────────────────────────────────────────────────────────

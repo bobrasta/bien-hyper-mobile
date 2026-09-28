@@ -1,5 +1,6 @@
 import '../models/purchase_order.dart';
 import 'api_client.dart';
+import '../widgets/common/period_filter.dart';
 
 class PurchaseOrderService {
   PurchaseOrderService._();
@@ -11,14 +12,15 @@ class PurchaseOrderService {
   static List<PurchaseOrder>? cachedDefaultList;
   static final Map<int, PurchaseOrder> cachedById = {};
 
-  Future<List<PurchaseOrder>> list({String? status, int? supplierId}) async {
+  Future<List<PurchaseOrder>> list({String? status, int? supplierId, Period? period}) async {
     final res = await _dio.get('/purchase-orders', queryParameters: {
+      ...?period?.query,
       'status':      ?status,
       'supplier_id': ?supplierId,
     });
     final (data, _) = ApiClient.unwrapList(res);
     final orders = data.map((j) => PurchaseOrder.fromJson(j as Map<String, dynamic>)).toList();
-    if (status == null && supplierId == null) cachedDefaultList = orders;
+    if (status == null && supplierId == null && (period?.isDefault ?? false)) cachedDefaultList = orders;
     return orders;
   }
 

@@ -11,6 +11,7 @@ import '../../widgets/common/app_button.dart';
 import '../../widgets/common/error_view.dart';
 import '../../widgets/common/shimmer_box.dart';
 import '../../widgets/common/labeled_field.dart';
+import '../../widgets/common/period_filter.dart';
 
 class PurchaseOrdersScreen extends StatefulWidget {
   const PurchaseOrdersScreen({super.key});
@@ -27,6 +28,7 @@ class _PurchaseOrdersScreenState extends State<PurchaseOrdersScreen> {
   List<PurchaseOrder> _orders = [];
   bool   _loading = true;
   String? _error;
+  Period _period = Period.defaultPeriod;
 
   @override
   void initState() {
@@ -45,7 +47,7 @@ class _PurchaseOrdersScreenState extends State<PurchaseOrdersScreen> {
       _error = null;
     });
     try {
-      final data = await PurchaseOrderService.instance.list(status: _statusFilter);
+      final data = await PurchaseOrderService.instance.list(status: _statusFilter, period: _period);
       if (mounted) setState(() { _orders = data; _loading = false; });
     } catch (e) {
       if (mounted) setState(() { _error = friendlyError(e); _loading = false; });
@@ -120,6 +122,8 @@ class _PurchaseOrdersScreenState extends State<PurchaseOrdersScreen> {
             )),
           ]),
           const Spacer(),
+          PeriodSelector(value: _period, onChanged: (p) { setState(() => _period = p); _load(); }),
+          const SizedBox(width: 8),
           AppButton(label: 'New Order', icon: Symbols.add, variant: BtnVariant.primary,
               onPressed: () {}),
         ]),
