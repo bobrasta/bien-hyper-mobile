@@ -10,7 +10,7 @@ import '../../theme/app_theme.dart';
 import '../../utils/api_error.dart';
 import '../../utils/format.dart';
 import '../../widgets/common/app_button.dart';
-import '../../widgets/common/labeled_field.dart' show FieldFocusBox;
+import '../../widgets/common/labeled_field.dart';
 
 String _iso(DateTime d) =>
     '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
@@ -169,21 +169,7 @@ class _TravelPlanDialogState extends State<TravelPlanDialog> {
 
   Widget _miniField(String label, TextEditingController ctrl, {bool numeric = false}) =>
       Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(label, style: AppTheme.labelCaps.copyWith(fontSize: 9)),
-        const SizedBox(height: 4),
-        FieldFocusBox(
-          radius: 6,
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-          builder: (context, focusNode) => TextField(
-            controller: ctrl,
-            focusNode: focusNode,
-            keyboardType: numeric ? TextInputType.number : TextInputType.text,
-            style: AppTheme.fieldText.copyWith(fontSize: 12),
-            onChanged: (_) => setState(() {}),
-            decoration: const InputDecoration(
-                border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero),
-          ),
-        ),
+        LabeledTextField(label: label, controller: ctrl, keyboardType: numeric ? TextInputType.number : TextInputType.text, onChanged: (_) => setState(() {})),
       ]);
 
   Widget _summaryStat(String label, String value) =>
@@ -311,11 +297,7 @@ class _TravelPlanDialogState extends State<TravelPlanDialog> {
                 ],
 
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('Description of the trip', style: AppTheme.fieldLabel),
-                  const SizedBox(height: 6),
-                  FieldFocusBox(builder: (context, focusNode) => TextField(focusNode: focusNode, controller: _purposeCtrl, style: AppTheme.fieldText,
-                        decoration: const InputDecoration(border: InputBorder.none, isDense: true,
-                            contentPadding: EdgeInsets.zero, hintText: 'What is this trip for?')),),
+                  LabeledTextField(label: 'Description of the trip', controller: _purposeCtrl, hint: 'What is this trip for?'),
                 ]),
                 const SizedBox(height: 16),
 

@@ -917,16 +917,7 @@ class _NotesContentState extends State<_NotesContent> {
             onPressed: _saving ? null : _save),
       ]),
       const SizedBox(height: 14),
-      FieldFocusBox(builder: (context, focusNode) => TextField(focusNode: focusNode, controller: _controller,
-          maxLines: null,
-          minLines: 12,
-          style: AppTheme.fieldText.copyWith(height: 1.7),
-          decoration: InputDecoration(
-            hintText: 'Add notes about this machine—',
-            hintStyle: AppTheme.fieldText.copyWith(color: context.pal.textDim),
-            border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero,
-          ),
-        ),),
+      LabeledTextField(label: '', controller: _controller, maxLines: 6, hint: 'Add notes about this machine…'),
     ]);
   }
 }
@@ -937,17 +928,9 @@ class _MField extends StatelessWidget {
   final String label, hint;
   final TextEditingController ctrl;
 
+  // The Settings text input (shared LabeledTextField).
   @override
-  Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Text(label, style: AppTheme.fieldLabel),
-    const SizedBox(height: 6),
-    FieldFocusBox(
-      builder: (context, focusNode) => TextField(controller: ctrl, focusNode: focusNode, style: AppTheme.fieldText,
-        decoration: InputDecoration(hintText: hint,
-            hintStyle: AppTheme.fieldText.copyWith(color: context.pal.textDim),
-            border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero)),
-    ),
-  ]);
+  Widget build(BuildContext context) => LabeledTextField(label: label, controller: ctrl, hint: hint);
 }
 
 Widget _mLoadingField(String label) => Builder(builder: (context) => Column(
@@ -1318,13 +1301,7 @@ class _LogServiceDialogState extends State<_LogServiceDialog> {
       ]),
       const SizedBox(height: 14),
       Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('Issue / work done', style: AppTheme.fieldLabel),
-        const SizedBox(height: 6),
-        FieldFocusBox(height: 72, builder: (context, focusNode) => TextField(focusNode: focusNode, controller: _issueCtrl, maxLines: null, expands: true,
-            style: AppTheme.fieldText,
-            decoration: InputDecoration(hintText: 'Describe the work performed—',
-                hintStyle: AppTheme.fieldText.copyWith(color: context.pal.textDim),
-                border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero)),),
+        LabeledTextField(label: 'Issue / work done', controller: _issueCtrl, maxLines: 3, hint: 'Describe the work performed—'),
       ]),
       const SizedBox(height: 14),
       _MField('Next service date', _dateCtrl, 'YYYY-MM-DD'),
@@ -1460,13 +1437,7 @@ class _RaiseTicketDialogState extends State<_RaiseTicketDialog> {
           ),
       const SizedBox(height: 14),
       Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('Description', style: AppTheme.fieldLabel),
-        const SizedBox(height: 6),
-        FieldFocusBox(height: 80, builder: (context, focusNode) => TextField(focusNode: focusNode, controller: _descCtrl, maxLines: null, expands: true,
-            style: AppTheme.fieldText,
-            decoration: InputDecoration(hintText: 'Describe the fault or required work—',
-                hintStyle: AppTheme.fieldText.copyWith(color: context.pal.textDim),
-                border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero)),),
+        LabeledTextField(label: 'Description', controller: _descCtrl, maxLines: 3, hint: 'Describe the fault or required work—'),
       ]),
       if (_error != null) ...[
         const SizedBox(height: 10),
@@ -1588,14 +1559,7 @@ class _EditSpecsDialogState extends State<_EditSpecsDialog> {
   );
 
   Widget _specField(TextEditingController ctrl, String hint, BuildContext context) =>
-    FieldFocusBox(builder: (context, focusNode) => TextField(focusNode: focusNode, controller: ctrl,
-        style: AppTheme.fieldText,
-        decoration: InputDecoration(
-          hintText: hint,
-          hintStyle: AppTheme.fieldText.copyWith(color: context.pal.textDim),
-          border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero,
-        ),
-      ),);
+    LabeledTextField(label: '', controller: ctrl, hint: hint);
 }
 
 class _SpecEntry {

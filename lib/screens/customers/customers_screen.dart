@@ -866,16 +866,7 @@ class _LogInteractionDialogState extends State<_LogInteractionDialog> {
       ),
       const SizedBox(height: 14),
       Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('Summary', style: AppTheme.fieldLabel),
-        const SizedBox(height: 6),
-        FieldFocusBox(
-          minHeight: 80,
-          builder: (context, focusNode) => TextField(controller: _summaryCtrl, focusNode: focusNode, maxLines: null, expands: true,
-            style: AppTheme.fieldText,
-            decoration: InputDecoration(hintText: 'What was discussed?',
-                hintStyle: AppTheme.fieldText.copyWith(color: context.pal.textDim),
-                border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero)),
-        ),
+        LabeledTextField(label: 'Summary', controller: _summaryCtrl, maxLines: 3, hint: 'What was discussed?'),
       ]),
       const SizedBox(height: 14),
       _CDropdown(
@@ -1097,17 +1088,9 @@ class _CField extends StatelessWidget {
   final String label, hint;
   final TextEditingController ctrl;
 
+  // The Settings text input (shared LabeledTextField).
   @override
-  Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Text(label, style: AppTheme.fieldLabel),
-    const SizedBox(height: 6),
-    FieldFocusBox(
-      builder: (context, focusNode) => TextField(controller: ctrl, focusNode: focusNode, style: AppTheme.fieldText,
-        decoration: InputDecoration(hintText: hint,
-            hintStyle: AppTheme.fieldText.copyWith(color: context.pal.textDim),
-            border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero)),
-    ),
-  ]);
+  Widget build(BuildContext context) => LabeledTextField(label: label, controller: ctrl, hint: hint);
 }
 
 class _CDropdown extends StatelessWidget {

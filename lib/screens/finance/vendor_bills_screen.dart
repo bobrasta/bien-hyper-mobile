@@ -598,18 +598,7 @@ class _InlineField extends StatelessWidget {
   final bool number;
 
   @override
-  Widget build(BuildContext context) => FieldFocusBox(
-    radius: 7,
-    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-    builder: (context, focusNode) => TextField(
-      controller: controller,
-      focusNode: focusNode,
-      keyboardType: number ? TextInputType.number : TextInputType.text,
-      style: AppTheme.fieldText.copyWith(fontSize: 12.5),
-      decoration: InputDecoration(border: InputBorder.none, isDense: true, hintText: hint,
-          hintStyle: AppTheme.bodySub.copyWith(fontSize: 12, color: context.pal.textDim)),
-    ),
-  );
+  Widget build(BuildContext context) => LabeledTextField(label: '', controller: controller, keyboardType: number ? TextInputType.number : TextInputType.text, hint: hint);
 }
 
 class _Dropdown<T> extends StatelessWidget {

@@ -523,24 +523,7 @@ class _Field extends StatelessWidget {
   final String? hint;
   final int maxLines;
 
+  // The Settings text input (shared LabeledTextField).
   @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Text(label, style: AppTheme.fieldLabel),
-      const SizedBox(height: 6),
-      FieldFocusBox(builder: (context, focusNode) => TextField(
-        controller: ctrl,
-        focusNode: focusNode,
-        maxLines: maxLines,
-        cursorColor: context.pal.text,
-        cursorWidth: 1.5,
-        style: AppTheme.fieldText.copyWith(color: context.pal.text),
-        decoration: InputDecoration(
-          hintText: hint, hintStyle: AppTheme.fieldHint,
-          filled: false, border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero,
-        ),
-      )),
-    ],
-  );
+  Widget build(BuildContext context) => LabeledTextField(label: label, controller: ctrl, hint: hint, maxLines: maxLines);
 }

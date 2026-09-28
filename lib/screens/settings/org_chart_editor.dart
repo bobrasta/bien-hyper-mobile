@@ -237,15 +237,7 @@ class _OrgChartEditorState extends State<OrgChartEditor> {
                 '— nodes are auto-arranged by hierarchy, then you can drag them freely.',
                 style: AppTheme.bodySub.copyWith(fontSize: 12)),
             const SizedBox(height: 10),
-            FieldFocusBox(builder: (context, focusNode) => TextField(focusNode: focusNode, controller: ctrl,
-                maxLines: 10,
-                minLines: 6,
-                style: AppTheme.monoXs.copyWith(fontSize: 12),
-                decoration: const InputDecoration(
-                  border: InputBorder.none, contentPadding: EdgeInsets.zero, isDense: true,
-                  hintText: 'flowchart TD\n    A[Director] --> B[Sales]\n    A --> C[Service]',
-                ),
-              ),),
+            LabeledTextField(label: '', controller: ctrl, maxLines: 10, hint: 'flowchart TD\n    A[Director] --> B[Sales]\n    A --> C[Service]'),
             if (error != null) ...[
               const SizedBox(height: 8),
               Text(error!, style: AppTheme.bodySub.copyWith(color: Colors.redAccent, fontSize: 12)),

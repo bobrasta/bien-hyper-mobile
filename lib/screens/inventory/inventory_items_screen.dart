@@ -659,21 +659,9 @@ class _RecordMovementModalState extends State<_RecordMovementModal> {
                     ),
                 ],
                 const SizedBox(height: 12),
-                Text('Quantity', style: AppTheme.fieldLabel),
-                const SizedBox(height: 6),
-                FieldFocusBox(builder: (context, focusNode) => TextField(focusNode: focusNode, controller: _qtyCtrl,
-                    keyboardType: TextInputType.number, style: AppTheme.fieldText,
-                    decoration: InputDecoration(hintText: '1', hintStyle: AppTheme.fieldText.copyWith(color: context.pal.textDim),
-                        border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero),
-                  ),),
+                LabeledTextField(label: 'Quantity', controller: _qtyCtrl, keyboardType: TextInputType.number, hint: '1'),
                 const SizedBox(height: 12),
-                Text('Notes (optional)', style: AppTheme.fieldLabel),
-                const SizedBox(height: 6),
-                FieldFocusBox(builder: (context, focusNode) => TextField(focusNode: focusNode, controller: _notesCtrl, style: AppTheme.fieldText,
-                    decoration: InputDecoration(hintText: 'e.g. received from supplier',
-                        hintStyle: AppTheme.fieldText.copyWith(color: context.pal.textDim),
-                        border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero),
-                  ),),
+                LabeledTextField(label: 'Notes (optional)', controller: _notesCtrl, hint: 'e.g. received from supplier'),
                 if (_error != null) ...[
                   const SizedBox(height: 8),
                   Text(_error!, style: TextStyle(color: AppColors.coral, fontSize: 12.5)),
@@ -1029,20 +1017,9 @@ class _Field extends StatelessWidget {
   final TextEditingController ctrl;
   final bool numeric;
 
+  // The Settings text input (shared LabeledTextField).
   @override
-  Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Text(label, style: AppTheme.fieldLabel),
-    const SizedBox(height: 6),
-    FieldFocusBox(
-      builder: (context, focusNode) => TextField(
-        controller: ctrl, focusNode: focusNode, style: AppTheme.fieldText,
-        keyboardType: numeric ? TextInputType.number : TextInputType.text,
-        decoration: InputDecoration(hintText: hint,
-            hintStyle: AppTheme.fieldText.copyWith(color: context.pal.textDim),
-            border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero),
-      ),
-    ),
-  ]);
+  Widget build(BuildContext context) => LabeledTextField(label: label, controller: ctrl, hint: hint, keyboardType: numeric ? TextInputType.number : TextInputType.text);
 }
 
 class _Dropdown extends StatelessWidget {

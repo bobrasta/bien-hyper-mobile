@@ -394,25 +394,11 @@ class _RecordMovementModalState extends State<_RecordMovementModal> {
                   ])),
                   const SizedBox(width: 14),
                   SizedBox(width: 100, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('Quantity', style: AppTheme.fieldLabel),
-                    const SizedBox(height: 6),
-                    FieldFocusBox(builder: (context, focusNode) => TextField(focusNode: focusNode, controller: _qtyCtrl, keyboardType: TextInputType.number,
-                        style: AppTheme.fieldText,
-                        decoration: InputDecoration(hintText: '1',
-                            hintStyle: AppTheme.fieldText.copyWith(color: context.pal.textDim),
-                            border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero),
-                      ),),
+                    LabeledTextField(label: 'Quantity', controller: _qtyCtrl, keyboardType: TextInputType.number, hint: '1'),
                   ])),
                 ]),
                 const SizedBox(height: 12),
-                Text(_needsApproval ? 'Reason (required)' : 'Notes', style: AppTheme.fieldLabel),
-                const SizedBox(height: 6),
-                FieldFocusBox(builder: (context, focusNode) => TextField(focusNode: focusNode, controller: _notesCtrl, style: AppTheme.fieldText,
-                    decoration: InputDecoration(
-                        hintText: _needsApproval ? 'Why is this stock leaving the store?' : 'Optional reason or reference',
-                        hintStyle: AppTheme.fieldText.copyWith(color: context.pal.textDim),
-                        border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero),
-                  ),),
+                LabeledTextField(label: _needsApproval ? 'Reason (required)' : 'Notes', controller: _notesCtrl, hint: _needsApproval ? 'Why is this stock leaving the store?' : 'Optional reason or reference'),
                 if (_needsApproval) ...[
                   const SizedBox(height: 8),
                   Container(

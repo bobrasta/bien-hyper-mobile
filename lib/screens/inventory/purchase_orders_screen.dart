@@ -1,6 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import '../../models/purchase_order.dart';
+import '../../widgets/common/app_dropdown.dart';
+import '../../services/supplier_service.dart';
+import '../../services/location_service.dart';
+import '../../services/inventory_service.dart';
+import '../../models/supplier.dart';
+import '../../models/location.dart';
+import '../../models/inventory_item.dart';
 import '../../services/purchase_order_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_palette.dart';
@@ -52,6 +59,14 @@ class _PurchaseOrdersScreenState extends State<PurchaseOrdersScreen> {
     } catch (e) {
       if (mounted) setState(() { _error = friendlyError(e); _loading = false; });
     }
+  }
+
+  Future<void> _newOrder() async {
+    final created = await showDialog<PurchaseOrder>(context: context, builder: (_) => const _NewPurchaseOrderDialog());
+    if (created == null || !mounted) return;
+    showSuccessToast(context, 'Purchase order ${created.poNumber} created as a draft.');
+    _load();
+    _loadDetail(created.id);
   }
 
   Future<void> _loadDetail(int id) async {
@@ -125,7 +140,7 @@ class _PurchaseOrdersScreenState extends State<PurchaseOrdersScreen> {
           PeriodSelector(value: _period, onChanged: (p) { setState(() => _period = p); _load(); }),
           const SizedBox(width: 8),
           AppButton(label: 'New Order', icon: Symbols.add, variant: BtnVariant.primary,
-              onPressed: () {}),
+              onPressed: _newOrder),
         ]),
       ),
       Expanded(child: Stack(children: [
@@ -576,5 +591,219 @@ class _Th extends StatelessWidget {
     flex: flex,
     child: Text(label.toUpperCase(),
         style: AppTheme.monoXs.copyWith(fontWeight: FontWeight.w500, letterSpacing: 0.10)),
+  );
+}
+
+// ── New purchase order ────────────────────────────────────────────────────────
+// Supplier + receiving location + lines (catalogue item, qty, unit cost).
+// Saved as a draft; the approval chain starts from the PO detail panel.
+
+class _PoLine {
+  InventoryItem? item;
+  final qty = TextEditingController(text: '1');
+  final cost = TextEditingController();
+  int get quantity => int.tryParse(qty.text.trim()) ?? 0;
+  int get unitCost => int.tryParse(cost.text.replaceAll(',', '').trim()) ?? 0;
+  void dispose() { qty.dispose(); cost.dispose(); }
+}
+
+class _NewPurchaseOrderDialog extends StatefulWidget {
+  const _NewPurchaseOrderDialog();
+  @override
+  State<_NewPurchaseOrderDialog> createState() => _NewPurchaseOrderDialogState();
+}
+
+class _NewPurchaseOrderDialogState extends State<_NewPurchaseOrderDialog> {
+  List<Supplier> _suppliers = SupplierService.cachedDefaultList ?? [];
+  List<Location> _locations = LocationService.cachedDefaultList ?? [];
+  List<InventoryItem> _items = InventoryService.cachedDefaultList ?? [];
+  int? _supplierId;
+  int? _locationId;
+  DateTime? _expected;
+  String _currency = 'TZS';
+  final _notes = TextEditingController();
+  final List<_PoLine> _lines = [_PoLine()];
+  bool _loading = true, _saving = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRefs();
+  }
+
+  Future<void> _loadRefs() async {
+    try {
+      final r = await Future.wait([
+        SupplierService.instance.list(),
+        LocationService.instance.list(),
+        InventoryService.instance.list(),
+      ]);
+      if (!mounted) return;
+      setState(() {
+        _suppliers = r[0] as List<Supplier>;
+        _locations = r[1] as List<Location>;
+        _items = r[2] as List<InventoryItem>;
+        _locationId ??= _locations.isNotEmpty ? _locations.first.id : null;
+        _loading = false;
+      });
+    } catch (e) {
+      if (mounted) setState(() { _error = friendlyError(e); _loading = false; });
+    }
+  }
+
+  @override
+  void dispose() {
+    _notes.dispose();
+    for (final l in _lines) { l.dispose(); }
+    super.dispose();
+  }
+
+  int get _total => _lines.fold(0, (s, l) => s + l.quantity * l.unitCost);
+
+  Future<void> _pickDate() async {
+    final now = DateTime.now();
+    final d = await showDatePicker(context: context, initialDate: _expected ?? now.add(const Duration(days: 14)),
+        firstDate: now.subtract(const Duration(days: 1)), lastDate: now.add(const Duration(days: 730)));
+    if (d != null) setState(() => _expected = d);
+  }
+
+  Future<void> _save() async {
+    final lines = _lines.where((l) => l.item != null).toList();
+    final problem = _supplierId == null ? 'Choose a supplier.'
+        : _locationId == null ? 'Choose where the goods will be received.'
+        : lines.isEmpty ? 'Add at least one item.'
+        : lines.any((l) => l.quantity < 1) ? 'Every line needs a quantity of at least 1.'
+        : null;
+    if (problem != null) { setState(() => _error = problem); return; }
+    setState(() { _saving = true; _error = null; });
+    try {
+      final po = await PurchaseOrderService.instance.create({
+        'supplier_id': _supplierId,
+        'location_id': _locationId,
+        'currency': _currency,
+        if (_expected != null) 'expected_delivery_date': _expected!.toIso8601String().substring(0, 10),
+        if (_notes.text.trim().isNotEmpty) 'notes': _notes.text.trim(),
+        'items': [
+          for (final l in lines)
+            {'inventory_item_id': l.item!.id, 'quantity_ordered': l.quantity, 'unit_cost': l.unitCost, 'currency': _currency},
+        ],
+      });
+      if (mounted) Navigator.pop(context, po);
+    } catch (e) {
+      if (mounted) setState(() { _error = friendlyError(e); _saving = false; });
+    }
+  }
+
+  Widget _lineRow(_PoLine l, int i) => Padding(
+    padding: const EdgeInsets.only(bottom: 10),
+    child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+      Expanded(flex: 5, child: AppSearchableSelectField<int>(
+        label: i == 0 ? 'Item' : null,
+        hint: 'Search catalogue…',
+        selectedLabel: l.item == null ? null : '${l.item!.sku} · ${l.item!.name}',
+        items: [for (final it in _items) AppSelectItem(value: it.id, label: '${it.sku} · ${it.name}')],
+        onSelected: (sel) => setState(() {
+          l.item = sel == null ? null : _items.firstWhere((it) => it.id == sel.value);
+          if (l.item != null && l.cost.text.trim().isEmpty && l.item!.unitCost > 0) {
+            l.cost.text = l.item!.unitCost.round().toString();
+          }
+        }),
+      )),
+      const SizedBox(width: 10),
+      SizedBox(width: 90, child: LabeledTextField(label: i == 0 ? 'Qty' : '', controller: l.qty,
+          keyboardType: TextInputType.number, onChanged: (_) => setState(() {}))),
+      const SizedBox(width: 10),
+      SizedBox(width: 140, child: LabeledTextField(label: i == 0 ? 'Unit cost ($_currency)' : '', controller: l.cost,
+          keyboardType: TextInputType.number, hint: '0', onChanged: (_) => setState(() {}))),
+      const SizedBox(width: 6),
+      SizedBox(width: 32, height: kFieldHeight, child: _lines.length > 1
+          ? IconButton(
+              tooltip: 'Remove line',
+              icon: Icon(Symbols.close, size: 16, color: context.pal.textDim),
+              onPressed: () => setState(() { _lines.removeAt(i).dispose(); }),
+            )
+          : null),
+    ]),
+  );
+
+  @override
+  Widget build(BuildContext context) => Dialog(
+    backgroundColor: context.pal.surface1,
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+    child: ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 760, maxHeight: 720),
+      child: Padding(
+        padding: const EdgeInsets.all(22),
+        child: _loading
+            ? const SizedBox(height: 200, child: Center(child: CircularProgressIndicator(strokeWidth: 2)))
+            : Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                Row(children: [
+                  Icon(Symbols.shopping_cart, size: 18, color: AppColors.teal),
+                  const SizedBox(width: 10),
+                  Expanded(child: Text('New purchase order', style: AppTheme.bodyStrong)),
+                  IconButton(onPressed: () => Navigator.pop(context), icon: Icon(Symbols.close, size: 18, color: context.pal.textDim)),
+                ]),
+                Text('Saved as a draft — send it for approval from the order panel.', style: AppTheme.bodySub.copyWith(fontSize: 11.5)),
+                const SizedBox(height: 16),
+                Flexible(child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                  Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Expanded(child: AppSearchableSelectField<int>(
+                      label: 'Supplier',
+                      hint: 'Search suppliers…',
+                      selectedLabel: _supplierId == null ? null : _suppliers.firstWhere((s) => s.id == _supplierId).name,
+                      items: [for (final s in _suppliers) AppSelectItem(value: s.id, label: s.name)],
+                      onSelected: (sel) => setState(() => _supplierId = sel?.value),
+                    )),
+                    const SizedBox(width: 12),
+                    Expanded(child: LabeledDropdown<int?>(
+                      label: 'Receive at',
+                      value: _locationId,
+                      items: [null, for (final l in _locations) l.id],
+                      displayBuilder: (id) => id == null ? 'Choose location' : _locations.firstWhere((l) => l.id == id).name,
+                      onChanged: (v) => setState(() => _locationId = v),
+                    )),
+                  ]),
+                  const SizedBox(height: 12),
+                  Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Expanded(child: LabeledDateField(label: 'Expected delivery (optional)', date: _expected, onTap: _pickDate,
+                        onClear: () => setState(() => _expected = null))),
+                    const SizedBox(width: 12),
+                    SizedBox(width: 160, child: LabeledDropdown<String>(
+                      label: 'Currency', value: _currency, items: const ['TZS', 'USD', 'EUR'],
+                      displayBuilder: (c) => c, onChanged: (v) => setState(() => _currency = v),
+                    )),
+                  ]),
+                  const SizedBox(height: 18),
+                  Text('ITEMS', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+                  const SizedBox(height: 8),
+                  for (var i = 0; i < _lines.length; i++) _lineRow(_lines[i], i),
+                  Align(alignment: Alignment.centerLeft, child: TextButton.icon(
+                    onPressed: () => setState(() => _lines.add(_PoLine())),
+                    icon: const Icon(Symbols.add, size: 16), label: const Text('Add item'),
+                  )),
+                  const SizedBox(height: 8),
+                  LabeledTextField(label: 'Notes (optional)', controller: _notes, maxLines: 3),
+                ]))),
+                if (_error != null) ...[
+                  const SizedBox(height: 10),
+                  Text(_error!, style: TextStyle(color: AppColors.coral, fontSize: 12.5)),
+                ],
+                const SizedBox(height: 16),
+                Row(children: [
+                  Text('Total  ', style: AppTheme.bodySub),
+                  Text('$_currency ${_total.toString().replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (m) => ',')}',
+                      style: AppTheme.monoSm.copyWith(fontSize: 15, color: context.pal.text)),
+                  const Spacer(),
+                  TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+                  const SizedBox(width: 8),
+                  FilledButton(
+                    onPressed: _saving ? null : _save,
+                    child: _saving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Create draft'),
+                  ),
+                ]),
+              ]),
+      ),
+    ),
   );
 }

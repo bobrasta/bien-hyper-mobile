@@ -681,12 +681,7 @@ class _AccountFormDialogState extends State<_AccountFormDialog> {
   );
 
   Widget _field(String label, TextEditingController ctrl, {bool number = false}) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Text(label, style: AppTheme.fieldLabel),
-    const SizedBox(height: 6),
-    FieldFocusBox(
-      builder: (context, focusNode) => TextField(controller: ctrl, focusNode: focusNode, style: AppTheme.fieldText, keyboardType: number ? TextInputType.number : TextInputType.text,
-          decoration: const InputDecoration(border: InputBorder.none, isDense: true)),
-    ),
+    LabeledTextField(label: label, controller: ctrl, keyboardType: number ? TextInputType.number : TextInputType.text),
   ]);
 
   Widget _dropdown<T>(String label, T? value, List<DropdownMenuItem<T>> items, ValueChanged<T?> onChanged) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -838,12 +833,7 @@ class _CategoryFormDialogState extends State<_CategoryFormDialog> {
   );
 
   Widget _field(String label, TextEditingController ctrl) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Text(label, style: AppTheme.fieldLabel),
-    const SizedBox(height: 6),
-    FieldFocusBox(
-      builder: (context, focusNode) => TextField(controller: ctrl, focusNode: focusNode, style: AppTheme.fieldText,
-          decoration: const InputDecoration(border: InputBorder.none, isDense: true)),
-    ),
+    LabeledTextField(label: label, controller: ctrl),
   ]);
 
   Widget _dropdown<T>(String label, T? value, List<DropdownMenuItem<T>> items, ValueChanged<T?> onChanged) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

@@ -237,10 +237,7 @@ class _NewDelegationDialogState extends State<_NewDelegationDialog> {
         Expanded(child: _dateField(context, 'Ends', _endsAt, () => _pickDate(false))),
       ]),
       const SizedBox(height: 12),
-      Text('Reason (optional)', style: AppTheme.fieldLabel),
-      const SizedBox(height: 6),
-      FieldFocusBox(builder: (context, focusNode) => TextField(focusNode: focusNode, controller: _reasonCtrl, style: AppTheme.fieldText, maxLines: 2,
-            decoration: const InputDecoration(border: InputBorder.none, contentPadding: EdgeInsets.zero, isDense: true, hintText: 'e.g. Annual leave 12–19 Sep')),),
+      LabeledTextField(label: 'Reason (optional)', controller: _reasonCtrl, maxLines: 2, hint: 'e.g. Annual leave 12–19 Sep'),
     ])),
     actions: [
       TextButton(onPressed: _saving ? null : () => Navigator.of(context).pop(false), child: const Text('Cancel')),

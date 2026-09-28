@@ -274,10 +274,7 @@ class _NewReconDialogState extends State<_NewReconDialog> {
                 ]),
                 const SizedBox(height: 14),
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('Statement closing balance (TSh)', style: AppTheme.fieldLabel),
-                  const SizedBox(height: 6),
-                  FieldFocusBox(builder: (context, focusNode) => TextField(focusNode: focusNode, controller: _balanceCtrl, keyboardType: TextInputType.number, style: AppTheme.fieldText,
-                        decoration: const InputDecoration(border: InputBorder.none, contentPadding: EdgeInsets.zero, isDense: true, hintText: '0')),),
+                  LabeledTextField(label: 'Statement closing balance (TSh)', controller: _balanceCtrl, keyboardType: TextInputType.number, hint: '0'),
                 ]),
               ]),
             ),

@@ -1046,15 +1046,7 @@ class _NewInvoiceDialogState extends State<_NewInvoiceDialog> {
                       (v) => setState(() => _type = v))),
                   const SizedBox(width: 14),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('Amount (TSh)', style: AppTheme.fieldLabel),
-                    const SizedBox(height: 6),
-                    FieldFocusBox(
-                      builder: (context, focusNode) => TextField(controller: _amountCtrl, focusNode: focusNode,
-                        keyboardType: TextInputType.number, style: AppTheme.fieldText,
-                        decoration: InputDecoration(hintText: '0',
-                            hintStyle: AppTheme.fieldText.copyWith(color: context.pal.textDim),
-                            border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero)),
-                    ),
+                    LabeledTextField(label: 'Amount (TSh)', controller: _amountCtrl, keyboardType: TextInputType.number, hint: '0'),
                   ])),
                 ]),
               ]),

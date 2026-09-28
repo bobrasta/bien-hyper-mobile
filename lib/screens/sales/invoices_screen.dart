@@ -983,15 +983,7 @@ Widget _field(String label, TextEditingController ctrl, BuildContext ctx,
   Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
     _label(label),
     const SizedBox(height: 5),
-    FieldFocusBox(builder: (context, focusNode) => TextField(focusNode: focusNode, controller: ctrl, maxLines: maxLines,
-        keyboardType: numeric ? TextInputType.number : TextInputType.text,
-        style: AppTheme.fieldText,
-        decoration: InputDecoration(
-          hintText: hint, border: InputBorder.none, isDense: true,
-          contentPadding: EdgeInsets.zero,
-          hintStyle: AppTheme.fieldText.copyWith(color: ctx.pal.textDim),
-        ),
-      ),),
+    LabeledTextField(label: '', controller: ctrl, maxLines: maxLines, keyboardType: numeric ? TextInputType.number : TextInputType.text, hint: hint),
   ]);
 
 // ── Credit Notes dialog ──────────────────────────────────────────────────────

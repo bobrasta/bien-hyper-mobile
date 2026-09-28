@@ -844,15 +844,7 @@ class _DeliverModalState extends State<_DeliverModal> {
         }),
 
         // Notes
-        FieldFocusBox(builder: (context, focusNode) => TextField(focusNode: focusNode, controller: _notesCtrl,
-            maxLines: 3,
-            style: AppTheme.fieldText,
-            decoration: InputDecoration(
-              hintText: 'Delivery notes (optional)…',
-              hintStyle: AppTheme.fieldText.copyWith(color: context.pal.textDim),
-              border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero,
-            ),
-          ),),
+        LabeledTextField(label: '', controller: _notesCtrl, maxLines: 3, hint: 'Delivery notes (optional)…'),
         const SizedBox(height: 16),
 
         Row(children: [

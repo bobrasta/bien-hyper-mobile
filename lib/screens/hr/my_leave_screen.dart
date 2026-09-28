@@ -359,10 +359,7 @@ class _RequestLeaveDialogState extends State<_RequestLeaveDialog> {
                 )),
                 const SizedBox(height: 10),
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('Reason (optional)', style: AppTheme.fieldLabel),
-                  const SizedBox(height: 6),
-                  FieldFocusBox(height: 70, builder: (context, focusNode) => TextField(focusNode: focusNode, controller: _reasonCtrl, maxLines: null, expands: true, style: AppTheme.fieldText,
-                        decoration: const InputDecoration(border: InputBorder.none, contentPadding: EdgeInsets.zero, isDense: true, hintText: 'Any details HR should know—')),),
+                  LabeledTextField(label: 'Reason (optional)', controller: _reasonCtrl, maxLines: 3, hint: 'Any details HR should know—'),
                 ]),
               ]),
             ),
@@ -462,17 +459,11 @@ class _RunningLateDialogState extends State<_RunningLateDialog> {
               padding: const EdgeInsets.all(20),
               child: Column(children: [
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('Expected arrival (optional)', style: AppTheme.fieldLabel),
-                  const SizedBox(height: 6),
-                  FieldFocusBox(builder: (context, focusNode) => TextField(focusNode: focusNode, controller: _timeCtrl, style: AppTheme.fieldText,
-                        decoration: const InputDecoration(border: InputBorder.none, contentPadding: EdgeInsets.zero, isDense: true, hintText: 'e.g. 9:30am')),),
+                  LabeledTextField(label: 'Expected arrival (optional)', controller: _timeCtrl, hint: 'e.g. 9:30am'),
                 ]),
                 const SizedBox(height: 14),
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('Reason (optional)', style: AppTheme.fieldLabel),
-                  const SizedBox(height: 6),
-                  FieldFocusBox(height: 70, builder: (context, focusNode) => TextField(focusNode: focusNode, controller: _reasonCtrl, maxLines: null, expands: true, style: AppTheme.fieldText,
-                        decoration: const InputDecoration(border: InputBorder.none, contentPadding: EdgeInsets.zero, isDense: true, hintText: 'e.g. Traffic, appointment—')),),
+                  LabeledTextField(label: 'Reason (optional)', controller: _reasonCtrl, maxLines: 3, hint: 'e.g. Traffic, appointment—'),
                 ]),
               ]),
             ),

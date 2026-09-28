@@ -1696,15 +1696,7 @@ class _NewTaskDialogState extends State<_NewTaskDialog> {
 
                 // Description
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('Description', style: AppTheme.fieldLabel),
-                  const SizedBox(height: 6),
-                  FieldFocusBox(height: 64, builder: (context, focusNode) => TextField(focusNode: focusNode, controller: _descCtrl, maxLines: null, expands: true,
-                      style: AppTheme.fieldText,
-                      decoration: InputDecoration(
-                        hintText: 'Optional details…',
-                        hintStyle: AppTheme.fieldText.copyWith(color: context.pal.textDim),
-                        border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero),
-                    ),),
+                  LabeledTextField(label: 'Description', controller: _descCtrl, maxLines: 3, hint: 'Optional details…'),
                 ]),
 
                 if (_error != null) ...[
@@ -1957,17 +1949,9 @@ class _TF extends StatelessWidget {
   final String label, hint;
   final TextEditingController ctrl;
 
+  // The Settings text input (shared LabeledTextField).
   @override
-  Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Text(label, style: AppTheme.fieldLabel),
-    const SizedBox(height: 6),
-    FieldFocusBox(
-      builder: (context, focusNode) => TextField(controller: ctrl, focusNode: focusNode, style: AppTheme.fieldText,
-        decoration: InputDecoration(hintText: hint,
-            hintStyle: AppTheme.fieldText.copyWith(color: context.pal.textDim),
-            border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero)),
-    ),
-  ]);
+  Widget build(BuildContext context) => LabeledTextField(label: label, controller: ctrl, hint: hint);
 }
 
 class _TDrop extends StatelessWidget {

@@ -1428,22 +1428,7 @@ class _InvItemPicker extends StatelessWidget {
 Widget _formField(String label, TextEditingController ctrl, String hint, BuildContext ctx,
     {int maxLines = 1, String? error, ValueChanged<String>? onChanged}) =>
     Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(label, style: AppTheme.fieldLabel),
-      const SizedBox(height: 5),
-      FieldFocusBox(
-        minHeight: maxLines > 1 ? 60 : 0,
-        hasError: error != null,
-        builder: (context, focusNode) => TextField(
-          controller: ctrl, focusNode: focusNode, maxLines: maxLines,
-          onChanged: onChanged,
-          style: AppTheme.fieldText,
-          decoration: InputDecoration(
-            hintText: hint, border: InputBorder.none, isDense: true,
-            contentPadding: EdgeInsets.zero,
-            hintStyle: AppTheme.fieldText.copyWith(color: ctx.pal.textDim),
-          ),
-        ),
-      ),
+      LabeledTextField(label: label, controller: ctrl, maxLines: maxLines, onChanged: onChanged, hint: hint, hasError: error != null),
       if (error != null) ...[
         const SizedBox(height: 3),
         Text(error, style: TextStyle(fontSize: 11, color: AppColors.coral)),

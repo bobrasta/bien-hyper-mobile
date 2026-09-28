@@ -370,19 +370,7 @@ class _InlineField extends StatelessWidget {
   final String hint;
   final bool number;
   @override
-  Widget build(BuildContext context) => FieldFocusBox(
-    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-    builder: (context, focusNode) => TextField(
-      controller: controller,
-      focusNode: focusNode,
-      keyboardType: number ? TextInputType.number : null,
-      cursorColor: context.pal.text,
-      cursorWidth: 1.5,
-      style: AppTheme.fieldText.copyWith(color: context.pal.text),
-      decoration: InputDecoration(hintText: hint, hintStyle: AppTheme.fieldHint, filled: false,
-          border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero),
-    ),
-  );
+  Widget build(BuildContext context) => LabeledTextField(label: '', controller: controller, keyboardType: number ? TextInputType.number : null, hint: hint);
 }
 
 // ── Create Vendor Fee ────────────────────────────────────────────────────

@@ -4,8 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../../theme/app_colors.dart';
-import '../../theme/app_theme.dart';
-import '../../theme/app_palette.dart';
 import 'labeled_field.dart';
 
 /// True only where mobile_scanner has a real camera-scanning backend —
@@ -45,29 +43,15 @@ class ScanOrTypeField extends StatelessWidget {
     }
   }
 
+  // The Settings text input (LabeledTextField) with a scan button.
   @override
-  Widget build(BuildContext context) => FieldFocusBox(
-    minHeight: kFieldHeight,
-    alignment: Alignment.centerLeft,
-    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-    builder: (context, focusNode) => Row(children: [
-      Expanded(child: TextField(
-        controller: controller,
-        focusNode: focusNode,
-        cursorColor: context.pal.text,
-        cursorWidth: 1.5,
-        style: AppTheme.fieldText.copyWith(color: context.pal.text),
-        decoration: InputDecoration(
-          hintText: hint, hintStyle: AppTheme.fieldHint,
-          filled: false, border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero,
-        ),
-      )),
-      if (_cameraScanSupported)
-        GestureDetector(
-          onTap: () => _scan(context),
-          child: Icon(Symbols.qr_code_scanner, size: 18, color: AppColors.teal),
-        ),
-    ]),
+  Widget build(BuildContext context) => LabeledTextField(
+    label: '',
+    controller: controller,
+    hint: hint,
+    suffix: _cameraScanSupported
+        ? GestureDetector(onTap: () => _scan(context), child: Icon(Symbols.qr_code_scanner, size: 18, color: AppColors.teal))
+        : null,
   );
 }
 

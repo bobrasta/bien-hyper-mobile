@@ -286,55 +286,20 @@ class _AuthField extends StatefulWidget {
 }
 
 class _AuthFieldState extends State<_AuthField> {
-  bool _focused = false;
-
-  @override
-  void initState() {
-    super.initState();
-    widget.focusNode.addListener(_onFocusChange);
-  }
-
-  @override
-  void dispose() {
-    widget.focusNode.removeListener(_onFocusChange);
-    super.dispose();
-  }
-
-  void _onFocusChange() {
-    if (mounted) setState(() => _focused = widget.focusNode.hasFocus);
-  }
-
-  // Same field code as Settings (FieldFocusBox), with the login screen's
+  // The Settings text input (LabeledTextField), with the login screen's
   // own FocusNode passed through so the keyboard next/submit chain works.
   @override
-  Widget build(BuildContext context) => FieldFocusBox(
+  Widget build(BuildContext context) => LabeledTextField(
+    label: '',
+    controller: widget.controller,
     focusNode: widget.focusNode,
-    minHeight: 48,
-    alignment: Alignment.centerLeft,
-    padding: const EdgeInsets.symmetric(horizontal: 14),
-    builder: (context, focusNode) => Row(children: [
-      Icon(widget.icon, size: 16, color: _focused ? AppColors.teal : context.pal.textDim),
-      const SizedBox(width: 10),
-      Expanded(
-        child: TextField(
-          controller:       widget.controller,
-          focusNode:        focusNode,
-          obscureText:      widget.obscure,
-          keyboardType:     widget.keyboardType,
-          textInputAction:  widget.textInputAction,
-          onSubmitted:      widget.onSubmitted,
-          cursorColor: context.pal.text,
-          cursorWidth: 1.5,
-          style: AppTheme.fieldText,
-          decoration: InputDecoration(
-            hintText: widget.hint, hintStyle: AppTheme.fieldHint,
-            filled: false, border: InputBorder.none, isDense: true,
-            contentPadding: const EdgeInsets.symmetric(vertical: 14),
-          ),
-        ),
-      ),
-      if (widget.suffix != null) widget.suffix!,
-    ]),
+    hint: widget.hint,
+    prefixIcon: widget.icon,
+    obscure: widget.obscure,
+    keyboardType: widget.keyboardType,
+    textInputAction: widget.textInputAction,
+    onSubmitted: widget.onSubmitted,
+    suffix: widget.suffix,
   );
 }
 

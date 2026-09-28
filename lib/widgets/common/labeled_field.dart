@@ -126,7 +126,7 @@ BoxDecoration fieldBoxDecoration(BuildContext context, {bool focused = false, bo
 /// every dialog looks and behaves the same instead of re-implementing it
 /// (or drifting from it — see feedback_dont_relabel_reuse_screens for why
 /// that matters).
-class LabeledTextField extends StatelessWidget {
+class LabeledTextField extends StatefulWidget {
   const LabeledTextField({
     super.key,
     required this.label,
@@ -145,6 +145,7 @@ class LabeledTextField extends StatelessWidget {
     this.autofocus = false,
     this.onTap,
     this.onTapOutside,
+    this.textInputAction,
   });
 
   final String label;
@@ -158,7 +159,7 @@ class LabeledTextField extends StatelessWidget {
   final ValueChanged<String>? onSubmitted;
   // Coral border (+ coral halo while focused) — wins over the focus accent.
   final bool hasError;
-  // Search boxes and similar: leading icon / trailing widget inside the box.
+  // Search boxes and similar: leading icon / trailing widget inside the field.
   final IconData? prefixIcon;
   final Widget? suffix;
   // Caller-owned node for fields whose focus also drives something else
@@ -167,54 +168,137 @@ class LabeledTextField extends StatelessWidget {
   final bool autofocus;
   final VoidCallback? onTap;
   final TapRegionCallback? onTapOutside;
+  final TextInputAction? textInputAction;
 
   @override
-  Widget build(BuildContext context) => Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-    if (label.isNotEmpty) ...[
-      Text(label, style: AppTheme.fieldLabel),
-      const SizedBox(height: 6),
-    ],
-    FieldFocusBox(
-      enabled: enabled,
-      hasError: hasError,
-      focusNode: focusNode,
-      builder: (context, node) {
-        final field = TextField(
-          controller: controller,
-          focusNode: node,
-          autofocus: autofocus,
-          obscureText: obscure,
-          maxLines: obscure ? 1 : maxLines,
-          keyboardType: keyboardType,
-          enabled: enabled,
-          onChanged: onChanged,
-          onSubmitted: onSubmitted,
-          onTap: onTap,
-          onTapOutside: onTapOutside,
+  State<LabeledTextField> createState() => _LabeledTextFieldState();
+}
+
+// The Settings text input — the user's own design (textfieldtest/main.dart,
+// adapted to the app theme as Settings' _SettingsField): the TextField draws
+// its own rounded outline (borderStrong, teal 1.6 when focused, coral on
+// error) on a recessed bg fill, with a solid 20% accent halo ring around it
+// while focused. Every text input in the app is this widget.
+class _LabeledTextFieldState extends State<LabeledTextField> {
+  FocusNode? _ownNode;
+  FocusNode get _focusNode => widget.focusNode ?? (_ownNode ??= FocusNode());
+  bool _focused = false;
+  static const _radius = 10.0;
+
+  void _onFocus() {
+    if (mounted) setState(() => _focused = _focusNode.hasFocus);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _focusNode.addListener(_onFocus);
+    _focused = _focusNode.hasFocus;
+  }
+
+  @override
+  void didUpdateWidget(LabeledTextField old) {
+    super.didUpdateWidget(old);
+    if (old.focusNode != widget.focusNode) {
+      (old.focusNode ?? _ownNode)?.removeListener(_onFocus);
+      _focusNode.addListener(_onFocus);
+    }
+  }
+
+  @override
+  void dispose() {
+    _focusNode.removeListener(_onFocus);
+    _ownNode?.dispose();
+    super.dispose();
+  }
+
+  OutlineInputBorder _border(Color color, [double width = 1.2]) =>
+      OutlineInputBorder(
+        borderRadius: BorderRadius.circular(_radius),
+        borderSide: BorderSide(color: color, width: width),
+      );
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      if (widget.label.isNotEmpty) ...[
+        Text(
+          widget.label,
+          style: AppTheme.bodySm.copyWith(
+            fontSize: 13,
+            fontWeight: FontWeight.w400,
+            color: context.pal.textMute,
+          ),
+        ),
+        const SizedBox(height: 6),
+      ],
+      AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        curve: Curves.easeOut,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(_radius),
+          boxShadow: [
+            BoxShadow(
+              // Theme accent (the same token every other focus/active
+              // state uses) at 20% — a solid ring, not a soft glow.
+              color: _focused
+                  ? (widget.hasError ? AppColors.coral : AppColors.teal).withValues(alpha: 0.20)
+                  : Colors.transparent,
+              spreadRadius: _focused ? 3 : 0,
+              blurRadius: 0,
+            ),
+          ],
+        ),
+        child: TextField(
+          controller: widget.controller,
+          focusNode: _focusNode,
+          autofocus: widget.autofocus,
+          enabled: widget.enabled,
+          obscureText: widget.obscure,
+          maxLines: widget.obscure ? 1 : widget.maxLines,
+          keyboardType: widget.keyboardType,
+          textInputAction: widget.textInputAction,
+          onChanged: widget.onChanged,
+          onSubmitted: widget.onSubmitted,
+          onTap: widget.onTap,
+          onTapOutside: widget.onTapOutside,
           cursorColor: context.pal.text,
           cursorWidth: 1.5,
-          style: AppTheme.fieldText.copyWith(color: enabled ? context.pal.text : context.pal.textDim),
-          decoration: InputDecoration(
-            hintText: hint,
-            hintStyle: AppTheme.fieldHint,
-            filled: false,
-            border: InputBorder.none,
-            isDense: true,
-            contentPadding: EdgeInsets.zero,
+          style: AppTheme.bodySm.copyWith(
+            fontSize: 14,
+            fontWeight: FontWeight.w400,
+            color: widget.enabled ? null : context.pal.textDim,
           ),
-        );
-        if (prefixIcon == null && suffix == null) return field;
-        return Row(children: [
-          if (prefixIcon != null) ...[
-            Icon(prefixIcon, size: 16, color: context.pal.textDim),
-            const SizedBox(width: 8),
-          ],
-          Expanded(child: field),
-          if (suffix != null) ...[const SizedBox(width: 8), suffix!],
-        ]);
-      },
-    ),
-  ]);
+          decoration: InputDecoration(
+            hintText: widget.hint,
+            hintStyle: AppTheme.bodySm.copyWith(
+              fontSize: 14,
+              color: context.pal.textDim,
+            ),
+            filled: true,
+            // Recessed: the page background, a step darker than the card
+            // the field sits on (lighter on light themes, same idea).
+            fillColor: widget.enabled ? context.pal.bg : context.pal.surface3,
+            isDense: true,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 14,
+              vertical: 12,
+            ),
+            prefixIcon: widget.prefixIcon == null ? null : Icon(widget.prefixIcon, size: 16, color: context.pal.textDim),
+            prefixIconConstraints: const BoxConstraints(minWidth: 38, minHeight: 20),
+            suffixIcon: widget.suffix == null ? null : Padding(padding: const EdgeInsets.only(right: 12), child: widget.suffix),
+            suffixIconConstraints: const BoxConstraints(minWidth: 20, minHeight: 20),
+            border: _border(context.pal.borderStrong),
+            enabledBorder: _border(widget.hasError ? AppColors.coral : context.pal.borderStrong),
+            disabledBorder: _border(context.pal.borderStrong),
+            focusedBorder: _border(widget.hasError ? AppColors.coral : AppColors.teal, 1.6),
+          ),
+        ),
+      ),
+    ],
+  );
 }
 
 /// Search box — the Settings text input (LabeledTextField) with a search
