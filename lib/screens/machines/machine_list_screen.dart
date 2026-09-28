@@ -2011,11 +2011,11 @@ class _DDropdown extends StatelessWidget {
       ),
       const SizedBox(height: 6),
       Container(
-        height: 38,
+        height: kFieldHeight,
         decoration: BoxDecoration(
-          color: context.pal.surface2,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: context.pal.border),
+          color: context.pal.bg,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: context.pal.borderStrong, width: 1.2),
         ),
         padding: const EdgeInsets.symmetric(horizontal: 12),
         child: DropdownButtonHideUnderline(

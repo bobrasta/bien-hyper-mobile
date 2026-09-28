@@ -10,7 +10,7 @@ import '../../utils/api_error.dart';
 import '../../utils/format.dart';
 import '../../widgets/common/app_button.dart';
 import '../../widgets/common/error_view.dart';
-import '../../widgets/common/labeled_field.dart' show FieldFocusBox;
+import '../../widgets/common/labeled_field.dart';
 
 class MyLeaveScreen extends StatefulWidget {
   const MyLeaveScreen({super.key});
@@ -335,8 +335,8 @@ class _RequestLeaveDialogState extends State<_RequestLeaveDialog> {
                   Text('Leave type', style: AppTheme.fieldLabel),
                   const SizedBox(height: 6),
                   Container(
-                    decoration: BoxDecoration(color: context.pal.surface2, borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-                    height: 38,
+                    decoration: BoxDecoration(color: context.pal.bg, borderRadius: BorderRadius.circular(10), border: Border.all(color: context.pal.borderStrong, width: 1.2)),
+                    height: kFieldHeight,
                     padding: const EdgeInsets.symmetric(horizontal: 12),
                     child: _loadingTypes
                         ? const Center(child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)))

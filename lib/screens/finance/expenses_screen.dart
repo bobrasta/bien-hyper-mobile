@@ -591,8 +591,8 @@ class _LabeledDropdown<T> extends StatelessWidget {
     Text(label, style: AppTheme.fieldLabel),
     const SizedBox(height: 6),
     Container(
-      decoration: BoxDecoration(color: context.pal.surface2, borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-      height: 38,
+      decoration: BoxDecoration(color: context.pal.bg, borderRadius: BorderRadius.circular(10), border: Border.all(color: context.pal.borderStrong, width: 1.2)),
+      height: kFieldHeight,
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: DropdownButtonHideUnderline(child: DropdownButton<T>(
         value: value, isExpanded: true, dropdownColor: context.pal.surface2, style: AppTheme.bodySm,
@@ -611,7 +611,7 @@ class _InlineDropdown<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-    decoration: BoxDecoration(color: context.pal.surface2, borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
+    decoration: BoxDecoration(color: context.pal.bg, borderRadius: BorderRadius.circular(10), border: Border.all(color: context.pal.borderStrong, width: 1.2)),
     padding: const EdgeInsets.symmetric(horizontal: 10),
     alignment: Alignment.center,
     child: DropdownButtonHideUnderline(child: DropdownButton<T>(

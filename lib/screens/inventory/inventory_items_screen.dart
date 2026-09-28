@@ -619,9 +619,9 @@ class _RecordMovementModalState extends State<_RecordMovementModal> {
                 Text('Movement type', style: AppTheme.fieldLabel),
                 const SizedBox(height: 6),
                 Container(
-                  decoration: BoxDecoration(color: context.pal.surface2,
-                      borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-                  height: 38,
+                  decoration: BoxDecoration(color: context.pal.bg,
+                      borderRadius: BorderRadius.circular(10), border: Border.all(color: context.pal.borderStrong, width: 1.2)),
+                  height: kFieldHeight,
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   child: DropdownButtonHideUnderline(child: DropdownButton<String>(
                     value: _type, isExpanded: true,
@@ -637,12 +637,12 @@ class _RecordMovementModalState extends State<_RecordMovementModal> {
                 Text(_isTransfer ? 'FROM LOCATION' : 'LOCATION', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
                 const SizedBox(height: 6),
                 if (_loadingLocations)
-                  const ShimmerBox(height: 38, radius: 8)
+                  const ShimmerBox(height: kFieldHeight, radius: 10)
                 else
                   Container(
-                    decoration: BoxDecoration(color: context.pal.surface2,
-                        borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-                    height: 38,
+                    decoration: BoxDecoration(color: context.pal.bg,
+                        borderRadius: BorderRadius.circular(10), border: Border.all(color: context.pal.borderStrong, width: 1.2)),
+                    height: kFieldHeight,
                     padding: const EdgeInsets.symmetric(horizontal: 12),
                     child: DropdownButtonHideUnderline(child: DropdownButton<int>(
                       value: _locationId, isExpanded: true,
@@ -662,12 +662,12 @@ class _RecordMovementModalState extends State<_RecordMovementModal> {
                   Text('TO LOCATION', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
                   const SizedBox(height: 6),
                   if (_loadingLocations)
-                    const ShimmerBox(height: 38, radius: 8)
+                    const ShimmerBox(height: kFieldHeight, radius: 10)
                   else
                     Container(
-                      decoration: BoxDecoration(color: context.pal.surface2,
-                          borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-                      height: 38,
+                      decoration: BoxDecoration(color: context.pal.bg,
+                          borderRadius: BorderRadius.circular(10), border: Border.all(color: context.pal.borderStrong, width: 1.2)),
+                      height: kFieldHeight,
                       padding: const EdgeInsets.symmetric(horizontal: 12),
                       child: DropdownButtonHideUnderline(child: DropdownButton<int>(
                         value: _toLocationId, isExpanded: true,
@@ -1082,9 +1082,9 @@ class _Dropdown extends StatelessWidget {
     Text(label, style: AppTheme.fieldLabel),
     const SizedBox(height: 6),
     Container(
-      decoration: BoxDecoration(color: context.pal.surface2,
-          borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-      height: 38,
+      decoration: BoxDecoration(color: context.pal.bg,
+          borderRadius: BorderRadius.circular(10), border: Border.all(color: context.pal.borderStrong, width: 1.2)),
+      height: kFieldHeight,
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: DropdownButtonHideUnderline(child: DropdownButton<String>(
         value: items.contains(value) ? value : items.first, isExpanded: true,
@@ -1124,9 +1124,9 @@ class _CategoryFilterDropdown extends StatelessWidget {
       width: 220,
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: context.pal.surface2,
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: value != null ? AppColors.teal : context.pal.border),
+        color: context.pal.bg,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: value != null ? AppColors.teal : context.pal.borderStrong, width: 1.2),
       ),
       child: DropdownButtonHideUnderline(child: DropdownButton<String?>(
         value: value,

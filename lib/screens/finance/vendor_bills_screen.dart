@@ -14,7 +14,7 @@ import '../../theme/app_palette.dart';
 import '../../utils/api_error.dart';
 import '../../utils/format.dart';
 import '../../widgets/common/error_view.dart';
-import '../../widgets/common/labeled_field.dart' show FieldFocusBox;
+import '../../widgets/common/labeled_field.dart';
 
 class VendorBillsScreen extends StatefulWidget {
   const VendorBillsScreen({super.key});
@@ -624,8 +624,8 @@ class _Dropdown<T> extends StatelessWidget {
     Text(label, style: AppTheme.fieldLabel),
     const SizedBox(height: 6),
     Container(
-      decoration: BoxDecoration(color: context.pal.surface2, borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-      height: 38,
+      decoration: BoxDecoration(color: context.pal.bg, borderRadius: BorderRadius.circular(10), border: Border.all(color: context.pal.borderStrong, width: 1.2)),
+      height: kFieldHeight,
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: DropdownButtonHideUnderline(child: DropdownButton<T>(
         value: value, isExpanded: true, dropdownColor: context.pal.surface2, style: AppTheme.bodySm,
@@ -757,8 +757,8 @@ class _BillDetailSheetState extends State<_BillDetailSheet> {
                       Expanded(child: _InlineField(controller: _amountCtrl, hint: 'Amount', number: true)),
                       const SizedBox(width: 8),
                       Expanded(child: Container(
-                        decoration: BoxDecoration(color: context.pal.surface2, borderRadius: BorderRadius.circular(7), border: Border.all(color: context.pal.border)),
-                        height: 38,
+                        decoration: BoxDecoration(color: context.pal.bg, borderRadius: BorderRadius.circular(10), border: Border.all(color: context.pal.borderStrong, width: 1.2)),
+                        height: kFieldHeight,
                         padding: const EdgeInsets.symmetric(horizontal: 8),
                         child: DropdownButtonHideUnderline(child: DropdownButton<String>(
                           value: _method, isExpanded: true, dropdownColor: context.pal.surface2,

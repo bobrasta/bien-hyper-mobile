@@ -17,7 +17,7 @@ import '../../widgets/common/app_button.dart';
 import '../../widgets/common/app_dropdown.dart';
 import '../../widgets/common/app_text_field.dart';
 import '../../widgets/common/avatar_widget.dart';
-import '../../widgets/common/labeled_field.dart' show FieldFocusBox;
+import '../../widgets/common/labeled_field.dart';
 import '../../widgets/common/status_badge.dart';
 import '../../widgets/email/compose_modal.dart';
 
@@ -979,9 +979,9 @@ class _MDrop extends StatelessWidget {
     Text(label, style: AppTheme.fieldLabel),
     const SizedBox(height: 6),
     Container(
-      decoration: BoxDecoration(color: context.pal.surface2,
-          borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-      height: 38,
+      decoration: BoxDecoration(color: context.pal.bg,
+          borderRadius: BorderRadius.circular(10), border: Border.all(color: context.pal.borderStrong, width: 1.2)),
+      height: kFieldHeight,
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: DropdownButtonHideUnderline(child: DropdownButton<String>(
         value: value, isExpanded: true,

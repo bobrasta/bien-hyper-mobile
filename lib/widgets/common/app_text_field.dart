@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../theme/app_palette.dart';
 import '../../theme/app_theme.dart';
-import 'labeled_field.dart' show FieldFocusBox, kFieldHeight;
+import 'labeled_field.dart';
 
 /// Text field styled to match every other boxed field in the app (see
 /// `LabeledTextField`): sentence-case label above, a bordered box that
@@ -82,7 +82,10 @@ class AppTextField extends StatelessWidget {
               keyboardType: keyboardType,
               obscureText: obscureText,
               maxLines: maxLines,
-              expands: multiline,
+              // Only a free-height (maxLines: null) field fills its box —
+              // Flutter asserts if expands is combined with a fixed count
+              // like maxLines: 3.
+              expands: maxLines == null,
               textInputAction: textInputAction,
               // autofocus: autofocus,
               cursorColor: pal.text,

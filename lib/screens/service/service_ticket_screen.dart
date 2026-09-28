@@ -363,12 +363,12 @@ class _ServiceTicketScreenState extends State<ServiceTicketScreen> {
     final technicians = options.entries.toList()
       ..sort((a, b) => a.value.compareTo(b.value));
     return Container(
-      height: 34,
+      height: kFieldHeight,
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
-        color: context.pal.surface1,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: context.pal.border),
+        color: context.pal.bg,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: context.pal.borderStrong, width: 1.2),
       ),
       child: DropdownButtonHideUnderline(child: DropdownButton<int?>(
         value: _technicianFilter,
@@ -709,7 +709,6 @@ class _ServiceTicketScreenState extends State<ServiceTicketScreen> {
             LayoutBuilder(builder: (ctx, cst) {
               final narrow = cst.maxWidth < 560;
               final searchBox = AppTextField(
-                height: 40,
                 controller: _searchCtrl,
                 onChanged: (_) => _onSearchChanged(),
                 icon: Symbols.search,
@@ -2309,11 +2308,11 @@ class _DropdownField extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
     decoration: BoxDecoration(
-      color: context.pal.surface2,
-      borderRadius: BorderRadius.circular(8),
-      border: Border.all(color: context.pal.border),
+      color: context.pal.bg,
+      borderRadius: BorderRadius.circular(10),
+      border: Border.all(color: context.pal.borderStrong, width: 1.2),
     ),
-    height: 38,
+    height: kFieldHeight,
     padding: const EdgeInsets.symmetric(horizontal: 12),
     child: DropdownButtonHideUnderline(
       child: DropdownButton<String>(
@@ -3524,9 +3523,9 @@ class _EditTicketDialogState extends State<_EditTicketDialog> {
           Text('Status', style: AppTheme.fieldLabel),
           const SizedBox(height: 6),
           Container(
-            decoration: BoxDecoration(color: context.pal.surface2,
-                borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-            height: 38,
+            decoration: BoxDecoration(color: context.pal.bg,
+                borderRadius: BorderRadius.circular(10), border: Border.all(color: context.pal.borderStrong, width: 1.2)),
+            height: kFieldHeight,
             padding: const EdgeInsets.symmetric(horizontal: 12),
             child: DropdownButtonHideUnderline(child: DropdownButton<String>(
               value: _status, isExpanded: true,

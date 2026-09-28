@@ -10,7 +10,7 @@ import '../../theme/app_palette.dart';
 import '../../utils/api_error.dart';
 import '../../utils/format.dart';
 import '../../widgets/common/error_view.dart';
-import '../../widgets/common/labeled_field.dart' show FieldFocusBox;
+import '../../widgets/common/labeled_field.dart';
 
 const _categoryOrder = ['asset', 'liability', 'equity', 'revenue', 'expense'];
 const _categoryLabels = {
@@ -693,8 +693,8 @@ class _AccountFormDialogState extends State<_AccountFormDialog> {
     Text(label, style: AppTheme.fieldLabel),
     const SizedBox(height: 6),
     Container(
-      decoration: BoxDecoration(color: context.pal.surface2, borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-      height: 38, padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(color: context.pal.bg, borderRadius: BorderRadius.circular(10), border: Border.all(color: context.pal.borderStrong, width: 1.2)),
+      height: kFieldHeight, padding: const EdgeInsets.symmetric(horizontal: 12),
       child: DropdownButtonHideUnderline(child: DropdownButton<T>(
         value: value, isExpanded: true, dropdownColor: context.pal.surface2, style: AppTheme.bodySm,
         icon: Icon(Symbols.expand_more, size: 16, color: context.pal.textDim),
@@ -854,8 +854,8 @@ class _CategoryFormDialogState extends State<_CategoryFormDialog> {
     Text(label, style: AppTheme.fieldLabel),
     const SizedBox(height: 6),
     Container(
-      decoration: BoxDecoration(color: context.pal.surface2, borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-      height: 38, padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(color: context.pal.bg, borderRadius: BorderRadius.circular(10), border: Border.all(color: context.pal.borderStrong, width: 1.2)),
+      height: kFieldHeight, padding: const EdgeInsets.symmetric(horizontal: 12),
       child: DropdownButtonHideUnderline(child: DropdownButton<T>(
         value: value, isExpanded: true, dropdownColor: context.pal.surface2, style: AppTheme.bodySm,
         icon: Icon(Symbols.expand_more, size: 16, color: context.pal.textDim),

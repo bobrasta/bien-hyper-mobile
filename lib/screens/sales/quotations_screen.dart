@@ -485,9 +485,9 @@ class _QuotationDetailScreenState extends State<QuotationDetailScreen> {
             else ...[
               Text('Ship from location', style: AppTheme.fieldLabel),
               const SizedBox(height: 6),
-              Container(height: 38,
-                decoration: BoxDecoration(color: ctx.pal.surface2,
-                    borderRadius: BorderRadius.circular(8), border: Border.all(color: ctx.pal.border)),
+              Container(height: kFieldHeight,
+                decoration: BoxDecoration(color: ctx.pal.bg,
+                    borderRadius: BorderRadius.circular(10), border: Border.all(color: ctx.pal.borderStrong, width: 1.2)),
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 child: DropdownButtonHideUnderline(child: DropdownButton<int>(
                   value: locationId, isExpanded: true,
@@ -1520,12 +1520,12 @@ Widget _dropField(String label, String value, List<String> items,
       Text(label, style: AppTheme.fieldLabel),
       const SizedBox(height: 5),
       Container(
-        height: 36,
+        height: kFieldHeight,
         padding: const EdgeInsets.symmetric(horizontal: 10),
         decoration: BoxDecoration(
-          color: ctx.pal.surface2,
-          borderRadius: BorderRadius.circular(7),
-          border: Border.all(color: ctx.pal.border),
+          color: ctx.pal.bg,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: ctx.pal.borderStrong, width: 1.2),
         ),
         child: DropdownButtonHideUnderline(child: DropdownButton<String>(
           value: value, isExpanded: true,

@@ -856,12 +856,12 @@ class _PaymentModalState extends State<_PaymentModal> {
                 _label('Payment Method'),
                 const SizedBox(height: 5),
                 Container(
-                  height: 36,
+                  height: kFieldHeight,
                   padding: const EdgeInsets.symmetric(horizontal: 10),
                   decoration: BoxDecoration(
-                    color: context.pal.surface2,
-                    borderRadius: BorderRadius.circular(7),
-                    border: Border.all(color: context.pal.border),
+                    color: context.pal.bg,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: context.pal.borderStrong, width: 1.2),
                   ),
                   child: DropdownButtonHideUnderline(child: DropdownButton<String>(
                     value: _method, isExpanded: true,

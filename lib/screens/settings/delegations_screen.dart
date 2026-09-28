@@ -9,7 +9,7 @@ import '../../theme/app_palette.dart';
 import '../../utils/api_error.dart';
 import '../../utils/format.dart';
 import '../../widgets/common/error_view.dart';
-import '../../widgets/common/labeled_field.dart' show FieldFocusBox;
+import '../../widgets/common/labeled_field.dart';
 
 // Lets a Director temporarily hand their approval authority (finance,
 // payroll, credit notes, vendor bills, salary adjustments — everywhere
@@ -217,7 +217,7 @@ class _NewDelegationDialogState extends State<_NewDelegationDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-    backgroundColor: context.pal.surface1,
+    backgroundColor: context.pal.bg,
     title: Text('New Delegation', style: AppTheme.cardTitle),
     content: SizedBox(width: 360, child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
       if (_error != null) Padding(padding: const EdgeInsets.only(bottom: 10),
@@ -225,8 +225,8 @@ class _NewDelegationDialogState extends State<_NewDelegationDialog> {
       Text('Delegate to', style: AppTheme.fieldLabel),
       const SizedBox(height: 6),
       Container(
-        decoration: BoxDecoration(color: context.pal.surface2, borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-        height: 38, padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(color: context.pal.bg, borderRadius: BorderRadius.circular(10), border: Border.all(color: context.pal.borderStrong, width: 1.2)),
+        height: kFieldHeight, padding: const EdgeInsets.symmetric(horizontal: 12),
         child: DropdownButtonHideUnderline(child: DropdownButton<int>(
           value: _delegateId, isExpanded: true, dropdownColor: context.pal.surface2, style: AppTheme.bodySm,
           hint: const Text('Select a staff member'),

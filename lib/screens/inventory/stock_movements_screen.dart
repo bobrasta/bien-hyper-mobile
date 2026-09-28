@@ -16,7 +16,7 @@ import '../../widgets/common/app_button.dart';
 import '../../widgets/common/app_dropdown.dart';
 import '../../widgets/common/error_view.dart';
 import '../../widgets/common/shimmer_box.dart';
-import '../../widgets/common/labeled_field.dart' show FieldFocusBox;
+import '../../widgets/common/labeled_field.dart';
 
 class StockMovementsScreen extends StatefulWidget {
   const StockMovementsScreen({super.key});
@@ -351,9 +351,9 @@ class _RecordMovementModalState extends State<_RecordMovementModal> {
                 Text(_isTransfer ? 'From location' : 'Location', style: AppTheme.fieldLabel),
                 const SizedBox(height: 6),
                 Container(
-                  decoration: BoxDecoration(color: context.pal.surface2,
-                      borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-                  height: 38,
+                  decoration: BoxDecoration(color: context.pal.bg,
+                      borderRadius: BorderRadius.circular(10), border: Border.all(color: context.pal.borderStrong, width: 1.2)),
+                  height: kFieldHeight,
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   child: DropdownButtonHideUnderline(child: DropdownButton<int?>(
                     value: _locationId, isExpanded: true,
@@ -374,9 +374,9 @@ class _RecordMovementModalState extends State<_RecordMovementModal> {
                   Text('To location', style: AppTheme.fieldLabel),
                   const SizedBox(height: 6),
                   Container(
-                    decoration: BoxDecoration(color: context.pal.surface2,
-                        borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-                    height: 38,
+                    decoration: BoxDecoration(color: context.pal.bg,
+                        borderRadius: BorderRadius.circular(10), border: Border.all(color: context.pal.borderStrong, width: 1.2)),
+                    height: kFieldHeight,
                     padding: const EdgeInsets.symmetric(horizontal: 12),
                     child: DropdownButtonHideUnderline(child: DropdownButton<int?>(
                       value: _toLocationId, isExpanded: true,
@@ -397,9 +397,9 @@ class _RecordMovementModalState extends State<_RecordMovementModal> {
                     Text('Type', style: AppTheme.fieldLabel),
                     const SizedBox(height: 6),
                     Container(
-                      decoration: BoxDecoration(color: context.pal.surface2,
-                          borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-                      height: 38,
+                      decoration: BoxDecoration(color: context.pal.bg,
+                          borderRadius: BorderRadius.circular(10), border: Border.all(color: context.pal.borderStrong, width: 1.2)),
+                      height: kFieldHeight,
                       padding: const EdgeInsets.symmetric(horizontal: 12),
                       child: DropdownButtonHideUnderline(child: DropdownButton<String>(
                         value: _type, isExpanded: true,
