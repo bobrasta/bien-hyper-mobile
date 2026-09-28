@@ -18,6 +18,7 @@ import '../../utils/api_error.dart';
 import '../../utils/format.dart';
 import '../../widgets/common/error_view.dart';
 import 'staff_hr_dialogs.dart';
+import '../../widgets/common/labeled_field.dart';
 
 /// Directory — ported from HR Redesign spec 1c: a staff rail, a profile
 /// centre with a tab strip (only Profile has real content, matching what
@@ -238,20 +239,7 @@ class _HrDirectoryTabState extends State<HrDirectoryTab> {
     Padding(
       padding: const EdgeInsets.fromLTRB(14, 14, 14, 8),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Container(
-          height: 32,
-          padding: const EdgeInsets.symmetric(horizontal: 10),
-          decoration: BoxDecoration(color: context.pal.surface2, borderRadius: BorderRadius.circular(9), border: Border.all(color: context.pal.border)),
-          child: Row(children: [
-            Icon(Symbols.search, size: 15, color: context.pal.textDim),
-            const SizedBox(width: 8),
-            Expanded(child: TextField(
-              onChanged: (v) => setState(() => _search = v),
-              style: AppTheme.bodySm.copyWith(fontSize: 12),
-              decoration: InputDecoration(hintText: 'Search staff…', hintStyle: AppTheme.bodySub.copyWith(fontSize: 12), border: InputBorder.none, isDense: false),
-            )),
-          ]),
-        ),
+        SearchField(hint: 'Search staff…', onChanged: (v) => setState(() => _search = v)),
         const SizedBox(height: 9),
         Wrap(spacing: 5, runSpacing: 5, children: [
           _filterChip('all', 'All ${_staff.length}'),

@@ -8,6 +8,7 @@ import '../../theme/app_palette.dart';
 import '../../utils/api_error.dart';
 import '../../utils/pdf_download.dart';
 import '../../widgets/common/error_view.dart';
+import '../../widgets/common/labeled_field.dart';
 
 // Section 7: "My past service reports" — a technician's own uploaded
 // service/installation report files, searchable/filterable, downloadable,
@@ -116,33 +117,16 @@ class _FilterRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Wrap(spacing: 10, runSpacing: 10, children: [
-    SizedBox(
-      width: 220,
-      height: 38,
-      child: TextField(
-        controller: ticketCtrl,
-        style: AppTheme.bodySm,
-        onSubmitted: (_) => onSearch(),
-        decoration: InputDecoration(
-          isDense: true,
-          hintText: 'Ticket number',
-          prefixIcon: const Icon(Symbols.search, size: 16),
-          filled: true,
-          fillColor: context.pal.surface2,
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: context.pal.border)),
-          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: context.pal.border)),
-        ),
-      ),
-    ),
+    SearchField(width: 220, hint: 'Ticket number', controller: ticketCtrl, onSubmitted: (_) => onSearch()),
     Container(
-      height: 38,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(color: context.pal.surface2, borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
+      height: kFieldHeight,
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      decoration: BoxDecoration(color: context.pal.bg, borderRadius: BorderRadius.circular(10), border: Border.all(color: context.pal.borderStrong, width: 1.2)),
       child: DropdownButtonHideUnderline(child: DropdownButton<String?>(
         value: typeFilter,
-        hint: Text('All types', style: AppTheme.bodySm),
+        hint: Text('All types', style: AppTheme.fieldText),
         dropdownColor: context.pal.surface2,
-        style: AppTheme.bodySm,
+        style: AppTheme.fieldText.copyWith(color: context.pal.text),
         icon: Icon(Symbols.expand_more, size: 16, color: context.pal.textDim),
         items: const [
           DropdownMenuItem(value: null, child: Text('All types')),
@@ -155,9 +139,9 @@ class _FilterRow extends StatelessWidget {
     GestureDetector(
       onTap: onSearch,
       child: Container(
-        height: 38,
+        height: kFieldHeight,
         padding: const EdgeInsets.symmetric(horizontal: 14),
-        decoration: BoxDecoration(color: AppColors.teal, borderRadius: BorderRadius.circular(8)),
+        decoration: BoxDecoration(color: AppColors.teal, borderRadius: BorderRadius.circular(10)),
         child: Center(child: Text('Search', style: AppTheme.bodySm.copyWith(color: const Color(0xFF06120F), fontWeight: FontWeight.w600))),
       ),
     ),

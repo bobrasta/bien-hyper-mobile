@@ -7,7 +7,7 @@ import '../../services/setting_service.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_palette.dart';
 import '../../widgets/common/fullscreen_editor_shell.dart';
-import '../../widgets/common/labeled_field.dart' show FieldFocusBox;
+import '../../widgets/common/labeled_field.dart';
 
 const _kSettingKey = 'org_chart_json';
 
@@ -705,21 +705,13 @@ class _NodeDialogState extends State<_NodeDialog> {
       content: SizedBox(
         width: 360,
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('Label', style: AppTheme.fieldLabel),
-          const SizedBox(height: 6),
-          TextField(controller: _labelCtrl, style: AppTheme.bodySm,
-            decoration: const InputDecoration(hintText: 'e.g. Marketing', isDense: true)),
+          LabeledTextField(label: 'Label', controller: _labelCtrl, hint: 'e.g. Marketing'),
           const SizedBox(height: 14),
-          Text('Reports to', style: AppTheme.fieldLabel),
-          const SizedBox(height: 6),
-          DropdownButtonFormField<String?>(
-            initialValue: _parentId,
-            isExpanded: true,
-            decoration: const InputDecoration(isDense: true),
-            items: [
-              const DropdownMenuItem(value: null, child: Text('— None (top level) —')),
-              ...parentOptions.map((n) => DropdownMenuItem(value: n.id, child: Text(n.label))),
-            ],
+          LabeledDropdown<String?>(
+            label: 'Reports to',
+            value: _parentId,
+            items: [null, ...parentOptions.map((n) => n.id)],
+            displayBuilder: (id) => id == null ? '— None (top level) —' : parentOptions.firstWhere((n) => n.id == id).label,
             onChanged: (v) => setState(() => _parentId = v),
           ),
           const SizedBox(height: 14),

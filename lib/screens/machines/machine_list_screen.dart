@@ -14,7 +14,7 @@ import '../../utils/zones.dart';
 import '../../widgets/common/app_button.dart';
 import '../../widgets/common/app_dropdown.dart';
 import '../../widgets/common/error_view.dart';
-import '../../widgets/common/labeled_field.dart' show FieldFocusBox;
+import '../../widgets/common/labeled_field.dart';
 import '../../widgets/common/shimmer_box.dart';
 import '../../widgets/common/status_badge.dart';
 import 'machine_map_screen.dart';
@@ -474,51 +474,10 @@ class _MachineListScreenState extends State<MachineListScreen> {
                     LayoutBuilder(
                       builder: (ctx3, cst3) {
                         final narrow = cst3.maxWidth < 600;
-                        final searchBox = Container(
-                          height: 34,
-                          decoration: BoxDecoration(
-                            color: context.pal.surface1,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: context.pal.border),
-                          ),
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          child: Row(
-                            children: [
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: TextField(
-                                  controller: _search,
-                                  onChanged: (_) => setState(() {}),
-                                  style: AppTheme.bodySm,
-                                  decoration: InputDecoration(
-                                    hintText:
-                                        'Search by serial, model or hospital…',
-                                    hintStyle: AppTheme.bodySm.copyWith(
-                                      color: context.pal.textDim,
-                                    ),
-                                    border: InputBorder.none,
-                                    isDense: false,
-                                    contentPadding: EdgeInsets.zero,
-                                  ),
-                                ),
-                              ),
-                              if (!narrow)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 6,
-                                    vertical: 2,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: context.pal.surface3,
-                                    borderRadius: BorderRadius.circular(4),
-                                    border: Border.all(
-                                      color: context.pal.border,
-                                    ),
-                                  ),
-                                  child: Text('⌘F', style: AppTheme.monoXs),
-                                ),
-                            ],
-                          ),
+                        final searchBox = SearchField(
+                          hint: 'Search by serial, model or hospital…',
+                          controller: _search,
+                          onChanged: (_) => setState(() {}),
                         );
                         if (narrow) {
                           return Column(

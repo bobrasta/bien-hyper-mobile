@@ -6,6 +6,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_palette.dart';
+import 'labeled_field.dart';
 
 /// True only where mobile_scanner has a real camera-scanning backend —
 /// Windows/Linux desktop have no native implementation, so the scan button
@@ -45,20 +46,21 @@ class ScanOrTypeField extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) => Container(
-    height: 38,
-    decoration: BoxDecoration(
-      color: context.pal.surface2,
-      borderRadius: BorderRadius.circular(8),
-      border: Border.all(color: context.pal.border),
-    ),
-    padding: const EdgeInsets.symmetric(horizontal: 12),
-    child: Row(children: [
+  Widget build(BuildContext context) => FieldFocusBox(
+    minHeight: kFieldHeight,
+    alignment: Alignment.centerLeft,
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+    builder: (context, focusNode) => Row(children: [
       Expanded(child: TextField(
-        controller: controller, style: AppTheme.bodySm,
-        decoration: InputDecoration(border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero,
-            hintText: hint,
-            hintStyle: AppTheme.bodySub.copyWith(color: context.pal.textDim, fontSize: 13)),
+        controller: controller,
+        focusNode: focusNode,
+        cursorColor: context.pal.text,
+        cursorWidth: 1.5,
+        style: AppTheme.fieldText.copyWith(color: context.pal.text),
+        decoration: InputDecoration(
+          hintText: hint, hintStyle: AppTheme.fieldHint,
+          filled: false, border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero,
+        ),
       )),
       if (_cameraScanSupported)
         GestureDetector(

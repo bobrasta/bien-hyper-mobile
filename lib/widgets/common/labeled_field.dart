@@ -114,6 +114,7 @@ class LabeledTextField extends StatelessWidget {
     this.obscure = false,
     this.keyboardType,
     this.enabled = true,
+    this.onChanged,
   });
 
   final String label;
@@ -123,6 +124,7 @@ class LabeledTextField extends StatelessWidget {
   final bool obscure;
   final TextInputType? keyboardType;
   final bool enabled;
+  final ValueChanged<String>? onChanged;
 
   @override
   Widget build(BuildContext context) => Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -139,6 +141,7 @@ class LabeledTextField extends StatelessWidget {
         maxLines: maxLines,
         keyboardType: keyboardType,
         enabled: enabled,
+        onChanged: onChanged,
         cursorColor: context.pal.text,
         cursorWidth: 1.5,
         style: AppTheme.fieldText.copyWith(color: enabled ? context.pal.text : context.pal.textDim),
@@ -153,6 +156,107 @@ class LabeledTextField extends StatelessWidget {
       ),
     ),
   ]);
+}
+
+/// Search box in the Settings field look — search icon + bare TextField in a
+/// FieldFocusBox. Use for every list/table filter box instead of hand-built
+/// surface-coloured containers. [width] null = fill the parent (wrap it in
+/// Expanded inside a Row).
+class SearchField extends StatelessWidget {
+  const SearchField({
+    super.key,
+    required this.hint,
+    this.controller,
+    this.onChanged,
+    this.onSubmitted,
+    this.width,
+    this.autofocus = false,
+  });
+
+  final String hint;
+  final TextEditingController? controller;
+  final ValueChanged<String>? onChanged;
+  final ValueChanged<String>? onSubmitted;
+  final double? width;
+  final bool autofocus;
+
+  @override
+  Widget build(BuildContext context) {
+    final pal = context.pal;
+    final box = FieldFocusBox(
+      minHeight: kFieldHeight,
+      alignment: Alignment.centerLeft,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      builder: (context, focusNode) => Row(children: [
+        Icon(Symbols.search, size: 16, color: pal.textDim),
+        const SizedBox(width: 8),
+        Expanded(child: TextField(
+          controller: controller,
+          focusNode: focusNode,
+          autofocus: autofocus,
+          onChanged: onChanged,
+          onSubmitted: onSubmitted,
+          cursorColor: pal.text,
+          cursorWidth: 1.5,
+          style: AppTheme.fieldText.copyWith(color: pal.text),
+          decoration: InputDecoration(
+            hintText: hint, hintStyle: AppTheme.fieldHint,
+            filled: false, border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero,
+          ),
+        )),
+      ]),
+    );
+    return width == null ? box : SizedBox(width: width, child: box);
+  }
+}
+
+/// Compact Settings-look box for inline table/grid editors (qty, price and
+/// similar cells) — same focus behaviour as every other field, sized down.
+class CellField extends StatelessWidget {
+  const CellField({
+    super.key,
+    required this.controller,
+    this.hint,
+    this.textAlign = TextAlign.center,
+    this.keyboardType,
+    this.onChanged,
+    this.mono = false,
+    this.suffixText,
+  });
+
+  final TextEditingController controller;
+  final String? hint;
+  final TextAlign textAlign;
+  final TextInputType? keyboardType;
+  final ValueChanged<String>? onChanged;
+  final bool mono;
+  final String? suffixText;
+
+  @override
+  Widget build(BuildContext context) {
+    final base = mono ? AppTheme.monoSm.copyWith(fontSize: 12.5) : AppTheme.fieldText.copyWith(fontSize: 13);
+    return FieldFocusBox(
+      radius: 8,
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      builder: (context, focusNode) => TextField(
+        controller: controller,
+        focusNode: focusNode,
+        textAlign: textAlign,
+        keyboardType: keyboardType,
+        onChanged: onChanged,
+        cursorColor: context.pal.text,
+        cursorWidth: 1.5,
+        style: base.copyWith(color: context.pal.text),
+        decoration: InputDecoration(
+          hintText: hint,
+          hintStyle: AppTheme.fieldHint.copyWith(fontSize: 13),
+          suffixText: suffixText,
+          suffixStyle: AppTheme.bodySub.copyWith(fontSize: 11.5),
+          filled: false, border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero,
+        ),
+      ),
+    );
+  }
 }
 
 /// The established boxed-dropdown look (see `_HDropdown` in
@@ -199,7 +303,10 @@ class LabeledDropdown<T> extends StatelessWidget {
         style: AppTheme.fieldText.copyWith(color: enabled ? context.pal.text : context.pal.textDim),
         icon: Icon(Symbols.expand_more, size: 16, color: context.pal.textDim),
         items: items.map((v) => DropdownMenuItem(value: v, child: Text(displayBuilder(v), overflow: TextOverflow.ellipsis))).toList(),
-        onChanged: enabled ? (v) { if (v != null) onChanged?.call(v); } : null,
+        // DropdownButton only passes null when the picked item's value IS
+        // null, so forward it as-is — dropping it made a nullable option
+        // like "None" impossible to re-select.
+        onChanged: enabled ? (v) => onChanged?.call(v as T) : null,
       )),
     ),
   ]);

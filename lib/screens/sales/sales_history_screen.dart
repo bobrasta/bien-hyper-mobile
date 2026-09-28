@@ -10,6 +10,7 @@ import '../../utils/format.dart';
 import '../../utils/pdf_download.dart';
 import '../../widgets/common/error_view.dart';
 import '../../widgets/common/shimmer_box.dart';
+import '../../widgets/common/labeled_field.dart';
 
 class SalesHistoryScreen extends StatefulWidget {
   const SalesHistoryScreen({super.key});
@@ -119,20 +120,8 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
               ].map((p) => Padding(padding: const EdgeInsets.only(left: 6), child: _PeriodChip(label: p.$2, active: _period == p.$1, onTap: () => setState(() => _period = p.$1)))),
               const SizedBox(width: 8),
               SizedBox(
-                width: 190, height: 32,
-                child: TextField(
-                  controller: _searchCtrl,
-                  style: AppTheme.bodySm.copyWith(fontSize: 12.5),
-                  decoration: InputDecoration(
-                    hintText: 'Invoice, client, order…',
-                    hintStyle: AppTheme.bodySub.copyWith(fontSize: 12),
-                    prefixIcon: Icon(Symbols.search, size: 15, color: context.pal.textDim),
-                    filled: true, fillColor: context.pal.surface1,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 6, horizontal: 10),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(9), borderSide: BorderSide(color: context.pal.border)),
-                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(9), borderSide: BorderSide(color: context.pal.border)),
-                  ),
-                ),
+                width: 210,
+                child: SearchField(hint: 'Invoice, client, order…', controller: _searchCtrl),
               ),
             ]),
           ),

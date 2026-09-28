@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:material_symbols_icons/symbols.dart';
 import '../../models/notification_template.dart';
 import '../../services/notification_template_service.dart';
 import '../../theme/app_colors.dart';
@@ -7,6 +6,7 @@ import '../../theme/app_theme.dart';
 import '../../theme/app_palette.dart';
 import '../../utils/api_error.dart';
 import '../../widgets/common/error_view.dart';
+import '../../widgets/common/labeled_field.dart';
 
 // Lets an admin change what a notification actually says — title/body
 // wording only, per (event, audience) template — without a deploy. See
@@ -91,17 +91,7 @@ class _NotificationTemplatesScreenState extends State<NotificationTemplatesScree
         ),
         Padding(
           padding: EdgeInsets.fromLTRB(pad, 16, pad, 0),
-          child: Container(
-            height: 40,
-            decoration: BoxDecoration(color: context.pal.surface2, borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Row(children: [
-              Icon(Symbols.search, size: 16, color: context.pal.textDim),
-              const SizedBox(width: 8),
-              Expanded(child: TextField(controller: _searchCtrl, style: AppTheme.bodySm,
-                  decoration: const InputDecoration(border: InputBorder.none, isDense: true, hintText: 'Search by key, title or wording…'))),
-            ]),
-          ),
+          child: SearchField(hint: 'Search by key, title or wording…', controller: _searchCtrl),
         ),
         Expanded(child: _loading
             ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
@@ -179,11 +169,9 @@ class _TemplateCardState extends State<_TemplateCard> {
         Text(widget.template.templateKey, style: AppTheme.monoXs.copyWith(fontSize: 10, color: context.pal.textDim)),
       ]),
       const SizedBox(height: 10),
-      TextField(controller: _titleCtrl, style: AppTheme.bodySm,
-          decoration: const InputDecoration(labelText: 'Title', border: OutlineInputBorder(), isDense: true)),
+      LabeledTextField(label: 'Title', controller: _titleCtrl),
       const SizedBox(height: 8),
-      TextField(controller: _bodyCtrl, style: AppTheme.bodySm, maxLines: 2,
-          decoration: const InputDecoration(labelText: 'Message', border: OutlineInputBorder(), isDense: true)),
+      LabeledTextField(label: 'Message', controller: _bodyCtrl, maxLines: 2),
       const SizedBox(height: 8),
       Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
         if (_placeholders.isNotEmpty) Expanded(child: Wrap(spacing: 6, runSpacing: 6, children: _placeholders.map((p) => Container(

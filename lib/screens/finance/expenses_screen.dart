@@ -11,7 +11,7 @@ import '../../utils/api_error.dart';
 import '../../utils/format.dart';
 import '../../widgets/common/app_dropdown.dart';
 import '../../widgets/common/error_view.dart';
-import '../../widgets/common/labeled_field.dart' show FieldFocusBox;
+import '../../widgets/common/labeled_field.dart';
 
 const _categoryIcons = <String, IconData>{
   'Salaries & Wages': Symbols.groups,
@@ -176,19 +176,10 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                           ),
                           const SizedBox(height: 14),
                           Row(children: [
-                            Container(
-                              width: 250, height: 34,
-                              padding: const EdgeInsets.symmetric(horizontal: 10),
-                              decoration: BoxDecoration(color: context.pal.surface1, borderRadius: BorderRadius.circular(9), border: Border.all(color: context.pal.border)),
-                              child: Row(children: [
-                                Icon(Symbols.search, size: 15, color: context.pal.textDim),
-                                const SizedBox(width: 8),
-                                Expanded(child: TextField(
-                                  style: AppTheme.bodySm.copyWith(fontSize: 12.5),
-                                  decoration: const InputDecoration(border: InputBorder.none, isDense: true, hintText: 'Search description or reference…'),
-                                  onChanged: (v) => setState(() => _search = v),
-                                )),
-                              ]),
+                            SearchField(
+                              width: 260,
+                              hint: 'Search description or reference…',
+                              onChanged: (v) => setState(() => _search = v),
                             ),
                             const SizedBox(width: 8),
                             _categoryDropdown(context),

@@ -33,6 +33,7 @@ import '../../widgets/common/error_view.dart';
 import '../../widgets/common/scan_or_type_field.dart';
 import '../../widgets/common/shimmer_box.dart';
 import '../../widgets/common/status_badge.dart';
+import '../../widgets/common/labeled_field.dart';
 
 Color _availColor(StaffMember s) => switch (s.availStatus) {
   AvailStatus.available => AppColors.teal,
@@ -2777,10 +2778,7 @@ class _AddMachineToTicketDialogState extends State<_AddMachineToTicketDialog> {
     backgroundColor: context.pal.surface1,
     title: const Text('Add Machine'),
     content: SizedBox(width: 420, child: Column(mainAxisSize: MainAxisSize.min, children: [
-      TextField(
-        decoration: const InputDecoration(hintText: 'Search model or serial…', isDense: true),
-        onChanged: (v) => setState(() => _search = v),
-      ),
+      SearchField(hint: 'Search model or serial…', onChanged: (v) => setState(() => _search = v)),
       const SizedBox(height: 10),
       SizedBox(
         height: 280,
@@ -2853,10 +2851,11 @@ class _RemoveMachineReasonDialogState extends State<_RemoveMachineReasonDialog> 
       Text('This machine returns to Allocated — it was never actually handed over on this ticket.',
           style: AppTheme.bodySub.copyWith(fontSize: 12.5)),
       const SizedBox(height: 12),
-      TextField(
+      LabeledTextField(
+        label: 'Reason (min 10 characters)',
         controller: _reasonCtrl,
         maxLines: 3,
-        decoration: const InputDecoration(hintText: 'Reason (min 10 characters) — e.g. delivery delayed', isDense: true),
+        hint: 'e.g. delivery delayed',
         onChanged: (_) => setState(() {}),
       ),
     ])),

@@ -18,7 +18,7 @@ import '../../utils/pdf_download.dart';
 import '../../utils/whatsapp_share.dart';
 import '../../widgets/common/app_dropdown.dart';
 import '../../widgets/common/error_view.dart';
-import '../../widgets/common/labeled_field.dart' show FieldFocusBox;
+import '../../widgets/common/labeled_field.dart';
 
 // ── Status colours ─────────────────────────────────────────────────────────────
 Color _statusColor(String status) => switch (status) {
@@ -138,22 +138,7 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
                 const SizedBox(height: 3),
                 Text('${_all.length} quotations · ${tshFromDouble(totalQuoted)} quoted · $converted converted to orders', style: AppTheme.bodySub.copyWith(fontSize: 12)),
               ])),
-              SizedBox(
-                width: 220, height: 32,
-                child: TextField(
-                  controller: _searchCtrl,
-                  style: AppTheme.bodySm.copyWith(fontSize: 12.5),
-                  decoration: InputDecoration(
-                    hintText: 'Client or QT number…',
-                    hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim, fontSize: 12),
-                    prefixIcon: Icon(Symbols.search, size: 15, color: context.pal.textDim),
-                    filled: true, fillColor: context.pal.surface1,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 6, horizontal: 10),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(9), borderSide: BorderSide(color: context.pal.border)),
-                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(9), borderSide: BorderSide(color: context.pal.border)),
-                  ),
-                ),
-              ),
+              SearchField(width: 230, hint: 'Client or QT number…', controller: _searchCtrl),
               const SizedBox(width: 8),
               FilledButton.icon(onPressed: () => _openBuilder(), icon: const Icon(Symbols.add, size: 16), label: const Text('New quotation')),
             ]),
@@ -458,9 +443,8 @@ class _QuotationDetailScreenState extends State<QuotationDetailScreen> {
       builder: (dialogCtx) => AlertDialog(
         backgroundColor: context.pal.surface1,
         title: const Text('Reject this quotation?'),
-        content: SizedBox(width: 340, child: TextField(
-          controller: reasonCtrl, maxLines: 3,
-          decoration: const InputDecoration(hintText: 'Reason (recorded against the approval)…', border: OutlineInputBorder()),
+        content: SizedBox(width: 340, child: LabeledTextField(
+          label: 'Reason', controller: reasonCtrl, maxLines: 3, hint: 'Recorded against the approval…',
         )),
         actions: [
           TextButton(onPressed: () => Navigator.of(dialogCtx).pop(false), child: const Text('Cancel')),
@@ -1377,19 +1361,28 @@ class _LineItemTableRow extends StatelessWidget {
                 Text(entry.descCtrl.text, style: AppTheme.bodySm.copyWith(fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
                 Text(entry.selectedItem!.sku, style: AppTheme.monoXs.copyWith(fontSize: 10, color: context.pal.textMute)),
               ])
-            : Row(children: [
-                Expanded(child: TextField(
-                  controller: entry.descCtrl,
-                  style: AppTheme.bodySm.copyWith(fontSize: 12),
-                  decoration: InputDecoration(
-                    isDense: true, border: InputBorder.none,
-                    hintText: 'Item description…',
-                    hintStyle: AppTheme.bodySub.copyWith(fontSize: 12, color: context.pal.textMute),
-                  ),
-                  onChanged: (_) => onChanged(),
-                )),
-                Icon(Symbols.search, size: 13, color: context.pal.textDim),
-              ]),
+            : Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: FieldFocusBox(
+                  radius: 8,
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                  builder: (context, focusNode) => Row(children: [
+                    Expanded(child: TextField(
+                      controller: entry.descCtrl,
+                      focusNode: focusNode,
+                      cursorColor: context.pal.text,
+                      cursorWidth: 1.5,
+                      style: AppTheme.fieldText.copyWith(fontSize: 13, color: context.pal.text),
+                      decoration: InputDecoration(
+                        hintText: 'Item description…', hintStyle: AppTheme.fieldHint.copyWith(fontSize: 13),
+                        filled: false, border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero,
+                      ),
+                      onChanged: (_) => onChanged(),
+                    )),
+                    Icon(Symbols.search, size: 13, color: context.pal.textDim),
+                  ]),
+                ),
+              ),
       )),
       SizedBox(width: 44, child: _cellField(entry.qtyCtrl, context, onChanged)),
       const SizedBox(width: 8),
@@ -1405,12 +1398,11 @@ class _LineItemTableRow extends StatelessWidget {
     ]),
   );
 
-  Widget _cellField(TextEditingController ctrl, BuildContext context, VoidCallback onChanged) => TextField(
+  Widget _cellField(TextEditingController ctrl, BuildContext context, VoidCallback onChanged) => CellField(
     controller: ctrl,
     textAlign: TextAlign.right,
+    mono: true,
     keyboardType: const TextInputType.numberWithOptions(decimal: true),
-    style: AppTheme.monoSm.copyWith(fontSize: 12),
-    decoration: const InputDecoration(isDense: true, border: InputBorder.none, contentPadding: EdgeInsets.zero),
     onChanged: (_) => onChanged(),
   );
 }

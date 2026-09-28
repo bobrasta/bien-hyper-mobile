@@ -9,6 +9,7 @@ import '../../theme/app_theme.dart';
 import '../../utils/api_error.dart';
 import '../../widgets/common/error_view.dart';
 import '../../widgets/common/shimmer_box.dart';
+import '../../widgets/common/labeled_field.dart';
 
 class LocationsScreen extends StatefulWidget {
   const LocationsScreen({super.key});
@@ -123,34 +124,7 @@ class _LocationsScreenState extends State<LocationsScreen> {
             const SizedBox(height: 12),
             Row(children: [
               Expanded(
-                child: Container(
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: context.pal.surface2,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: context.pal.border),
-                  ),
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                  child: Row(children: [
-                    Icon(Symbols.search, size: 16, color: context.pal.textDim),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: TextField(
-                        onChanged: (v) => setState(() => _search = v),
-                        style: AppTheme.bodySm,
-                        decoration: InputDecoration(
-                          hintText: 'Search locations…',
-                          border: InputBorder.none,
-                          isDense: true,
-                          hintStyle: AppTheme.bodySub.copyWith(fontSize: 12.5),
-                          contentPadding: EdgeInsets.zero,
-                          fillColor: Colors.transparent,
-                          filled: false,
-                        ),
-                      ),
-                    ),
-                  ]),
-                ),
+                child: SearchField(hint: 'Search locations…', onChanged: (v) => setState(() => _search = v)),
               ),
             ]),
             const SizedBox(height: 10),
@@ -569,12 +543,18 @@ class _Field extends StatelessWidget {
     children: [
       Text(label, style: AppTheme.fieldLabel),
       const SizedBox(height: 6),
-      TextField(
+      FieldFocusBox(builder: (context, focusNode) => TextField(
         controller: ctrl,
+        focusNode: focusNode,
         maxLines: maxLines,
-        style: AppTheme.bodySm,
-        decoration: InputDecoration(hintText: hint),
-      ),
+        cursorColor: context.pal.text,
+        cursorWidth: 1.5,
+        style: AppTheme.fieldText.copyWith(color: context.pal.text),
+        decoration: InputDecoration(
+          hintText: hint, hintStyle: AppTheme.fieldHint,
+          filled: false, border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero,
+        ),
+      )),
     ],
   );
 }

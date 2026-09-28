@@ -6,7 +6,7 @@ import '../../theme/app_colors.dart';
 import '../../utils/api_error.dart';
 import '../../utils/csv_export.dart';
 import '../../widgets/common/error_view.dart';
-import '../../widgets/common/labeled_field.dart' show FieldFocusBox;
+import '../../widgets/common/labeled_field.dart';
 import '../../widgets/common/shimmer_box.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/format.dart';
@@ -197,49 +197,17 @@ class _SparePartsScreenState extends State<SparePartsScreen> {
                     )),
                   ],
                   const Spacer(),
-                  Container(
-                    width: 240, height: 32,
-                    decoration: BoxDecoration(
-                      color: context.pal.surface1,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: context.pal.border),
-                    ),
-                    padding: const EdgeInsets.symmetric(horizontal: 10),
-                    child: Row(children: [
-                      Icon(Symbols.search, size: 14, color: context.pal.textDim),
-                      const SizedBox(width: 6),
-                      Expanded(child: TextField(
-                        onChanged: (v) => setState(() { _search = v; _showCount = _pageSize; }),
-                        style: AppTheme.bodySm,
-                        decoration: InputDecoration(
-                          hintText: 'Search name, SKU, supplier—',
-                          hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
-                          border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero,
-                        ),
-                      )),
-                    ]),
+                  SearchField(
+                    width: 260,
+                    hint: 'Search name, SKU, supplier…',
+                    onChanged: (v) => setState(() { _search = v; _showCount = _pageSize; }),
                   ),
                 ])
               else
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Container(
-                    height: 32,
-                    decoration: BoxDecoration(color: context.pal.surface1,
-                        borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-                    padding: const EdgeInsets.symmetric(horizontal: 10),
-                    child: Row(children: [
-                      Icon(Symbols.search, size: 14, color: context.pal.textDim),
-                      const SizedBox(width: 6),
-                      Expanded(child: TextField(
-                        onChanged: (v) => setState(() { _search = v; _showCount = _pageSize; }),
-                        style: AppTheme.bodySm,
-                        decoration: InputDecoration(
-                          hintText: 'Search name, SKU, supplier—',
-                          hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
-                          border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero,
-                        ),
-                      )),
-                    ]),
+                  SearchField(
+                    hint: 'Search name, SKU, supplier…',
+                    onChanged: (v) => setState(() { _search = v; _showCount = _pageSize; }),
                   ),
                   const SizedBox(height: 8),
                   Wrap(spacing: 6, runSpacing: 6, children: [

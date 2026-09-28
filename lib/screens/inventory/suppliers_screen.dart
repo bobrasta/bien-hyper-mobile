@@ -9,7 +9,7 @@ import '../../theme/app_theme.dart';
 import '../../utils/api_error.dart';
 import '../../widgets/common/app_button.dart';
 import '../../widgets/common/error_view.dart';
-import '../../widgets/common/labeled_field.dart' show FieldFocusBox;
+import '../../widgets/common/labeled_field.dart';
 import '../../widgets/common/shimmer_box.dart';
 
 class SuppliersScreen extends StatefulWidget {
@@ -100,23 +100,7 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
             )),
             const SizedBox(width: 8),
             // Search
-            Container(
-              width: 200, height: 32,
-              decoration: BoxDecoration(color: context.pal.surface1,
-                  borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-              padding: const EdgeInsets.symmetric(horizontal: 10),
-              child: Row(children: [
-                Icon(Symbols.search, size: 14, color: context.pal.textDim),
-                const SizedBox(width: 6),
-                Expanded(child: TextField(
-                  onChanged: (v) => setState(() => _search = v),
-                  style: AppTheme.bodySm,
-                  decoration: InputDecoration(hintText: 'Search…',
-                      hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
-                      border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero),
-                )),
-              ]),
-            ),
+            SearchField(width: 220, hint: 'Search…', onChanged: (v) => setState(() => _search = v)),
             const SizedBox(width: 8),
             if (_canEdit) AppButton(label: 'Add Supplier', icon: Symbols.add, variant: BtnVariant.primary,
                 onPressed: () => setState(() => _showAdd = true)),

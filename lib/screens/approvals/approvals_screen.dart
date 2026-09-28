@@ -17,6 +17,7 @@ import '../../utils/api_error.dart';
 import '../../utils/pdf_download.dart';
 import '../../widgets/common/error_view.dart';
 import 'per_diem_revise_dialog.dart';
+import '../../widgets/common/labeled_field.dart';
 
 class ApprovalsScreen extends StatefulWidget {
   const ApprovalsScreen({super.key, this.initialTabIndex});
@@ -520,12 +521,9 @@ class _RejectReasonDialogState extends State<_RejectReasonDialog> {
     backgroundColor: context.pal.surface1,
     title: Text('Reject Request', style: AppTheme.bodyStrong),
     content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-      TextField(
-        controller: _ctrl, maxLines: 3, style: AppTheme.bodySm,
-        decoration: InputDecoration(
-          hintText: widget.minLength > 0 ? 'Reason (required)' : 'Reason (optional)',
-          hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
-        ),
+      LabeledTextField(
+        label: widget.minLength > 0 ? 'Reason (required)' : 'Reason (optional)',
+        controller: _ctrl, maxLines: 3,
       ),
       if (_error != null) ...[
         const SizedBox(height: 6),
@@ -562,30 +560,15 @@ class _InitiatePaymentDialogState extends State<_InitiatePaymentDialog> {
     backgroundColor: context.pal.surface1,
     title: Text('Initiate Payment', style: AppTheme.bodyStrong),
     content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text('Payment method', style: AppTheme.bodySub.copyWith(fontSize: 11.5)),
-      const SizedBox(height: 6),
-      DropdownButtonFormField<String>(
-        initialValue: _method,
-        isExpanded: true,
-        dropdownColor: context.pal.surface1,
-        style: AppTheme.bodySm.copyWith(color: context.pal.text),
-        decoration: const InputDecoration(isDense: true, border: OutlineInputBorder()),
-        items: widget.methods.map((m) => DropdownMenuItem(value: m, child: Text(
-            m.split('_').map((w) => w[0].toUpperCase() + w.substring(1)).join(' '),
-            style: AppTheme.bodySm))).toList(),
-        onChanged: (v) => setState(() => _method = v ?? _method),
+      LabeledDropdown<String>(
+        label: 'Payment method',
+        value: _method,
+        items: widget.methods,
+        displayBuilder: (m) => m.split('_').map((w) => w[0].toUpperCase() + w.substring(1)).join(' '),
+        onChanged: (v) => setState(() => _method = v),
       ),
       const SizedBox(height: 12),
-      Text('Reference (optional)', style: AppTheme.bodySub.copyWith(fontSize: 11.5)),
-      const SizedBox(height: 6),
-      TextField(
-        controller: _refCtrl, style: AppTheme.bodySm,
-        decoration: InputDecoration(
-          isDense: true, border: const OutlineInputBorder(),
-          hintText: 'Transaction ID, cheque no., etc.',
-          hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
-        ),
-      ),
+      LabeledTextField(label: 'Reference (optional)', controller: _refCtrl, hint: 'Transaction ID, cheque no., etc.'),
     ]),
     actions: [
       TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancel')),

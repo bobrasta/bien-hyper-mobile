@@ -9,7 +9,7 @@ import '../../services/machine_service.dart';
 import '../../utils/api_error.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/common/error_view.dart';
-import '../../widgets/common/labeled_field.dart' show FieldFocusBox;
+import '../../widgets/common/labeled_field.dart';
 import '../../widgets/common/shimmer_box.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
@@ -234,28 +234,10 @@ class _HospitalListScreenState extends State<HospitalListScreen> {
               // Search bar
               LayoutBuilder(builder: (ctx3, cst3) {
                 final narrow = cst3.maxWidth < 600;
-                final searchBox = Container(
-                  height: 34,
-                  decoration: BoxDecoration(
-                    color: context.pal.surface1,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: context.pal.border),
-                  ),
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: Row(children: [
-                    const SizedBox(width: 8),
-                    Expanded(child: TextField(
-                      controller: _search,
-                      onChanged: (_) => _onSearchChanged(),
-                      style: AppTheme.bodySm,
-                      decoration: InputDecoration(
-                        hintText: 'Search by name, region or code—',
-                        hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
-                        border: InputBorder.none, isDense: false,
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                    )),
-                  ]),
+                final searchBox = SearchField(
+                  hint: 'Search by name, region or code…',
+                  controller: _search,
+                  onChanged: (_) => _onSearchChanged(),
                 );
                 if (narrow) {
                   return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

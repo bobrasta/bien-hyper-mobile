@@ -228,16 +228,28 @@ class _TopBarState extends State<TopBar> {
                       ),
                     ]),
                   ),
-                  child: Container(
+                  // Settings field look (see FieldFocusBox), driven by this
+                  // field's own FocusNode because the results overlay needs it.
+                  child: ListenableBuilder(listenable: _searchFocus, builder: (context, row) => AnimatedContainer(
+                    duration: const Duration(milliseconds: 160),
+                    curve: Curves.easeOut,
                     constraints: const BoxConstraints(maxWidth: 420),
-                    height: 34,
+                    height: 36,
                     decoration: BoxDecoration(
-                      color: context.pal.surface1,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: context.pal.border),
+                      color: context.pal.bg,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: _searchFocus.hasFocus ? AppColors.teal : context.pal.borderStrong,
+                        width: _searchFocus.hasFocus ? 1.6 : 1.2,
+                      ),
+                      boxShadow: [BoxShadow(
+                        color: _searchFocus.hasFocus ? AppColors.teal.withValues(alpha: 0.20) : Colors.transparent,
+                        spreadRadius: _searchFocus.hasFocus ? 3 : 0,
+                      )],
                     ),
                     padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: Row(children: [
+                    child: row,
+                  ), child: Row(children: [
                       Icon(Symbols.search, size: 16, color: context.pal.textDim),
                       const SizedBox(width: 8),
                       Expanded(child: Padding(

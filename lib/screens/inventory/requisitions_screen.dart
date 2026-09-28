@@ -12,7 +12,7 @@ import '../../utils/format.dart';
 import '../../widgets/common/app_button.dart';
 import '../../widgets/common/app_dropdown.dart';
 import '../../widgets/common/error_view.dart';
-import '../../widgets/common/labeled_field.dart' show FieldFocusBox;
+import '../../widgets/common/labeled_field.dart';
 import '../../widgets/common/shimmer_box.dart';
 
 class RequisitionsScreen extends StatefulWidget {
@@ -579,19 +579,7 @@ class _LineItemRow extends StatelessWidget {
       )),
       const SizedBox(width: 8),
       // Qty
-      SizedBox(width: 60, child: TextField(
-        controller: line['qty'] as TextEditingController,
-        keyboardType: TextInputType.number, style: AppTheme.bodySm,
-        textAlign: TextAlign.center,
-        decoration: InputDecoration(
-          hintText: 'Qty', hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(6),
-            borderSide: BorderSide(color: context.pal.border),
-          ),
-          isDense: true, contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-        ),
-      )),
+      SizedBox(width: 64, child: CellField(controller: line['qty'] as TextEditingController, hint: 'Qty', keyboardType: TextInputType.number)),
       const SizedBox(width: 8),
       GestureDetector(onTap: onRemove,
           child: Icon(Symbols.close, size: 16, color: AppColors.coral)),

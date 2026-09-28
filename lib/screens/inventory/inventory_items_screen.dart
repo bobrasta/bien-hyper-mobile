@@ -15,7 +15,7 @@ import '../../utils/csv_export.dart';
 import '../../utils/format.dart';
 import '../../widgets/common/app_button.dart';
 import '../../widgets/common/error_view.dart';
-import '../../widgets/common/labeled_field.dart' show FieldFocusBox;
+import '../../widgets/common/labeled_field.dart';
 import '../../widgets/common/shimmer_box.dart';
 import 'inventory_item_detail_screen.dart';
 
@@ -1042,24 +1042,8 @@ class _SearchBox extends StatelessWidget {
   final ValueChanged<String> onChanged;
 
   @override
-  Widget build(BuildContext context) => Container(
-    width: 240, height: 32,
-    decoration: BoxDecoration(color: context.pal.surface1,
-        borderRadius: BorderRadius.circular(8), border: Border.all(color: context.pal.border)),
-    padding: const EdgeInsets.symmetric(horizontal: 10),
-    child: Row(children: [
-      Icon(Symbols.search, size: 14, color: context.pal.textDim),
-      const SizedBox(width: 6),
-      Expanded(child: TextField(
-        onChanged: onChanged, style: AppTheme.bodySm,
-        decoration: InputDecoration(
-          hintText: 'Search name, SKU, manufacturer—',
-          hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim),
-          border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero,
-        ),
-      )),
-    ]),
-  );
+  Widget build(BuildContext context) =>
+      SearchField(width: 260, hint: 'Search name, SKU, manufacturer…', onChanged: onChanged);
 }
 
 class _Field extends StatelessWidget {

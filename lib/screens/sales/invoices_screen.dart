@@ -231,22 +231,7 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
           child: Row(children: [
             _StatusChips(current: _statusFilter, counts: {for (final s in PaymentStatus.values) s: _all.where((i) => i.effectiveStatus == s).length}, total: _all.length, onChanged: (s) => setState(() { _statusFilter = s; _applyFilter(); })),
             const Spacer(),
-            SizedBox(
-              width: 200, height: 32,
-              child: TextField(
-                controller: _searchCtrl,
-                style: AppTheme.bodySm.copyWith(fontSize: 12.5),
-                decoration: InputDecoration(
-                  hintText: 'Client or INV number…',
-                  hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim, fontSize: 12),
-                  prefixIcon: Icon(Symbols.search, size: 15, color: context.pal.textDim),
-                  filled: true, fillColor: context.pal.surface1,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 6, horizontal: 10),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(9), borderSide: BorderSide(color: context.pal.border)),
-                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(9), borderSide: BorderSide(color: context.pal.border)),
-                ),
-              ),
-            ),
+            SearchField(width: 220, hint: 'Client or INV number…', controller: _searchCtrl),
           ]),
         ),
         const SizedBox(height: 14),

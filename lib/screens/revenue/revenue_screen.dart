@@ -12,7 +12,7 @@ import '../../services/setting_service.dart';
 import '../../utils/api_error.dart';
 import '../../widgets/common/error_view.dart';
 import '../../widgets/common/kpi_card.dart';
-import '../../widgets/common/labeled_field.dart' show FieldFocusBox;
+import '../../widgets/common/labeled_field.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/format.dart';
@@ -786,13 +786,7 @@ class _EditTargetDialogState extends State<_EditTargetDialog> {
     title: Text('Monthly Revenue Target', style: AppTheme.cardTitle),
     content: SizedBox(
       width: 320,
-      child: TextField(
-        controller: _ctrl,
-        keyboardType: TextInputType.number,
-        autofocus: true,
-        style: AppTheme.bodySm,
-        decoration: const InputDecoration(labelText: 'Target (TSh)'),
-      ),
+      child: LabeledTextField(label: 'Target (TSh)', controller: _ctrl, keyboardType: TextInputType.number),
     ),
     actions: [
       TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancel')),

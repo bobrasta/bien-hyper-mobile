@@ -11,6 +11,7 @@ import '../../utils/api_error.dart';
 import '../../utils/format.dart';
 import '../../widgets/common/error_view.dart';
 import 'quotations_screen.dart';
+import '../../widgets/common/labeled_field.dart';
 
 const _stageFlow = [
   PipelineStage.lead, PipelineStage.qualified, PipelineStage.demoScheduled,
@@ -414,17 +415,7 @@ class _NotesEditorState extends State<_NotesEditor> {
     Text('NOTES', style: AppTheme.labelCaps.copyWith(fontSize: 11)),
     const SizedBox(height: 10),
     _editing
-        ? TextField(
-            controller: _ctrl,
-            maxLines: 6,
-            style: AppTheme.bodySm.copyWith(fontSize: 12),
-            decoration: InputDecoration(
-              hintText: 'Notes on this deal…',
-              filled: true, fillColor: context.pal.surface2,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(9), borderSide: BorderSide(color: context.pal.border)),
-              contentPadding: const EdgeInsets.all(10),
-            ),
-          )
+        ? LabeledTextField(label: '', controller: _ctrl, maxLines: 6, hint: 'Notes on this deal…')
         : Text(widget.initial.isEmpty ? 'No notes yet.' : widget.initial,
             style: AppTheme.bodySub.copyWith(fontSize: 11.5, height: 1.5)),
     const SizedBox(height: 10),

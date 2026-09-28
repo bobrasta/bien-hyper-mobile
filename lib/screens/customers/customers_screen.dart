@@ -11,7 +11,7 @@ import '../../theme/app_theme.dart';
 import '../../widgets/common/app_button.dart';
 import '../../widgets/common/app_dropdown.dart';
 import '../../widgets/common/avatar_widget.dart';
-import '../../widgets/common/labeled_field.dart' show FieldFocusBox;
+import '../../widgets/common/labeled_field.dart';
 import '../../widgets/email/compose_modal.dart';
 import '../../theme/app_palette.dart';
 
@@ -182,27 +182,10 @@ class _CustomersScreenState extends State<CustomersScreen> {
                 ]),
                 const SizedBox(height: 12),
                 // Search
-                Container(
-                  height: 32,
-                  decoration: BoxDecoration(
-                    color: context.pal.surface1,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: context.pal.border),
-                  ),
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                  child: Row(children: [
-                    const SizedBox(width: 6),
-                    Expanded(child: TextField(
-                      controller: _search,
-                      onChanged: (_) => setState(() { _selectedIdx = 0; _showCount = _pageSize; }),
-                      style: AppTheme.bodySm.copyWith(fontSize: 12.5),
-                      decoration: InputDecoration(
-                        hintText: 'Search contacts…',
-                        hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim, fontSize: 12.5),
-                        border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero,
-                      ),
-                    )),
-                  ]),
+                SearchField(
+                  hint: 'Search contacts…',
+                  controller: _search,
+                  onChanged: (_) => setState(() { _selectedIdx = 0; _showCount = _pageSize; }),
                 ),
                 const SizedBox(height: 10),
                 // Tag filter chips

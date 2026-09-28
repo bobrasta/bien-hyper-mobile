@@ -11,7 +11,7 @@ import '../../utils/api_error.dart';
 import '../../utils/format.dart';
 import '../../widgets/common/app_button.dart';
 import '../../widgets/common/error_view.dart';
-import '../../widgets/common/labeled_field.dart' show FieldFocusBox;
+import '../../widgets/common/labeled_field.dart';
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -134,22 +134,7 @@ class _SalesOrdersScreenState extends State<SalesOrdersScreen> {
               Text('${_all.length} orders · ${tshFromDouble(booked)} booked · ${_all.where((o) => o.status == 'pending').length} pending confirmation'
                   '${cancelled.isNotEmpty ? ' · ${cancelled.length} cancelled' : ''}', style: AppTheme.bodySub.copyWith(fontSize: 12)),
             ])),
-            SizedBox(
-              width: 200, height: 32,
-              child: TextField(
-                controller: _searchCtrl,
-                style: AppTheme.bodySm.copyWith(fontSize: 12.5),
-                decoration: InputDecoration(
-                  hintText: 'Client or SO number…',
-                  hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim, fontSize: 12),
-                  prefixIcon: Icon(Symbols.search, size: 15, color: context.pal.textDim),
-                  filled: true, fillColor: context.pal.surface1,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 6, horizontal: 10),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(9), borderSide: BorderSide(color: context.pal.border)),
-                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(9), borderSide: BorderSide(color: context.pal.border)),
-                ),
-              ),
-            ),
+            SearchField(width: 220, hint: 'Client or SO number…', controller: _searchCtrl),
             const SizedBox(width: 8),
             FilledButton.icon(onPressed: () => widget.onNavigateTo?.call('sales_quotations'), icon: const Icon(Symbols.add, size: 16), label: const Text('New order')),
           ]),
@@ -848,24 +833,7 @@ class _DeliverModalState extends State<_DeliverModal> {
               ])),
               SizedBox(
                 width: 80,
-                child: Container(
-                  height: 34,
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                  decoration: BoxDecoration(
-                    color: context.pal.surface1,
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: context.pal.border),
-                  ),
-                  child: Center(child: TextField(
-                    controller: _qtyCtrls[e.key],
-                    keyboardType: TextInputType.number,
-                    textAlign: TextAlign.center,
-                    style: AppTheme.bodySm,
-                    decoration: const InputDecoration(
-                      border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero,
-                    ),
-                  )),
-                ),
+                child: CellField(controller: _qtyCtrls[e.key], keyboardType: TextInputType.number),
               ),
             ]),
           );

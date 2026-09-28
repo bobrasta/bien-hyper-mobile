@@ -12,6 +12,7 @@ import '../../theme/hr_category_colors.dart';
 import '../../utils/api_error.dart';
 import '../../widgets/common/error_view.dart';
 import '../../widgets/common/hr_empty_state.dart';
+import '../../widgets/common/labeled_field.dart';
 
 /// HR approvals queue — ported from HR Redesign spec 1h. Card-based leave
 /// queue with facts/overlap detection, a tab strip, and a coverage +
@@ -252,10 +253,7 @@ class _RejectReasonDialogState extends State<_RejectReasonDialog> {
   Widget build(BuildContext context) => AlertDialog(
     backgroundColor: context.pal.surface1,
     title: Text('Reject Leave Request', style: AppTheme.bodyStrong),
-    content: TextField(
-      controller: _ctrl, maxLines: 3, style: AppTheme.bodySm,
-      decoration: InputDecoration(hintText: 'Reason (optional)', hintStyle: AppTheme.bodySm.copyWith(color: context.pal.textDim)),
-    ),
+    content: LabeledTextField(label: 'Reason (optional)', controller: _ctrl, maxLines: 3),
     actions: [
       TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancel')),
       TextButton(onPressed: () => Navigator.of(context).pop(_ctrl.text.trim()), child: Text('Reject', style: TextStyle(color: AppColors.coral))),
@@ -289,10 +287,7 @@ class _ManualDaysDialogState extends State<_ManualDaysDialog> {
           'How many days should count against their balance?',
           style: AppTheme.bodySub.copyWith(fontSize: 12.5)),
       const SizedBox(height: 12),
-      TextField(
-        controller: _ctrl, keyboardType: TextInputType.number, style: AppTheme.bodySm,
-        decoration: const InputDecoration(labelText: 'Days'),
-      ),
+      LabeledTextField(label: 'Days', controller: _ctrl, keyboardType: TextInputType.number),
     ]),
     actions: [
       TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancel')),

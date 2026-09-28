@@ -10,6 +10,7 @@ import '../../utils/format.dart';
 import '../../widgets/common/app_button.dart';
 import '../../widgets/common/error_view.dart';
 import '../../widgets/common/shimmer_box.dart';
+import '../../widgets/common/labeled_field.dart';
 
 class PurchaseOrdersScreen extends StatefulWidget {
   const PurchaseOrdersScreen({super.key});
@@ -496,18 +497,7 @@ class _GrnModalState extends State<_GrnModal> {
                             style: AppTheme.bodySub.copyWith(fontSize: 11.5)),
                       ])),
                       const SizedBox(width: 12),
-                      SizedBox(width: 80, child: TextField(
-                        controller: _qtyCtrl[e.key],
-                        keyboardType: TextInputType.number, style: AppTheme.bodyStrong,
-                        textAlign: TextAlign.center,
-                        decoration: InputDecoration(
-                          labelText: 'Qty',
-                          labelStyle: AppTheme.bodySub.copyWith(fontSize: 11),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                          isDense: true,
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                        ),
-                      )),
+                      SizedBox(width: 80, child: CellField(controller: _qtyCtrl[e.key], hint: 'Qty', keyboardType: TextInputType.number)),
                     ]),
                   );
                 }),

@@ -25,6 +25,7 @@ import '../../widgets/common/app_dropdown.dart';
 import '../../widgets/common/avatar_widget.dart';
 import '../../widgets/common/kpi_card.dart';
 import '../../widgets/common/shimmer_box.dart';
+import '../../widgets/common/labeled_field.dart';
 
 // ── Small pure helpers ──────────────────────────────────────────────────────
 
@@ -2398,19 +2399,11 @@ class _QuickAddPartDialogState extends State<_QuickAddPartDialog> {
           Row(
             children: [
               Expanded(
-                child: TextField(
-                  controller: _qtyCtrl,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'Qty'),
-                ),
+                child: LabeledTextField(label: 'Qty', controller: _qtyCtrl, keyboardType: TextInputType.number),
               ),
               const SizedBox(width: 10),
               Expanded(
-                child: TextField(
-                  controller: _costCtrl,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'Unit cost'),
-                ),
+                child: LabeledTextField(label: 'Unit cost', controller: _costCtrl, keyboardType: TextInputType.number),
               ),
             ],
           ),

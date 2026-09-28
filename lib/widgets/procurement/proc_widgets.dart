@@ -462,29 +462,7 @@ class ProcSearchField extends StatelessWidget {
   final ValueChanged<String>? onChanged;
   final double width;
   @override
-  Widget build(BuildContext context) {
-    final pal = context.pal;
-    return SizedBox(width: width, child: FieldFocusBox(
-      minHeight: kFieldHeight,
-      alignment: Alignment.centerLeft,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      builder: (context, focusNode) => Row(children: [
-        Icon(Symbols.search, size: 16, color: pal.textDim),
-        const SizedBox(width: 8),
-        Expanded(child: TextField(
-          focusNode: focusNode,
-          onChanged: onChanged,
-          cursorColor: pal.text,
-          cursorWidth: 1.5,
-          style: AppTheme.fieldText.copyWith(color: pal.text),
-          decoration: InputDecoration(
-            hintText: hint, hintStyle: AppTheme.fieldHint,
-            filled: false, border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero,
-          ),
-        )),
-      ]),
-    ));
-  }
+  Widget build(BuildContext context) => SearchField(hint: hint, onChanged: onChanged, width: width);
 }
 
 /// Key/value grid used in permit, entity and shipment info panels.
