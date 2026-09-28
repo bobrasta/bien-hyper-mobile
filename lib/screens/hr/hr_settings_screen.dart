@@ -437,11 +437,8 @@ class _LeaveTypeRowState extends State<_LeaveTypeRow> {
         Text('Set at approval', style: AppTheme.bodySub.copyWith(fontSize: 11.5))
       else ...[
         SizedBox(
-          width: 70,
-          child: TextField(
-            controller: _ctrl, keyboardType: TextInputType.number, style: AppTheme.bodySm,
-            decoration: const InputDecoration(isDense: true, suffixText: 'days'),
-          ),
+          width: 90,
+          child: CellField(controller: _ctrl, keyboardType: TextInputType.number, suffixText: 'days'),
         ),
         const SizedBox(width: 10),
         GestureDetector(
