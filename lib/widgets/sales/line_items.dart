@@ -57,24 +57,12 @@ class LineItemTableRow extends StatelessWidget {
     return ((qty * price) * (1 - disc / 100)).round();
   }
 
-  Future<void> _pickItem(BuildContext context) async {
-    final picked = await showDialog<InventoryItem?>(
-      context: context,
-      builder: (dialogCtx) => AlertDialog(
-        backgroundColor: context.pal.surface1,
-        title: const Text('Link inventory item'),
-        content: SizedBox(width: 360, height: 360, child: InvItemPicker(
-          items: invItems, selected: entry.selectedItem,
-          onSelected: (item) => Navigator.of(dialogCtx).pop(item),
-        )),
-        actions: [TextButton(onPressed: () => Navigator.of(dialogCtx).pop(null), child: const Text('Custom item (no link)'))],
-      ),
-    );
-    entry.selectedItem = picked;
-    if (picked != null) {
-      entry.descCtrl.text  = picked.name;
-      entry.uomCtrl.text   = picked.unitOfMeasure;
-      entry.priceCtrl.text = picked.unitCost.toStringAsFixed(0);
+  void _pick(InventoryItem? item) {
+    entry.selectedItem = item;
+    if (item != null) {
+      entry.descCtrl.text  = item.name;
+      entry.uomCtrl.text   = item.unitOfMeasure;
+      entry.priceCtrl.text = item.sellingPrice.toStringAsFixed(0);
     }
     onChanged();
   }
@@ -84,28 +72,31 @@ class LineItemTableRow extends StatelessWidget {
     padding: const EdgeInsets.symmetric(vertical: 6),
     decoration: BoxDecoration(border: Border(bottom: BorderSide(color: context.pal.divider))),
     child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
-      Expanded(flex: 3, child: GestureDetector(
-        onTap: () => _pickItem(context),
-        child: entry.selectedItem != null
-            ? Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-                Text(entry.descCtrl.text, style: AppTheme.bodySm.copyWith(fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
-                Text(entry.selectedItem!.sku, style: AppTheme.monoXs.copyWith(fontSize: 10, color: context.pal.textMute)),
-              ])
-            : Padding(
-                padding: const EdgeInsets.only(right: 8),
-                // The unified text input; the search icon opens the inventory picker.
-                child: LabeledTextField(
-                  label: '',
-                  controller: entry.descCtrl,
-                  hint: 'Item description…',
-                  onChanged: (_) => onChanged(),
-                  suffix: GestureDetector(
-                    onTap: () => _pickItem(context),
-                    child: MouseRegion(cursor: SystemMouseCursors.click,
-                        child: Icon(Symbols.search, size: 15, color: context.pal.textDim)),
-                  ),
-                ),
-              ),
+      // Type to search the inventory (name or SKU) and pick from the
+      // dropdown, or keep typing for a custom line that isn't in stock.
+      Expanded(flex: 3, child: Padding(
+        padding: const EdgeInsets.only(right: 8),
+        child: AppSearchableSelectField<InventoryItem>(
+          key: ObjectKey(entry),
+          hint: 'Type an item name or SKU…',
+          selectedLabel: entry.descCtrl.text,
+          items: [for (final i in invItems) AppSelectItem(value: i, label: '${i.name} · ${i.sku}')],
+          onSelected: (sel) {
+            if (sel == null) {
+              entry.selectedItem = null;
+              entry.descCtrl.clear();
+              onChanged();
+            } else {
+              _pick(sel.value);
+            }
+          },
+          onTextChanged: (text) {
+            // Free text: typing after a pick unlinks the inventory item.
+            entry.descCtrl.text = text;
+            entry.selectedItem = null;
+            onChanged();
+          },
+        ),
       )),
       SizedBox(width: kLineQtyW, child: _numField(entry.qtyCtrl, onChanged)),
       const SizedBox(width: 8),

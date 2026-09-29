@@ -51,6 +51,15 @@ class InventoryItem {
   final int?    warrantyMonths;
   final bool    needsReview;
 
+  /// Price to quote/invoice at: the selling price carried over from
+  /// Clickhuduma (specifications "Selling price (TZS)") when present,
+  /// otherwise the unit cost.
+  double get sellingPrice {
+    final v = specifications['Selling price (TZS)'];
+    final parsed = v is num ? v.toDouble() : double.tryParse('${v ?? ''}'.replaceAll(',', ''));
+    return (parsed != null && parsed > 0) ? parsed : unitCost;
+  }
+
   const InventoryItem({
     required this.id,
     required this.sku,

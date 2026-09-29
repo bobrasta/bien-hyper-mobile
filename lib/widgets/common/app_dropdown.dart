@@ -352,6 +352,7 @@ class _AppSearchableSelectFieldState<T> extends State<AppSearchableSelectField<T
   int _highlight = -1;
 
   bool get _isAsync => widget.asyncSearch != null;
+  static const _maxLocalResults = 50;
 
   @override
   void initState() {
@@ -424,9 +425,10 @@ class _AppSearchableSelectFieldState<T> extends State<AppSearchableSelectField<T
     } else {
       final key = normalizeForSearch(query);
       final all = widget.items ?? const [];
-      setState(() => _results = key.isEmpty
-          ? all
-          : all.where((i) => normalizeForSearch(i.label).contains(key)).toList());
+      // The panel builds every row, so a long pool (e.g. ~1,700 inventory
+      // items) is capped to the first matches — typing narrows it.
+      final matches = key.isEmpty ? all : all.where((i) => normalizeForSearch(i.label).contains(key));
+      setState(() => _results = matches.take(_maxLocalResults).toList());
       _entry?.markNeedsBuild();
     }
   }
