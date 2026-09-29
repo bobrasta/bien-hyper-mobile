@@ -11,6 +11,7 @@ import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/zones.dart';
 import '../../widgets/common/status_badge.dart';
+import '../../widgets/charts/map_tiles.dart';
 
 import '../../theme/app_palette.dart';
 
@@ -38,7 +39,7 @@ class MachineMapScreen extends StatefulWidget {
 class _MachineMapScreenState extends State<MachineMapScreen> {
   final _mapController = MapController();
 
-  String _mapMode = 'normal'; // 'normal' | 'satellite' | 'terrain'
+  MapStyle _mapMode = MapStyle.dark;
   final Set<String> _overlays = {'hospitals', 'alerts'};
   String? _selectedZone;
   String? _selectedRegion;
@@ -144,29 +145,6 @@ class _MachineMapScreenState extends State<MachineMapScreen> {
     }
   }
 
-  // ── Tile URL per map mode ─────────────────────────────────────────────────
-
-  String get _tileUrl => switch (_mapMode) {
-    'satellite' =>
-      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-    'terrain' =>
-      'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
-    _ =>
-      'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-  };
-
-  List<String> get _tileSubdomains => switch (_mapMode) {
-    'satellite' => const [],
-    'terrain'   => const ['a', 'b', 'c'],
-    _           => const ['a', 'b', 'c', 'd'],
-  };
-
-  String get _attribution => switch (_mapMode) {
-    'satellite' => '© Esri',
-    'terrain'   => '© OpenTopoMap (CC-BY-SA)',
-    _           => '© CartoDB · © OpenStreetMap contributors',
-  };
-
   // ── Build ─────────────────────────────────────────────────────────────────
 
   @override
@@ -236,9 +214,9 @@ class _MachineMapScreenState extends State<MachineMapScreen> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                for (final m in ['normal', 'satellite', 'terrain'])
+                for (final m in MapStyle.values)
                   _MapModeBtn(
-                    label: m == 'normal' ? 'Street' : m[0].toUpperCase() + m.substring(1),
+                    label: m.label,
                     active: _mapMode == m,
                     onTap: () => setState(() => _mapMode = m),
                   ),
@@ -348,15 +326,11 @@ class _MachineMapScreenState extends State<MachineMapScreen> {
               ),
             ),
               children: [
-                TileLayer(
-                  key: ValueKey(_mapMode),
-                  urlTemplate: _tileUrl,
-                  subdomains: _tileSubdomains,
-                  userAgentPackageName: 'com.bienhypermed.app',
-                ),
+                // Same keyless base layers as the dashboard map (map_tiles.dart).
+                mapTileLayer(_mapMode),
                 MarkerLayer(markers: markers),
                 SimpleAttributionWidget(
-                  source: Text(_attribution,
+                  source: Text(_mapMode.attribution,
                     style: TextStyle(fontSize: 9, color: Colors.white54)),
                   backgroundColor: const Color(0xAA0F1117),
                 ),
@@ -379,16 +353,16 @@ class _MachineMapScreenState extends State<MachineMapScreen> {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               _FloatMapBtn(
-                icon: _mapMode == 'satellite'
+                icon: _mapMode == MapStyle.satellite
                     ? Symbols.map
                     : Symbols.satellite_alt,
-                label: _mapMode == 'satellite' ? 'MAP' : 'SAT',
-                active: _mapMode == 'satellite',
-                tooltip: _mapMode == 'satellite'
+                label: _mapMode == MapStyle.satellite ? 'MAP' : 'SAT',
+                active: _mapMode == MapStyle.satellite,
+                tooltip: _mapMode == MapStyle.satellite
                     ? 'Switch to street map'
                     : 'Switch to satellite',
                 onTap: () => setState(() =>
-                  _mapMode = _mapMode == 'satellite' ? 'normal' : 'satellite'),
+                  _mapMode = _mapMode == MapStyle.satellite ? MapStyle.dark : MapStyle.satellite),
               ),
 
               const SizedBox(height: 6),

@@ -4,15 +4,13 @@ import 'package:latlong2/latlong.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import '../../models/hospital.dart';
 import '../../theme/app_colors.dart';
+import 'map_tiles.dart';
+export 'map_tiles.dart' show MapStyle;
 
 // Section 2: "Satellite, Terrain, Light/Dark" — the map's own visual-style
 // switcher, distinct from the dashboard card's Machines/Alerts/Technicians
-// *data*-layer toggles (which stay in the card header). Dark is a
-// ColorFiltered inversion of the same OSM tiles rather than a separate dark
-// tile provider — CartoDB's dark_all basemap now requires a registered API
-// key (see the TileLayer comment below), and Esri/OpenTopoMap have no dark
-// variant that doesn't require one either.
-enum MapStyle { light, dark, satellite, terrain }
+// *data*-layer toggles (which stay in the card header). Tile sources live in
+// map_tiles.dart, shared with the Machines map.
 
 /// Real interactive fleet map for the dashboard — same OSM/CartoDB tile
 /// engine as MachineMapScreen, plotting every hospital that has real GPS
@@ -62,41 +60,11 @@ class _FleetMapWidgetState extends State<FleetMapWidget> {
     _mapController.move(_mapController.camera.center, (z + delta).clamp(4.0, 12.0));
   }
 
-  // Esri World Imagery and OpenTopoMap are both free, no-API-key XYZ tile
-  // sources at this traffic level — same reasoning as the standard OSM
-  // tiles' own comment below. No dark-tile provider fits that bar (see the
-  // MapStyle doc comment), so Dark reuses the light tiles under a
-  // ColorFiltered inversion instead.
-  String get _tileUrl => switch (_style) {
-    MapStyle.satellite => 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-    MapStyle.terrain => 'https://tile.opentopomap.org/{z}/{x}/{y}.png',
-    MapStyle.light || MapStyle.dark => 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-  };
-
-  String get _attribution => switch (_style) {
-    MapStyle.satellite => '© Esri, Maxar, Earthstar Geographics',
-    MapStyle.terrain => '© OpenTopoMap (CC-BY-SA) · © OpenStreetMap contributors',
-    MapStyle.light || MapStyle.dark => '© OpenStreetMap contributors',
-  };
-
   @override
   Widget build(BuildContext context) {
     final pinned = widget.hospitals.where((h) => h.latitude != 0 && h.longitude != 0).toList();
 
-    Widget tiles = TileLayer(urlTemplate: _tileUrl, userAgentPackageName: 'com.bienhypermed.app');
-    if (_style == MapStyle.dark) {
-      // Simulated dark mode: invert + hue-rotate the same light tiles
-      // rather than depending on a dark tile provider (see class doc).
-      tiles = ColorFiltered(
-        colorFilter: const ColorFilter.matrix([
-          -1, 0, 0, 0, 255,
-          0, -1, 0, 0, 255,
-          0, 0, -1, 0, 255,
-          0, 0, 0, 1, 0,
-        ]),
-        child: tiles,
-      );
-    }
+    final tiles = mapTileLayer(_style);
 
     return Stack(
       clipBehavior: Clip.none,
@@ -144,7 +112,7 @@ class _FleetMapWidgetState extends State<FleetMapWidget> {
                   ),
               ]),
               SimpleAttributionWidget(
-                source: Text(_attribution, style: const TextStyle(fontSize: 9, color: Colors.white54)),
+                source: Text(_style.attribution, style: const TextStyle(fontSize: 9, color: Colors.white54)),
                 backgroundColor: const Color(0xAA0F1117),
               ),
             ],
