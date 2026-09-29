@@ -55,6 +55,9 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
   bool            _loading  = true;
   String?         _error;
   String?         _statusFilter;
+  // Rows render in batches of 120; totals/counts still cover the whole period.
+  static const _batch = 120;
+  int             _showCount = _batch;
   Period          _period = Period.defaultPeriod;
   final _searchCtrl = TextEditingController();
 
@@ -105,6 +108,7 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
   void _applyFilter() {
     final q = _searchCtrl.text.toLowerCase();
     setState(() {
+      _showCount = _batch;
       _filtered = _all.where((qt) {
         final matchStatus = _statusFilter == null || qt.status == _statusFilter;
         final matchSearch = q.isEmpty ||
@@ -170,7 +174,7 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
                 // cached data is already showing shouldn't blow that away.
                 : _error != null && _all.isEmpty
                     ? ErrorView(message: _error!, onRetry: _load)
-                    : CustomScrollView(slivers: _QuotationTable(items: _filtered, onSelect: _showDetailModal, openValue: openValue, convertedCount: converted, totalCount: _all.length).slivers(context, pad: pad)),
+                    : CustomScrollView(slivers: _QuotationTable(items: _filtered, shown: _showCount, onLoadMore: () => setState(() => _showCount += _batch), onSelect: _showDetailModal, openValue: openValue, convertedCount: converted, totalCount: _all.length).slivers(context, pad: pad)),
           ),
         ]);
       }),
@@ -231,8 +235,10 @@ class _StatusChips extends StatelessWidget {
 // ── Quotation table ────────────────────────────────────────────────────────────
 
 class _QuotationTable {
-  const _QuotationTable({required this.items, required this.onSelect, required this.openValue, required this.convertedCount, required this.totalCount});
+  const _QuotationTable({required this.items, required this.shown, required this.onLoadMore, required this.onSelect, required this.openValue, required this.convertedCount, required this.totalCount});
   final List<Quotation> items;
+  final int shown;
+  final VoidCallback onLoadMore;
   final ValueChanged<Quotation> onSelect;
   final int openValue;
   final int convertedCount;
@@ -269,7 +275,10 @@ class _QuotationTable {
             const SizedBox(width: 56),
           ]),
         ),
-      itemCount: items.length,
+      itemCount: shown < items.length ? shown : items.length,
+      totalCount: items.length,
+      loadStep: _QuotationsScreenState._batch,
+      onLoadMore: onLoadMore,
       emptyText: 'No quotations found',
       itemBuilder: (context, i) {
                   final qt = items[i];

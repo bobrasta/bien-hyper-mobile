@@ -15,6 +15,7 @@ import '../../widgets/common/app_button.dart';
 import '../../widgets/common/error_view.dart';
 import '../../widgets/common/labeled_field.dart';
 import '../../widgets/common/period_filter.dart';
+import '../../widgets/common/sliver_table.dart';
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -49,6 +50,10 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
   bool           _loading  = true;
   String?        _error;
   PaymentStatus? _statusFilter;
+  // Rows render in batches — the full period is already loaded (totals and
+  // chip counts cover all of it), this only limits how many rows are built.
+  static const _batch = 120;
+  int _showCount = _batch;
   Map<String, dynamic> _arAging = {};
   Period _period = Period.defaultPeriod;
   final _searchCtrl = TextEditingController();
@@ -108,6 +113,7 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
   void _applyFilter() {
     final q = _searchCtrl.text.toLowerCase();
     setState(() {
+      _showCount = _batch;
       _filtered = _all.where((inv) {
         final matchStatus = _statusFilter == null || inv.effectiveStatus == _statusFilter;
         final matchSearch = q.isEmpty ||
@@ -259,7 +265,7 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
         ),
                         const SizedBox(height: 14),
                       ])),
-                      ..._InvoiceTable(items: _filtered, onSelect: _showDetailModal, total: totalRaised, outstandingTotal: outstanding).slivers(context, pad: pad),
+                      ..._InvoiceTable(items: _filtered, shown: _showCount, onLoadMore: () => setState(() => _showCount += _batch), onSelect: _showDetailModal, total: totalRaised, outstandingTotal: outstanding).slivers(context, pad: pad),
                     ]),
         ),
       ]);
@@ -317,8 +323,10 @@ class _StatusChips extends StatelessWidget {
 // ── Invoice table ──────────────────────────────────────────────────────────────
 
 class _InvoiceTable {
-  const _InvoiceTable({required this.items, required this.onSelect, required this.total, required this.outstandingTotal});
+  const _InvoiceTable({required this.items, required this.shown, required this.onLoadMore, required this.onSelect, required this.total, required this.outstandingTotal});
   final List<Invoice>          items;
+  final int                    shown;
+  final VoidCallback           onLoadMore;
   final ValueChanged<Invoice>  onSelect;
   final int total;
   final int outstandingTotal;
@@ -356,6 +364,8 @@ class _InvoiceTable {
   // scrolls, rows are built lazily, footer closes the card.
   List<Widget> slivers(BuildContext context, {required double pad}) {
     final paidTotal = items.fold<int>(0, (s, i) => s + i.amountPaid);
+    final visible = shown < items.length ? shown : items.length;
+    final remaining = items.length - visible;
     final money = AppTheme.monoSm.copyWith(fontSize: 13);
     final side = BorderSide(color: context.pal.border);
     final header = Container(
@@ -479,7 +489,13 @@ class _InvoiceTable {
       else
         SliverPadding(
           padding: EdgeInsets.symmetric(horizontal: pad),
-          sliver: SliverList(delegate: SliverChildBuilderDelegate((_, i) => rowFor(i), childCount: items.length)),
+          sliver: SliverList(delegate: SliverChildBuilderDelegate((_, i) => rowFor(i), childCount: visible)),
+        ),
+      if (remaining > 0)
+        SliverPadding(
+          padding: EdgeInsets.symmetric(horizontal: pad),
+          sliver: SliverToBoxAdapter(child: LoadMoreRow(
+            shown: visible, total: items.length, step: _InvoicesScreenState._batch, onTap: onLoadMore)),
         ),
       SliverPadding(padding: EdgeInsets.fromLTRB(pad, 0, pad, pad), sliver: SliverToBoxAdapter(child: footer)),
     ];

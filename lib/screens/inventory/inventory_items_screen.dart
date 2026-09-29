@@ -38,8 +38,8 @@ class _InventoryItemsScreenState extends State<InventoryItemsScreen> {
   List<InventoryItem> _allItems = [];
   bool   _loading  = true;
   String? _error;
-  int    _showCount = 25;
-  static const _pageSize = 25;
+  int    _showCount = _pageSize;
+  static const _pageSize = 100;
 
   @override
   void initState() {
@@ -222,7 +222,8 @@ class _InventoryItemsScreenState extends State<InventoryItemsScreen> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         alignment: Alignment.center,
-                        child: Text('Load $remaining more',
+                        child: Text('Showing ${items.length} of ${allFiltered.length} · '
+                            'Load ${remaining < _pageSize ? remaining : _pageSize} more',
                             style: AppTheme.bodySm.copyWith(color: AppColors.teal, fontSize: 12.5)),
                       ),
                     )
@@ -307,7 +308,6 @@ class _ItemRow extends StatelessWidget {
               if (item.hasCe)  _CertBadge('CE'),
               if (item.hasFda) _CertBadge('FDA'),
               if (item.hasTbs) _CertBadge('TBS'),
-              if (item.needsReview) const _ReviewBadge(),
             ]),
             if (item.manufacturer != null)
               Text(item.manufacturer!, style: AppTheme.bodySub.copyWith(fontSize: 11),
@@ -951,25 +951,6 @@ class _CertBadge extends StatelessWidget {
     ),
     child: Text(label, style: AppTheme.monoXs.copyWith(
         color: AppColors.teal, fontSize: large ? 10.5 : 9, fontWeight: FontWeight.w700)),
-  );
-}
-
-// Flags an item created via quick-add (e.g. cannibalized from a machine
-// mid-service) that still needs a real SKU/cost/category filled in.
-class _ReviewBadge extends StatelessWidget {
-  const _ReviewBadge();
-
-  @override
-  Widget build(BuildContext context) => Container(
-    margin: const EdgeInsets.only(left: 4),
-    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-    decoration: BoxDecoration(
-      color: AppColors.amber.withValues(alpha: 0.12),
-      borderRadius: BorderRadius.circular(4),
-      border: Border.all(color: AppColors.amber.withValues(alpha: 0.4)),
-    ),
-    child: Text('REVIEW', style: AppTheme.monoXs.copyWith(
-        color: AppColors.amber, fontSize: 9, fontWeight: FontWeight.w700)),
   );
 }
 

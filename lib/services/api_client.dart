@@ -149,6 +149,27 @@ class ApiClient {
     return body;
   }
 
+  /// GETs every page of a paginated list endpoint and returns all rows.
+  /// The API caps `per_page`, so one big request silently truncates a large
+  /// list (e.g. "All time" invoices); this keeps asking until `last_page`.
+  static Future<List<dynamic>> getAllPages(
+    Dio dio,
+    String path, {
+    Map<String, dynamic> query = const {},
+    int perPage = 1000,
+  }) async {
+    final all = <dynamic>[];
+    var page = 1;
+    while (true) {
+      final res = await dio.get(path, queryParameters: {...query, 'per_page': perPage, 'page': page});
+      final (data, meta) = unwrapList(res);
+      all.addAll(data);
+      final last = (meta?['last_page'] as num?)?.toInt() ?? 1;
+      if (page >= last || data.isEmpty) return all;
+      page++;
+    }
+  }
+
   /// Unwraps a paginated response and returns the list + meta.
   /// Handles three server shapes:
   ///   {"data": [...], "meta": {...}}  — standard Laravel resource collection

@@ -20,17 +20,15 @@ class InventoryService {
     String? search,
     bool? createsMachineRecord,
   }) async {
-    final res = await _dio.get('/inventory', queryParameters: {
+    final data = await ApiClient.getAllPages(_dio, '/inventory', query: {
       'category_id': ?category,
       if (lowStock == true) 'low_stock': 'true',
       'search':   ?search,
       if (createsMachineRecord != null) 'creates_machine_record': createsMachineRecord.toString(),
       // Screens that call this load the full catalog once and paginate/filter
-      // locally — request it all in one shot rather than the backend's default
-      // 20-per-page (which silently truncated the real ~340-item catalog).
-      'per_page': 1000,
+      // locally, so fetch every page — the API caps per_page at 1000 and the
+      // catalog is past that since the Clickhuduma import.
     });
-    final (data, _) = ApiClient.unwrapList(res);
     final items = data.map((j) => InventoryItem.fromJson(j as Map<String, dynamic>)).toList();
     if (category == null && lowStock != true && search == null && createsMachineRecord == null) {
       cachedDefaultList = items;

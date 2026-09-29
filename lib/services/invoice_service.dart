@@ -16,14 +16,13 @@ class InvoiceService {
   static List<Map<String, dynamic>>? cachedRevenueByHospital;
 
   Future<List<Invoice>> list({String? status, String? search, int? salesOrderId, int? machineId, Period? period}) async {
-    final res = await _dio.get('/invoices', queryParameters: {
+    final data = await ApiClient.getAllPages(_dio, '/invoices', query: {
       ...?period?.query,
       'status':          ?status,
       'search':          ?search,
       'sales_order_id':  ?salesOrderId,
       'machine_id':      ?machineId,
     });
-    final (data, _) = ApiClient.unwrapList(res);
     final invoices = data.map((j) => Invoice.fromJson(j as Map<String, dynamic>)).toList();
     if (status == null && search == null && salesOrderId == null && machineId == null && (period?.isDefault ?? false)) {
       cachedDefaultList = invoices;

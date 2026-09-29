@@ -14,12 +14,11 @@ class QuotationService {
   static final Map<int, Quotation> cachedById = {};
 
   Future<List<Quotation>> list({String? status, String? search, Period? period}) async {
-    final res = await _dio.get('/quotations', queryParameters: {
+    final data = await ApiClient.getAllPages(_dio, '/quotations', query: {
       ...?period?.query,
       'status': ?status,
       'search': ?search,
     });
-    final (data, _) = ApiClient.unwrapList(res);
     final quotations = data.map((j) => Quotation.fromJson(j as Map<String, dynamic>)).toList();
     if (status == null && search == null && (period?.isDefault ?? false)) {
       cachedDefaultList = quotations;
