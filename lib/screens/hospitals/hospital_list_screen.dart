@@ -13,6 +13,7 @@ import '../../widgets/common/labeled_field.dart';
 import '../../widgets/common/shimmer_box.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/tin.dart';
 import '../../widgets/common/app_button.dart';
 
 import '../../theme/app_palette.dart';
@@ -672,6 +673,8 @@ class _AddHospitalDialogState extends State<_AddHospitalDialog> {
   final _districtCtrl = TextEditingController();
   final _contactCtrl  = TextEditingController();
   final _phoneCtrl    = TextEditingController();
+  final _tinCtrl      = TextEditingController();
+  final _addressCtrl  = TextEditingController();
   final _latCtrl      = TextEditingController();
   final _lngCtrl      = TextEditingController();
   String _type    = 'public';
@@ -683,12 +686,17 @@ class _AddHospitalDialogState extends State<_AddHospitalDialog> {
   void dispose() {
     _nameCtrl.dispose(); _codeCtrl.dispose(); _districtCtrl.dispose();
     _contactCtrl.dispose(); _phoneCtrl.dispose();
+    _tinCtrl.dispose(); _addressCtrl.dispose();
     _latCtrl.dispose(); _lngCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _save() async {
     if (_saving || _nameCtrl.text.trim().isEmpty) return;
+    if (_tinCtrl.text.trim().isNotEmpty && normalizeTin(_tinCtrl.text) == null) {
+      setState(() => _error = 'TIN must be 9 digits (e.g. 123-456-789).');
+      return;
+    }
     final lat = double.tryParse(_latCtrl.text.trim()) ?? 0.0;
     final lng = double.tryParse(_lngCtrl.text.trim()) ?? 0.0;
     setState(() { _saving = true; _error = null; });
@@ -702,6 +710,8 @@ class _AddHospitalDialogState extends State<_AddHospitalDialog> {
         'contact_name':  _contactCtrl.text.trim(),
         'contact_phone': _phoneCtrl.text.trim(),
         'contact_email': '',
+        'tin':           normalizeTin(_tinCtrl.text),
+        'address':       _addressCtrl.text.trim().isEmpty ? null : _addressCtrl.text.trim(),
         'latitude':      lat,
         'longitude':     lng,
       });
@@ -777,6 +787,12 @@ class _AddHospitalDialogState extends State<_AddHospitalDialog> {
                   Expanded(child: _HField('Contact person', _contactCtrl, 'e.g. Dr. Amina Hassan')),
                   const SizedBox(width: 14),
                   Expanded(child: _HField('Phone', _phoneCtrl, '+255 ...')),
+                ]),
+                const SizedBox(height: 14),
+                Row(children: [
+                  Expanded(child: _HField('TIN', _tinCtrl, '123-456-789')),
+                  const SizedBox(width: 14),
+                  Expanded(flex: 2, child: _HField('Address', _addressCtrl, 'e.g. P.O. Box 36463, Dar es Salaam')),
                 ]),
                 const SizedBox(height: 14),
                 Row(children: [
@@ -1045,6 +1061,10 @@ class _HospitalDetailSheetState extends State<_HospitalDetailSheet> {
                         _InfoPair('Phone', hospital.contactPhone),
                         const SizedBox(height: 6),
                         _InfoPair('Email', hospital.contactEmail),
+                        const SizedBox(height: 6),
+                        _InfoPair('TIN', hospital.tin ?? '—'),
+                        const SizedBox(height: 6),
+                        _InfoPair('Address', hospital.address ?? '—'),
                       ]),
                     ),
                     const SizedBox(height: 16),
@@ -1210,6 +1230,8 @@ class _EditHospitalDialogState extends State<_EditHospitalDialog> {
   late final _districtCtrl = TextEditingController(text: widget.hospital.district);
   late final _contactCtrl  = TextEditingController(text: widget.hospital.contactName);
   late final _phoneCtrl    = TextEditingController(text: widget.hospital.contactPhone);
+  late final _tinCtrl      = TextEditingController(text: widget.hospital.tin ?? '');
+  late final _addressCtrl  = TextEditingController(text: widget.hospital.address ?? '');
   late final _latCtrl      = TextEditingController(
       text: widget.hospital.latitude  != 0.0 ? widget.hospital.latitude.toString()  : '');
   late final _lngCtrl      = TextEditingController(
@@ -1228,12 +1250,17 @@ class _EditHospitalDialogState extends State<_EditHospitalDialog> {
   void dispose() {
     _nameCtrl.dispose(); _codeCtrl.dispose(); _districtCtrl.dispose();
     _contactCtrl.dispose(); _phoneCtrl.dispose();
+    _tinCtrl.dispose(); _addressCtrl.dispose();
     _latCtrl.dispose(); _lngCtrl.dispose(); _creditLimitCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _save() async {
     if (_saving) return;
+    if (_tinCtrl.text.trim().isNotEmpty && normalizeTin(_tinCtrl.text) == null) {
+      setState(() => _error = 'TIN must be 9 digits (e.g. 123-456-789).');
+      return;
+    }
     final lat = double.tryParse(_latCtrl.text.trim());
     final lng = double.tryParse(_lngCtrl.text.trim());
     setState(() { _saving = true; _error = null; });
@@ -1246,6 +1273,8 @@ class _EditHospitalDialogState extends State<_EditHospitalDialog> {
         'district':      _districtCtrl.text.trim(),
         'contact_name':  _contactCtrl.text.trim(),
         'contact_phone': _phoneCtrl.text.trim(),
+        'tin':           normalizeTin(_tinCtrl.text),
+        'address':       _addressCtrl.text.trim().isEmpty ? null : _addressCtrl.text.trim(),
         'latitude':      lat ?? widget.hospital.latitude,
         'longitude':     lng ?? widget.hospital.longitude,
         'credit_limit':  _creditLimitCtrl.text.trim().isEmpty
@@ -1320,6 +1349,12 @@ class _EditHospitalDialogState extends State<_EditHospitalDialog> {
                   Expanded(child: _HField('Contact person', _contactCtrl, '')),
                   const SizedBox(width: 14),
                   Expanded(child: _HField('Phone', _phoneCtrl, '')),
+                ]),
+                const SizedBox(height: 14),
+                Row(children: [
+                  Expanded(child: _HField('TIN', _tinCtrl, '123-456-789')),
+                  const SizedBox(width: 14),
+                  Expanded(flex: 2, child: _HField('Address', _addressCtrl, 'P.O. Box, street, town')),
                 ]),
                 const SizedBox(height: 14),
                 Row(children: [

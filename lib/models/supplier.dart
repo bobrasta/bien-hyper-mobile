@@ -8,6 +8,8 @@ class Supplier {
   final String? contactPhone;
   final String? website;
   final String? city;
+  final String? address;
+  final String? tin;
   final String? country;
   final String currency;
   final String? paymentTerms;
@@ -27,6 +29,8 @@ class Supplier {
     this.contactPhone,
     this.website,
     this.city,
+    this.address,
+    this.tin,
     this.country,
     this.currency = 'USD',
     this.paymentTerms,
@@ -47,6 +51,8 @@ class Supplier {
     contactPhone:  j['contact_phone'] as String?,
     website:       j['website']       as String?,
     city:          j['city']          as String?,
+    address:       j['address']       as String?,
+    tin:           j['tin']           as String?,
     country:       j['country']       as String?,
     currency:      j['currency']      as String? ?? 'USD',
     paymentTerms:  j['payment_terms'] as String?,

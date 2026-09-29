@@ -16,6 +16,7 @@ class Hospital {
   final String contactPhone;
   final String contactEmail;
   final String? tin;
+  final String? address;
   final String? notes;
   // Only populated by HospitalService.get() (the single-hospital fetch) —
   // omitted from the list endpoint to avoid an outstanding-balance query
@@ -42,6 +43,7 @@ class Hospital {
     required this.contactPhone,
     required this.contactEmail,
     this.tin,
+    this.address,
     this.notes,
     this.outstandingBalance,
     this.creditAvailable,
@@ -65,6 +67,7 @@ class Hospital {
     contactPhone:        j['contact_phone'] as String? ?? '—',
     contactEmail:        j['contact_email'] as String? ?? '—',
     tin:                 j['tin'] as String?,
+    address:             j['address'] as String?,
     notes:               j['notes'] as String?,
     outstandingBalance:  (j['outstanding_balance'] as num?)?.toInt(),
     creditAvailable:     (j['credit_available'] as num?)?.toInt(),

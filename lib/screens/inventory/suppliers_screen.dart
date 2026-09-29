@@ -9,6 +9,7 @@ import '../../theme/app_theme.dart';
 import '../../utils/api_error.dart';
 import '../../widgets/common/app_button.dart';
 import '../../widgets/common/error_view.dart';
+import '../../utils/tin.dart';
 import '../../widgets/common/labeled_field.dart';
 import '../../widgets/common/shimmer_box.dart';
 
@@ -297,6 +298,10 @@ class _SupplierDetailPanel extends StatelessWidget {
         _ClickRow(label: 'Email', value: supplier.contactEmail!, icon: Symbols.mail),
       if (supplier.contactPhone != null)
         _Row('Phone', supplier.contactPhone!),
+      if (supplier.tin != null)
+        _Row('TIN', supplier.tin!),
+      if (supplier.address != null && supplier.address!.isNotEmpty)
+        _Row('Address', supplier.address!),
       if (supplier.website != null)
         _ClickRow(label: 'Website', value: supplier.website!, icon: Symbols.open_in_new),
       if (supplier.notes != null) ...[
@@ -378,6 +383,8 @@ class _SupplierFormModalState extends State<_SupplierFormModal> {
   late final _emailCtrl   = TextEditingController(text: widget.supplier?.contactEmail ?? '');
   late final _phoneCtrl   = TextEditingController(text: widget.supplier?.contactPhone ?? '');
   late final _cityCtrl    = TextEditingController(text: widget.supplier?.city ?? '');
+  late final _tinCtrl     = TextEditingController(text: widget.supplier?.tin ?? '');
+  late final _addressCtrl = TextEditingController(text: widget.supplier?.address ?? '');
   late final _countryCtrl = TextEditingController(text: widget.supplier?.country ?? '');
   late final _notesCtrl   = TextEditingController(text: widget.supplier?.notes ?? '');
   late String _type   = widget.supplier?.type ?? 'distributor';
@@ -399,12 +406,16 @@ class _SupplierFormModalState extends State<_SupplierFormModal> {
   @override
   void dispose() {
     for (final c in [_nameCtrl, _codeCtrl, _cNameCtrl, _emailCtrl,
-                     _phoneCtrl, _cityCtrl, _countryCtrl, _notesCtrl]) { c.dispose(); }
+                     _phoneCtrl, _cityCtrl, _countryCtrl, _notesCtrl, _tinCtrl, _addressCtrl]) { c.dispose(); }
     super.dispose();
   }
 
   Future<void> _save() async {
     if (_saving || _nameCtrl.text.trim().isEmpty) return;
+    if (_tinCtrl.text.trim().isNotEmpty && normalizeTin(_tinCtrl.text) == null) {
+      setState(() => _error = 'TIN must be 9 digits (e.g. 123-456-789).');
+      return;
+    }
     setState(() { _saving = true; _error = null; });
     try {
       final data = {
@@ -415,6 +426,8 @@ class _SupplierFormModalState extends State<_SupplierFormModal> {
         'contact_email': _emailCtrl.text.trim().isEmpty ? null : _emailCtrl.text.trim(),
         'contact_phone': _phoneCtrl.text.trim().isEmpty ? null : _phoneCtrl.text.trim(),
         'city':          _cityCtrl.text.trim().isEmpty ? null : _cityCtrl.text.trim(),
+        'tin':           normalizeTin(_tinCtrl.text),
+        'address':       _addressCtrl.text.trim().isEmpty ? null : _addressCtrl.text.trim(),
         'country':       _countryCtrl.text.trim().isEmpty ? null : _countryCtrl.text.trim(),
         'currency':      _curr,
         'payment_terms': _terms,
@@ -491,6 +504,12 @@ class _SupplierFormModalState extends State<_SupplierFormModal> {
                   Expanded(child: _Fld('City', _cityCtrl, 'Dar es Salaam')),
                   const SizedBox(width: 14),
                   Expanded(child: _Fld('Country', _countryCtrl, 'Tanzania')),
+                ]),
+                const SizedBox(height: 14),
+                Row(children: [
+                  Expanded(child: _Fld('TIN', _tinCtrl, '123-456-789')),
+                  const SizedBox(width: 14),
+                  Expanded(flex: 2, child: _Fld('Address', _addressCtrl, 'P.O. Box, street')),
                 ]),
                 const SizedBox(height: 14),
                 // Lead time + Rating row
