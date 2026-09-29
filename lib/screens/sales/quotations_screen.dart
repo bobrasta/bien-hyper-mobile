@@ -1067,10 +1067,13 @@ class _QuotationBuilderScreenState extends State<QuotationBuilderScreen> {
         final right = SizedBox(width: wide ? 340 : double.infinity, child: _rightColumn(context, over));
         return SingleChildScrollView(
           padding: const EdgeInsets.all(20),
+          // Top-aligned, not IntrinsicHeight+stretch: text fields' intrinsic
+          // height estimate runs under their laid-out height (focus halo),
+          // which overflowed the left column by a fraction of a pixel.
           child: wide
-              ? IntrinsicHeight(child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              ? Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Expanded(child: left), const SizedBox(width: 16), right,
-                ]))
+                ])
               : Column(children: [left, const SizedBox(height: 16), right]),
         );
       }),
