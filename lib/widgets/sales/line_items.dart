@@ -11,6 +11,12 @@ import '../common/labeled_field.dart';
 
 // ── Line item entry (mutable state for form) ───────────────────────────────────
 
+// Column widths shared by the line rows and each builder's header row.
+const double kLineQtyW   = 76;
+const double kLinePriceW = 130;
+const double kLineDiscW  = 76;
+const double kLineTotalW = 110;
+
 class LineItemEntry {
   final descCtrl  = TextEditingController();
   final uomCtrl   = TextEditingController(text: 'pcs');
@@ -101,15 +107,15 @@ class LineItemTableRow extends StatelessWidget {
                 ),
               ),
       )),
-      SizedBox(width: 44, child: _cellField(entry.qtyCtrl, context, onChanged)),
+      SizedBox(width: kLineQtyW, child: _numField(entry.qtyCtrl, onChanged)),
       const SizedBox(width: 8),
-      SizedBox(width: 90, child: _cellField(entry.priceCtrl, context, onChanged)),
+      SizedBox(width: kLinePriceW, child: _numField(entry.priceCtrl, onChanged)),
       const SizedBox(width: 8),
       if (showDiscount) ...[
-        SizedBox(width: 56, child: _cellField(entry.discCtrl, context, onChanged)),
+        SizedBox(width: kLineDiscW, child: _numField(entry.discCtrl, onChanged)),
         const SizedBox(width: 8),
       ],
-      SizedBox(width: 96, child: Text(tshFromDouble(_lineTotal.toDouble()), textAlign: TextAlign.right,
+      SizedBox(width: kLineTotalW, child: Text(tshFromDouble(_lineTotal.toDouble()), textAlign: TextAlign.right,
           style: AppTheme.monoSm.copyWith(fontSize: 12))),
       SizedBox(width: 22, child: onRemove != null
           ? GestureDetector(onTap: onRemove, child: Icon(Symbols.close, size: 15, color: context.pal.textDim))
@@ -117,10 +123,11 @@ class LineItemTableRow extends StatelessWidget {
     ]),
   );
 
-  Widget _cellField(TextEditingController ctrl, BuildContext context, VoidCallback onChanged) => CellField(
+  // The unified text input, right-aligned for numbers.
+  Widget _numField(TextEditingController ctrl, VoidCallback onChanged) => LabeledTextField(
+    label: '',
     controller: ctrl,
     textAlign: TextAlign.right,
-    mono: true,
     keyboardType: const TextInputType.numberWithOptions(decimal: true),
     onChanged: (_) => onChanged(),
   );

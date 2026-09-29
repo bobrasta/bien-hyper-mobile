@@ -146,6 +146,7 @@ class LabeledTextField extends StatefulWidget {
     this.onTap,
     this.onTapOutside,
     this.textInputAction,
+    this.textAlign = TextAlign.start,
   });
 
   final String label;
@@ -169,6 +170,8 @@ class LabeledTextField extends StatefulWidget {
   final VoidCallback? onTap;
   final TapRegionCallback? onTapOutside;
   final TextInputAction? textInputAction;
+  // Numeric columns (qty/price) right-align; the default look is unchanged.
+  final TextAlign textAlign;
 
   @override
   State<LabeledTextField> createState() => _LabeledTextFieldState();
@@ -260,6 +263,7 @@ class _LabeledTextFieldState extends State<LabeledTextField> {
           maxLines: widget.obscure ? 1 : widget.maxLines,
           keyboardType: widget.keyboardType,
           textInputAction: widget.textInputAction,
+          textAlign: widget.textAlign,
           onChanged: widget.onChanged,
           onSubmitted: widget.onSubmitted,
           onTap: widget.onTap,
