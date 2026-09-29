@@ -102,10 +102,14 @@ class Invoice {
   // Dates
   final String        issueDate;
   final String        dueDate;
+  // Payment term, e.g. 30 days / 4 months (null for invoices with a hand-picked due date).
+  final int?          payTermNumber;
+  final String?       payTermType;
   // Financials
   final int           subtotal;
   final double        taxRate;
   final int           taxAmount;
+  final int           shippingCharges;
   final int           total;
   final int           amountPaid;
   final PaymentStatus status;
@@ -131,9 +135,12 @@ class Invoice {
     this.clientTin,
     required this.issueDate,
     required this.dueDate,
+    this.payTermNumber,
+    this.payTermType,
     required this.subtotal,
     this.taxRate = 0,
     required this.taxAmount,
+    this.shippingCharges = 0,
     required this.total,
     required this.amountPaid,
     required this.status,
@@ -159,6 +166,9 @@ class Invoice {
     clientTin:       j['client_tin'] as String?,
     issueDate:       j['issue_date'] as String? ?? j['created_at'] as String? ?? '—',
     dueDate:         j['due_date']   as String? ?? '—',
+    payTermNumber:   (j['pay_term_number'] as num?)?.toInt(),
+    payTermType:     j['pay_term_type'] as String?,
+    shippingCharges: (j['shipping_charges'] as num? ?? 0).toInt(),
     subtotal:        (j['subtotal']    as num? ?? 0).toInt(),
     taxRate:         (j['tax_rate']    as num? ?? 0).toDouble(),
     taxAmount:       (j['tax_amount']  as num? ?? 0).toInt(),

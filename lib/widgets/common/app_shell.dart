@@ -3,6 +3,7 @@ import 'package:material_symbols_icons/symbols.dart';
 import '../../screens/approvals/approvals_screen.dart';
 import '../../screens/customers/customers_screen.dart';
 import '../../screens/dashboard/unified_dashboard_screen.dart';
+import '../../screens/finance/receivables_screen.dart';
 import '../../screens/email/email_screen.dart';
 import '../../screens/finance/bank_reconciliation_screen.dart';
 import '../../screens/finance/chart_of_accounts_screen.dart';
@@ -281,6 +282,7 @@ class _AppShellState extends State<AppShell> {
     'finance_ledger'         => const ChartOfAccountsScreen(),
     'finance_reports'        => const FinanceReportsScreen(),
     'finance_bank_rec'       => const BankReconciliationScreen(),
+    'finance_receivables'    => const ReceivablesScreen(),
     'vendor_fees'            => const VendorFeesScreen(),
     'tmda_permits'           => const TmdaPermitsScreen(),
     'clearing_fees'          => const ClearingFeesScreen(),

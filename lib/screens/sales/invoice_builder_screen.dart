@@ -16,6 +16,11 @@ import '../../widgets/common/app_dropdown.dart';
 import '../../widgets/common/labeled_field.dart';
 import '../../widgets/sales/line_items.dart';
 
+String _fmtDate(DateTime d) {
+  const m = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return '${d.day} ${m[d.month - 1]} ${d.year}';
+}
+
 String _isoDate(DateTime d) =>
     '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
@@ -38,7 +43,15 @@ class _InvoiceBuilderScreenState extends State<InvoiceBuilderScreen> {
   final _notesCtrl   = TextEditingController();
   Hospital? _hospital;
   DateTime _issueDate = DateTime.now();
-  DateTime _dueDate   = DateTime.now().add(const Duration(days: 30));
+  // Payment term (Clickhuduma style — 30 days on nearly every sale); the
+  // due date is worked out from it.
+  final _termCtrl     = TextEditingController(text: '30');
+  String _termType    = 'days';
+  final _shipCtrl     = TextEditingController();
+  // Optional first payment taken now — the rest stays on credit.
+  final _depositCtrl  = TextEditingController();
+  final _depositRefCtrl = TextEditingController();
+  String _depositMethod = 'bank_transfer';
   String _currency    = 'TZS';
   int    _taxRate     = 0;
   bool   _saving      = false;
@@ -66,6 +79,7 @@ class _InvoiceBuilderScreenState extends State<InvoiceBuilderScreen> {
   void dispose() {
     _clientCtrl.dispose(); _contactCtrl.dispose();
     _emailCtrl.dispose();  _notesCtrl.dispose(); _tinCtrl.dispose();
+    _termCtrl.dispose(); _shipCtrl.dispose(); _depositCtrl.dispose(); _depositRefCtrl.dispose();
     for (final l in _lines) { l.dispose(); }
     super.dispose();
   }
@@ -77,6 +91,22 @@ class _InvoiceBuilderScreenState extends State<InvoiceBuilderScreen> {
   });
   // Same rounding as InvoiceController@store.
   int get _tax => (_subtotal * _taxRate / 100).round();
+  int get _shipping => int.tryParse(_shipCtrl.text.replaceAll(',', '').trim()) ?? 0;
+  int get _total => _subtotal + _tax + _shipping;
+  int get _deposit => int.tryParse(_depositCtrl.text.replaceAll(',', '').trim()) ?? 0;
+  int? get _term => int.tryParse(_termCtrl.text.trim());
+
+  // Same maths as the API (addDays / addMonthsNoOverflow).
+  DateTime? get _dueDate {
+    final n = _term;
+    if (n == null || n < 0) return null;
+    if (_termType == 'days') return _issueDate.add(Duration(days: n));
+    final m = _issueDate.month + n;
+    final y = _issueDate.year + (m - 1) ~/ 12;
+    final month = (m - 1) % 12 + 1;
+    final lastDay = DateTime(y, month + 1, 0).day;
+    return DateTime(y, month, _issueDate.day > lastDay ? lastDay : _issueDate.day);
+  }
 
   void _pickHospital(Hospital? h) => setState(() {
     _hospital = h;
@@ -106,8 +136,17 @@ class _InvoiceBuilderScreenState extends State<InvoiceBuilderScreen> {
       if (qty == null || qty <= 0) errs['items'] = 'Line ${i + 1}: enter a quantity';
       if (price == null || price < 0) errs['items'] = 'Line ${i + 1}: enter a unit price';
     }
-    if (_dueDate.isBefore(DateTime(_issueDate.year, _issueDate.month, _issueDate.day))) {
-      errs['due'] = 'Due date can’t be before the issue date';
+    if (_term == null || _term! < 0) errs['due'] = 'Enter the payment term (e.g. 30 days)';
+    if (_shipCtrl.text.trim().isNotEmpty && int.tryParse(_shipCtrl.text.replaceAll(',', '').trim()) == null) {
+      errs['ship'] = 'Enter the delivery charge as a number';
+    }
+    if (_depositCtrl.text.trim().isNotEmpty) {
+      final d = int.tryParse(_depositCtrl.text.replaceAll(',', '').trim());
+      if (d == null || d <= 0) {
+        errs['deposit'] = 'Enter the deposit as a number';
+      } else if (d > _total) {
+        errs['deposit'] = 'Deposit is more than the invoice total';
+      }
     }
     setState(() => _errors = errs);
     return errs.isEmpty;
@@ -125,7 +164,14 @@ class _InvoiceBuilderScreenState extends State<InvoiceBuilderScreen> {
         'client_email':   _emailCtrl.text.trim().isEmpty ? null : _emailCtrl.text.trim(),
         'client_tin':     normalizeTin(_tinCtrl.text),
         'issue_date':     _isoDate(_issueDate),
-        'due_date':       _isoDate(_dueDate),
+        'pay_term_number': _term,
+        'pay_term_type':  _termType,
+        'shipping_charges': _shipping,
+        if (_deposit > 0) ...{
+          'deposit_amount':    _deposit,
+          'deposit_method':    _depositMethod,
+          'deposit_reference': _depositRefCtrl.text.trim().isEmpty ? null : _depositRefCtrl.text.trim(),
+        },
         'tax_rate':       _taxRate,
         'currency':       _currency,
         'notes':          _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
@@ -311,11 +357,15 @@ class _InvoiceBuilderScreenState extends State<InvoiceBuilderScreen> {
               onPicked: (d) { if (d != null) setState(() => _issueDate = d); },
             )),
             const SizedBox(width: 14),
+            SizedBox(width: 90, child: LabeledTextField(label: 'Payment term', controller: _termCtrl,
+                keyboardType: TextInputType.number, hasError: _errors['due'] != null,
+                onChanged: (_) => setState(() => _errors.remove('due')))),
+            const SizedBox(width: 8),
+            SizedBox(width: 110, child: _drop<String>(' ', _termType, const {'days': 'Days', 'months': 'Months'},
+                (v) => setState(() => _termType = v))),
+            const SizedBox(width: 14),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              SalesDateField(
-                label: 'Due date', selected: _dueDate, firstDate: DateTime(2020),
-                onPicked: (d) { if (d != null) setState(() { _dueDate = d; _errors.remove('due'); }); },
-              ),
+              LabeledStaticField(label: 'Due date', value: _dueDate == null ? '—' : _fmtDate(_dueDate!)),
               _error(_errors['due']),
             ])),
             const SizedBox(width: 14),
@@ -325,6 +375,36 @@ class _InvoiceBuilderScreenState extends State<InvoiceBuilderScreen> {
                 const {'TZS': 'TZS', 'USD': 'USD', 'EUR': 'EUR', 'KES': 'KES'}, (v) => setState(() => _currency = v))),
           ]),
         ),
+      ]),
+    ),
+    const SizedBox(height: 14),
+    Container(
+      padding: const EdgeInsets.all(15),
+      decoration: _card(context),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('DELIVERY & DEPOSIT', style: AppTheme.labelCaps.copyWith(fontSize: 11)),
+        const SizedBox(height: 11),
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            LabeledTextField(label: 'Delivery / transport charge', controller: _shipCtrl, hint: '0',
+                keyboardType: TextInputType.number, hasError: _errors['ship'] != null,
+                onChanged: (_) => setState(() => _errors.remove('ship'))),
+            _error(_errors['ship']),
+          ])),
+          const SizedBox(width: 14),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            LabeledTextField(label: 'Deposit paid now', controller: _depositCtrl, hint: 'Leave empty if nothing paid yet',
+                keyboardType: TextInputType.number, hasError: _errors['deposit'] != null,
+                onChanged: (_) => setState(() => _errors.remove('deposit'))),
+            _error(_errors['deposit']),
+          ])),
+          const SizedBox(width: 14),
+          SizedBox(width: 150, child: _drop<String>('Deposit method', _depositMethod, const {
+            'bank_transfer': 'Bank transfer', 'cash': 'Cash', 'mobile_money': 'Mobile money', 'cheque': 'Cheque'},
+            (v) => setState(() => _depositMethod = v))),
+          const SizedBox(width: 14),
+          Expanded(child: LabeledTextField(label: 'Deposit reference', controller: _depositRefCtrl, hint: 'Bank ref / receipt no.')),
+        ]),
       ]),
     ),
     const SizedBox(height: 14),
@@ -349,8 +429,13 @@ class _InvoiceBuilderScreenState extends State<InvoiceBuilderScreen> {
         const SizedBox(height: 10),
         _totalsRow(context, 'Subtotal', tshFromDouble(_subtotal.toDouble())),
         _totalsRow(context, _taxRate == 0 ? 'VAT' : 'VAT $_taxRate%', tshFromDouble(_tax.toDouble())),
+        if (_shipping > 0) _totalsRow(context, 'Delivery', tshFromDouble(_shipping.toDouble())),
         Padding(padding: const EdgeInsets.symmetric(vertical: 6), child: Container(height: 1, color: context.pal.divider)),
-        _totalsRow(context, 'TOTAL', tshFromDouble((_subtotal + _tax).toDouble()), big: true),
+        _totalsRow(context, 'TOTAL', tshFromDouble(_total.toDouble()), big: true),
+        if (_deposit > 0) ...[
+          _totalsRow(context, 'Deposit now', '- ${tshFromDouble(_deposit.toDouble())}'),
+          _totalsRow(context, 'ON CREDIT', tshFromDouble((_total - _deposit).clamp(0, _total).toDouble()), big: true),
+        ],
       ]),
     ),
     const SizedBox(height: 14),
@@ -361,7 +446,11 @@ class _InvoiceBuilderScreenState extends State<InvoiceBuilderScreen> {
         Text('WHAT HAPPENS ON CREATE', style: AppTheme.labelCaps.copyWith(fontSize: 11)),
         const SizedBox(height: 12),
         _step(context, Symbols.tag, AppColors.teal, 'Gets the next invoice number', 'Status starts as Pending — send it to the client from the invoice.'),
-        _step(context, Symbols.account_balance, AppColors.violet, 'Posted to receivables', 'Counts toward Outstanding and the client’s credit limit straight away.'),
+        _step(context, Symbols.account_balance, AppColors.violet, 'Posted to receivables',
+            'What’s left on credit counts toward Outstanding and the client’s credit limit, due ${_dueDate == null ? 'on the term' : _fmtDate(_dueDate!)}.'),
+        if (_deposit > 0)
+          _step(context, Symbols.payments, AppColors.green, 'Deposit recorded',
+              'Saved as the first payment; later payments are added from the invoice or Credit & Receivables.'),
         _step(context, Symbols.link_off, context.pal.textDim, 'Stands on its own',
             'Not linked to any quotation or sales order, and no stock is moved.', last: true),
       ]),

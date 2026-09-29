@@ -94,6 +94,7 @@ const _salesChildren = [
 // Sub-items shown when Finance group is expanded. No "Dashboard" row — same
 // reasoning as _salesChildren above.
 const _financeChildren = [
+  (key: 'finance_receivables', icon: Symbols.credit_score,       label: 'Credit & Receivables'),
   (key: 'finance_expenses',  icon: Symbols.receipt_long,          label: 'Expenses'),
   (key: 'finance_bills',     icon: Symbols.account_balance_wallet, label: 'Vendor Bills'),
   (key: 'finance_ledger',    icon: Symbols.book,                  label: 'Chart of Accounts'),

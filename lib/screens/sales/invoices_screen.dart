@@ -762,6 +762,10 @@ class _InvoiceDetailDialogState extends State<_InvoiceDetailDialog> {
                     inv.issueDate.length >= 10 ? inv.issueDate.substring(0, 10) : inv.issueDate),
                 _infoTile('Due Date',
                     inv.dueDate.length >= 10 ? inv.dueDate.substring(0, 10) : inv.dueDate),
+                if (inv.payTermNumber != null)
+                  _infoTile('Terms', '${inv.payTermNumber} ${inv.payTermType ?? 'days'}'),
+                if (inv.shippingCharges > 0)
+                  _infoTile('Delivery', _fmt(inv.shippingCharges)),
                 _infoTile('Currency', inv.currency),
               ]),
 
@@ -824,37 +828,12 @@ class _InvoiceDetailDialogState extends State<_InvoiceDetailDialog> {
                 ]),
               )),
 
-              // Payment history
+              // Instalment history — every payment against this invoice in
+              // date order with the balance left after it (credit sales /
+              // hire purchase are paid in pieces over months).
               if (inv.payments.isNotEmpty) ...[
                 const SizedBox(height: 20),
-                Text('Payment History', style: AppTheme.bodyStrong),
-                const SizedBox(height: 8),
-                ...inv.payments.map((p) => Container(
-                  margin: const EdgeInsets.only(bottom: 6),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: context.pal.surface2,
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: context.pal.border),
-                  ),
-                  child: Row(children: [
-                    Icon(Symbols.payments, size: 14, color: AppColors.teal),
-                    const SizedBox(width: 8),
-                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text(p.paymentNumber,
-                          style: AppTheme.monoXs.copyWith(color: context.pal.textDim, fontSize: 11)),
-                      Text('${p.methodLabel}${p.reference != null ? ' · ${p.reference}' : ''}',
-                          style: AppTheme.bodySub.copyWith(fontSize: 11)),
-                    ])),
-                    Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                      Text(_fmt(p.amount),
-                          style: AppTheme.bodySm.copyWith(
-                              color: AppColors.teal, fontWeight: FontWeight.w600)),
-                      Text(p.paidAt.length >= 10 ? p.paidAt.substring(0, 10) : p.paidAt,
-                          style: AppTheme.bodySub.copyWith(fontSize: 10)),
-                    ]),
-                  ]),
-                )),
+                _InstalmentHistory(inv: inv),
               ],
 
               if (inv.notes != null) ...[
@@ -1209,4 +1188,80 @@ class _CreditNotesDialogState extends State<_CreditNotesDialog> {
       ),
     ),
   );
+}
+
+
+class _InstalmentHistory extends StatelessWidget {
+  const _InstalmentHistory({required this.inv});
+  final Invoice inv;
+
+  static DateTime? _date(String s) => DateTime.tryParse(s.length >= 10 ? s.substring(0, 10) : s);
+
+  @override
+  Widget build(BuildContext context) {
+    final pays = [...inv.payments]..sort((a, b) => a.paidAt.compareTo(b.paidAt));
+    final paid = pays.fold<int>(0, (s, p) => s + p.amount);
+    final pct = inv.total > 0 ? (paid / inv.total).clamp(0.0, 1.0) : 0.0;
+    final last = _date(pays.last.paidAt);
+    final sinceLast = last == null ? null : DateTime.now().difference(last).inDays;
+    // Balance after each payment and days since the previous one, worked
+    // out up front so rows don't depend on build order.
+    final rows = <({Payment p, int balance, int? gap})>[];
+    var running = inv.total;
+    DateTime? prev;
+    for (final p in pays) {
+      running -= p.amount;
+      final d = _date(p.paidAt);
+      rows.add((p: p, balance: running < 0 ? 0 : running, gap: (prev != null && d != null) ? d.difference(prev).inDays : null));
+      prev = d ?? prev;
+    }
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Text('Instalments', style: AppTheme.bodyStrong),
+        const SizedBox(width: 8),
+        Text('${pays.length} payment${pays.length == 1 ? '' : 's'} · ${(pct * 100).toStringAsFixed(0)}% paid',
+            style: AppTheme.bodySub.copyWith(fontSize: 11.5)),
+        const Spacer(),
+        if (inv.balanceDue > 0 && sinceLast != null)
+          Text('last payment $sinceLast day${sinceLast == 1 ? '' : 's'} ago',
+              style: AppTheme.bodySub.copyWith(fontSize: 11, color: sinceLast > 60 ? AppColors.coral : null)),
+      ]),
+      const SizedBox(height: 8),
+      ClipRRect(borderRadius: BorderRadius.circular(3), child: LinearProgressIndicator(
+          value: pct, minHeight: 6, backgroundColor: context.pal.surface3, valueColor: AlwaysStoppedAnimation(AppColors.green))),
+      const SizedBox(height: 10),
+      for (var i = 0; i < rows.length; i++) Builder(builder: (context) {
+        final (:p, :balance, :gap) = rows[i];
+        final isDeposit = i == 0 && (p.notes ?? '').toLowerCase().startsWith('deposit');
+        return Container(
+          margin: const EdgeInsets.only(bottom: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: context.pal.surface2,
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: context.pal.border),
+          ),
+          child: Row(children: [
+            Container(
+              width: 26, height: 26, alignment: Alignment.center,
+              decoration: BoxDecoration(color: AppColors.teal.withValues(alpha: 0.14), shape: BoxShape.circle),
+              child: Text('${i + 1}', style: AppTheme.monoXs.copyWith(fontSize: 11, color: AppColors.teal, fontWeight: FontWeight.w700)),
+            ),
+            const SizedBox(width: 10),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('${isDeposit ? 'Deposit' : 'Instalment ${i + 1}'} · ${p.paidAt.length >= 10 ? p.paidAt.substring(0, 10) : p.paidAt}'
+                  '${gap != null ? ' · $gap days after previous' : ''}',
+                  style: AppTheme.bodySm.copyWith(fontSize: 12)),
+              Text('${p.paymentNumber} · ${p.methodLabel}${p.reference != null ? ' · ${p.reference}' : ''}',
+                  style: AppTheme.bodySub.copyWith(fontSize: 10.5)),
+            ])),
+            Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+              Text(_fmt(p.amount), style: AppTheme.bodySm.copyWith(color: AppColors.teal, fontWeight: FontWeight.w600)),
+              Text('balance ${_fmt(balance)}', style: AppTheme.bodySub.copyWith(fontSize: 10)),
+            ]),
+          ]),
+        );
+      }),
+    ]);
+  }
 }
