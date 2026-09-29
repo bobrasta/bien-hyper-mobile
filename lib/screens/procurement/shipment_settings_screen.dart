@@ -337,8 +337,14 @@ class _DepartmentDialogState extends State<_DepartmentDialog> {
       const SizedBox(height: 12),
       LabeledDropdown<int?>(
         label: 'Manager · notified about this department\'s shipments',
-        value: _staff.any((x) => x.id == _manager) || _staff.isEmpty ? _manager : null,
-        items: [null, ..._staff.map((x) => x.id)],
+        value: _manager,
+        // Keep the saved manager as an option while staff loads (or if
+        // they're no longer in the list) — the value must match an item.
+        items: [
+          null,
+          if (_manager != null && !_staff.any((x) => x.id == _manager)) _manager,
+          ..._staff.map((x) => x.id),
+        ],
         displayBuilder: (id) {
           if (id == null) return 'No head set · use the fallback list';
           final m = _staff.where((x) => x.id == id).firstOrNull;
