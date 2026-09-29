@@ -16,11 +16,11 @@ import '../../utils/api_error.dart';
 import '../../utils/format.dart';
 import '../../utils/pdf_download.dart';
 import '../../utils/whatsapp_share.dart';
-import '../../widgets/common/app_dropdown.dart';
 import '../../widgets/common/error_view.dart';
 import '../../widgets/common/labeled_field.dart';
 import '../../widgets/common/period_filter.dart';
 import '../../widgets/common/sliver_table.dart';
+import '../../widgets/sales/line_items.dart';
 
 // ── Status colours ─────────────────────────────────────────────────────────────
 Color _statusColor(String status) => switch (status) {
@@ -503,7 +503,7 @@ class _QuotationDetailScreenState extends State<QuotationDetailScreen> {
               ),
             ],
             const SizedBox(height: 12),
-            _DatePickerField(
+            SalesDateField(
               label: 'Expected Delivery Date', selected: deliveryDate, firstDate: DateTime.now(),
               onPicked: (d) => setS(() => deliveryDate = d),
             ),
@@ -876,7 +876,7 @@ class _QuotationBuilderScreenState extends State<QuotationBuilderScreen> {
   DateTime? _validUntil;
   String _currency   = 'TZS';
   bool   _saving     = false;
-  final _lines = [_LineItemEntry(), _LineItemEntry()];
+  final _lines = [LineItemEntry(), LineItemEntry()];
   List<InventoryItem> _invItems = [];
   Map<String, String> _errors  = {};
   // The creator's own discount ceiling — mirrors ApprovalService::evaluate()
@@ -908,7 +908,7 @@ class _QuotationBuilderScreenState extends State<QuotationBuilderScreen> {
   // Fields don't otherwise trigger a rebuild as you type (the onChanged
   // passed into _LineItemRow is only wired to the item picker) — attach
   // listeners so the discount-ceiling banner and totals stay live.
-  void _attachLineListeners(_LineItemEntry l) {
+  void _attachLineListeners(LineItemEntry l) {
     l.qtyCtrl.addListener(_recalc);
     l.priceCtrl.addListener(_recalc);
     l.discCtrl.addListener(_recalc);
@@ -1136,7 +1136,7 @@ class _QuotationBuilderScreenState extends State<QuotationBuilderScreen> {
                 const SizedBox(width: 22),
               ]),
               Padding(padding: const EdgeInsets.symmetric(vertical: 9), child: Container(width: double.infinity, height: 1, color: context.pal.divider)),
-              ..._lines.asMap().entries.map((e) => _LineItemTableRow(
+              ..._lines.asMap().entries.map((e) => LineItemTableRow(
                 entry: e.value,
                 invItems: _invItems,
                 onRemove: _lines.length > 1
@@ -1146,7 +1146,7 @@ class _QuotationBuilderScreenState extends State<QuotationBuilderScreen> {
               )),
               GestureDetector(
                 onTap: () => setState(() {
-                  final l = _LineItemEntry();
+                  final l = LineItemEntry();
                   _attachLineListeners(l);
                   _lines.add(l);
                 }),
@@ -1167,7 +1167,7 @@ class _QuotationBuilderScreenState extends State<QuotationBuilderScreen> {
             padding: const EdgeInsets.fromLTRB(15, 12, 15, 14),
             decoration: BoxDecoration(color: context.pal.surface2, borderRadius: const BorderRadius.vertical(bottom: Radius.circular(14))),
             child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Expanded(child: _DatePickerField(
+              Expanded(child: SalesDateField(
                 label: 'Valid until', selected: _validUntil, firstDate: DateTime.now(),
                 onPicked: (d) => setState(() => _validUntil = d),
               )),
@@ -1294,142 +1294,6 @@ class _QuotationBuilderScreenState extends State<QuotationBuilderScreen> {
   );
 }
 
-// ── Line item entry (mutable state for form) ───────────────────────────────────
-
-class _LineItemEntry {
-  final descCtrl  = TextEditingController();
-  final uomCtrl   = TextEditingController(text: 'pcs');
-  final qtyCtrl   = TextEditingController(text: '1');
-  final priceCtrl = TextEditingController();
-  final discCtrl  = TextEditingController(text: '0');
-  InventoryItem? selectedItem;
-
-  void dispose() {
-    descCtrl.dispose(); uomCtrl.dispose();
-    qtyCtrl.dispose();  priceCtrl.dispose(); discCtrl.dispose();
-  }
-}
-
-// ── Line item row — compact table row matching the design's Line items panel ────
-
-class _LineItemTableRow extends StatelessWidget {
-  const _LineItemTableRow({
-    required this.entry,
-    required this.invItems,
-    required this.onChanged,
-    required this.onRemove,
-  });
-
-  final _LineItemEntry entry;
-  final List<InventoryItem> invItems;
-  final VoidCallback onChanged;
-  final VoidCallback? onRemove;
-
-  int get _lineTotal {
-    final qty = int.tryParse(entry.qtyCtrl.text) ?? 0;
-    final price = int.tryParse(entry.priceCtrl.text.replaceAll(',', '')) ?? 0;
-    final disc = double.tryParse(entry.discCtrl.text) ?? 0;
-    return ((qty * price) * (1 - disc / 100)).round();
-  }
-
-  Future<void> _pickItem(BuildContext context) async {
-    final picked = await showDialog<InventoryItem?>(
-      context: context,
-      builder: (dialogCtx) => AlertDialog(
-        backgroundColor: context.pal.surface1,
-        title: const Text('Link inventory item'),
-        content: SizedBox(width: 360, height: 360, child: _InvItemPicker(
-          items: invItems, selected: entry.selectedItem,
-          onSelected: (item) => Navigator.of(dialogCtx).pop(item),
-        )),
-        actions: [TextButton(onPressed: () => Navigator.of(dialogCtx).pop(null), child: const Text('Custom item (no link)'))],
-      ),
-    );
-    entry.selectedItem = picked;
-    if (picked != null) {
-      entry.descCtrl.text  = picked.name;
-      entry.uomCtrl.text   = picked.unitOfMeasure;
-      entry.priceCtrl.text = picked.unitCost.toStringAsFixed(0);
-    }
-    onChanged();
-  }
-
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(vertical: 6),
-    decoration: BoxDecoration(border: Border(bottom: BorderSide(color: context.pal.divider))),
-    child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
-      Expanded(flex: 3, child: GestureDetector(
-        onTap: () => _pickItem(context),
-        child: entry.selectedItem != null
-            ? Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-                Text(entry.descCtrl.text, style: AppTheme.bodySm.copyWith(fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
-                Text(entry.selectedItem!.sku, style: AppTheme.monoXs.copyWith(fontSize: 10, color: context.pal.textMute)),
-              ])
-            : Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: FieldFocusBox(
-                  radius: 8,
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                  builder: (context, focusNode) => Row(children: [
-                    Expanded(child: TextField(
-                      controller: entry.descCtrl,
-                      focusNode: focusNode,
-                      cursorColor: context.pal.text,
-                      cursorWidth: 1.5,
-                      style: AppTheme.fieldText.copyWith(fontSize: 13, color: context.pal.text),
-                      decoration: InputDecoration(
-                        hintText: 'Item description…', hintStyle: AppTheme.fieldHint.copyWith(fontSize: 13),
-                        filled: false, border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero,
-                      ),
-                      onChanged: (_) => onChanged(),
-                    )),
-                    Icon(Symbols.search, size: 13, color: context.pal.textDim),
-                  ]),
-                ),
-              ),
-      )),
-      SizedBox(width: 44, child: _cellField(entry.qtyCtrl, context, onChanged)),
-      const SizedBox(width: 8),
-      SizedBox(width: 90, child: _cellField(entry.priceCtrl, context, onChanged)),
-      const SizedBox(width: 8),
-      SizedBox(width: 56, child: _cellField(entry.discCtrl, context, onChanged)),
-      const SizedBox(width: 8),
-      SizedBox(width: 96, child: Text(tshFromDouble(_lineTotal.toDouble()), textAlign: TextAlign.right,
-          style: AppTheme.monoSm.copyWith(fontSize: 12))),
-      SizedBox(width: 22, child: onRemove != null
-          ? GestureDetector(onTap: onRemove, child: Icon(Symbols.close, size: 15, color: context.pal.textDim))
-          : null),
-    ]),
-  );
-
-  Widget _cellField(TextEditingController ctrl, BuildContext context, VoidCallback onChanged) => CellField(
-    controller: ctrl,
-    textAlign: TextAlign.right,
-    mono: true,
-    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-    onChanged: (_) => onChanged(),
-  );
-}
-
-// Inventory catalog can run to hundreds/thousands of SKUs — client-side
-// combobox per Section 4 of hypermed_claude_code_prompt.md.
-class _InvItemPicker extends StatelessWidget {
-  const _InvItemPicker({required this.items, required this.selected, required this.onSelected});
-  final List<InventoryItem> items;
-  final InventoryItem? selected;
-  final ValueChanged<InventoryItem?> onSelected;
-
-  @override
-  Widget build(BuildContext context) => AppSearchableSelectField<InventoryItem>(
-    hint: 'Link inventory item (optional)',
-    selectedLabel: selected == null ? null : '${selected!.sku} · ${selected!.name}',
-    items: items.map((item) => AppSelectItem(
-      value: item, label: '${item.sku} · ${item.name}')).toList(),
-    onSelected: (item) => onSelected(item?.value),
-  );
-}
-
 // ── Small field helpers ────────────────────────────────────────────────────────
 
 Widget _formField(String label, TextEditingController ctrl, String hint, BuildContext ctx,
@@ -1441,39 +1305,6 @@ Widget _formField(String label, TextEditingController ctrl, String hint, BuildCo
         Text(error, style: TextStyle(fontSize: 11, color: AppColors.coral)),
       ],
     ]);
-
-// ── Date picker field ──────────────────────────────────────────────────────────
-
-class _DatePickerField extends StatelessWidget {
-  const _DatePickerField({
-    required this.label,
-    required this.selected,
-    required this.onPicked,
-    this.firstDate,
-  });
-  final String label;
-  final DateTime? selected;
-  final ValueChanged<DateTime?> onPicked;
-  final DateTime? firstDate;
-
-  @override
-  Widget build(BuildContext context) => LabeledDateField(
-    label: label,
-    date: selected,
-    placeholder: 'Pick a date',
-    onClear: () => onPicked(null),
-    onTap: () async {
-      final now = DateTime.now();
-      final picked = await showDatePicker(
-        context: context,
-        initialDate: selected ?? now.add(const Duration(days: 30)),
-        firstDate: firstDate ?? now,
-        lastDate: now.add(const Duration(days: 365 * 5)),
-      );
-      if (picked != null) onPicked(picked);
-    },
-  );
-}
 
 Widget _dropField(String label, String value, List<String> items,
     ValueChanged<String> onChanged, BuildContext ctx) =>

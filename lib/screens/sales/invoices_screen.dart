@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
+import '../../main.dart' show userRoleNotifier, hasAccountantAuthority;
 import '../../models/invoice.dart';
 import '../../services/credit_note_service.dart';
 import '../../services/finance_report_service.dart';
@@ -16,6 +17,7 @@ import '../../widgets/common/error_view.dart';
 import '../../widgets/common/labeled_field.dart';
 import '../../widgets/common/period_filter.dart';
 import '../../widgets/common/sliver_table.dart';
+import 'invoice_builder_screen.dart';
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -124,6 +126,14 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
     });
   }
 
+  Future<void> _newInvoice() async {
+    final created = await Navigator.push<Invoice>(context, MaterialPageRoute(builder: (_) => const InvoiceBuilderScreen()));
+    if (created == null || !mounted) return;
+    showSuccessToast(context, 'Invoice ${created.invoiceNumber} created.');
+    _load();
+    _showDetailModal(created);
+  }
+
   Future<void> _showDetailModal(Invoice inv) async {
     Invoice full;
     try {
@@ -184,7 +194,10 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
             const SizedBox(width: 8),
             OutlinedButton.icon(onPressed: _sendReminders, icon: const Icon(Symbols.notifications_active, size: 15), label: const Text('Send reminders')),
             const SizedBox(width: 8),
-            FilledButton.icon(onPressed: () => widget.onNavigateTo?.call('sales_orders'), icon: const Icon(Symbols.add, size: 16), label: const Text('New invoice')),
+            // Direct invoice — its own form, no quotation or sales order needed.
+            // Same accountant-tier gate as InvoiceController@store.
+            if (hasAccountantAuthority(userRoleNotifier.value))
+              FilledButton.icon(onPressed: _newInvoice, icon: const Icon(Symbols.add, size: 16), label: const Text('New invoice')),
           ]),
         ),
         const SizedBox(height: 12),
