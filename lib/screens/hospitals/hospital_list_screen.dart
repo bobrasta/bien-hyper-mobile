@@ -460,6 +460,17 @@ class _FilterPill extends StatelessWidget {
   );
 }
 
+// Column weights shared by the header and every row so they always line up.
+// Flex (not fixed widths) spreads the columns across whatever width the table
+// gets; long text ellipsizes instead of pushing neighbours around.
+const _kColHospital = 5;
+const _kColRegion   = 2;
+const _kColType     = 2;
+const _kColMachines = 2;
+const _kColUptime   = 2;
+const _kColContact  = 3;
+const _kActionsW    = 56.0;
+
 class _TableHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
@@ -467,21 +478,20 @@ class _TableHeader extends StatelessWidget {
     decoration: BoxDecoration(border: Border(bottom: BorderSide(color: context.pal.border))),
     child: Row(children: [
       const SizedBox(width: 20),
-      _Th('Hospital',         flex: 3),
-      _Th('Region',           flex: 2),
-      _Th('Type',             flex: 1),
-      _Th('Machines',         flex: 1),
-      _Th('Uptime',           flex: 1),
-      _Th('Monthly Rev.',     flex: 2, right: true),
-      _Th('Contact',          flex: 2),
-      const SizedBox(width: 80),
+      _Th('Hospital', flex: _kColHospital),
+      _Th('Region',   flex: _kColRegion),
+      _Th('Type',     flex: _kColType),
+      _Th('Machines', flex: _kColMachines),
+      _Th('Uptime',   flex: _kColUptime),
+      _Th('Contact',  flex: _kColContact),
+      const SizedBox(width: _kActionsW),
     ]),
   );
 }
 
 class _Th extends StatelessWidget {
-  const _Th(this.label, {required this.flex, this.right = false});
-  final String label; final int flex; final bool right;
+  const _Th(this.label, {required this.flex});
+  final String label; final int flex;
 
   @override
   Widget build(BuildContext context) => Expanded(
@@ -489,17 +499,26 @@ class _Th extends StatelessWidget {
     child: Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: Text(label.toUpperCase(),
-        textAlign: right ? TextAlign.right : TextAlign.left,
+        maxLines: 1, overflow: TextOverflow.ellipsis,
         style: AppTheme.monoXs.copyWith(fontWeight: FontWeight.w500, letterSpacing: 0.10)),
     ),
   );
 }
 
-class _HospitalRow extends StatelessWidget {
+/// Whole row is clickable (opens the detail modal) with a hover highlight;
+/// the edit icon keeps its own tap so it doesn't also open the detail.
+class _HospitalRow extends StatefulWidget {
   const _HospitalRow({required this.hospital, this.onView, this.onEdit});
   final Hospital hospital;
   final VoidCallback? onView;
   final VoidCallback? onEdit;
+
+  @override
+  State<_HospitalRow> createState() => _HospitalRowState();
+}
+
+class _HospitalRowState extends State<_HospitalRow> {
+  bool _hover = false;
 
   Color _typeColor(String t) => switch (t) {
     'public'   => AppColors.teal,
@@ -515,121 +534,123 @@ class _HospitalRow extends StatelessWidget {
     _          => t,
   };
 
+  Widget _cell(int flex, Widget child) => Expanded(flex: flex, child: Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+    child: child,
+  ));
+
+  Widget _line(String text, TextStyle style) =>
+      Text(text, maxLines: 1, overflow: TextOverflow.ellipsis, style: style);
+
   @override
   Widget build(BuildContext context) {
+    final hospital = widget.hospital;
     final uptimePct = hospital.uptimePct;
     final uptimeColor = uptimePct >= 0.95
         ? AppColors.teal
         : uptimePct >= 0.85
             ? AppColors.amber
             : AppColors.coral;
+    final typeColor = _typeColor(hospital.type);
 
-    return Container(
-      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: context.pal.divider))),
-      child: Row(children: [
-        const SizedBox(width: 20),
-        // Hospital name
-        Expanded(flex: 3, child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-          child: Row(children: [
-            Container(
-              width: 32, height: 32,
-              decoration: BoxDecoration(
-                color: _typeColor(hospital.type).withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              alignment: Alignment.center,
-              child: Text(hospital.shortCode.length > 3 ? hospital.shortCode.substring(0, 3) : hospital.shortCode,
-                style: AppTheme.monoXs.copyWith(
-                  color: _typeColor(hospital.type), fontSize: 9, fontWeight: FontWeight.w700)),
-            ),
-            const SizedBox(width: 10),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(hospital.name, style: AppTheme.bodyStrong.copyWith(fontSize: 12.5)),
-              Text(hospital.district, style: AppTheme.bodySub.copyWith(fontSize: 11)),
-            ])),
-          ]),
-        )),
-        // Region
-        Expanded(flex: 2, child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-          child: Row(children: [
-            const SizedBox(width: 4),
-            Text(hospital.region, style: AppTheme.bodySm.copyWith(fontSize: 12.5)),
-          ]),
-        )),
-        // Type
-        Expanded(flex: 1, child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-            decoration: BoxDecoration(
-              color: _typeColor(hospital.type).withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: Text(_typeLabel(hospital.type), style: AppTheme.bodySub.copyWith(
-              color: _typeColor(hospital.type), fontSize: 11.5, fontWeight: FontWeight.w500,
-            )),
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hover = true),
+      onExit:  (_) => setState(() => _hover = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.onView,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
+          decoration: BoxDecoration(
+            color: _hover ? context.pal.surface2 : Colors.transparent,
+            border: Border(bottom: BorderSide(color: context.pal.divider)),
           ),
-        )),
-        // Machines
-        Expanded(flex: 1, child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('${hospital.machineCount}', style: AppTheme.bodyStrong.copyWith(fontSize: 13)),
-            Text('${hospital.machinesOperational} active', style: AppTheme.bodySub.copyWith(fontSize: 11)),
-          ]),
-        )),
-        // Uptime
-        Expanded(flex: 1, child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('${(uptimePct * 100).toStringAsFixed(0)}%',
-              style: AppTheme.bodyStrong.copyWith(fontSize: 13, color: uptimeColor)),
-            const SizedBox(height: 4),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(999),
-              child: LinearProgressIndicator(
-                value: uptimePct,
-                backgroundColor: context.pal.surface3,
-                valueColor: AlwaysStoppedAnimation(uptimeColor),
-                minHeight: 3,
+          child: Row(children: [
+            const SizedBox(width: 20),
+            // Hospital name
+            _cell(_kColHospital, Row(children: [
+              Container(
+                width: 32, height: 32,
+                decoration: BoxDecoration(
+                  color: typeColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                alignment: Alignment.center,
+                child: Text(hospital.shortCode.length > 3 ? hospital.shortCode.substring(0, 3) : hospital.shortCode,
+                  style: AppTheme.monoXs.copyWith(
+                    color: typeColor, fontSize: 9, fontWeight: FontWeight.w700)),
               ),
-            ),
+              const SizedBox(width: 10),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                _line(hospital.name, AppTheme.bodyStrong.copyWith(fontSize: 12.5)),
+                if (hospital.district.isNotEmpty)
+                  _line(hospital.district, AppTheme.bodySub.copyWith(fontSize: 11)),
+              ])),
+            ])),
+            // Region
+            _cell(_kColRegion, _line(hospital.region, AppTheme.bodySm.copyWith(fontSize: 12.5))),
+            // Type — Align keeps the pill hugging its label instead of
+            // stretching across the whole column.
+            _cell(_kColType, Align(
+              alignment: Alignment.centerLeft,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: typeColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(_typeLabel(hospital.type), style: AppTheme.bodySub.copyWith(
+                  color: typeColor, fontSize: 11.5, fontWeight: FontWeight.w500,
+                )),
+              ),
+            )),
+            // Machines
+            _cell(_kColMachines, Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('${hospital.machineCount}', style: AppTheme.bodyStrong.copyWith(fontSize: 13)),
+              _line('${hospital.machinesOperational} active', AppTheme.bodySub.copyWith(fontSize: 11)),
+            ])),
+            // Uptime
+            _cell(_kColUptime, Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('${(uptimePct * 100).toStringAsFixed(0)}%',
+                style: AppTheme.bodyStrong.copyWith(fontSize: 13, color: uptimeColor)),
+              const SizedBox(height: 4),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 90),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(999),
+                  child: LinearProgressIndicator(
+                    value: uptimePct,
+                    backgroundColor: context.pal.surface3,
+                    valueColor: AlwaysStoppedAnimation(uptimeColor),
+                    minHeight: 3,
+                  ),
+                ),
+              ),
+            ])),
+            // Contact
+            _cell(_kColContact, Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              _line(hospital.contactName.isEmpty ? '—' : hospital.contactName,
+                  AppTheme.bodySm.copyWith(fontSize: 12)),
+              if (hospital.contactPhone.isNotEmpty)
+                _line(hospital.contactPhone,
+                    AppTheme.monoXs.copyWith(color: context.pal.textMute, fontSize: 10.5)),
+            ])),
+            // Actions — edit only; viewing is a click anywhere on the row.
+            SizedBox(width: _kActionsW, child: Center(
+              child: can('hospitals.manage')
+                  ? IconButton(
+                      onPressed: widget.onEdit,
+                      tooltip: 'Edit hospital',
+                      visualDensity: VisualDensity.compact,
+                      iconSize: 16,
+                      icon: Icon(Symbols.edit, color: context.pal.textDim),
+                    )
+                  : const SizedBox.shrink(),
+            )),
           ]),
-        )),
-        // Revenue
-        Expanded(flex: 2, child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            Text('TSh ${hospital.revenueMonthly.toStringAsFixed(1)}M',
-              style: AppTheme.bodyStrong.copyWith(
-                fontSize: 12.5, color: AppColors.amber,
-                fontFeatures: [const FontFeature.tabularFigures()],
-              )),
-            Text('/ month', style: AppTheme.bodySub.copyWith(fontSize: 10)),
-          ]),
-        )),
-        // Contact
-        Expanded(flex: 2, child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(hospital.contactName, style: AppTheme.bodySm.copyWith(fontSize: 12)),
-            Text(hospital.contactPhone, style: AppTheme.monoXs.copyWith(color: context.pal.textMute, fontSize: 10.5)),
-          ]),
-        )),
-        // Actions
-        SizedBox(width: 80, child: Row(children: [
-          GestureDetector(onTap: onView,
-              child: Icon(Symbols.visibility, size: 16, color: context.pal.textDim)),
-          const SizedBox(width: 8),
-          if (can('hospitals.manage')) ...[
-            GestureDetector(onTap: onEdit,
-                child: Icon(Symbols.edit, size: 16, color: context.pal.textDim)),
-            const SizedBox(width: 8),
-          ],
-        ])),
-      ]),
+        ),
+      ),
     );
   }
 }
