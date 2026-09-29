@@ -42,6 +42,7 @@ class Quotation {
     required this.clientName,
     required this.clientContact,
     required this.clientEmail,
+    this.clientTin,
     required this.status,
     required this.approvalStatus,
     required this.approvalReason,
@@ -72,6 +73,7 @@ class Quotation {
   final String clientName;
   final String? clientContact;
   final String? clientEmail;
+  final String? clientTin;
   final String status;
   final String approvalStatus;
   final String? approvalReason;
@@ -113,6 +115,7 @@ class Quotation {
     clientName:      j['client_name'] as String,
     clientContact:   j['client_contact'] as String?,
     clientEmail:     j['client_email'] as String?,
+    clientTin:       j['client_tin'] as String?,
     status:          j['status'] as String,
     approvalStatus:  j['approval_status'] as String? ?? 'not_required',
     approvalReason:  j['approval_reason'] as String?,

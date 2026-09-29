@@ -11,6 +11,7 @@ import '../../theme/app_palette.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/api_error.dart';
 import '../../utils/format.dart';
+import '../../utils/tin.dart';
 import '../../widgets/common/app_dropdown.dart';
 import '../../widgets/common/labeled_field.dart';
 import '../../widgets/sales/line_items.dart';
@@ -33,6 +34,7 @@ class _InvoiceBuilderScreenState extends State<InvoiceBuilderScreen> {
   final _clientCtrl  = TextEditingController();
   final _contactCtrl = TextEditingController();
   final _emailCtrl   = TextEditingController();
+  final _tinCtrl     = TextEditingController();
   final _notesCtrl   = TextEditingController();
   Hospital? _hospital;
   DateTime _issueDate = DateTime.now();
@@ -63,7 +65,7 @@ class _InvoiceBuilderScreenState extends State<InvoiceBuilderScreen> {
   @override
   void dispose() {
     _clientCtrl.dispose(); _contactCtrl.dispose();
-    _emailCtrl.dispose();  _notesCtrl.dispose();
+    _emailCtrl.dispose();  _notesCtrl.dispose(); _tinCtrl.dispose();
     for (final l in _lines) { l.dispose(); }
     super.dispose();
   }
@@ -83,12 +85,15 @@ class _InvoiceBuilderScreenState extends State<InvoiceBuilderScreen> {
       _clientCtrl.text = h.name;
       if (h.contactName.isNotEmpty && h.contactName != '—') _contactCtrl.text = h.contactName;
       if (h.contactEmail.isNotEmpty && h.contactEmail != '—') _emailCtrl.text = h.contactEmail;
+      if (h.tin != null) { _tinCtrl.text = h.tin!; _errors.remove('tin'); }
     }
   });
 
   bool _validate() {
     final errs = <String, String>{};
     if (_clientCtrl.text.trim().isEmpty) errs['client'] = 'Pick a client or type a client name';
+    final tinErr = tinError(_tinCtrl.text);
+    if (tinErr != null) errs['tin'] = tinErr;
     final email = _emailCtrl.text.trim();
     if (email.isNotEmpty && !RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email)) errs['email'] = 'Enter a valid email';
     final valid = _lines.where((l) => l.descCtrl.text.trim().isNotEmpty).toList();
@@ -118,6 +123,7 @@ class _InvoiceBuilderScreenState extends State<InvoiceBuilderScreen> {
         'client_name':    _clientCtrl.text.trim(),
         'client_contact': _contactCtrl.text.trim().isEmpty ? null : _contactCtrl.text.trim(),
         'client_email':   _emailCtrl.text.trim().isEmpty ? null : _emailCtrl.text.trim(),
+        'client_tin':     normalizeTin(_tinCtrl.text),
         'issue_date':     _isoDate(_issueDate),
         'due_date':       _isoDate(_dueDate),
         'tax_rate':       _taxRate,
@@ -223,6 +229,13 @@ class _InvoiceBuilderScreenState extends State<InvoiceBuilderScreen> {
             _error(_errors['client']),
           ])),
           const SizedBox(width: 12),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            LabeledTextField(label: 'Client TIN *', controller: _tinCtrl, hint: '123-456-789',
+                keyboardType: TextInputType.number, hasError: _errors['tin'] != null,
+                onChanged: (_) { if (_errors.containsKey('tin')) setState(() => _errors.remove('tin')); }),
+            _error(_errors['tin']),
+          ])),
+          const SizedBox(width: 12),
           Expanded(child: LabeledTextField(label: 'Contact', controller: _contactCtrl, hint: 'Person or phone')),
           const SizedBox(width: 12),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -324,15 +337,8 @@ class _InvoiceBuilderScreenState extends State<InvoiceBuilderScreen> {
   ]);
 
   Widget _drop<T>(String label, T value, Map<T, String> options, ValueChanged<T> onChanged) =>
-      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(label, style: AppTheme.fieldLabel),
-        const SizedBox(height: 5),
-        DropdownFieldBox<T>(
-          value: value,
-          items: options.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value))).toList(),
-          onChanged: (v) { if (v != null) onChanged(v); },
-        ),
-      ]);
+      LabeledDropdown<T>(label: label, value: value, items: options.keys.toList(),
+          displayBuilder: (v) => options[v]!, onChanged: onChanged);
 
   Widget _rightColumn(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
     Container(

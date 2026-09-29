@@ -98,6 +98,7 @@ class Invoice {
   final String?       clientName;
   final String?       clientContact;
   final String?       clientEmail;
+  final String?       clientTin;
   // Dates
   final String        issueDate;
   final String        dueDate;
@@ -127,6 +128,7 @@ class Invoice {
     this.clientName,
     this.clientContact,
     this.clientEmail,
+    this.clientTin,
     required this.issueDate,
     required this.dueDate,
     required this.subtotal,
@@ -154,6 +156,7 @@ class Invoice {
     clientName:      j['client_name'] as String?,
     clientContact:   j['client_contact'] as String?,
     clientEmail:     j['client_email'] as String?,
+    clientTin:       j['client_tin'] as String?,
     issueDate:       j['issue_date'] as String? ?? j['created_at'] as String? ?? '—',
     dueDate:         j['due_date']   as String? ?? '—',
     subtotal:        (j['subtotal']    as num? ?? 0).toInt(),

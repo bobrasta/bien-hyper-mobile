@@ -95,6 +95,9 @@ class _AppShellState extends State<AppShell> {
   // plain sidebar click.
   int? _pendingEntityId;
   int? _pendingTabIndex;
+  // Bumped on every navigation so the content navigator starts fresh, even
+  // when the same sidebar item is clicked again from inside a pushed page.
+  int _navEpoch = 0;
 
   @override
   void initState() {
@@ -129,6 +132,7 @@ class _AppShellState extends State<AppShell> {
 
   void _navigate(String key) {
     setState(() {
+      _navEpoch++;
       _activeKey = _gatedKey(key);
       _pendingEntityId = null;
       _pendingTabIndex = null;
@@ -140,6 +144,7 @@ class _AppShellState extends State<AppShell> {
   /// this exact ticket" or "open Approvals on the Per Diem tab").
   void _navigateToEntity(String key, {int? entityId, int? tabIndex}) {
     setState(() {
+      _navEpoch++;
       _activeKey = _gatedKey(key);
       _pendingEntityId = entityId;
       _pendingTabIndex = tabIndex;
@@ -239,6 +244,13 @@ class _AppShellState extends State<AppShell> {
         _navigate('finance_expenses');
     }
   }
+
+  // Pages a screen pushes (Navigator.push — builders, detail pages) open
+  // inside the content area, so the sidebar and top bar stay put.
+  Widget _content() => _ContentNavigator(
+    key: ValueKey('content-$_navEpoch'),
+    child: _buildScreen(),
+  );
 
   Widget _buildScreen() => switch (_activeKey) {
     'dashboard' => UnifiedDashboardScreen(onNavigateTo: _navigate),
@@ -411,7 +423,7 @@ class _AppShellState extends State<AppShell> {
                   activeKey: _sidebarKey,
                   onSelect: (k) => _navigate(k),
                 ),
-                Expanded(child: ClipRect(child: _buildScreen())),
+                Expanded(child: ClipRect(child: _content())),
               ],
             ),
           ),
@@ -446,7 +458,7 @@ class _AppShellState extends State<AppShell> {
                 activeKey: _sidebarKey,
                 onSelect: (k) => _navigate(k),
               ),
-              Expanded(child: ClipRect(child: _buildScreen())),
+              Expanded(child: ClipRect(child: _content())),
             ],
           )),
         ],
@@ -478,7 +490,7 @@ class _AppShellState extends State<AppShell> {
       child: Column(
         children: [
           _trialBanner(),
-          Expanded(child: ClipRect(child: _buildScreen())),
+          Expanded(child: ClipRect(child: _content())),
         ],
       ),
     ),
@@ -625,4 +637,39 @@ class _PlaceholderScreen extends StatelessWidget {
       Text(title, style: TextStyle(color: context.pal.textMute, fontSize: 18)),
     ]),
   );
+}
+
+/// Nested navigator for the shell's content area. The current screen is its
+/// single page (updated in place as the shell rebuilds); anything a screen
+/// pushes stacks on top of it within the content area and switches in place
+/// rather than animating in over the whole window. Dialogs still use the
+/// root navigator (showDialog's default), so they cover the full window.
+class _ContentNavigator extends StatelessWidget {
+  const _ContentNavigator({super.key, required this.child});
+  final Widget child;
+
+  static const _noTransition = _InstantPageTransitions();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Theme(
+      data: theme.copyWith(pageTransitionsTheme: const PageTransitionsTheme(builders: {
+        TargetPlatform.linux: _noTransition, TargetPlatform.windows: _noTransition,
+        TargetPlatform.macOS: _noTransition, TargetPlatform.android: _noTransition,
+        TargetPlatform.iOS: _noTransition, TargetPlatform.fuchsia: _noTransition,
+      })),
+      child: Navigator(
+        pages: [MaterialPage(key: const ValueKey('screen'), child: child)],
+        onDidRemovePage: (_) {},
+      ),
+    );
+  }
+}
+
+class _InstantPageTransitions extends PageTransitionsBuilder {
+  const _InstantPageTransitions();
+  @override
+  Widget buildTransitions<T>(PageRoute<T> route, BuildContext context, Animation<double> animation,
+          Animation<double> secondaryAnimation, Widget child) => child;
 }

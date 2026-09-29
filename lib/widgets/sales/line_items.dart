@@ -87,24 +87,17 @@ class LineItemTableRow extends StatelessWidget {
               ])
             : Padding(
                 padding: const EdgeInsets.only(right: 8),
-                child: FieldFocusBox(
-                  radius: 8,
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                  builder: (context, focusNode) => Row(children: [
-                    Expanded(child: TextField(
-                      controller: entry.descCtrl,
-                      focusNode: focusNode,
-                      cursorColor: context.pal.text,
-                      cursorWidth: 1.5,
-                      style: AppTheme.fieldText.copyWith(fontSize: 13, color: context.pal.text),
-                      decoration: InputDecoration(
-                        hintText: 'Item description…', hintStyle: AppTheme.fieldHint.copyWith(fontSize: 13),
-                        filled: false, border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero,
-                      ),
-                      onChanged: (_) => onChanged(),
-                    )),
-                    Icon(Symbols.search, size: 13, color: context.pal.textDim),
-                  ]),
+                // The unified text input; the search icon opens the inventory picker.
+                child: LabeledTextField(
+                  label: '',
+                  controller: entry.descCtrl,
+                  hint: 'Item description…',
+                  onChanged: (_) => onChanged(),
+                  suffix: GestureDetector(
+                    onTap: () => _pickItem(context),
+                    child: MouseRegion(cursor: SystemMouseCursors.click,
+                        child: Icon(Symbols.search, size: 15, color: context.pal.textDim)),
+                  ),
                 ),
               ),
       )),

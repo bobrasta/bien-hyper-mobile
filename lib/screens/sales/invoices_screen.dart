@@ -756,6 +756,8 @@ class _InvoiceDetailDialogState extends State<_InvoiceDetailDialog> {
                   _infoTile('Contact', inv.clientContact!),
                 if (inv.clientEmail != null)
                   _infoTile('Email', inv.clientEmail!),
+                if (inv.clientTin != null)
+                  _infoTile('TIN', inv.clientTin!),
                 _infoTile('Issue Date',
                     inv.issueDate.length >= 10 ? inv.issueDate.substring(0, 10) : inv.issueDate),
                 _infoTile('Due Date',
@@ -918,7 +920,7 @@ class _PaymentModal extends StatefulWidget {
 class _PaymentModalState extends State<_PaymentModal> {
   final _amtCtrl = TextEditingController();
   final _refCtrl = TextEditingController();
-  final _datCtrl = TextEditingController();
+  DateTime _paidAt = DateTime.now();
   final _noteCtrl= TextEditingController();
   String _method = 'cash';
   bool   _saving = false;
@@ -927,13 +929,12 @@ class _PaymentModalState extends State<_PaymentModal> {
   void initState() {
     super.initState();
     _amtCtrl.text = widget.invoice.balanceDue.toString();
-    _datCtrl.text = DateTime.now().toIso8601String().substring(0, 10);
   }
 
   @override
   void dispose() {
     _amtCtrl.dispose(); _refCtrl.dispose();
-    _datCtrl.dispose(); _noteCtrl.dispose();
+    _noteCtrl.dispose();
     super.dispose();
   }
 
@@ -946,7 +947,7 @@ class _PaymentModalState extends State<_PaymentModal> {
         'amount':         amount,
         'payment_method': _method,
         'reference':      _refCtrl.text.trim().isNotEmpty ? _refCtrl.text.trim() : null,
-        'paid_at':        _datCtrl.text.trim(),
+        'paid_at':        _paidAt.toIso8601String().substring(0, 10),
         'notes':          _noteCtrl.text.trim().isNotEmpty ? _noteCtrl.text.trim() : null,
       });
       if (mounted) Navigator.of(context).pop(true);
@@ -1002,20 +1003,23 @@ class _PaymentModalState extends State<_PaymentModal> {
                 Row(children: [
                   Expanded(child: _field('Amount *', _amtCtrl, context, numeric: true)),
                   const SizedBox(width: 12),
-                  Expanded(child: _field('Date *', _datCtrl, context, hint: 'YYYY-MM-DD')),
+                  Expanded(child: LabeledDateField(
+                    label: 'Date *', date: _paidAt,
+                    onTap: () async {
+                      final d = await showDatePicker(context: context, initialDate: _paidAt,
+                          firstDate: DateTime(2020), lastDate: DateTime.now());
+                      if (d != null) setState(() => _paidAt = d);
+                    },
+                  )),
                 ]),
                 const SizedBox(height: 12),
-                _label('Payment Method'),
-                const SizedBox(height: 5),
-                DropdownFieldBox<String>(
+                LabeledDropdown<String>(
+                  label: 'Payment method',
                   value: _method,
-                  items: const [
-                      DropdownMenuItem(value: 'cash',          child: Text('Cash')),
-                      DropdownMenuItem(value: 'bank_transfer', child: Text('Bank Transfer')),
-                      DropdownMenuItem(value: 'mobile_money',  child: Text('Mobile Money')),
-                      DropdownMenuItem(value: 'cheque',        child: Text('Cheque')),
-                    ],
-                  onChanged: (v) { if (v != null) setState(() => _method = v); },
+                  items: const ['cash', 'bank_transfer', 'mobile_money', 'cheque'],
+                  displayBuilder: (v) => const {'cash': 'Cash', 'bank_transfer': 'Bank transfer',
+                      'mobile_money': 'Mobile money', 'cheque': 'Cheque'}[v]!,
+                  onChanged: (v) => setState(() => _method = v),
                 ),
                 const SizedBox(height: 12),
                 _field('Reference / Transaction ID', _refCtrl, context,
@@ -1055,16 +1059,10 @@ class _PaymentModalState extends State<_PaymentModal> {
   ));
 }
 
-Widget _label(String text) =>
-    Text(text.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10));
-
 Widget _field(String label, TextEditingController ctrl, BuildContext ctx,
     {String? hint, int maxLines = 1, bool numeric = false}) =>
-  Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    _label(label),
-    const SizedBox(height: 5),
-    LabeledTextField(label: '', controller: ctrl, maxLines: maxLines, keyboardType: numeric ? TextInputType.number : TextInputType.text, hint: hint),
-  ]);
+  LabeledTextField(label: label, controller: ctrl, maxLines: maxLines,
+      keyboardType: numeric ? TextInputType.number : TextInputType.text, hint: hint);
 
 // ── Credit Notes dialog ──────────────────────────────────────────────────────
 

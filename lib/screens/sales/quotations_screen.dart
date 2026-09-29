@@ -14,6 +14,7 @@ import '../../theme/app_palette.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/api_error.dart';
 import '../../utils/format.dart';
+import '../../utils/tin.dart';
 import '../../utils/pdf_download.dart';
 import '../../utils/whatsapp_share.dart';
 import '../../widgets/common/error_view.dart';
@@ -494,11 +495,11 @@ class _QuotationDetailScreenState extends State<QuotationDetailScreen> {
             if (loadError != null)
               Text(loadError, style: AppTheme.bodySub.copyWith(color: AppColors.coral))
             else ...[
-              Text('Ship from location', style: AppTheme.fieldLabel),
-              const SizedBox(height: 6),
-              DropdownFieldBox<int>(
+              LabeledDropdown<int?>(
+                label: 'Ship from location',
                 value: locationId,
-                items: locations.map((l) => DropdownMenuItem(value: l.id, child: Text(l.name))).toList(),
+                items: locations.map<int?>((l) => l.id).toList(),
+                displayBuilder: (id) => locations.firstWhere((l) => l.id == id).name,
                 onChanged: (v) => setS(() => locationId = v),
               ),
             ],
@@ -546,6 +547,11 @@ class _QuotationDetailScreenState extends State<QuotationDetailScreen> {
               _StatusBadge(qt.approvalStatus == 'pending' ? 'pending' : qt.approvalStatus,
                   qt.approvalStatus == 'pending' ? 'approval pending' : 'approval ${qt.approvalStatus}'),
             ],
+            const SizedBox(width: 12),
+            Flexible(child: Text(
+              '${qt.clientName}${qt.clientTin != null ? ' · TIN ${qt.clientTin}' : ''}',
+              maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: AppTheme.bodySub.copyWith(fontSize: 12))),
           ]),
           actions: qt == null ? null : [
             if (_sharing)
@@ -873,6 +879,7 @@ class _QuotationBuilderScreenState extends State<QuotationBuilderScreen> {
   final _contactCtrl = TextEditingController();
   final _emailCtrl   = TextEditingController();
   final _notesCtrl   = TextEditingController();
+  final _tinCtrl     = TextEditingController();
   DateTime? _validUntil;
   String _currency   = 'TZS';
   bool   _saving     = false;
@@ -937,7 +944,7 @@ class _QuotationBuilderScreenState extends State<QuotationBuilderScreen> {
   @override
   void dispose() {
     _clientCtrl.dispose(); _contactCtrl.dispose();
-    _emailCtrl.dispose();  _notesCtrl.dispose();
+    _emailCtrl.dispose();  _notesCtrl.dispose(); _tinCtrl.dispose();
     for (final l in _lines) { l.dispose(); }
     super.dispose();
   }
@@ -945,6 +952,8 @@ class _QuotationBuilderScreenState extends State<QuotationBuilderScreen> {
   bool _validate() {
     final errs = <String, String>{};
     if (_clientCtrl.text.trim().isEmpty) errs['client'] = 'Client name is required';
+    final tinErr = tinError(_tinCtrl.text);
+    if (tinErr != null) errs['tin'] = tinErr;
     final validLines = _lines.where((l) => l.descCtrl.text.trim().isNotEmpty).toList();
     if (validLines.isEmpty) errs['items'] = 'Add at least one line item with a description';
     for (var i = 0; i < _lines.length; i++) {
@@ -967,6 +976,7 @@ class _QuotationBuilderScreenState extends State<QuotationBuilderScreen> {
       'client_name':    _clientCtrl.text.trim(),
       'client_contact': _contactCtrl.text.trim().isNotEmpty ? _contactCtrl.text.trim() : null,
       'client_email':   _emailCtrl.text.trim().isNotEmpty   ? _emailCtrl.text.trim()   : null,
+      'client_tin':     normalizeTin(_tinCtrl.text),
       'valid_until':    _validUntil != null ? _isoDate(_validUntil!) : null,
       'currency':       _currency,
       'notes':          _notesCtrl.text.trim().isNotEmpty ? _notesCtrl.text.trim() : null,
@@ -1097,6 +1107,10 @@ class _QuotationBuilderScreenState extends State<QuotationBuilderScreen> {
             Expanded(flex: 2, child: _formField('Client name *', _clientCtrl, 'Hospital or company', context,
                 error: _errors['client'],
                 onChanged: (_) { if (_errors.containsKey('client')) setState(() => _errors.remove('client')); })),
+            const SizedBox(width: 12),
+            Expanded(child: _formField('Client TIN *', _tinCtrl, '123-456-789', context,
+                error: _errors['tin'],
+                onChanged: (_) { if (_errors.containsKey('tin')) setState(() => _errors.remove('tin')); })),
             const SizedBox(width: 12),
             Expanded(child: _formField('Contact', _contactCtrl, 'Dr. Name', context)),
             const SizedBox(width: 12),
@@ -1308,12 +1322,4 @@ Widget _formField(String label, TextEditingController ctrl, String hint, BuildCo
 
 Widget _dropField(String label, String value, List<String> items,
     ValueChanged<String> onChanged, BuildContext ctx) =>
-    Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(label, style: AppTheme.fieldLabel),
-      const SizedBox(height: 5),
-      DropdownFieldBox<String>(
-        value: value,
-        items: items.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
-        onChanged: (v) { if (v != null) onChanged(v); },
-      ),
-    ]);
+    LabeledDropdown<String>(label: label, value: value, items: items, displayBuilder: (v) => v, onChanged: onChanged);
