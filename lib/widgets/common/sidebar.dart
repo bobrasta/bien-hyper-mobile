@@ -82,7 +82,9 @@ const _hr = [
 const _salesChildren = [
   (key: 'sales_leads',       icon: Symbols.trending_up,   label: 'Leads'),
   (key: 'sales_quotations',  icon: Symbols.request_quote, label: 'Quotations'),
-  (key: 'sales_orders',      icon: Symbols.shopping_cart, label: 'Sales Orders'),
+  // Sales Orders hidden from the menu for now (user, 2026-09-30); the screen
+  // still exists and notifications/search can still open it.
+  // (key: 'sales_orders',      icon: Symbols.shopping_cart, label: 'Sales Orders'),
   (key: 'sales_invoices',    icon: Symbols.receipt_long,  label: 'Invoices'),
   (key: 'sales_history',     icon: Symbols.history,       label: 'History'),
   // sales.create_subordinate_user-gated — filtered out below for anyone who
