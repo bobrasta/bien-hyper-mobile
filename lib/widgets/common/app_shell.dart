@@ -41,7 +41,7 @@ import '../../screens/sales/invoices_screen.dart';
 import '../../screens/sales/quotations_screen.dart';
 import '../../screens/sales/sales_dashboard_screen.dart';
 import '../../screens/sales/sales_orders_screen.dart';
-import '../../screens/sales/sales_history_screen.dart';
+import '../../screens/sales/all_sales_screen.dart';
 import '../../screens/sales/team_screen.dart';
 import '../../screens/performance/my_performance_screen.dart';
 import '../../screens/performance/team_performance_screen.dart';
@@ -296,7 +296,7 @@ class _AppShellState extends State<AppShell> {
     'sales_quotations'       => const QuotationsScreen(),
     'sales_orders'           => SalesOrdersScreen(onNavigateTo: _navigate),
     'sales_invoices'         => InvoicesScreen(onNavigateTo: _navigate),
-    'sales_history'          => const SalesHistoryScreen(),
+    'sales_history'          => const AllSalesScreen(),
     'sales_team'             => const TeamScreen(),
     'team_performance'       => const TeamPerformanceScreen(),
     'my_performance'         => const MyPerformanceScreen(),

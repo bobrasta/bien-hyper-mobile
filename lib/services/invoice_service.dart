@@ -15,16 +15,17 @@ class InvoiceService {
   static Map<String, dynamic>? cachedRevenueSummary;
   static List<Map<String, dynamic>>? cachedRevenueByHospital;
 
-  Future<List<Invoice>> list({String? status, String? search, int? salesOrderId, int? machineId, Period? period}) async {
+  Future<List<Invoice>> list({String? status, String? search, int? salesOrderId, int? machineId, Period? period, String? saleStatus}) async {
     final data = await ApiClient.getAllPages(_dio, '/invoices', query: {
       ...?period?.query,
+      'sale_status':     ?saleStatus,
       'status':          ?status,
       'search':          ?search,
       'sales_order_id':  ?salesOrderId,
       'machine_id':      ?machineId,
     });
     final invoices = data.map((j) => Invoice.fromJson(j as Map<String, dynamic>)).toList();
-    if (status == null && search == null && salesOrderId == null && machineId == null && (period?.isDefault ?? false)) {
+    if (status == null && search == null && salesOrderId == null && machineId == null && saleStatus == null && (period?.isDefault ?? false)) {
       cachedDefaultList = invoices;
     }
     return invoices;
@@ -35,6 +36,31 @@ class InvoiceService {
     final invoice = Invoice.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
     cachedById[invoice.id] = invoice;
     return invoice;
+  }
+
+  /// Full edit (line items, terms, notes) or a sale-status change
+  /// (draft ↔ proforma, or finalise with sale_status: 'final').
+  Future<Invoice> update(int id, Map<String, dynamic> data) async {
+    final res = await _dio.put('/invoices/$id', data: data);
+    return Invoice.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+  }
+
+  Future<Invoice> updateShipping(int id, Map<String, dynamic> data) async {
+    final res = await _dio.put('/invoices/$id/shipping', data: data);
+    return Invoice.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
+  }
+
+  Future<void> delete(int id) => _dio.delete('/invoices/$id');
+
+  /// New Sale Notification: emails the invoice PDF to the customer.
+  Future<String> notify(int id, {required String to, required String subject, required String message}) async {
+    final res = await _dio.post('/invoices/$id/notify', data: {'to': to, 'subject': subject, 'message': message});
+    return (res.data as Map)['message'] as String? ?? 'Sent.';
+  }
+
+  Future<List<int>> deliveryNoteBytes(int id) async {
+    final res = await _dio.get<List<int>>('/invoices/$id/delivery-note', options: Options(responseType: ResponseType.bytes));
+    return res.data ?? [];
   }
 
   Future<Invoice> send(int id) async {

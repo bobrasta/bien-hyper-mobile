@@ -86,7 +86,7 @@ const _salesChildren = [
   // still exists and notifications/search can still open it.
   // (key: 'sales_orders',      icon: Symbols.shopping_cart, label: 'Sales Orders'),
   (key: 'sales_invoices',    icon: Symbols.receipt_long,  label: 'Invoices'),
-  (key: 'sales_history',     icon: Symbols.history,       label: 'History'),
+  (key: 'sales_history',     icon: Symbols.point_of_sale, label: 'All sales'),
   // sales.create_subordinate_user-gated — filtered out below for anyone who
   // doesn't hold it (a plain 'sales' rep), so these only ever appear for a
   // sales_manager building their own team / reviewing team performance.

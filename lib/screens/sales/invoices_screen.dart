@@ -585,6 +585,15 @@ Future<bool> showInvoiceDetail(BuildContext context, int invoiceId) async {
   return changed == true;
 }
 
+/// Record a payment against [inv] (All sales → Add payment). True when saved.
+Future<bool> showRecordPayment(BuildContext context, Invoice inv) async =>
+    await showDialog<bool>(context: context, builder: (_) => _PaymentModal(invoice: inv)) == true;
+
+/// Credit notes for [inv] — issue one for returned goods (All sales →
+/// Sell Return). True when something changed.
+Future<bool> showCreditNotes(BuildContext context, Invoice inv) async =>
+    await showDialog<bool>(context: context, builder: (_) => _CreditNotesDialog(invoice: inv)) == true;
+
 class _InvoiceDetailDialog extends StatefulWidget {
   const _InvoiceDetailDialog({required this.inv});
   final Invoice inv;

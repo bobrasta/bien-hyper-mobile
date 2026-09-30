@@ -121,6 +121,20 @@ class Invoice {
   // Server-computed, accounts for applied credit notes on top of payments —
   // prefer this over the local total-minus-paid math below when present.
   final int?          balanceDueOverride;
+  // Clickhuduma sale record ("All sales")
+  final String        saleStatus;      // final | draft | proforma
+  final String        chPaymentStatus; // paid | due | partial | overdue | cancelled | waived | draft | proforma
+  final String?       contactPhone;
+  final int?          createdBy;
+  final String?       addedBy;
+  final String?       staffNote;
+  final double?       totalItems;
+  final List<String>  paymentMethods;
+  final int           credited;
+  final String?       shippingStatus;
+  final String?       shippingAddress;
+  final String?       shippingDetails;
+  final String?       deliveredTo;
 
   const Invoice({
     required this.id,
@@ -149,6 +163,19 @@ class Invoice {
     this.lineItems = const [],
     this.payments  = const [],
     this.balanceDueOverride,
+    this.saleStatus = 'final',
+    this.chPaymentStatus = 'due',
+    this.contactPhone,
+    this.createdBy,
+    this.addedBy,
+    this.staffNote,
+    this.totalItems,
+    this.paymentMethods = const [],
+    this.credited = 0,
+    this.shippingStatus,
+    this.shippingAddress,
+    this.shippingDetails,
+    this.deliveredTo,
   });
 
   factory Invoice.fromJson(Map<String, dynamic> j) => Invoice(
@@ -182,14 +209,36 @@ class Invoice {
     payments:        (j['payments']    as List? ?? [])
                          .map((e) => Payment.fromJson(e as Map<String, dynamic>)).toList(),
     balanceDueOverride: (j['balance_due'] as num?)?.toInt(),
+    saleStatus:      j['sale_status'] as String? ?? 'final',
+    chPaymentStatus: j['payment_status'] as String? ?? 'due',
+    contactPhone:    j['contact_phone'] as String?,
+    createdBy:       (j['created_by'] as num?)?.toInt(),
+    addedBy:         j['added_by'] as String?,
+    staffNote:       j['staff_note'] as String?,
+    totalItems:      (j['total_items'] as num?)?.toDouble(),
+    paymentMethods:  (j['payment_methods'] as List? ?? []).map((e) => e.toString()).toList(),
+    credited:        (j['credited'] as num? ?? 0).toInt(),
+    shippingStatus:  j['shipping_status'] as String?,
+    shippingAddress: j['shipping_address'] as String?,
+    shippingDetails: j['shipping_details'] as String?,
+    deliveredTo:     j['delivered_to'] as String?,
   );
+
+  bool get isFinal => saleStatus == 'final';
+
+  static String methodLabelOf(String m) => switch (m) {
+    'bank_transfer' => 'Bank Transfer',
+    'mobile_money'  => 'Mobile Money',
+    'cheque'        => 'Cheque',
+    _               => 'Cash',
+  };
 
   int    get balanceDue  => balanceDueOverride ?? (total - amountPaid).clamp(0, total);
   String get displayName => clientName ?? hospitalName ?? '—';
   bool get isPaid        => status == PaymentStatus.paid || status == PaymentStatus.waived;
-  bool get canSend       => status == PaymentStatus.pending;
-  bool get canPay        => !isPaid && status != PaymentStatus.cancelled;
-  bool get canCancel     => !isPaid;
+  bool get canSend       => isFinal && status == PaymentStatus.pending;
+  bool get canPay        => isFinal && !isPaid && status != PaymentStatus.cancelled;
+  bool get canCancel     => isFinal && !isPaid;
 
   // The backend never actually stores PaymentStatus.overdue on a row — it's
   // a point-in-time fact ("still unpaid past its due date"), not a workflow

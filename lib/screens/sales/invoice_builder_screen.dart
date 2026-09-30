@@ -6,6 +6,7 @@ import '../../models/invoice.dart';
 import '../../services/hospital_service.dart';
 import '../../services/inventory_service.dart';
 import '../../services/invoice_service.dart';
+import '../../services/quotation_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_palette.dart';
 import '../../theme/app_theme.dart';
@@ -24,12 +25,18 @@ String _fmtDate(DateTime d) {
 String _isoDate(DateTime d) =>
     '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
-/// Raises an invoice directly — no quotation or sales order behind it
-/// (POST /invoices). Quotations are a separate, optional sales document;
-/// order-based invoicing still happens from the Sales Order after delivery.
-/// Pops with the created [Invoice].
+/// The sale form (Clickhuduma "Add sale"): raises a sale directly — no
+/// quotation or sales order behind it (POST /invoices). Its Status saves
+/// it as a Final sale, a Draft or a Proforma (finalised later by editing),
+/// or as a Quotation on the Quotations page.
+///
+/// [editing] opens an existing sale for editing (PUT /invoices/{id});
+/// [duplicateFrom] pre-fills a new sale from an existing one. Pops with
+/// the saved [Invoice] (null when it was saved as a quotation).
 class InvoiceBuilderScreen extends StatefulWidget {
-  const InvoiceBuilderScreen({super.key});
+  const InvoiceBuilderScreen({super.key, this.editing, this.duplicateFrom});
+  final Invoice? editing;
+  final Invoice? duplicateFrom;
 
   @override
   State<InvoiceBuilderScreen> createState() => _InvoiceBuilderScreenState();
@@ -58,6 +65,14 @@ class _InvoiceBuilderScreenState extends State<InvoiceBuilderScreen> {
   final _lines = [LineItemEntry()];
   List<InventoryItem> _invItems = [];
   Map<String, String> _errors = {};
+  final _staffNoteCtrl = TextEditingController();
+  // final | draft | proforma | quotation
+  String _saleStatus = 'final';
+  String? _hospitalLabel;
+
+  bool get _isEdit => widget.editing != null;
+  // A final sale can't go back to draft/proforma once saved.
+  bool get _lockedFinal => _isEdit && widget.editing!.isFinal;
 
   @override
   void initState() {
@@ -65,7 +80,45 @@ class _InvoiceBuilderScreenState extends State<InvoiceBuilderScreen> {
     InventoryService.instance.list().then((items) {
       if (mounted) setState(() => _invItems = items);
     }).catchError((_) {});
+    final src = widget.editing ?? widget.duplicateFrom;
+    if (src != null) _prefill(src);
     for (final l in _lines) { _attach(l); }
+  }
+
+  void _prefill(Invoice inv) {
+    if (_isEdit) _saleStatus = inv.saleStatus;
+    _clientCtrl.text = inv.displayName == '—' ? '' : inv.displayName;
+    _contactCtrl.text = inv.clientContact ?? '';
+    _emailCtrl.text = inv.clientEmail ?? '';
+    _tinCtrl.text = inv.clientTin ?? '';
+    _notesCtrl.text = inv.notes ?? '';
+    _staffNoteCtrl.text = inv.staffNote ?? '';
+    if (_isEdit) _issueDate = DateTime.tryParse(inv.issueDate) ?? DateTime.now();
+    if (inv.payTermNumber != null) {
+      _termCtrl.text = '${inv.payTermNumber}';
+      _termType = inv.payTermType == 'months' ? 'months' : 'days';
+    }
+    if (inv.shippingCharges > 0) _shipCtrl.text = '${inv.shippingCharges}';
+    _taxRate = inv.taxRate.round() == 18 ? 18 : 0;
+    _currency = const ['TZS', 'USD', 'EUR', 'KES'].contains(inv.currency) ? inv.currency : 'TZS';
+    if (inv.lineItems.isNotEmpty) {
+      for (final l in _lines) { l.dispose(); }
+      _lines
+        ..clear()
+        ..addAll(inv.lineItems.map((li) {
+          final e = LineItemEntry();
+          e.descCtrl.text = li.description;
+          e.qtyCtrl.text = li.quantity == li.quantity.roundToDouble() ? '${li.quantity.toInt()}' : '${li.quantity}';
+          e.priceCtrl.text = '${li.unitPrice}';
+          return e;
+        }));
+    }
+    if (inv.hospitalId != null) {
+      _hospitalLabel = inv.hospitalName ?? inv.displayName;
+      HospitalService.instance.get(inv.hospitalId!).then((h) {
+        if (mounted) setState(() => _hospital = h);
+      }).catchError((_) {});
+    }
   }
 
   void _attach(LineItemEntry l) {
@@ -80,6 +133,7 @@ class _InvoiceBuilderScreenState extends State<InvoiceBuilderScreen> {
     _clientCtrl.dispose(); _contactCtrl.dispose();
     _emailCtrl.dispose();  _notesCtrl.dispose(); _tinCtrl.dispose();
     _termCtrl.dispose(); _shipCtrl.dispose(); _depositCtrl.dispose(); _depositRefCtrl.dispose();
+    _staffNoteCtrl.dispose();
     for (final l in _lines) { l.dispose(); }
     super.dispose();
   }
@@ -110,6 +164,7 @@ class _InvoiceBuilderScreenState extends State<InvoiceBuilderScreen> {
 
   void _pickHospital(Hospital? h) => setState(() {
     _hospital = h;
+    _hospitalLabel = h?.name;
     _errors.remove('client');
     if (h != null) {
       _clientCtrl.text = h.name;
@@ -122,7 +177,8 @@ class _InvoiceBuilderScreenState extends State<InvoiceBuilderScreen> {
   bool _validate() {
     final errs = <String, String>{};
     if (_clientCtrl.text.trim().isEmpty) errs['client'] = 'Pick a client or type a client name';
-    final tinErr = tinError(_tinCtrl.text);
+    // A draft may be saved before the TIN is known.
+    final tinErr = _saleStatus == 'draft' && _tinCtrl.text.trim().isEmpty ? null : tinError(_tinCtrl.text);
     if (tinErr != null) errs['tin'] = tinErr;
     final email = _emailCtrl.text.trim();
     if (email.isNotEmpty && !RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email)) errs['email'] = 'Enter a valid email';
@@ -140,7 +196,7 @@ class _InvoiceBuilderScreenState extends State<InvoiceBuilderScreen> {
     if (_shipCtrl.text.trim().isNotEmpty && int.tryParse(_shipCtrl.text.replaceAll(',', '').trim()) == null) {
       errs['ship'] = 'Enter the delivery charge as a number';
     }
-    if (_depositCtrl.text.trim().isNotEmpty) {
+    if (_depositCtrl.text.trim().isNotEmpty && _showDeposit) {
       final d = int.tryParse(_depositCtrl.text.replaceAll(',', '').trim());
       if (d == null || d <= 0) {
         errs['deposit'] = 'Enter the deposit as a number';
@@ -152,41 +208,97 @@ class _InvoiceBuilderScreenState extends State<InvoiceBuilderScreen> {
     return errs.isEmpty;
   }
 
+  // Deposit is taken with a new final sale only.
+  bool get _showDeposit => !_isEdit && _saleStatus == 'final';
+
+  List<Map<String, dynamic>> get _linePayload => _lines
+      .where((l) => l.descCtrl.text.trim().isNotEmpty)
+      .map((l) => {
+            'description': l.descCtrl.text.trim(),
+            'quantity':    int.tryParse(l.qtyCtrl.text) ?? 1,
+            'unit_price':  int.tryParse(l.priceCtrl.text.replaceAll(',', '')) ?? 0,
+          })
+      .toList();
+
+  String? _text(TextEditingController c) => c.text.trim().isEmpty ? null : c.text.trim();
+
   Future<void> _save() async {
     if (_saving || !_validate()) return;
     setState(() => _saving = true);
     try {
-      final valid = _lines.where((l) => l.descCtrl.text.trim().isNotEmpty);
-      final inv = await InvoiceService.instance.create({
+      if (_saleStatus == 'quotation') {
+        final q = await QuotationService.instance.create({
+          'client_name':    _clientCtrl.text.trim(),
+          'client_contact': _text(_contactCtrl),
+          'client_email':   _text(_emailCtrl),
+          'client_tin':     normalizeTin(_tinCtrl.text),
+          'valid_until':    _isoDate(_dueDate ?? _issueDate.add(const Duration(days: 30))),
+          'currency':       _currency,
+          'notes':          _text(_notesCtrl),
+          'items': _linePayload.map((l) => {...l, 'unit_of_measure': 'pcs', 'discount_percent': 0}).toList(),
+        });
+        if (!mounted) return;
+        showSuccessToast(context, 'Saved as quotation ${q.quotationNumber} — it is on the Quotations page.');
+        Navigator.of(context).pop<Invoice>(null);
+        return;
+      }
+
+      final data = <String, dynamic>{
         'hospital_id':    _hospital?.id,
         'client_name':    _clientCtrl.text.trim(),
-        'client_contact': _contactCtrl.text.trim().isEmpty ? null : _contactCtrl.text.trim(),
-        'client_email':   _emailCtrl.text.trim().isEmpty ? null : _emailCtrl.text.trim(),
-        'client_tin':     normalizeTin(_tinCtrl.text),
+        'client_contact': _text(_contactCtrl),
+        'client_email':   _text(_emailCtrl),
+        'client_tin':     _tinCtrl.text.trim().isEmpty ? null : normalizeTin(_tinCtrl.text),
         'issue_date':     _isoDate(_issueDate),
         'pay_term_number': _term,
         'pay_term_type':  _termType,
         'shipping_charges': _shipping,
-        if (_deposit > 0) ...{
-          'deposit_amount':    _deposit,
-          'deposit_method':    _depositMethod,
-          'deposit_reference': _depositRefCtrl.text.trim().isEmpty ? null : _depositRefCtrl.text.trim(),
-        },
         'tax_rate':       _taxRate,
-        'currency':       _currency,
-        'notes':          _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
-        'line_items': valid.map((l) => {
-          'description': l.descCtrl.text.trim(),
-          'quantity':    int.tryParse(l.qtyCtrl.text) ?? 1,
-          'unit_price':  int.tryParse(l.priceCtrl.text.replaceAll(',', '')) ?? 0,
-        }).toList(),
-      });
+        'notes':          _text(_notesCtrl),
+        'staff_note':     _text(_staffNoteCtrl),
+        'line_items':     _linePayload,
+      };
+      final Invoice inv;
+      if (_isEdit) {
+        inv = await InvoiceService.instance.update(widget.editing!.id, {
+          ...data,
+          if (!_lockedFinal) 'sale_status': _saleStatus,
+        });
+      } else {
+        inv = await InvoiceService.instance.create({
+          ...data,
+          'sale_status': _saleStatus,
+          'currency':    _currency,
+          if (_showDeposit && _deposit > 0) ...{
+            'deposit_amount':    _deposit,
+            'deposit_method':    _depositMethod,
+            'deposit_reference': _text(_depositRefCtrl),
+          },
+        });
+      }
       if (mounted) Navigator.of(context).pop<Invoice>(inv);
     } catch (e) {
       // Server-side messages (e.g. the client's credit limit) are shown as-is.
       if (mounted) setState(() { _saving = false; _errors = {'_server': friendlyError(e)}; });
     }
   }
+
+  String get _title => _isEdit
+      ? 'Edit ${widget.editing!.invoiceNumber}'
+      : widget.duplicateFrom != null ? 'Duplicate of ${widget.duplicateFrom!.invoiceNumber}' : 'Add sale';
+
+  String get _saveLabel => switch (_saleStatus) {
+    'draft'     => 'Save draft',
+    'proforma'  => 'Save proforma',
+    'quotation' => 'Save quotation',
+    _           => _isEdit && !_lockedFinal ? 'Finalise sale' : (_isEdit ? 'Save changes' : 'Save sale'),
+  };
+
+  Map<String, String> get _statusOptions => _lockedFinal
+      ? const {'final': 'Final'}
+      : _isEdit
+          ? const {'final': 'Final', 'draft': 'Draft', 'proforma': 'Proforma'}
+          : const {'final': 'Final', 'draft': 'Draft', 'quotation': 'Quotation', 'proforma': 'Proforma'};
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -198,9 +310,7 @@ class _InvoiceBuilderScreenState extends State<InvoiceBuilderScreen> {
       surfaceTintColor: Colors.transparent,
       titleSpacing: 4,
       title: Row(mainAxisSize: MainAxisSize.min, children: [
-        Text('New invoice', style: AppTheme.bodyStrong.copyWith(fontSize: 15)),
-        const SizedBox(width: 10),
-        Text('direct — no quotation or order needed', style: AppTheme.bodySub.copyWith(fontSize: 11)),
+        Text(_title, style: AppTheme.bodyStrong.copyWith(fontSize: 15)),
       ]),
       actions: [
         FilledButton.icon(
@@ -208,7 +318,7 @@ class _InvoiceBuilderScreenState extends State<InvoiceBuilderScreen> {
           icon: _saving
               ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
               : const Icon(Symbols.receipt_long, size: 14),
-          label: const Text('Create invoice'),
+          label: Text(_saveLabel),
         ),
         const SizedBox(width: 16),
       ],
@@ -256,12 +366,22 @@ class _InvoiceBuilderScreenState extends State<InvoiceBuilderScreen> {
       padding: const EdgeInsets.all(15),
       decoration: _card(context),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('CLIENT', style: AppTheme.labelCaps.copyWith(fontSize: 11)),
+        Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+          Expanded(child: Text('CLIENT', style: AppTheme.labelCaps.copyWith(fontSize: 11))),
+          SizedBox(width: 170, child: LabeledDropdown<String>(
+            label: 'Status *',
+            value: _saleStatus,
+            items: _statusOptions.keys.toList(),
+            displayBuilder: (v) => _statusOptions[v]!,
+            enabled: !_lockedFinal,
+            onChanged: (v) => setState(() { _saleStatus = v; _errors.remove('tin'); }),
+          )),
+        ]),
         const SizedBox(height: 11),
         AppSearchableSelectField<Hospital>(
           label: 'Find client in directory',
           hint: 'Type a hospital or client name…',
-          selectedLabel: _hospital?.name,
+          selectedLabel: _hospitalLabel,
           asyncSearch: (q) async => (await HospitalService.instance.search(q))
               .map((h) => AppSelectItem(value: h, label: h.name)).toList(),
           onSelected: (item) => _pickHospital(item?.value),
@@ -276,7 +396,7 @@ class _InvoiceBuilderScreenState extends State<InvoiceBuilderScreen> {
           ])),
           const SizedBox(width: 12),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            LabeledTextField(label: 'Client TIN *', controller: _tinCtrl, hint: '123-456-789',
+            LabeledTextField(label: _saleStatus == 'draft' ? 'Client TIN' : 'Client TIN *', controller: _tinCtrl, hint: '123-456-789',
                 keyboardType: TextInputType.number, hasError: _errors['tin'] != null,
                 onChanged: (_) { if (_errors.containsKey('tin')) setState(() => _errors.remove('tin')); }),
             _error(_errors['tin']),
@@ -382,7 +502,7 @@ class _InvoiceBuilderScreenState extends State<InvoiceBuilderScreen> {
       padding: const EdgeInsets.all(15),
       decoration: _card(context),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('DELIVERY & DEPOSIT', style: AppTheme.labelCaps.copyWith(fontSize: 11)),
+        Text(_showDeposit ? 'DELIVERY & DEPOSIT' : 'DELIVERY', style: AppTheme.labelCaps.copyWith(fontSize: 11)),
         const SizedBox(height: 11),
         Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -391,6 +511,7 @@ class _InvoiceBuilderScreenState extends State<InvoiceBuilderScreen> {
                 onChanged: (_) => setState(() => _errors.remove('ship'))),
             _error(_errors['ship']),
           ])),
+          if (_showDeposit) ...[
           const SizedBox(width: 14),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             LabeledTextField(label: 'Deposit paid now', controller: _depositCtrl, hint: 'Leave empty if nothing paid yet',
@@ -404,6 +525,7 @@ class _InvoiceBuilderScreenState extends State<InvoiceBuilderScreen> {
             (v) => setState(() => _depositMethod = v))),
           const SizedBox(width: 14),
           Expanded(child: LabeledTextField(label: 'Deposit reference', controller: _depositRefCtrl, hint: 'Bank ref / receipt no.')),
+          ],
         ]),
       ]),
     ),
@@ -411,8 +533,13 @@ class _InvoiceBuilderScreenState extends State<InvoiceBuilderScreen> {
     Container(
       padding: const EdgeInsets.all(15),
       decoration: _card(context),
-      child: LabeledTextField(label: 'Notes / payment terms', controller: _notesCtrl, maxLines: 3,
-          hint: 'Bank details, payment terms, delivery notes…'),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Expanded(child: LabeledTextField(label: 'Sell note', controller: _notesCtrl, maxLines: 3,
+            hint: 'Printed on the invoice — payment terms, delivery notes…')),
+        const SizedBox(width: 14),
+        Expanded(child: LabeledTextField(label: 'Staff note', controller: _staffNoteCtrl, maxLines: 3,
+            hint: 'Internal only — not printed')),
+      ]),
     ),
   ]);
 
@@ -432,7 +559,7 @@ class _InvoiceBuilderScreenState extends State<InvoiceBuilderScreen> {
         if (_shipping > 0) _totalsRow(context, 'Delivery', tshFromDouble(_shipping.toDouble())),
         Padding(padding: const EdgeInsets.symmetric(vertical: 6), child: Container(height: 1, color: context.pal.divider)),
         _totalsRow(context, 'TOTAL', tshFromDouble(_total.toDouble()), big: true),
-        if (_deposit > 0) ...[
+        if (_showDeposit && _deposit > 0) ...[
           _totalsRow(context, 'Deposit now', '- ${tshFromDouble(_deposit.toDouble())}'),
           _totalsRow(context, 'ON CREDIT', tshFromDouble((_total - _deposit).clamp(0, _total).toDouble()), big: true),
         ],
@@ -443,16 +570,31 @@ class _InvoiceBuilderScreenState extends State<InvoiceBuilderScreen> {
       padding: const EdgeInsets.all(15),
       decoration: _card(context),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('WHAT HAPPENS ON CREATE', style: AppTheme.labelCaps.copyWith(fontSize: 11)),
+        Text('WHAT HAPPENS ON SAVE', style: AppTheme.labelCaps.copyWith(fontSize: 11)),
         const SizedBox(height: 12),
-        _step(context, Symbols.tag, AppColors.teal, 'Gets the next invoice number', 'Status starts as Pending — send it to the client from the invoice.'),
-        _step(context, Symbols.account_balance, AppColors.violet, 'Posted to receivables',
-            'What’s left on credit counts toward Outstanding and the client’s credit limit, due ${_dueDate == null ? 'on the term' : _fmtDate(_dueDate!)}.'),
-        if (_deposit > 0)
-          _step(context, Symbols.payments, AppColors.green, 'Deposit recorded',
-              'Saved as the first payment; later payments are added from the invoice or Credit & Receivables.'),
-        _step(context, Symbols.link_off, context.pal.textDim, 'Stands on its own',
-            'Not linked to any quotation or sales order, and no stock is moved.', last: true),
+        ...switch (_saleStatus) {
+          'draft' || 'proforma' => [
+            _step(context, Symbols.tag, AppColors.amber, _saleStatus == 'draft' ? 'Saved as a draft (DRAFT-…)' : 'Saved as a proforma (PRO-…)',
+                _saleStatus == 'draft' ? 'Nothing is billed yet. Edit it any time.' : 'Print it for the client. Nothing is billed yet.'),
+            _step(context, Symbols.edit_note, AppColors.teal, 'Finalise it later',
+                'Open it from All sales → Edit and set Status to Final. It then gets an invoice number and counts as a sale.', last: true),
+          ],
+          'quotation' => [
+            _step(context, Symbols.request_quote, AppColors.violet, 'Saved on the Quotations page',
+                'Valid until ${_dueDate == null ? '30 days from today' : _fmtDate(_dueDate!)}. It goes through the usual quotation approval.', last: true),
+          ],
+          _ => [
+            _step(context, Symbols.tag, AppColors.teal, _isEdit ? 'Keeps its invoice number' : 'Gets the next invoice number',
+                'It appears in All sales.'),
+            _step(context, Symbols.account_balance, AppColors.violet, 'Posted to receivables',
+                'What’s left on credit counts toward Outstanding and the client’s credit limit, due ${_dueDate == null ? 'on the term' : _fmtDate(_dueDate!)}.'),
+            if (_showDeposit && _deposit > 0)
+              _step(context, Symbols.payments, AppColors.green, 'Deposit recorded',
+                  'Saved as the first payment; later payments are added from All sales or Credit & Receivables.'),
+            _step(context, Symbols.link_off, context.pal.textDim, 'Stands on its own',
+                'Not linked to any quotation or sales order, and no stock is moved.', last: true),
+          ],
+        },
       ]),
     ),
   ]);
