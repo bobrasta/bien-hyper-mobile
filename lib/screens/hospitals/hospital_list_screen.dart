@@ -382,7 +382,7 @@ class _HospitalListScreenState extends State<HospitalListScreen> {
 
         // Edit Hospital dialog
         if (_editHospital != null)
-          _EditHospitalDialog(
+          EditHospitalDialog(
             hospital: _editHospital!,
             onClose: () => setState(() => _editHospital = null),
           ),
@@ -1215,16 +1215,16 @@ class _InfoPair extends StatelessWidget {
 }
 
 // ── Edit Hospital Dialog ─────────────────────────────────────────────────────
-class _EditHospitalDialog extends StatefulWidget {
-  const _EditHospitalDialog({required this.hospital, required this.onClose});
+class EditHospitalDialog extends StatefulWidget {
+  const EditHospitalDialog({super.key, required this.hospital, required this.onClose});
   final Hospital hospital;
   final VoidCallback onClose;
 
   @override
-  State<_EditHospitalDialog> createState() => _EditHospitalDialogState();
+  State<EditHospitalDialog> createState() => EditHospitalDialogState();
 }
 
-class _EditHospitalDialogState extends State<_EditHospitalDialog> {
+class EditHospitalDialogState extends State<EditHospitalDialog> {
   late final _nameCtrl     = TextEditingController(text: widget.hospital.name);
   late final _codeCtrl     = TextEditingController(text: widget.hospital.shortCode);
   late final _districtCtrl = TextEditingController(text: widget.hospital.district);

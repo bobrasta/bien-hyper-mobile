@@ -566,6 +566,25 @@ class _StatusBadge extends StatelessWidget {
 
 // ── Invoice detail dialog ──────────────────────────────────────────────────────
 
+/// Opens the invoice detail dialog from another screen (e.g. a customer's
+/// invoice list). Returns true when the invoice changed.
+Future<bool> showInvoiceDetail(BuildContext context, int invoiceId) async {
+  final Invoice inv;
+  try {
+    inv = await InvoiceService.instance.get(invoiceId);
+  } catch (e) {
+    if (context.mounted) showErrorToast(context, e);
+    return false;
+  }
+  if (!context.mounted) return false;
+  final changed = await showDialog<bool>(
+    context: context,
+    barrierDismissible: true,
+    builder: (_) => _InvoiceDetailDialog(inv: inv),
+  );
+  return changed == true;
+}
+
 class _InvoiceDetailDialog extends StatefulWidget {
   const _InvoiceDetailDialog({required this.inv});
   final Invoice inv;

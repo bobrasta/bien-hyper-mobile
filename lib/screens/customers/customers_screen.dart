@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import '../../models/contact.dart';
+import '../../models/customer.dart';
 import '../../services/contact_service.dart';
+import '../../services/customer_service.dart';
 import '../../services/hospital_service.dart';
 import '../../utils/api_error.dart';
-import '../../utils/csv_export.dart';
+import '../../utils/format.dart';
 import '../../widgets/common/error_view.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
@@ -14,7 +16,12 @@ import '../../widgets/common/avatar_widget.dart';
 import '../../widgets/common/labeled_field.dart';
 import '../../widgets/email/compose_modal.dart';
 import '../../theme/app_palette.dart';
+import '../hospitals/hospital_list_screen.dart' show EditHospitalDialog;
+import '../sales/invoices_screen.dart' show showInvoiceDetail;
+import '../sales/quotations_screen.dart' show QuotationDetailScreen;
 
+/// Customers = the client facilities we sell to or service; the people we
+/// talk to there are each customer's contacts.
 class CustomersScreen extends StatefulWidget {
   const CustomersScreen({super.key});
 
@@ -23,234 +30,230 @@ class CustomersScreen extends StatefulWidget {
 }
 
 class _CustomersScreenState extends State<CustomersScreen> {
-  int _selectedIdx = 0;
-  String _tagFilter = 'all';
   final _search = TextEditingController();
+  String _filter = 'all';
+  int _showCount = _pageSize;
+  static const _pageSize = 40;
+
+  List<Customer> _all = [];
+  bool _loading = true;
+  String? _error;
+
+  int? _selectedId;
+  Customer? _detail;
+  bool _loadingDetail = false;
+  bool _showDetailNarrow = false;
+
+  // A contact person opened from the customer's detail.
+  Contact? _openContact;
+  bool _loadingContact = false;
+
+  // Dialogs (Stack overlays, same as before).
   bool _showAddContact = false;
-  bool _showLogInteraction = false;
-  bool _showEditContact = false;
-  bool _showScheduleFollowup = false;
-  bool _showDetail = false;
-
-  List<Contact> _allContacts   = [];
-  bool          _loading       = true;
-  String?       _error;
-  int           _showCount     = 25;
-  static const  _pageSize      = 25;
-
-  Contact? _detailContact;
-  bool     _loadingDetail = false;
+  Contact? _logFor, _editFor, _followupFor;
+  bool _editCustomer = false;
 
   @override
   void initState() {
     super.initState();
-    // Stale-while-revalidate: show the last-known default (unfiltered)
-    // contact list — and, if we have it, the first contact's own cached
-    // detail — instantly instead of blanking to a shimmer on every
-    // navigation, then quietly refresh. Same reasoning as
-    // MachineListScreen/MachineDetailScreen.
-    final cached = ContactService.cachedDefaultList;
+    // Stale-while-revalidate: show the last-known list instantly, then refresh.
+    final cached = CustomerService.cachedList;
     if (cached != null) {
-      _allContacts = cached;
+      _all = cached;
       _loading = false;
       if (cached.isNotEmpty) {
-        final cachedDetail = ContactService.cachedById[cached[0].id];
-        if (cachedDetail != null) _detailContact = cachedDetail;
+        _selectedId = cached.first.id;
+        _detail = CustomerService.cachedById[cached.first.id];
       }
     }
     _load();
   }
 
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
   Future<void> _load() async {
     setState(() {
-      if (_allContacts.isEmpty) _loading = true;
+      if (_all.isEmpty) _loading = true;
       _error = null;
     });
     try {
-      final contacts = await ContactService.instance.list();
-      if (mounted) {
-        // Preserve the currently-shown detail across a background refresh
-        // instead of always wiping it and re-fetching the first contact —
-        // that used to happen on every single call to _load(), including
-        // silent re-visits to this screen.
-        final keepDetail = _detailContact != null &&
-            contacts.any((c) => c.id == _detailContact!.id);
-        setState(() {
-          _allContacts = contacts;
-          _loading = false;
-          if (!keepDetail) _detailContact = null;
-        });
-        if (!keepDetail && contacts.isNotEmpty) _loadDetail(contacts[0]);
+      final list = await CustomerService.instance.list();
+      if (!mounted) return;
+      setState(() { _all = list; _loading = false; });
+      final keep = _selectedId != null && list.any((c) => c.id == _selectedId);
+      if (!keep && list.isNotEmpty) {
+        _select(list.first);
+      } else if (keep) {
+        _loadDetail(_selectedId!);
       }
     } catch (e) {
       if (mounted) setState(() { _error = friendlyError(e); _loading = false; });
     }
   }
 
-  Future<void> _loadDetail(Contact c) async {
-    if (_detailContact?.id == c.id) return;
-    setState(() { _loadingDetail = true; _detailContact = null; });
+  void _select(Customer c) {
+    setState(() {
+      _selectedId = c.id;
+      _openContact = null;
+      _showDetailNarrow = true;
+      final cached = CustomerService.cachedById[c.id];
+      _detail = cached ?? c;
+    });
+    _loadDetail(c.id);
+  }
+
+  Future<void> _loadDetail(int id) async {
+    setState(() => _loadingDetail = true);
+    try {
+      final full = await CustomerService.instance.get(id);
+      if (mounted && _selectedId == id) setState(() { _detail = full; _loadingDetail = false; });
+    } catch (e) {
+      if (mounted) { setState(() => _loadingDetail = false); showErrorToast(context, e); }
+    }
+  }
+
+  Future<void> _openContactDetail(Contact c) async {
+    setState(() { _openContact = c; _loadingContact = true; });
     try {
       final full = await ContactService.instance.get(c.id);
-      if (mounted) setState(() { _detailContact = full; _loadingDetail = false; });
+      if (mounted && _openContact?.id == c.id) setState(() { _openContact = full; _loadingContact = false; });
     } catch (_) {
-      if (mounted) setState(() => _loadingDetail = false);
+      if (mounted) setState(() => _loadingContact = false);
     }
   }
 
-  Future<void> _exportCsv() async {
-    try {
-      final data = _filtered;
-      final path = await CsvExport.contacts(data);
-      if (path != null && mounted) showSuccessToast(context, 'Exported ${data.length} contact(s) to CSV');
-    } catch (e) {
-      if (mounted) showErrorToast(context, e);
-    }
+  // After any contact change: refresh the customer and, if open, the contact.
+  void _afterContactSaved() {
+    if (_selectedId != null) _loadDetail(_selectedId!);
+    final open = _openContact;
+    if (open != null) _openContactDetail(open);
   }
 
-  List<Contact> get _filtered {
-    var list = _allContacts;
-    if (_tagFilter != 'all') {
-      list = list.where((c) => c.tags.contains(_tagFilter)).toList();
-    }
-    final q = _search.text.trim().toLowerCase();
-    if (q.isNotEmpty) {
-      list = list.where((c) =>
-        c.fullName.toLowerCase().contains(q) ||
-        (c.email ?? '').toLowerCase().contains(q) ||
-        c.hospitalName.toLowerCase().contains(q)).toList();
-    }
-    return list;
-  }
-
-  Contact? get _selected {
-    final filtered = _filtered;
-    if (filtered.isEmpty) return null;
-    if (_selectedIdx >= filtered.length) return filtered.first;
-    return filtered[_selectedIdx];
-  }
-
-  // showDialog gives the modal the whole window as its route, not just this
-  // screen's own content pane — stacking it as a bare Stack child (the old
-  // approach) only got it this screen's own bounds, so it rendered cramped
-  // and undimmed instead of as a real full-screen overlay.
-  void _openCompose() {
-    final target = _detailContact ?? _selected;
-    if (target == null) return;
+  void _openCompose(Contact c) {
     showDialog(
       context: context,
       builder: (_) => ComposeModal(
-        initialTo: target.email ?? '',
+        initialTo: c.email ?? '',
         onClose: () => Navigator.of(context).pop(),
         onSent:  () => Navigator.of(context).pop(),
       ),
     );
   }
 
+  Future<void> _openInvoice(int id) async {
+    final changed = await showInvoiceDetail(context, id);
+    if (changed && mounted) _load();
+  }
+
+  Future<void> _openQuotation(int id) async {
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => QuotationDetailScreen(quotationId: id)));
+    if (mounted && _selectedId != null) _loadDetail(_selectedId!);
+  }
+
+  List<Customer> get _filtered {
+    var list = _all;
+    if (_filter == 'owing') list = list.where((c) => c.balance > 0).toList();
+    if (_filter == 'machines') list = list.where((c) => c.machineCount > 0).toList();
+    if (_filter == 'contacts') list = list.where((c) => c.contactsCount > 0).toList();
+    final q = _search.text.trim().toLowerCase();
+    if (q.isNotEmpty) {
+      final digits = q.replaceAll(RegExp(r'\D'), '');
+      list = list.where((c) =>
+        c.name.toLowerCase().contains(q) ||
+        (c.region ?? '').toLowerCase().contains(q) ||
+        (digits.length >= 3 && ((c.tin ?? '').replaceAll(RegExp(r'\D'), '').contains(digits) ||
+            (c.phone ?? '').replaceAll(RegExp(r'\D'), '').contains(digits)))).toList();
+    }
+    return list;
+  }
+
+  void _setFilter(String f) => setState(() { _filter = f; _showCount = _pageSize; });
+
   @override
   Widget build(BuildContext context) {
-    final allFiltered = _filtered;
-    final contacts    = allFiltered.take(_showCount).toList();
-    final remaining   = allFiltered.length - contacts.length;
-    final contact     = _selected;
+    final filtered = _filtered;
+    final shown = filtered.take(_showCount).toList();
+    final remaining = filtered.length - shown.length;
+    final owingTotal = _all.fold<int>(0, (s, c) => s + c.balance);
 
     return Stack(children: [
       LayoutBuilder(builder: (ctx, cst) {
-        final narrow = cst.maxWidth < 640;
+        final narrow = cst.maxWidth < 760;
 
-        // ── Left pane (contact list) ────────────────────────────────────────
-        Widget listPane = Container(
+        final listPane = Container(
           decoration: BoxDecoration(
-            border: Border(right: BorderSide(
-              color: narrow ? Colors.transparent : context.pal.border)),
+            border: Border(right: BorderSide(color: narrow ? Colors.transparent : context.pal.border)),
           ),
           child: Column(children: [
-            // Header
             Container(
               padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
-              decoration: BoxDecoration(
-                border: Border(bottom: BorderSide(color: context.pal.border)),
-              ),
+              decoration: BoxDecoration(border: Border(bottom: BorderSide(color: context.pal.border))),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Row(children: [
-                  Expanded(child: Text('Contacts', style: AppTheme.pageTitle.copyWith(fontSize: 18))),
-                  AppButton(label: 'Export', icon: Symbols.download, variant: BtnVariant.ghost, small: true,
-                      onPressed: _exportCsv),
-                  const SizedBox(width: 6),
-                  AppButton(label: 'Add Contact', icon: Symbols.person_add, variant: BtnVariant.primary, small: true,
-                      onPressed: () => setState(() => _showAddContact = true)),
+                  Expanded(child: Text('Customers', style: AppTheme.pageTitle.copyWith(fontSize: 18))),
+                  if (!_loading)
+                    Text('${_all.length}', style: AppTheme.monoXs.copyWith(color: context.pal.textDim)),
                 ]),
+                if (owingTotal > 0) ...[
+                  const SizedBox(height: 2),
+                  Text('${tshFromDouble(owingTotal)} owed in total',
+                      style: AppTheme.bodySub.copyWith(fontSize: 11.5, color: AppColors.amber)),
+                ],
                 const SizedBox(height: 12),
-                // Search
                 SearchField(
-                  hint: 'Search contacts…',
+                  hint: 'Search name, TIN, phone or region…',
                   controller: _search,
-                  onChanged: (_) => setState(() { _selectedIdx = 0; _showCount = _pageSize; }),
+                  onChanged: (_) => setState(() => _showCount = _pageSize),
                 ),
                 const SizedBox(height: 10),
-                // Tag filter chips
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: Row(children: [
-                    _TagChip(label: 'All', value: 'all', active: _tagFilter == 'all',
-                      onTap: () => setState(() { _tagFilter = 'all'; _selectedIdx = 0; _showCount = _pageSize; })),
-                    const SizedBox(width: 6),
-                    _TagChip(label: 'Key Account', value: 'key-account', active: _tagFilter == 'key-account',
-                      onTap: () => setState(() { _tagFilter = 'key-account'; _selectedIdx = 0; _showCount = _pageSize; })),
-                    const SizedBox(width: 6),
-                    _TagChip(label: 'Decision Maker', value: 'decision-maker', active: _tagFilter == 'decision-maker',
-                      onTap: () => setState(() { _tagFilter = 'decision-maker'; _selectedIdx = 0; _showCount = _pageSize; })),
-                    const SizedBox(width: 6),
-                    _TagChip(label: 'Lead', value: 'lead', active: _tagFilter == 'lead',
-                      onTap: () => setState(() { _tagFilter = 'lead'; _selectedIdx = 0; _showCount = _pageSize; })),
-                    const SizedBox(width: 6),
-                    _TagChip(label: 'Technical', value: 'technical', active: _tagFilter == 'technical',
-                      onTap: () => setState(() { _tagFilter = 'technical'; _selectedIdx = 0; _showCount = _pageSize; })),
+                    for (final (v, l) in const [('all', 'All'), ('owing', 'Owing'), ('machines', 'With machines'), ('contacts', 'With contacts')]) ...[
+                      _TagChip(label: l, active: _filter == v, onTap: () => _setFilter(v)),
+                      const SizedBox(width: 6),
+                    ],
                   ]),
                 ),
               ]),
             ),
-            // Contact list
             Expanded(
               child: _loading
                 ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
-                // A background refresh failing while stale-but-valid
-                // cached contacts are already showing shouldn't blow
-                // that away.
-                : _error != null && _allContacts.isEmpty
+                : _error != null && _all.isEmpty
                     ? ErrorView(message: _error!, onRetry: _load)
                     : RefreshIndicator(
                         onRefresh: _load,
-                        child: contacts.isEmpty
+                        child: shown.isEmpty
                           ? ListView(children: [
                               Padding(
                                 padding: const EdgeInsets.symmetric(vertical: 48),
-                                child: Center(child: Text('No contacts found', style: AppTheme.bodySub)),
+                                child: Center(child: Text('No customers found', style: AppTheme.bodySub)),
                               ),
                             ])
                           : ListView.builder(
-                              itemCount: contacts.length + (remaining > 0 ? 1 : 0),
+                              itemCount: shown.length + (remaining > 0 ? 1 : 0),
                               itemBuilder: (context, i) {
-                                if (i == contacts.length) {
-                                  return GestureDetector(
+                                if (i == shown.length) {
+                                  return InkWell(
                                     onTap: () => setState(() => _showCount += _pageSize),
                                     child: Container(
                                       padding: const EdgeInsets.symmetric(vertical: 14),
                                       alignment: Alignment.center,
-                                      child: Text(
-                                        'Load $remaining more',
-                                        style: AppTheme.bodySm.copyWith(color: AppColors.teal, fontSize: 12.5),
-                                      ),
+                                      child: Text('Load $remaining more',
+                                          style: AppTheme.bodySm.copyWith(color: AppColors.teal, fontSize: 12.5)),
                                     ),
                                   );
                                 }
-                                return _ContactListItem(
-                                  contact: contacts[i],
-                                  selected: _selectedIdx == i,
-                                  onTap: () {
-                                    setState(() { _selectedIdx = i; _showDetail = true; });
-                                    _loadDetail(contacts[i]);
-                                  },
+                                final c = shown[i];
+                                return _CustomerListItem(
+                                  customer: c,
+                                  selected: c.id == _selectedId,
+                                  onTap: () => _select(c),
                                 );
                               },
                             ),
@@ -259,90 +262,98 @@ class _CustomersScreenState extends State<CustomersScreen> {
           ]),
         );
 
-        // ── Narrow: list or detail ──────────────────────────────────────────
-        if (narrow) {
-          if (_showDetail && contact != null) {
+        Widget detailPane() {
+          final d = _detail;
+          if (d == null) {
+            return Center(child: Text(_loading ? '' : 'Select a customer', style: TextStyle(color: context.pal.textMute)));
+          }
+          final open = _openContact;
+          if (open != null) {
             return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              GestureDetector(
-                onTap: () => setState(() => _showDetail = false),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                  decoration: BoxDecoration(
-                    border: Border(bottom: BorderSide(color: context.pal.border)),
-                  ),
-                  child: Row(children: [
-                    Icon(Symbols.arrow_back, size: 16, color: AppColors.teal),
-                    const SizedBox(width: 8),
-                    Text('Back to contacts', style: AppTheme.bodySm.copyWith(color: AppColors.teal)),
-                  ]),
-                ),
-              ),
+              _BackLink(label: 'Back to ${d.name}', onTap: () => setState(() => _openContact = null)),
               Expanded(child: _ContactDetail(
-                contact: _detailContact ?? contact,
-                loadingDetail: _loadingDetail,
-                onLogInteraction: () => setState(() => _showLogInteraction = true),
-                onEditContact: () => setState(() => _showEditContact = true),
-                onScheduleFollowup: () => setState(() => _showScheduleFollowup = true),
-                onSendEmail: _openCompose,
+                contact: open,
+                loadingDetail: _loadingContact,
+                onLogInteraction: () => setState(() => _logFor = open),
+                onEditContact: () => setState(() => _editFor = open),
+                onScheduleFollowup: () => setState(() => _followupFor = open),
+                onSendEmail: () => _openCompose(open),
               )),
+            ]);
+          }
+          return _CustomerDetail(
+            customer: d,
+            loading: _loadingDetail,
+            onAddContact: () => setState(() => _showAddContact = true),
+            onEditCustomer: () => setState(() => _editCustomer = true),
+            onOpenContact: _openContactDetail,
+            onLogInteraction: (c) => setState(() => _logFor = c),
+            onEditContact: (c) => setState(() => _editFor = c),
+            onEmailContact: _openCompose,
+            onOpenInvoice: _openInvoice,
+            onOpenQuotation: _openQuotation,
+          );
+        }
+
+        if (narrow) {
+          if (_showDetailNarrow && _detail != null) {
+            return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              if (_openContact == null)
+                _BackLink(label: 'Back to customers', onTap: () => setState(() => _showDetailNarrow = false)),
+              Expanded(child: detailPane()),
             ]);
           }
           return listPane;
         }
 
-        // ── Wide: side-by-side ──────────────────────────────────────────────
         return Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          SizedBox(width: 340, child: listPane),
-          Expanded(
-            child: contact == null
-              ? Center(child: Text('Select a contact', style: TextStyle(color: context.pal.textMute)))
-              : _ContactDetail(
-                  contact: _detailContact ?? contact,
-                  loadingDetail: _loadingDetail,
-                  onLogInteraction: () => setState(() => _showLogInteraction = true),
-                  onEditContact: () => setState(() => _showEditContact = true),
-                  onScheduleFollowup: () => setState(() => _showScheduleFollowup = true),
-                  onSendEmail: _openCompose,
-                ),
-          ),
+          SizedBox(width: 360, child: listPane),
+          Expanded(child: detailPane()),
         ]);
-      }),  // LayoutBuilder
+      }),
 
       // Dialogs
-      if (_showAddContact)
+      if (_showAddContact && _detail != null)
         _AddContactDialog(
+          hospitalId: _detail!.id,
+          hospitalName: _detail!.name,
           onClose: () => setState(() => _showAddContact = false),
-          onSaved: () { setState(() => _showAddContact = false); _load(); },
+          onSaved: () { setState(() => _showAddContact = false); _afterContactSaved(); _load(); },
         ),
-      if (_showLogInteraction)
+      if (_logFor != null)
         _LogInteractionDialog(
-          contact: contact,
-          onClose: () => setState(() => _showLogInteraction = false),
-          onSaved: () { setState(() => _showLogInteraction = false); _load(); },
+          contact: _logFor,
+          onClose: () => setState(() => _logFor = null),
+          onSaved: () { setState(() => _logFor = null); _afterContactSaved(); },
         ),
-      if (_showEditContact && contact != null)
+      if (_editFor != null)
         _EditContactDialog(
-          contact: contact,
-          onClose: () => setState(() => _showEditContact = false),
-          onSaved: () { setState(() => _showEditContact = false); _load(); },
+          contact: _editFor!,
+          onClose: () => setState(() => _editFor = null),
+          onSaved: () { setState(() => _editFor = null); _afterContactSaved(); },
         ),
-      if (_showScheduleFollowup && contact != null)
+      if (_followupFor != null)
         _ScheduleFollowupDialog(
-          contact: _detailContact ?? contact,
-          onClose: () => setState(() => _showScheduleFollowup = false),
-          onSaved: () {
-            setState(() { _showScheduleFollowup = false; _detailContact = null; });
-            _loadDetail(contact);
+          contact: _followupFor!,
+          onClose: () => setState(() => _followupFor = null),
+          onSaved: () { setState(() => _followupFor = null); _afterContactSaved(); },
+        ),
+      if (_editCustomer && _detail != null)
+        _EditCustomerLoader(
+          customerId: _detail!.id,
+          onClose: () {
+            setState(() => _editCustomer = false);
+            _load();
           },
         ),
-    ]);  // Stack
+    ]);
   }
 }
 
 // ── Sub-widgets ─────────────────────────────────────────────────────────────
 class _TagChip extends StatelessWidget {
-  const _TagChip({required this.label, required this.value, required this.active, required this.onTap});
-  final String label, value; final bool active; final VoidCallback onTap;
+  const _TagChip({required this.label, required this.active, required this.onTap});
+  final String label; final bool active; final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) => GestureDetector(
@@ -362,51 +373,412 @@ class _TagChip extends StatelessWidget {
   );
 }
 
-class _ContactListItem extends StatelessWidget {
-  const _ContactListItem({required this.contact, required this.selected, required this.onTap});
-  final Contact contact; final bool selected; final VoidCallback onTap;
+class _BackLink extends StatelessWidget {
+  const _BackLink({required this.label, required this.onTap});
+  final String label; final VoidCallback onTap;
 
-  AvatarVariant _variant(String name) {
-    final h = name.hashCode;
-    const variants = AvatarVariant.values;
-    return variants[h.abs() % variants.length];
+  @override
+  Widget build(BuildContext context) => InkWell(
+    onTap: onTap,
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: context.pal.border))),
+      child: Row(children: [
+        Icon(Symbols.arrow_back, size: 16, color: AppColors.teal),
+        const SizedBox(width: 8),
+        Flexible(child: Text(label, overflow: TextOverflow.ellipsis,
+            style: AppTheme.bodySm.copyWith(color: AppColors.teal))),
+      ]),
+    ),
+  );
+}
+
+AvatarVariant _variantFor(String name) =>
+    AvatarVariant.values[name.hashCode.abs() % AvatarVariant.values.length];
+
+String _money(int n) {
+  final s = n.abs().toString();
+  final b = StringBuffer();
+  for (var i = 0; i < s.length; i++) {
+    if (i > 0 && (s.length - i) % 3 == 0) b.write(',');
+    b.write(s[i]);
+  }
+  return '${n < 0 ? '-' : ''}TSh $b';
+}
+
+String _fmtDate(String? iso) {
+  final d = iso == null ? null : DateTime.tryParse(iso);
+  return d == null ? '—' : formatDate(d);
+}
+
+class _CustomerListItem extends StatelessWidget {
+  const _CustomerListItem({required this.customer, required this.selected, required this.onTap});
+  final Customer customer; final bool selected; final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = customer;
+    final sub = [
+      if (c.location.isNotEmpty) c.location,
+      if (c.tin != null) 'TIN ${c.tin}',
+    ].join(' · ');
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+        decoration: BoxDecoration(
+          color: selected ? context.pal.surface2 : Colors.transparent,
+          border: Border(bottom: BorderSide(color: context.pal.divider)),
+        ),
+        child: Row(children: [
+          AvatarWidget(initials: c.initials, size: 34, variant: _variantFor(c.name)),
+          const SizedBox(width: 12),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(c.name, maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: AppTheme.bodyStrong.copyWith(fontSize: 13)),
+            if (sub.isNotEmpty)
+              Text(sub, maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: AppTheme.bodySub.copyWith(fontSize: 11.5)),
+            if (c.contactsCount > 0 || c.machineCount > 0) ...[
+              const SizedBox(height: 3),
+              Text([
+                if (c.contactsCount > 0) '${c.contactsCount} contact${c.contactsCount == 1 ? '' : 's'}',
+                if (c.machineCount > 0) '${c.machineCount} machine${c.machineCount == 1 ? '' : 's'}',
+              ].join(' · '), style: AppTheme.monoXs.copyWith(fontSize: 10, color: context.pal.textDim)),
+            ],
+          ])),
+          const SizedBox(width: 8),
+          Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+            if (c.balance > 0)
+              Text(tshFromDouble(c.balance), style: AppTheme.monoSm.copyWith(fontSize: 12, color: AppColors.amber))
+            else if (c.invoicesCount > 0)
+              Text('Paid up', style: AppTheme.bodySub.copyWith(fontSize: 11, color: AppColors.green)),
+            if (c.invoicesCount > 0)
+              Text('${c.invoicesCount} inv', style: AppTheme.monoXs.copyWith(fontSize: 10, color: context.pal.textDim)),
+          ]),
+        ]),
+      ),
+    );
+  }
+}
+
+class _Card extends StatelessWidget {
+  const _Card({required this.child, this.padding = const EdgeInsets.all(16)});
+  final Widget child; final EdgeInsets padding;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: double.infinity,
+    padding: padding,
+    decoration: BoxDecoration(
+      color: context.pal.surface1,
+      borderRadius: BorderRadius.circular(AppColors.rLg),
+      border: Border.all(color: context.pal.border),
+    ),
+    child: child,
+  );
+}
+
+class _Kpi extends StatelessWidget {
+  const _Kpi(this.label, this.value, {this.color});
+  final String label, value; final Color? color;
+
+  @override
+  Widget build(BuildContext context) => _Card(
+    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(label.toUpperCase(), style: AppTheme.labelCaps),
+      const SizedBox(height: 6),
+      Text(value, maxLines: 1, overflow: TextOverflow.ellipsis,
+          style: AppTheme.bodyStrong.copyWith(fontSize: 16, color: color ?? context.pal.text)),
+    ]),
+  );
+}
+
+class _InfoLine extends StatelessWidget {
+  const _InfoLine(this.icon, this.label, this.value);
+  final IconData icon; final String label; final String? value;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 10),
+    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Icon(icon, size: 15, color: context.pal.textDim),
+      const SizedBox(width: 10),
+      SizedBox(width: 70, child: Text(label, style: AppTheme.bodySub.copyWith(fontSize: 12))),
+      Expanded(child: SelectableText(value ?? '—', style: AppTheme.bodySm.copyWith(
+          fontSize: 12.5, color: value == null ? context.pal.textDim : context.pal.text))),
+    ]),
+  );
+}
+
+class _StatusPill extends StatelessWidget {
+  const _StatusPill(this.status);
+  final String status;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = switch (status) {
+      'paid' || 'accepted' || 'converted' => AppColors.green,
+      'overdue' || 'rejected' || 'expired' => AppColors.coral,
+      'partial' || 'pending' || 'sent' => AppColors.amber,
+      _ => context.pal.textMute,
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(status.isEmpty ? '—' : status[0].toUpperCase() + status.substring(1),
+          style: AppTheme.bodySub.copyWith(fontSize: 11, color: color, fontWeight: FontWeight.w600)),
+    );
+  }
+}
+
+class _CustomerDetail extends StatelessWidget {
+  const _CustomerDetail({
+    required this.customer,
+    required this.loading,
+    required this.onAddContact,
+    required this.onEditCustomer,
+    required this.onOpenContact,
+    required this.onLogInteraction,
+    required this.onEditContact,
+    required this.onEmailContact,
+    required this.onOpenInvoice,
+    required this.onOpenQuotation,
+  });
+  final Customer customer;
+  final bool loading;
+  final VoidCallback onAddContact, onEditCustomer;
+  final ValueChanged<Contact> onOpenContact, onLogInteraction, onEditContact, onEmailContact;
+  final ValueChanged<int> onOpenInvoice, onOpenQuotation;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = customer;
+    final typeLabel = c.type == null ? null : c.type![0].toUpperCase() + c.type!.substring(1);
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        // Header
+        _Card(
+          padding: const EdgeInsets.all(20),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            AvatarWidget(initials: c.initials, size: 52, variant: _variantFor(c.name)),
+            const SizedBox(width: 16),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(c.name, style: AppTheme.pageTitle.copyWith(fontSize: 20)),
+              const SizedBox(height: 4),
+              Text([?typeLabel, if (c.location.isNotEmpty) c.location].join(' · '),
+                  style: AppTheme.bodySub),
+              if (c.lastInvoiceDate != null) ...[
+                const SizedBox(height: 4),
+                Text('Last invoice ${_fmtDate(c.lastInvoiceDate)}'
+                    '${c.firstInvoiceDate != null ? ' · customer since ${_fmtDate(c.firstInvoiceDate)}' : ''}',
+                    style: AppTheme.bodySub.copyWith(fontSize: 11.5)),
+              ],
+            ])),
+            if (loading)
+              const Padding(padding: EdgeInsets.only(right: 12, top: 4),
+                  child: SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))),
+            Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+              AppButton(label: 'Add contact', icon: Symbols.person_add, variant: BtnVariant.primary, small: true,
+                  onPressed: onAddContact),
+              const SizedBox(height: 8),
+              AppButton(label: 'Edit details', icon: Symbols.edit, variant: BtnVariant.normal, small: true,
+                  onPressed: onEditCustomer),
+            ]),
+          ]),
+        ),
+        const SizedBox(height: 16),
+
+        // Numbers
+        LayoutBuilder(builder: (ctx, cst) {
+          final kpis = [
+            _Kpi('Total billed', tshFromDouble(c.totalBilled)),
+            _Kpi('Paid', tshFromDouble(c.isDetail ? c.totalPaid : c.totalBilled - c.balance), color: AppColors.green),
+            _Kpi('Balance owed', tshFromDouble(c.balance), color: c.balance > 0 ? AppColors.amber : null),
+            _Kpi('Invoices', '${c.invoicesCount}${c.openInvoices > 0 ? ' · ${c.openInvoices} open' : ''}'),
+            _Kpi('Machines', '${c.machineCount}'),
+          ];
+          final perRow = cst.maxWidth > 820 ? 5 : cst.maxWidth > 480 ? 3 : 2;
+          final w = (cst.maxWidth - 12 * (perRow - 1)) / perRow;
+          return Wrap(spacing: 12, runSpacing: 12,
+              children: kpis.map((k) => SizedBox(width: w, child: k)).toList());
+        }),
+        const SizedBox(height: 16),
+
+        // Customer details
+        _Card(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('Customer details', style: AppTheme.cardTitle),
+          const SizedBox(height: 14),
+          _InfoLine(Symbols.badge, 'TIN', c.tin),
+          _InfoLine(Symbols.phone, 'Phone', c.phone),
+          _InfoLine(Symbols.mail, 'Email', c.email),
+          _InfoLine(Symbols.location_on, 'Address', c.address),
+          if (c.contactName != null) _InfoLine(Symbols.person, 'Contact', c.contactName),
+          if (c.notes != null && !c.notes!.startsWith('Client imported from Clickhuduma'))
+            _InfoLine(Symbols.notes, 'Notes', c.notes),
+        ])),
+        const SizedBox(height: 16),
+
+        // Contact people
+        _Card(
+          padding: EdgeInsets.zero,
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+              child: Row(children: [
+                Expanded(child: Text(c.isDetail ? 'Contacts (${c.contacts.length})' : 'Contacts',
+                    style: AppTheme.cardTitle)),
+                AppButton(label: 'Add', icon: Symbols.add, variant: BtnVariant.ghost, small: true, onPressed: onAddContact),
+              ]),
+            ),
+            if (c.isDetail && c.contacts.isEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
+                child: Text('No contact people yet. Add the person you deal with at ${c.name}.',
+                    style: AppTheme.bodySub),
+              ),
+            for (final p in c.contacts)
+              InkWell(
+                onTap: () => onOpenContact(p),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  decoration: BoxDecoration(border: Border(top: BorderSide(color: context.pal.divider))),
+                  child: Row(children: [
+                    AvatarWidget(initials: p.initials, size: 32, variant: _variantFor(p.fullName)),
+                    const SizedBox(width: 12),
+                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(p.fullName, style: AppTheme.bodyStrong.copyWith(fontSize: 13)),
+                      Text([?p.jobTitle, ?p.phone, ?p.email].where((s) => s.trim().isNotEmpty).join(' · '),
+                          maxLines: 1, overflow: TextOverflow.ellipsis,
+                          style: AppTheme.bodySub.copyWith(fontSize: 11.5)),
+                    ])),
+                    IconButton(tooltip: 'Log interaction', iconSize: 17,
+                        icon: const Icon(Symbols.add_comment), onPressed: () => onLogInteraction(p)),
+                    IconButton(tooltip: 'Send email', iconSize: 17,
+                        icon: const Icon(Symbols.mail), onPressed: p.email == null ? null : () => onEmailContact(p)),
+                    IconButton(tooltip: 'Edit contact', iconSize: 17,
+                        icon: const Icon(Symbols.edit), onPressed: () => onEditContact(p)),
+                  ]),
+                ),
+              ),
+          ]),
+        ),
+        const SizedBox(height: 16),
+
+        // Invoices
+        if (c.isDetail)
+          _Card(
+            padding: EdgeInsets.zero,
+            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+                child: Row(children: [
+                  Expanded(child: Text('Invoices', style: AppTheme.cardTitle)),
+                  if (c.invoicesCount > c.recentInvoices.length)
+                    Text('latest ${c.recentInvoices.length} of ${c.invoicesCount}',
+                        style: AppTheme.monoXs.copyWith(color: context.pal.textDim)),
+                ]),
+              ),
+              if (c.recentInvoices.isEmpty)
+                Padding(padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
+                    child: Text('No invoices yet.', style: AppTheme.bodySub)),
+              for (final inv in c.recentInvoices)
+                _DocRow(
+                  number: inv.number,
+                  date: _fmtDate(inv.issueDate),
+                  status: inv.status,
+                  total: _money(inv.total),
+                  extra: inv.balance > 0 ? '${_money(inv.balance)} due' : null,
+                  onTap: () => onOpenInvoice(inv.id),
+                ),
+            ]),
+          ),
+        if (c.isDetail && c.recentQuotations.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          _Card(
+            padding: EdgeInsets.zero,
+            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+                child: Text('Quotations', style: AppTheme.cardTitle),
+              ),
+              for (final q in c.recentQuotations)
+                _DocRow(
+                  number: q.number,
+                  date: _fmtDate(q.date),
+                  status: q.status,
+                  total: _money(q.total),
+                  onTap: () => onOpenQuotation(q.id),
+                ),
+            ]),
+          ),
+        ],
+      ]),
+    );
+  }
+}
+
+class _DocRow extends StatelessWidget {
+  const _DocRow({required this.number, required this.date, required this.status,
+      required this.total, this.extra, required this.onTap});
+  final String number, date, status, total;
+  final String? extra;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => InkWell(
+    onTap: onTap,
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(border: Border(top: BorderSide(color: context.pal.divider))),
+      child: Row(children: [
+        Expanded(flex: 3, child: Text(number, style: AppTheme.monoSm.copyWith(fontSize: 12.5))),
+        Expanded(flex: 3, child: Text(date, style: AppTheme.bodySub.copyWith(fontSize: 12))),
+        Expanded(flex: 2, child: Align(alignment: Alignment.centerLeft, child: _StatusPill(status))),
+        Expanded(flex: 4, child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+          Text(total, style: AppTheme.monoSm.copyWith(fontSize: 12.5)),
+          if (extra != null)
+            Text(extra!, style: AppTheme.monoXs.copyWith(fontSize: 10.5, color: AppColors.amber)),
+        ])),
+      ]),
+    ),
+  );
+}
+
+/// Loads the full client record, then shows the Hospitals screen's edit
+/// dialog for it (TIN, phone, address, …).
+class _EditCustomerLoader extends StatefulWidget {
+  const _EditCustomerLoader({required this.customerId, required this.onClose});
+  final int customerId;
+  final VoidCallback onClose;
+
+  @override
+  State<_EditCustomerLoader> createState() => _EditCustomerLoaderState();
+}
+
+class _EditCustomerLoaderState extends State<_EditCustomerLoader> {
+  late final _future = HospitalService.instance.get(widget.customerId);
+
+  @override
+  void initState() {
+    super.initState();
+    _future.then((_) {}, onError: (Object e) {
+      if (mounted) { showErrorToast(context, e); widget.onClose(); }
+    });
   }
 
   @override
-  Widget build(BuildContext context) => GestureDetector(
-    onTap: onTap,
-    child: Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: selected ? context.pal.surface2 : Colors.transparent,
-        border: Border(bottom: BorderSide(color: context.pal.divider)),
-      ),
-      child: Row(children: [
-        AvatarWidget(initials: contact.initials, size: 36, variant: _variant(contact.fullName)),
-        const SizedBox(width: 12),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(contact.fullName, style: AppTheme.bodyStrong.copyWith(fontSize: 13)),
-          Text(contact.jobTitle ?? contact.hospitalName,
-            style: AppTheme.bodySub.copyWith(fontSize: 11.5)),
-          const SizedBox(height: 4),
-          Row(children: contact.tags.take(2).map((tag) => Padding(
-            padding: const EdgeInsets.only(right: 4),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-              decoration: BoxDecoration(color: context.pal.surface3, borderRadius: BorderRadius.circular(4)),
-              child: Text(tag, style: AppTheme.monoXs.copyWith(fontSize: 9.5, color: context.pal.textMute)),
-            ),
-          )).toList()),
-        ])),
-        if (contact.nextFollowupAt != null) ...[
-          Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            Icon(Symbols.calendar_today, size: 12, color: AppColors.amber),
-            const SizedBox(height: 2),
-            Text(contact.nextFollowupAt!, style: AppTheme.monoXs.copyWith(color: AppColors.amber, fontSize: 10)),
-          ]),
-        ],
-      ]),
-    ),
+  Widget build(BuildContext context) => FutureBuilder(
+    future: _future,
+    builder: (context, snap) => snap.hasData
+        ? EditHospitalDialog(hospital: snap.data!, onClose: widget.onClose)
+        : Container(color: const Color(0xAA06070A), alignment: Alignment.center,
+            child: const CircularProgressIndicator(strokeWidth: 2)),
   );
 }
 
@@ -704,9 +1076,12 @@ class _DetailRow extends StatelessWidget {
 
 // ── Add Contact Dialog ──────────────────────────────────────────────────────
 class _AddContactDialog extends StatefulWidget {
-  const _AddContactDialog({required this.onClose, this.onSaved});
+  const _AddContactDialog({required this.onClose, this.onSaved, this.hospitalId, this.hospitalName});
   final VoidCallback  onClose;
   final VoidCallback? onSaved;
+  // The customer the contact works at, when adding from a customer's page.
+  final int?    hospitalId;
+  final String? hospitalName;
   @override
   State<_AddContactDialog> createState() => _AddContactDialogState();
 }
@@ -717,8 +1092,8 @@ class _AddContactDialogState extends State<_AddContactDialog> {
   final _titleCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
-  int?    _hospitalId;
-  String? _hospitalName;
+  late int?    _hospitalId   = widget.hospitalId;
+  late String? _hospitalName = widget.hospitalName;
   bool   _saving   = false;
 
   @override
@@ -754,7 +1129,7 @@ class _AddContactDialogState extends State<_AddContactDialog> {
     onSave: _save,
     saving: _saving,
     icon: Symbols.person_add,
-    title: 'Add Contact',
+    title: widget.hospitalName != null ? 'Add contact · ${widget.hospitalName}' : 'Add Contact',
     saveLabel: 'Save Contact',
     child: Column(children: [
       Row(children: [
