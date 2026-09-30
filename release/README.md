@@ -10,7 +10,7 @@
 3. `.github/workflows/release.yml` builds the Windows installer (Inno Setup,
    on a Windows runner) and the Linux tarball, writes `latest.json`, uploads
    all three to the VPS updates folder, and attaches them to a GitHub Release.
-4. Every running app picks it up within 4 hours (or at next start / via
+4. Every running app picks it up within 15 minutes (or at next start / via
    Settings → Preferences → App updates → Check for updates).
 
 **Forcing an update**: set `release/min_version.txt` to the new version before

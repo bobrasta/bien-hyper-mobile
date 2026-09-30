@@ -139,7 +139,7 @@ class UpdateService {
   /// new key here, ship a release signed with the OLD key, then switch the
   /// pipeline to the new key and drop the old one in a later release.
   static const trustedKeys = ['gs3MGeLeGciVoEC/ndTVQVbu7iov/CLZR48f7Un7i8Y='];
-  static const checkInterval = Duration(hours: 4);
+  static const checkInterval = Duration(minutes: 15);
   static const immediateGrace = Duration(seconds: 60);
   static const _modeKey = 'update_mode';
   static const _policyKey = 'app_update_policy';
