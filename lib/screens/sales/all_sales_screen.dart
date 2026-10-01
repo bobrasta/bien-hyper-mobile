@@ -342,6 +342,37 @@ class _AllSalesScreenState extends State<AllSalesScreen> {
     }
   }
 
+  // Server-side limit for a PDF (SalesExportService::PDF_MAX_ROWS).
+  static const _pdfMaxRows = 2000;
+  bool _exporting = false;
+
+  Future<void> _export(Offset at) async {
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    final format = await showMenu<String>(
+      context: context,
+      color: context.pal.surface1,
+      position: RelativeRect.fromRect(at & const Size(1, 1), Offset.zero & overlay.size),
+      items: [
+        PopupMenuItem(value: 'xlsx', height: 38, child: Row(children: [
+          Icon(Symbols.table_view, size: 16, color: AppColors.green), const SizedBox(width: 10), const Text('Excel (.xlsx)')])),
+        PopupMenuItem(value: 'pdf', height: 38, child: Row(children: [
+          Icon(Symbols.picture_as_pdf, size: 16, color: AppColors.coral), const SizedBox(width: 10), const Text('PDF')])),
+      ],
+    );
+    if (format == null || !mounted) return;
+    final rows = _filtered;
+    if (rows.isEmpty) return showErrorToast(context, 'No sales to export.');
+    if (format == 'pdf' && rows.length > _pdfMaxRows) {
+      return showErrorToast(context, '${rows.length} sales is too many for a PDF (max $_pdfMaxRows). Narrow the filters or export to Excel.');
+    }
+    setState(() => _exporting = true);
+    final stamp = DateTime.now().toIso8601String().substring(0, 10);
+    final kind = _kind == 'final' ? 'sales' : '${_kind}s';
+    await downloadPdf(context, () => InvoiceService.instance.exportBytes(format, [for (final i in rows) i.id],
+        saleStatus: _kind == 'final' ? null : _kind), 'all-$kind-$stamp.$format');
+    if (mounted) setState(() => _exporting = false);
+  }
+
   Future<void> _addSale() async {
     final saved = await Navigator.push<Invoice>(context, MaterialPageRoute(builder: (_) => const InvoiceBuilderScreen()));
     if (saved != null && mounted) showSuccessToast(context, '${saved.invoiceNumber} saved.');
@@ -373,10 +404,22 @@ class _AllSalesScreenState extends State<AllSalesScreen> {
               ])),
               SearchField(width: 240, hint: 'Invoice, customer, phone…', controller: _searchCtrl, onChanged: (_) => _resetPage()),
               const SizedBox(width: 8),
+              Builder(builder: (b) => OutlinedButton.icon(
+                onPressed: _exporting || _loading ? null : () {
+                  final box = b.findRenderObject() as RenderBox;
+                  _export(box.localToGlobal(Offset(0, box.size.height + 4)));
+                },
+                icon: _exporting
+                    ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Symbols.download, size: 16),
+                label: const Text('Export as'),
+              )),
+              const SizedBox(width: 8),
               FilledButton.icon(onPressed: _addSale, icon: const Icon(Symbols.add, size: 16), label: const Text('Add sale')),
             ]),
             const SizedBox(height: 12),
-            Wrap(spacing: 10, runSpacing: 10, crossAxisAlignment: WrapCrossAlignment.end, children: [
+            // Filter selects are about 20% shorter than the standard field.
+            DenseFields(child: Wrap(spacing: 10, runSpacing: 10, crossAxisAlignment: WrapCrossAlignment.center, children: [
               ..._statusChips(context, rows),
               const SizedBox(width: 6),
               SizedBox(width: 230, child: AppSearchableSelectField<String>(
@@ -398,7 +441,7 @@ class _AllSalesScreenState extends State<AllSalesScreen> {
                 items: [null, ..._shipStatuses.keys].map((v) => DropdownMenuItem(value: v, child: Text(v == null ? 'Any shipping' : _shipStatuses[v]!))).toList(),
                 onChanged: (v) { _shipStatus = v; _resetPage(); },
               )),
-            ]),
+            ])),
           ]),
         ),
         const SizedBox(height: 14),

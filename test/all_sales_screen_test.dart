@@ -3,6 +3,7 @@ import 'package:bienhypermed/screens/sales/all_sales_screen.dart';
 import 'package:bienhypermed/services/invoice_service.dart';
 import 'package:bienhypermed/theme/app_theme.dart';
 import 'package:flutter/gestures.dart';
+import 'package:bienhypermed/widgets/common/labeled_field.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -88,6 +89,9 @@ void main() {
     expect(find.text('Drafts'), findsOneWidget);
     expect(find.text('Proformas'), findsOneWidget);
     expect(y('All'), lessThan(y('TOTAL SALES')));
+    // Filter selects ~20% shorter than the standard 44px field; Export as sits in the header.
+    expect(tester.getSize(find.byType(DropdownFieldBox<String?>).first).height, 35);
+    expect(find.text('Export as'), findsOneWidget);
     await tester.tap(find.text('Paid').first);
     await tester.pump();
     expect(find.text('HH-2'), findsOneWidget);

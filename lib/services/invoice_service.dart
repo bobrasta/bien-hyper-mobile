@@ -137,6 +137,15 @@ class InvoiceService {
     return data['share_url'] as String;
   }
 
+  /// All sales as an Excel ('xlsx') or PDF ('pdf') file — exactly [ids],
+  /// in that order (the rows on screen).
+  Future<List<int>> exportBytes(String format, List<int> ids, {String? saleStatus}) async {
+    final res = await _dio.post<List<int>>('/invoices/export',
+        data: {'format': format, 'ids': ids, 'period': 'all', 'sale_status': ?saleStatus},
+        options: Options(responseType: ResponseType.bytes));
+    return res.data!;
+  }
+
   Future<List<int>> pdfBytes(int id) async {
     final res = await _dio.get<List<int>>('/invoices/$id/pdf', options: Options(responseType: ResponseType.bytes));
     return res.data!;

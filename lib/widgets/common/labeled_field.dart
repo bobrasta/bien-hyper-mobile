@@ -10,6 +10,21 @@ import '../../utils/format.dart';
 /// fields in the same row.
 const double kFieldHeight = 44;
 
+/// Shorter single-line fields (about 20% down, 44 → 35) for everything
+/// under it — used for a page's filter row. The look is otherwise the same.
+class DenseFields extends InheritedWidget {
+  const DenseFields({super.key, required super.child});
+  static const double height = 35;
+
+  static bool of(BuildContext context) => context.dependOnInheritedWidgetOfExactType<DenseFields>() != null;
+
+  @override
+  bool updateShouldNotify(DenseFields old) => false;
+}
+
+/// [kFieldHeight], or the [DenseFields] height inside one.
+double fieldHeightOf(BuildContext context) => DenseFields.of(context) ? DenseFields.height : kFieldHeight;
+
 /// The shared focus-reactive box every text-entry field sits in: a
 /// recessed (`bg`-filled) rounded box with a `borderStrong` outline at rest
 /// that turns the theme accent while focused, plus a solid translucent
@@ -286,9 +301,10 @@ class _LabeledTextFieldState extends State<LabeledTextField> {
             // the field sits on (lighter on light themes, same idea).
             fillColor: widget.enabled ? context.pal.bg : context.pal.surface3,
             isDense: true,
-            contentPadding: const EdgeInsets.symmetric(
+            contentPadding: EdgeInsets.symmetric(
               horizontal: 14,
-              vertical: 12,
+              // 12 → 7.5 inside DenseFields: the same 9px drop as the boxes.
+              vertical: DenseFields.of(context) ? 7.5 : 12,
             ),
             prefixIcon: widget.prefixIcon == null ? null : Icon(widget.prefixIcon, size: 16, color: context.pal.textDim),
             prefixIconConstraints: const BoxConstraints(minWidth: 38, minHeight: 20),
@@ -473,7 +489,7 @@ class DropdownFieldBox<T> extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     width: width,
     decoration: fieldBoxDecoration(context, enabled: enabled, active: active),
-    height: kFieldHeight,
+    height: fieldHeightOf(context),
     padding: const EdgeInsets.symmetric(horizontal: 14),
     child: DropdownButtonHideUnderline(child: DropdownButton<T>(
       value: value,
