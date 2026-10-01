@@ -83,6 +83,11 @@ void main() {
     await tester.pump();
     expect(y('HH-2') < y('HH-3'), isTrue);
 
+    // The status chips sit in the filter row where the Sales/Drafts/Proformas tabs were.
+    expect(find.text('Sales'), findsNothing);
+    expect(find.text('Drafts'), findsOneWidget);
+    expect(find.text('Proformas'), findsOneWidget);
+    expect(y('All'), lessThan(y('TOTAL SALES')));
     await tester.tap(find.text('Paid').first);
     await tester.pump();
     expect(find.text('HH-2'), findsOneWidget);

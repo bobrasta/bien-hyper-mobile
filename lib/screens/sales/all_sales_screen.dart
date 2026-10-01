@@ -361,7 +361,7 @@ class _AllSalesScreenState extends State<AllSalesScreen> {
       final tableW = cst.maxWidth - 2 * pad;
       final cols = [for (final c in _cols) if (tableW >= c.minWidth) c];
       return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        // Fixed: head, tabs and filters. The summary and table scroll together.
+        // Fixed: head, status chips and filters. The summary and table scroll together.
         Padding(
           padding: EdgeInsets.fromLTRB(pad, pad, pad, 0),
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -377,8 +377,7 @@ class _AllSalesScreenState extends State<AllSalesScreen> {
             ]),
             const SizedBox(height: 12),
             Wrap(spacing: 10, runSpacing: 10, crossAxisAlignment: WrapCrossAlignment.end, children: [
-              for (final (k, l) in const [('final', 'Sales'), ('draft', 'Drafts'), ('proforma', 'Proformas')])
-                _Tab(label: l, active: _kind == k, onTap: () => _setKind(k)),
+              ..._statusChips(context, rows),
               const SizedBox(width: 6),
               SizedBox(width: 230, child: AppSearchableSelectField<String>(
                 hint: 'All customers',
@@ -437,10 +436,8 @@ class _AllSalesScreenState extends State<AllSalesScreen> {
     final total = base.fold<int>(0, (s, i) => s + i.total);
     final paid = base.fold<int>(0, (s, i) => s + i.amountPaid);
     final due = base.fold<int>(0, (s, i) => s + i.balanceDue);
-    final counts = <String, int>{};
     final methods = <String, int>{};
     for (final i in base) {
-      counts[i.chPaymentStatus] = (counts[i.chPaymentStatus] ?? 0) + 1;
       final m = _methods(i);
       if (m != '—') methods[m] = (methods[m] ?? 0) + 1;
     }
@@ -470,20 +467,40 @@ class _AllSalesScreenState extends State<AllSalesScreen> {
         kpi('PAID BY', methods.isEmpty ? '—' : (methods.entries.toList()..sort((a, b) => b.value - a.value)).first.key,
             context.pal.text, methods.entries.map((e) => '${e.key} ${e.value}').join(' · ')),
       ]),
-      if (_kind == 'final') ...[
-        const SizedBox(height: 12),
-        Wrap(spacing: 6, runSpacing: 6, children: [
-          _Chip(label: 'All', count: base.length, active: _payStatus == null, color: AppColors.teal,
-              onTap: () { _payStatus = null; _resetPage(); }),
-          for (final (k, l, c) in [('paid', 'Paid', AppColors.green), ('due', 'Due', AppColors.amber),
-                                    ('partial', 'Partial', AppColors.blue), ('overdue', 'Overdue', AppColors.coral),
-                                    ('cancelled', 'Cancelled', context.pal.textDim)])
-            if ((counts[k] ?? 0) > 0 || _payStatus == k)
-              _Chip(label: l, count: counts[k] ?? 0, active: _payStatus == k, color: c,
-                  onTap: () { _payStatus = _payStatus == k ? null : k; _resetPage(); }),
-        ]),
-      ],
     ]);
+  }
+
+  // Payment-status chips (they filter the table), then Drafts and
+  // Proformas, which load those unfinished sales instead.
+  List<Widget> _statusChips(BuildContext context, List<Invoice> rows) {
+    final sales = _kind == 'final';
+    final base = !sales ? const <Invoice>[] : _payStatus == null ? rows : _withoutStatusFilter();
+    final counts = <String, int>{};
+    for (final i in base) {
+      counts[i.chPaymentStatus] = (counts[i.chPaymentStatus] ?? 0) + 1;
+    }
+    void pick(String? status) {
+      if (!sales) {
+        _setKind('final');
+        setState(() => _payStatus = status);
+        return;
+      }
+      _payStatus = _payStatus == status ? null : status;
+      _resetPage();
+    }
+    return [
+      _Chip(label: 'All', count: sales ? base.length : null, active: sales && _payStatus == null, color: AppColors.teal,
+          onTap: () => pick(null)),
+      for (final (k, l, c) in [('paid', 'Paid', AppColors.green), ('due', 'Due', AppColors.amber),
+                                ('partial', 'Partial', AppColors.blue), ('overdue', 'Overdue', AppColors.coral),
+                                ('cancelled', 'Cancelled', context.pal.textDim)])
+        if (!sales || (counts[k] ?? 0) > 0 || _payStatus == k)
+          _Chip(label: l, count: sales ? counts[k] ?? 0 : null, active: sales && _payStatus == k, color: c,
+              onTap: () => pick(k)),
+      for (final (k, l) in const [('draft', 'Drafts'), ('proforma', 'Proformas')])
+        _Chip(label: l, count: _kind == k ? rows.length : null, active: _kind == k, color: AppColors.violet,
+            onTap: () => _setKind(_kind == k ? 'final' : k)),
+    ];
   }
 
   List<Invoice> _withoutStatusFilter() {
@@ -582,8 +599,8 @@ class _AllSalesScreenState extends State<AllSalesScreen> {
 }
 
 class _Chip extends StatelessWidget {
-  const _Chip({required this.label, required this.count, required this.active, required this.color, required this.onTap});
-  final String label; final int count; final bool active; final Color color; final VoidCallback onTap;
+  const _Chip({required this.label, this.count, required this.active, required this.color, required this.onTap});
+  final String label; final int? count; final bool active; final Color color; final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) => InkWell(
@@ -600,30 +617,11 @@ class _Chip extends StatelessWidget {
         Container(width: 7, height: 7, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
         const SizedBox(width: 7),
         Text(label, style: AppTheme.bodySm.copyWith(fontSize: 12, fontWeight: FontWeight.w600)),
-        const SizedBox(width: 6),
-        Text('$count', style: AppTheme.monoXs.copyWith(fontSize: 11, color: context.pal.textMute)),
+        if (count != null) ...[
+          const SizedBox(width: 6),
+          Text('$count', style: AppTheme.monoXs.copyWith(fontSize: 11, color: context.pal.textMute)),
+        ],
       ]),
-    ),
-  );
-}
-
-class _Tab extends StatelessWidget {
-  const _Tab({required this.label, required this.active, required this.onTap});
-  final String label; final bool active; final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) => InkWell(
-    onTap: onTap,
-    borderRadius: BorderRadius.circular(999),
-    child: Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-      decoration: BoxDecoration(
-        color: active ? AppColors.tealSoft : context.pal.surface2,
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: active ? AppColors.teal : context.pal.border),
-      ),
-      child: Text(label, style: AppTheme.bodySm.copyWith(
-          fontSize: 12.5, fontWeight: FontWeight.w600, color: active ? AppColors.teal : context.pal.textMute)),
     ),
   );
 }
