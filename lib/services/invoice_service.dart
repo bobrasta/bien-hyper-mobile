@@ -31,11 +31,23 @@ class InvoiceService {
     return invoices;
   }
 
-  Future<Invoice> get(int id) async {
+  // One request per invoice at a time — a hover prefetch and the detail
+  // dialog opened right after it share the same fetch.
+  static final Map<int, Future<Invoice>> _inFlight = {};
+
+  Future<Invoice> get(int id) => _inFlight[id] ??= _fetch(id).whenComplete(() => _inFlight.remove(id));
+
+  Future<Invoice> _fetch(int id) async {
     final res = await _dio.get('/invoices/$id');
     final invoice = Invoice.fromJson(ApiClient.unwrap(res) as Map<String, dynamic>);
     cachedById[invoice.id] = invoice;
     return invoice;
+  }
+
+  /// Warm [cachedById] (e.g. when the pointer rests on a list row) so the
+  /// detail dialog opens with line items and payments already there.
+  void prefetch(int id) {
+    if (!cachedById.containsKey(id)) get(id).ignore();
   }
 
   /// Full edit (line items, terms, notes) or a sale-status change

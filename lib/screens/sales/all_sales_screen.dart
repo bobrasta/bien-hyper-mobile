@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -91,6 +93,7 @@ class _AllSalesScreenState extends State<AllSalesScreen> {
   String _kind = 'final';
   Period _period = Period.defaultPeriod;
   List<Invoice> _all = [];
+  Timer? _hoverTimer;
   bool _loading = true;
   String? _error;
 
@@ -115,6 +118,7 @@ class _AllSalesScreenState extends State<AllSalesScreen> {
 
   @override
   void dispose() {
+    _hoverTimer?.cancel();
     _searchCtrl.dispose();
     super.dispose();
   }
@@ -127,6 +131,15 @@ class _AllSalesScreenState extends State<AllSalesScreen> {
     try {
       final data = await InvoiceService.instance.list(
           period: _period, saleStatus: _kind == 'final' ? null : _kind);
+      // Drop prefetched copies the reload shows are out of date (edited,
+      // paid, cancelled) so View never opens on old figures.
+      for (final i in data) {
+        final c = InvoiceService.cachedById[i.id];
+        if (c != null && (c.total != i.total || c.amountPaid != i.amountPaid || c.status != i.status
+            || c.invoiceNumber != i.invoiceNumber || c.issueDate != i.issueDate)) {
+          InvoiceService.cachedById.remove(i.id);
+        }
+      }
       if (mounted) setState(() { _all = data; _loading = false; });
     } catch (e) {
       if (mounted) setState(() { _error = friendlyError(e); _loading = false; });
@@ -536,22 +549,31 @@ class _AllSalesScreenState extends State<AllSalesScreen> {
       _ => const SizedBox(),
     };
 
-    return GestureDetector(
-      onSecondaryTapDown: (d) => _openMenu(i, d.globalPosition),
-      onLongPressStart: (d) => _openMenu(i, d.globalPosition),
-      child: InkWell(
-        onTap: () => showInvoiceDetail(context, i.id, preview: i).then((changed) { if (changed) _load(); }),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: 46),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 6),
-            child: Row(children: [
-              for (final c in cols)
-                Expanded(flex: c.flex, child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  child: Align(alignment: c.num ? Alignment.centerRight : Alignment.centerLeft, child: cellFor(c)),
-                )),
-            ]),
+    // Resting the pointer on a row starts fetching the full sale, so View
+    // opens with its line items and payments already loaded.
+    return MouseRegion(
+      onEnter: (_) {
+        _hoverTimer?.cancel();
+        _hoverTimer = Timer(const Duration(milliseconds: 150), () => InvoiceService.instance.prefetch(i.id));
+      },
+      onExit: (_) => _hoverTimer?.cancel(),
+      child: GestureDetector(
+        onSecondaryTapDown: (d) { InvoiceService.instance.prefetch(i.id); _openMenu(i, d.globalPosition); },
+        onLongPressStart: (d) { InvoiceService.instance.prefetch(i.id); _openMenu(i, d.globalPosition); },
+        child: InkWell(
+          onTap: () => showInvoiceDetail(context, i.id, preview: i).then((changed) { if (changed) _load(); }),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 46),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Row(children: [
+                for (final c in cols)
+                  Expanded(flex: c.flex, child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    child: Align(alignment: c.num ? Alignment.centerRight : Alignment.centerLeft, child: cellFor(c)),
+                  )),
+              ]),
+            ),
           ),
         ),
       ),
