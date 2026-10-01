@@ -4,7 +4,7 @@ import 'labeled_field.dart';
 
 /// Reporting period used by every dated list and dashboard. The app shows
 /// "This year" everywhere unless the user picks something else.
-enum PeriodPreset { thisYear, thisQuarter, thisMonth, lastYear, allTime, custom }
+enum PeriodPreset { today, thisWeek, thisYear, thisQuarter, thisMonth, lastYear, allTime, custom }
 
 class Period {
   const Period._(this.preset, this.from, this.to);
@@ -18,6 +18,12 @@ class Period {
   factory Period.of(PeriodPreset p, {DateTime? now}) {
     final n = now ?? DateTime.now();
     switch (p) {
+      case PeriodPreset.today:
+        return Period._(p, DateTime(n.year, n.month, n.day), DateTime(n.year, n.month, n.day));
+      case PeriodPreset.thisWeek:
+        // Monday to Sunday.
+        final mon = DateTime(n.year, n.month, n.day - (n.weekday - 1));
+        return Period._(p, mon, DateTime(mon.year, mon.month, mon.day + 6));
       case PeriodPreset.thisYear:
         return Period._(p, DateTime(n.year, 1, 1), DateTime(n.year, 12, 31));
       case PeriodPreset.thisQuarter:
@@ -64,6 +70,8 @@ class Period {
   }
 
   String get label => switch (preset) {
+        PeriodPreset.today => 'Today',
+        PeriodPreset.thisWeek => 'This week',
         PeriodPreset.thisYear => 'This year',
         PeriodPreset.thisQuarter => 'This quarter',
         PeriodPreset.thisMonth => 'This month',
@@ -101,7 +109,7 @@ class PeriodSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const presets = [PeriodPreset.thisYear, PeriodPreset.thisQuarter, PeriodPreset.thisMonth, PeriodPreset.lastYear, PeriodPreset.allTime];
+    const presets = [PeriodPreset.today, PeriodPreset.thisWeek, PeriodPreset.thisMonth, PeriodPreset.thisQuarter, PeriodPreset.thisYear, PeriodPreset.lastYear, PeriodPreset.allTime];
     return DropdownFieldBox<PeriodPreset>(
       width: width,
       value: value.preset,
