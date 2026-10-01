@@ -1,5 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import '../../main.dart' show can;
 import '../../models/hospital.dart';
@@ -15,6 +18,7 @@ import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/tin.dart';
 import '../../widgets/common/app_button.dart';
+import '../../widgets/charts/map_tiles.dart';
 
 import '../../theme/app_palette.dart';
 class HospitalListScreen extends StatefulWidget {
@@ -178,7 +182,7 @@ class _HospitalListScreenState extends State<HospitalListScreen> {
             children: [
               // Header
               LayoutBuilder(builder: (ctx2, cst2) {
-                final narrow = cst2.maxWidth < 560;
+                final narrow = cst2.maxWidth < 700;
                 final titleBlock = Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   _Crumb(),
                   const SizedBox(height: 4),
@@ -263,17 +267,18 @@ class _HospitalListScreenState extends State<HospitalListScreen> {
               }),
               const SizedBox(height: 16),
 
-              // Table · horizontally scrollable below 900px
-              HScrollTable(
-                minWidth: 900,
-                child: Container(
+              // Table · fits the width; Contact, then Machines, drop out
+              // on narrow windows instead of scrolling sideways.
+              LayoutBuilder(builder: (ctx4, cst4) {
+                final cols = _Cols(machines: cst4.maxWidth >= 560, contact: cst4.maxWidth >= 760);
+                return Container(
                   decoration: BoxDecoration(
                     color: context.pal.surface1,
                     borderRadius: BorderRadius.circular(AppColors.rLg),
                     border: Border.all(color: context.pal.border),
                   ),
                   child: Column(children: [
-                    _TableHeader(),
+                    _TableHeader(cols),
                     if (_loading)
                       shimmerList(count: 8)
                     // A background refresh failing while stale-but-valid
@@ -294,6 +299,7 @@ class _HospitalListScreenState extends State<HospitalListScreen> {
                     else
                       ...hospitals.map((h) => _HospitalRow(
                         hospital: h,
+                        cols: cols,
                         onView: () => setState(() => _viewHospital = h),
                         onEdit: () => setState(() => _editHospital = h),
                       )),
@@ -328,8 +334,8 @@ class _HospitalListScreenState extends State<HospitalListScreen> {
                       ]),
                     ),
                   ]),
-                ),
-              ),
+                );
+              }),
             ],
           ),
           ));  // SingleChildScrollView + RefreshIndicator
@@ -464,15 +470,33 @@ class _FilterPill extends StatelessWidget {
 // Column weights shared by the header and every row so they always line up.
 // Flex (not fixed widths) spreads the columns across whatever width the table
 // gets; long text ellipsizes instead of pushing neighbours around.
+// Each column is a main line plus a sub line, so four columns carry
+// name/type, district/region/zone, machines and contact.
 const _kColHospital = 5;
-const _kColRegion   = 2;
-const _kColType     = 2;
+const _kColLocation = 4;
 const _kColMachines = 2;
-const _kColUptime   = 2;
 const _kColContact  = 3;
-const _kActionsW    = 56.0;
+const _kActionsW    = 84.0;
+
+/// Which optional columns fit the table's width.
+class _Cols {
+  const _Cols({required this.machines, required this.contact});
+  final bool machines, contact;
+}
+
+const _zoneLabels = {
+  'coastal': 'Coastal', 'northern': 'Northern', 'lake': 'Lake',
+  'central': 'Central', 'shighland': 'Southern Highlands', 'southern': 'Southern',
+};
+
+String? zoneLabel(String? zone) => zone == null || zone.isEmpty ? null : _zoneLabels[zone] ?? zone;
+
+bool _hasLocation(Hospital h) => h.latitude != 0 && h.longitude != 0;
 
 class _TableHeader extends StatelessWidget {
+  const _TableHeader(this.cols);
+  final _Cols cols;
+
   @override
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.symmetric(vertical: 8),
@@ -480,11 +504,9 @@ class _TableHeader extends StatelessWidget {
     child: Row(children: [
       const SizedBox(width: 20),
       _Th('Hospital', flex: _kColHospital),
-      _Th('Region',   flex: _kColRegion),
-      _Th('Type',     flex: _kColType),
-      _Th('Machines', flex: _kColMachines),
-      _Th('Uptime',   flex: _kColUptime),
-      _Th('Contact',  flex: _kColContact),
+      _Th('Location', flex: _kColLocation),
+      if (cols.machines) _Th('Machines', flex: _kColMachines),
+      if (cols.contact) _Th('Contact',  flex: _kColContact),
       const SizedBox(width: _kActionsW),
     ]),
   );
@@ -509,8 +531,9 @@ class _Th extends StatelessWidget {
 /// Whole row is clickable (opens the detail modal) with a hover highlight;
 /// the edit icon keeps its own tap so it doesn't also open the detail.
 class _HospitalRow extends StatefulWidget {
-  const _HospitalRow({required this.hospital, this.onView, this.onEdit});
+  const _HospitalRow({required this.hospital, required this.cols, this.onView, this.onEdit});
   final Hospital hospital;
+  final _Cols cols;
   final VoidCallback? onView;
   final VoidCallback? onEdit;
 
@@ -546,13 +569,12 @@ class _HospitalRowState extends State<_HospitalRow> {
   @override
   Widget build(BuildContext context) {
     final hospital = widget.hospital;
-    final uptimePct = hospital.uptimePct;
-    final uptimeColor = uptimePct >= 0.95
-        ? AppColors.teal
-        : uptimePct >= 0.85
-            ? AppColors.amber
-            : AppColors.coral;
+    final cols = widget.cols;
     final typeColor = _typeColor(hospital.type);
+    final zone = zoneLabel(hospital.zone);
+    final district = hospital.district == '—' ? '' : hospital.district;
+    final region = hospital.region == '—' ? '' : hospital.region;
+    final where = [if (region.isNotEmpty) region, if (zone != null) '$zone zone'].join(' · ');
 
     return MouseRegion(
       cursor: SystemMouseCursors.click,
@@ -585,51 +607,27 @@ class _HospitalRowState extends State<_HospitalRow> {
               const SizedBox(width: 10),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 _line(hospital.name, AppTheme.bodyStrong.copyWith(fontSize: 12.5)),
-                if (hospital.district.isNotEmpty)
-                  _line(hospital.district, AppTheme.bodySub.copyWith(fontSize: 11)),
+                Text.rich(TextSpan(children: [
+                  TextSpan(text: _typeLabel(hospital.type), style: TextStyle(color: typeColor, fontWeight: FontWeight.w500)),
+                  if (hospital.shortCode.isNotEmpty && hospital.shortCode != '??') TextSpan(text: '  ·  ${hospital.shortCode}'),
+                ]), maxLines: 1, overflow: TextOverflow.ellipsis, style: AppTheme.bodySub.copyWith(fontSize: 11)),
               ])),
             ])),
-            // Region
-            _cell(_kColRegion, _line(hospital.region, AppTheme.bodySm.copyWith(fontSize: 12.5))),
-            // Type — Align keeps the pill hugging its label instead of
-            // stretching across the whole column.
-            _cell(_kColType, Align(
-              alignment: Alignment.centerLeft,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: typeColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text(_typeLabel(hospital.type), style: AppTheme.bodySub.copyWith(
-                  color: typeColor, fontSize: 11.5, fontWeight: FontWeight.w500,
-                )),
-              ),
-            )),
+            // Location: district, then region · zone
+            _cell(_kColLocation, Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              _line(district.isEmpty ? (region.isEmpty ? '—' : region) : district,
+                  AppTheme.bodySm.copyWith(fontSize: 12.5)),
+              if (where.isNotEmpty)
+                _line(where, AppTheme.bodySub.copyWith(fontSize: 11)),
+            ])),
             // Machines
+            if (cols.machines)
             _cell(_kColMachines, Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('${hospital.machineCount}', style: AppTheme.bodyStrong.copyWith(fontSize: 13)),
               _line('${hospital.machinesOperational} active', AppTheme.bodySub.copyWith(fontSize: 11)),
             ])),
-            // Uptime
-            _cell(_kColUptime, Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('${(uptimePct * 100).toStringAsFixed(0)}%',
-                style: AppTheme.bodyStrong.copyWith(fontSize: 13, color: uptimeColor)),
-              const SizedBox(height: 4),
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 90),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(999),
-                  child: LinearProgressIndicator(
-                    value: uptimePct,
-                    backgroundColor: context.pal.surface3,
-                    valueColor: AlwaysStoppedAnimation(uptimeColor),
-                    minHeight: 3,
-                  ),
-                ),
-              ),
-            ])),
             // Contact
+            if (cols.contact)
             _cell(_kColContact, Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               _line(hospital.contactName.isEmpty ? '—' : hospital.contactName,
                   AppTheme.bodySm.copyWith(fontSize: 12)),
@@ -637,20 +635,146 @@ class _HospitalRowState extends State<_HospitalRow> {
                 _line(hospital.contactPhone,
                     AppTheme.monoXs.copyWith(color: context.pal.textMute, fontSize: 10.5)),
             ])),
-            // Actions — edit only; viewing is a click anywhere on the row.
-            SizedBox(width: _kActionsW, child: Center(
-              child: can('hospitals.manage')
-                  ? IconButton(
-                      onPressed: widget.onEdit,
-                      tooltip: 'Edit hospital',
-                      visualDensity: VisualDensity.compact,
-                      iconSize: 16,
-                      icon: Icon(Symbols.edit, color: context.pal.textDim),
-                    )
-                  : const SizedBox.shrink(),
-            )),
+            // Actions — map pin and edit; viewing is a click anywhere on the row.
+            SizedBox(width: _kActionsW, child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+              IconButton(
+                onPressed: _hasLocation(hospital) ? () => showHospitalLocation(context, hospital) : null,
+                tooltip: _hasLocation(hospital) ? 'See on map' : 'No location saved',
+                visualDensity: VisualDensity.compact,
+                iconSize: 17,
+                icon: Icon(Symbols.location_on,
+                    color: _hasLocation(hospital) ? AppColors.teal : context.pal.textDim.withValues(alpha: 0.4)),
+              ),
+              if (can('hospitals.manage'))
+                IconButton(
+                  onPressed: widget.onEdit,
+                  tooltip: 'Edit hospital',
+                  visualDensity: VisualDensity.compact,
+                  iconSize: 16,
+                  icon: Icon(Symbols.edit, color: context.pal.textDim),
+                ),
+              const SizedBox(width: 8),
+            ])),
           ]),
         ),
+      ),
+    );
+  }
+}
+
+// ── Location map ─────────────────────────────────────────────────────────────
+
+/// The hospital's saved coordinates on a map, with a link out to Google Maps.
+Future<void> showHospitalLocation(BuildContext context, Hospital hospital) =>
+    showDialog(context: context, builder: (_) => _LocationDialog(hospital: hospital));
+
+class _LocationDialog extends StatefulWidget {
+  const _LocationDialog({required this.hospital});
+  final Hospital hospital;
+
+  @override
+  State<_LocationDialog> createState() => _LocationDialogState();
+}
+
+class _LocationDialogState extends State<_LocationDialog> {
+  MapStyle _style = MapStyle.light;
+
+  @override
+  Widget build(BuildContext context) {
+    final h = widget.hospital;
+    final point = LatLng(h.latitude, h.longitude);
+    final zone = zoneLabel(h.zone);
+    final where = [
+      if (h.district.isNotEmpty && h.district != '—') h.district,
+      if (h.region.isNotEmpty && h.region != '—') h.region,
+      if (zone != null) '$zone zone',
+    ].join(' · ');
+    final coords = '${h.latitude.toStringAsFixed(5)}, ${h.longitude.toStringAsFixed(5)}';
+
+    return Dialog(
+      backgroundColor: context.pal.surface1,
+      insetPadding: const EdgeInsets.all(24),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppColors.rLg)),
+      clipBehavior: Clip.antiAlias,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 720, maxHeight: 560),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 8, 12),
+            child: Row(children: [
+              Icon(Symbols.location_on, size: 20, color: AppColors.teal),
+              const SizedBox(width: 10),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(h.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: AppTheme.bodyStrong.copyWith(fontSize: 14)),
+                if (where.isNotEmpty)
+                  Text(where, maxLines: 1, overflow: TextOverflow.ellipsis, style: AppTheme.bodySub.copyWith(fontSize: 12)),
+              ])),
+              IconButton(
+                tooltip: 'Close',
+                onPressed: () => Navigator.pop(context),
+                icon: Icon(Symbols.close, size: 18, color: context.pal.textDim),
+              ),
+            ]),
+          ),
+          Flexible(child: SizedBox(
+            height: 400,
+            child: Stack(children: [
+              FlutterMap(
+                options: MapOptions(initialCenter: point, initialZoom: 14),
+                children: [
+                  mapTileLayer(_style),
+                  MarkerLayer(markers: [
+                    Marker(
+                      point: point,
+                      width: 36,
+                      height: 36,
+                      alignment: Alignment.topCenter,
+                      child: Icon(Symbols.location_on, fill: 1, size: 36, color: AppColors.coral,
+                          shadows: const [Shadow(color: Colors.black45, blurRadius: 6)]),
+                    ),
+                  ]),
+                  SimpleAttributionWidget(
+                    source: Text(_style.attribution, style: const TextStyle(fontSize: 9, color: Colors.white54)),
+                    backgroundColor: const Color(0xAA0F1117),
+                  ),
+                ],
+              ),
+              Positioned(
+                top: 10, right: 10,
+                child: SegmentedButton<MapStyle>(
+                  style: SegmentedButton.styleFrom(
+                    backgroundColor: context.pal.surface1,
+                    visualDensity: VisualDensity.compact,
+                    textStyle: AppTheme.bodySm.copyWith(fontSize: 12),
+                  ),
+                  showSelectedIcon: false,
+                  segments: const [
+                    ButtonSegment(value: MapStyle.light, label: Text('Map')),
+                    ButtonSegment(value: MapStyle.satellite, label: Text('Satellite')),
+                  ],
+                  selected: {_style},
+                  onSelectionChanged: (v) => setState(() => _style = v.first),
+                ),
+              ),
+            ]),
+          )),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 16, 14),
+            child: Row(children: [
+              Expanded(child: SelectableText(coords, style: AppTheme.monoXs.copyWith(color: context.pal.textMute, fontSize: 11.5))),
+              AppButton(
+                label: 'Open in Google Maps',
+                icon: Symbols.open_in_new,
+                variant: BtnVariant.normal,
+                small: true,
+                onPressed: () => launchUrl(
+                  Uri.parse('https://www.google.com/maps/search/?api=1&query=${h.latitude},${h.longitude}'),
+                  mode: LaunchMode.externalApplication,
+                ),
+              ),
+            ]),
+          ),
+        ]),
       ),
     );
   }
