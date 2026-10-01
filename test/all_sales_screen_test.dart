@@ -2,6 +2,7 @@ import 'package:bienhypermed/models/invoice.dart';
 import 'package:bienhypermed/screens/sales/all_sales_screen.dart';
 import 'package:bienhypermed/services/invoice_service.dart';
 import 'package:bienhypermed/theme/app_theme.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -62,9 +63,16 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('narrow window scrolls sideways without overflow', (tester) async {
+  testWidgets('narrow window scrolls sideways without overflow (desktop)', (tester) async {
+    // Desktop scrollbars check their scroll position (the Android default doesn't).
+    debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
     await pump(tester, const Size(1000, 800));
+    // The scrollbar's position check runs a frame later.
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump(const Duration(milliseconds: 100));
     expect(find.text('HH-2'), findsOneWidget);
     expect(tester.takeException(), isNull);
+    debugDefaultTargetPlatformOverride = null;
   });
 }

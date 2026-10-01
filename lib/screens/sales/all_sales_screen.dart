@@ -95,6 +95,8 @@ class _AllSalesScreenState extends State<AllSalesScreen> {
   String? _error;
 
   final _searchCtrl = TextEditingController();
+  // The table's sideways scroll; the Scrollbar must share it.
+  final _hScroll = ScrollController();
   String? _customer, _payStatus, _addedBy, _shipStatus;
   int _pageSize = 25;
   int _page = 0;
@@ -113,6 +115,7 @@ class _AllSalesScreenState extends State<AllSalesScreen> {
   @override
   void dispose() {
     _searchCtrl.dispose();
+    _hScroll.dispose();
     super.dispose();
   }
 
@@ -436,8 +439,10 @@ class _AllSalesScreenState extends State<AllSalesScreen> {
             border: Border.all(color: context.pal.border)),
         clipBehavior: Clip.antiAlias,
         child: Scrollbar(
+          controller: _hScroll,
           thumbVisibility: scale == 1.0,
           child: SingleChildScrollView(
+            controller: _hScroll,
             scrollDirection: Axis.horizontal,
             child: SizedBox(
               width: tableW,
