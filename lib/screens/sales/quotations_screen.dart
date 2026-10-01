@@ -21,6 +21,7 @@ import '../../widgets/common/error_view.dart';
 import '../../widgets/common/labeled_field.dart';
 import '../../widgets/common/period_filter.dart';
 import '../../widgets/common/sliver_table.dart';
+import '../../widgets/sales/terms_editor.dart';
 import '../../widgets/sales/line_items.dart';
 
 // ── Status colours ─────────────────────────────────────────────────────────────
@@ -880,6 +881,7 @@ class _QuotationBuilderScreenState extends State<QuotationBuilderScreen> {
   final _emailCtrl   = TextEditingController();
   final _notesCtrl   = TextEditingController();
   final _tinCtrl     = TextEditingController();
+  final _terms       = TermsController();
   DateTime? _validUntil;
   String _currency   = 'TZS';
   bool   _saving     = false;
@@ -910,6 +912,7 @@ class _QuotationBuilderScreenState extends State<QuotationBuilderScreen> {
       if (lead.contactEmail != null) _emailCtrl.text = lead.contactEmail!;
     }
     for (final l in _lines) { _attachLineListeners(l); }
+    _terms.load().then((_) { if (mounted) setState(() {}); });
   }
 
   // Fields don't otherwise trigger a rebuild as you type (the onChanged
@@ -945,6 +948,7 @@ class _QuotationBuilderScreenState extends State<QuotationBuilderScreen> {
   void dispose() {
     _clientCtrl.dispose(); _contactCtrl.dispose();
     _emailCtrl.dispose();  _notesCtrl.dispose(); _tinCtrl.dispose();
+    _terms.dispose();
     for (final l in _lines) { l.dispose(); }
     super.dispose();
   }
@@ -980,6 +984,7 @@ class _QuotationBuilderScreenState extends State<QuotationBuilderScreen> {
       'valid_until':    _validUntil != null ? _isoDate(_validUntil!) : null,
       'currency':       _currency,
       'notes':          _notesCtrl.text.trim().isNotEmpty ? _notesCtrl.text.trim() : null,
+      'term_items':     _terms.toJson(),
       'items': validLines.map((l) => {
         'inventory_item_id': l.selectedItem?.id,
         'description':       l.descCtrl.text.trim(),
@@ -1189,13 +1194,19 @@ class _QuotationBuilderScreenState extends State<QuotationBuilderScreen> {
                 onPicked: (d) => setState(() => _validUntil = d),
               )),
               const SizedBox(width: 14),
-              Expanded(flex: 2, child: _formField('Terms & notes', _notesCtrl, 'Payment terms, delivery notes…', context)),
+              Expanded(flex: 2, child: _formField('Notes', _notesCtrl, 'Printed on the quotation', context)),
               const SizedBox(width: 14),
               SizedBox(width: 90, child: _dropField('Currency', _currency, const ['TZS', 'USD', 'EUR', 'KES'],
                   (v) => setState(() => _currency = v), context)),
             ]),
           ),
         ]),
+      ),
+      const SizedBox(height: 16),
+      Container(
+        padding: const EdgeInsets.all(15),
+        decoration: BoxDecoration(color: context.pal.surface1, borderRadius: BorderRadius.circular(14), border: Border.all(color: context.pal.border)),
+        child: TermsEditor(controller: _terms),
       ),
     ],
   );

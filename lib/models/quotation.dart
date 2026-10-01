@@ -1,3 +1,5 @@
+import '../widgets/sales/terms_editor.dart' show TermItem, termItemsFromJson;
+
 class QuotationItem {
   const QuotationItem({
     required this.id,
@@ -57,6 +59,7 @@ class Quotation {
     required this.totalAmount,
     required this.notes,
     required this.terms,
+    this.termItems,
     required this.createdByName,
     required this.sentAt,
     required this.acceptedAt,
@@ -88,6 +91,8 @@ class Quotation {
   final int totalAmount;
   final String? notes;
   final String? terms;
+  /// TERMS & CONDITIONS this quotation changed; null = company defaults.
+  final List<TermItem>? termItems;
   final String? createdByName;
   final String? sentAt;
   final String? acceptedAt;
@@ -130,6 +135,7 @@ class Quotation {
     totalAmount:     j['total_amount'] as int? ?? 0,
     notes:           j['notes'] as String?,
     terms:           j['terms'] as String?,
+    termItems:       termItemsFromJson(j['term_items']),
     createdByName:   j['created_by_name'] as String?,
     sentAt:          j['sent_at'] as String?,
     acceptedAt:      j['accepted_at'] as String?,

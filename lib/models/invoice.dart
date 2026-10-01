@@ -1,3 +1,5 @@
+import '../widgets/sales/terms_editor.dart' show TermItem, termItemsFromJson;
+
 enum PaymentStatus { pending, partial, paid, overdue, waived, cancelled, sent }
 
 extension PaymentStatusX on PaymentStatus {
@@ -128,6 +130,8 @@ class Invoice {
   final int?          createdBy;
   final String?       addedBy;
   final String?       staffNote;
+  /// TERMS & CONDITIONS this sale changed; null = company defaults.
+  final List<TermItem>? termItems;
   final double?       totalItems;
   final List<String>  paymentMethods;
   final int           credited;
@@ -169,6 +173,7 @@ class Invoice {
     this.createdBy,
     this.addedBy,
     this.staffNote,
+    this.termItems,
     this.totalItems,
     this.paymentMethods = const [],
     this.credited = 0,
@@ -215,6 +220,7 @@ class Invoice {
     createdBy:       (j['created_by'] as num?)?.toInt(),
     addedBy:         j['added_by'] as String?,
     staffNote:       j['staff_note'] as String?,
+    termItems:       termItemsFromJson(j['term_items']),
     totalItems:      (j['total_items'] as num?)?.toDouble(),
     paymentMethods:  (j['payment_methods'] as List? ?? []).map((e) => e.toString()).toList(),
     credited:        (j['credited'] as num? ?? 0).toInt(),

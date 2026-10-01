@@ -16,6 +16,7 @@ import '../../utils/tin.dart';
 import '../../widgets/common/app_dropdown.dart';
 import '../../widgets/common/labeled_field.dart';
 import '../../widgets/sales/line_items.dart';
+import '../../widgets/sales/terms_editor.dart';
 
 String _fmtDate(DateTime d) {
   const m = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -66,6 +67,7 @@ class _InvoiceBuilderScreenState extends State<InvoiceBuilderScreen> {
   List<InventoryItem> _invItems = [];
   Map<String, String> _errors = {};
   final _staffNoteCtrl = TextEditingController();
+  final _terms = TermsController();
   // final | draft | proforma | quotation
   String _saleStatus = 'final';
   String? _hospitalLabel;
@@ -82,6 +84,7 @@ class _InvoiceBuilderScreenState extends State<InvoiceBuilderScreen> {
     }).catchError((_) {});
     final src = widget.editing ?? widget.duplicateFrom;
     if (src != null) _prefill(src);
+    _terms.load(src?.termItems).then((_) { if (mounted) setState(() {}); });
     for (final l in _lines) { _attach(l); }
   }
 
@@ -134,6 +137,7 @@ class _InvoiceBuilderScreenState extends State<InvoiceBuilderScreen> {
     _emailCtrl.dispose();  _notesCtrl.dispose(); _tinCtrl.dispose();
     _termCtrl.dispose(); _shipCtrl.dispose(); _depositCtrl.dispose(); _depositRefCtrl.dispose();
     _staffNoteCtrl.dispose();
+    _terms.dispose();
     for (final l in _lines) { l.dispose(); }
     super.dispose();
   }
@@ -235,6 +239,7 @@ class _InvoiceBuilderScreenState extends State<InvoiceBuilderScreen> {
           'valid_until':    _isoDate(_dueDate ?? _issueDate.add(const Duration(days: 30))),
           'currency':       _currency,
           'notes':          _text(_notesCtrl),
+          'term_items':     _terms.toJson(),
           'items': _linePayload.map((l) => {...l, 'unit_of_measure': 'pcs', 'discount_percent': 0}).toList(),
         });
         if (!mounted) return;
@@ -256,6 +261,7 @@ class _InvoiceBuilderScreenState extends State<InvoiceBuilderScreen> {
         'tax_rate':       _taxRate,
         'notes':          _text(_notesCtrl),
         'staff_note':     _text(_staffNoteCtrl),
+        'term_items':     _terms.toJson(),
         'line_items':     _linePayload,
       };
       final Invoice inv;
@@ -535,11 +541,17 @@ class _InvoiceBuilderScreenState extends State<InvoiceBuilderScreen> {
       decoration: _card(context),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Expanded(child: LabeledTextField(label: 'Sell note', controller: _notesCtrl, maxLines: 3,
-            hint: 'Printed on the invoice — payment terms, delivery notes…')),
+            hint: 'Printed on the invoice')),
         const SizedBox(width: 14),
         Expanded(child: LabeledTextField(label: 'Staff note', controller: _staffNoteCtrl, maxLines: 3,
             hint: 'Internal only — not printed')),
       ]),
+    ),
+    const SizedBox(height: 14),
+    Container(
+      padding: const EdgeInsets.all(15),
+      decoration: _card(context),
+      child: TermsEditor(controller: _terms),
     ),
   ]);
 
