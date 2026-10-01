@@ -415,7 +415,7 @@ class _AllSalesScreenState extends State<AllSalesScreen> {
               FilledButton.icon(onPressed: _addSale, icon: const Icon(Symbols.add, size: 16), label: const Text('Add sale')),
             ]),
             const SizedBox(height: 12),
-            // Filter selects are 36px, like the search box above.
+            // Filter selects are 28px, like the search box above.
             DenseFields(child: Wrap(spacing: 10, runSpacing: 10, crossAxisAlignment: WrapCrossAlignment.center, children: [
               ..._statusChips(context, rows),
               const SizedBox(width: 6),
