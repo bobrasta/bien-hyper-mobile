@@ -135,22 +135,9 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
   }
 
   Future<void> _showDetailModal(Invoice inv) async {
-    Invoice full;
-    try {
-      full = (inv.lineItems.isEmpty || inv.payments.isEmpty)
-          ? await InvoiceService.instance.get(inv.id)
-          : inv;
-    } catch (e) {
-      if (mounted) showErrorToast(context, e);
-      return;
-    }
-    if (!mounted) return;
-    final reload = await showDialog<bool>(
-      context: context,
-      barrierDismissible: true,
-      builder: (_) => _InvoiceDetailDialog(inv: full),
-    );
-    if (reload == true && mounted) _load();
+    // Opens straight away from the row; the full invoice loads inside.
+    final reload = await showInvoiceDetail(context, inv.id, preview: inv);
+    if (reload && mounted) _load();
   }
 
   @override
@@ -568,21 +555,56 @@ class _StatusBadge extends StatelessWidget {
 
 /// Opens the invoice detail dialog from another screen (e.g. a customer's
 /// invoice list). Returns true when the invoice changed.
-Future<bool> showInvoiceDetail(BuildContext context, int invoiceId) async {
-  final Invoice inv;
-  try {
-    inv = await InvoiceService.instance.get(invoiceId);
-  } catch (e) {
-    if (context.mounted) showErrorToast(context, e);
-    return false;
-  }
-  if (!context.mounted) return false;
+///
+/// Opens at once — from a cached copy, or the list row ([preview]) — and
+/// swaps in the full invoice (line items, payments) when it arrives,
+/// instead of waiting on the network before showing anything.
+Future<bool> showInvoiceDetail(BuildContext context, int invoiceId, {Invoice? preview}) async {
   final changed = await showDialog<bool>(
     context: context,
     barrierDismissible: true,
-    builder: (_) => _InvoiceDetailDialog(inv: inv),
+    builder: (_) => _InvoiceDetailLoader(
+        invoiceId: invoiceId, initial: InvoiceService.cachedById[invoiceId] ?? preview),
   );
   return changed == true;
+}
+
+class _InvoiceDetailLoader extends StatefulWidget {
+  const _InvoiceDetailLoader({required this.invoiceId, this.initial});
+  final int invoiceId;
+  final Invoice? initial;
+  @override
+  State<_InvoiceDetailLoader> createState() => _InvoiceDetailLoaderState();
+}
+
+class _InvoiceDetailLoaderState extends State<_InvoiceDetailLoader> {
+  late Invoice? _inv = widget.initial;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    InvoiceService.instance.get(widget.invoiceId).then((full) {
+      if (mounted) setState(() { _inv = full; _loading = false; });
+    }).catchError((Object e) {
+      if (!mounted) return;
+      setState(() => _loading = false);
+      showErrorToast(context, e);
+      if (_inv == null) Navigator.pop(context);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final inv = _inv;
+    if (inv == null) return const Center(child: CircularProgressIndicator(strokeWidth: 2));
+    return Stack(children: [
+      // Rebuilt with the full invoice once it arrives.
+      _InvoiceDetailDialog(key: ValueKey(_loading), inv: inv),
+      if (_loading)
+        const Positioned(top: 0, left: 0, right: 0, child: LinearProgressIndicator(minHeight: 2)),
+    ]);
+  }
 }
 
 /// Record a payment against [inv] (All sales → Add payment). True when saved.
@@ -595,7 +617,7 @@ Future<bool> showCreditNotes(BuildContext context, Invoice inv) async =>
     await showDialog<bool>(context: context, builder: (_) => _CreditNotesDialog(invoice: inv)) == true;
 
 class _InvoiceDetailDialog extends StatefulWidget {
-  const _InvoiceDetailDialog({required this.inv});
+  const _InvoiceDetailDialog({super.key, required this.inv});
   final Invoice inv;
   @override
   State<_InvoiceDetailDialog> createState() => _InvoiceDetailDialogState();
