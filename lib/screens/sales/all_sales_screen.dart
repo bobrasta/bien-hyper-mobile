@@ -12,7 +12,6 @@ import '../../theme/app_theme.dart';
 import '../../utils/api_error.dart';
 import '../../utils/format.dart';
 import '../../utils/pdf_download.dart';
-import '../../widgets/common/app_dropdown.dart';
 import '../../widgets/common/error_view.dart';
 import '../../widgets/common/labeled_field.dart';
 import '../../widgets/common/period_filter.dart';
@@ -98,7 +97,7 @@ class _AllSalesScreenState extends State<AllSalesScreen> {
   String? _error;
 
   final _searchCtrl = TextEditingController();
-  String? _customer, _payStatus, _addedBy, _shipStatus;
+  String? _payStatus, _addedBy, _shipStatus;
   // Rows are built 100 at a time ("Load 100 more").
   static const _batch = 100;
   int _showCount = _batch;
@@ -155,7 +154,6 @@ class _AllSalesScreenState extends State<AllSalesScreen> {
   List<Invoice> get _filtered {
     final q = _searchCtrl.text.trim().toLowerCase();
     return _all.where((i) {
-      if (_customer != null && i.displayName != _customer) return false;
       if (_addedBy != null && i.addedBy != _addedBy) return false;
       if (_shipStatus != null && i.shippingStatus != _shipStatus) return false;
       // Matches the status chips one-to-one (each sale has one status).
@@ -384,7 +382,6 @@ class _AllSalesScreenState extends State<AllSalesScreen> {
   @override
   Widget build(BuildContext context) {
     final rows = _filtered;
-    final customers = {for (final i in _all) i.displayName}.toList()..sort();
     final users = {for (final i in _all) ?i.addedBy}.toList()..sort();
 
     return LayoutBuilder(builder: (ctx, cst) {
@@ -422,12 +419,6 @@ class _AllSalesScreenState extends State<AllSalesScreen> {
             DenseFields(child: Wrap(spacing: 10, runSpacing: 10, crossAxisAlignment: WrapCrossAlignment.center, children: [
               ..._statusChips(context, rows),
               const SizedBox(width: 6),
-              SizedBox(width: 230, child: AppSearchableSelectField<String>(
-                hint: 'All customers',
-                selectedLabel: _customer,
-                items: customers.map((c) => AppSelectItem(value: c, label: c)).toList(),
-                onSelected: (it) { _customer = it?.value; _resetPage(); },
-              )),
               PeriodSelector(value: _period, onChanged: (p) { setState(() { _period = p; _showCount = _batch; }); _load(); }),
               SizedBox(width: 170, child: DropdownFieldBox<String?>(
                 value: users.contains(_addedBy) ? _addedBy : null,
