@@ -399,7 +399,7 @@ class _AllSalesScreenState extends State<AllSalesScreen> {
                 const SizedBox(height: 3),
                 Text('Right-click a sale for its actions · click a column to sort', style: AppTheme.bodySub.copyWith(fontSize: 12)),
               ])),
-              SearchField(width: 240, hint: 'Invoice, customer, phone…', controller: _searchCtrl, onChanged: (_) => _resetPage()),
+              DenseFields(child: SearchField(width: 240, hint: 'Invoice, customer, phone…', controller: _searchCtrl, onChanged: (_) => _resetPage())),
               const SizedBox(width: 8),
               Builder(builder: (b) => OutlinedButton.icon(
                 onPressed: _exporting || _loading ? null : () {
@@ -415,7 +415,7 @@ class _AllSalesScreenState extends State<AllSalesScreen> {
               FilledButton.icon(onPressed: _addSale, icon: const Icon(Symbols.add, size: 16), label: const Text('Add sale')),
             ]),
             const SizedBox(height: 12),
-            // Filter selects are about 20% shorter than the standard field.
+            // Filter selects are 36px, like the search box above.
             DenseFields(child: Wrap(spacing: 10, runSpacing: 10, crossAxisAlignment: WrapCrossAlignment.center, children: [
               ..._statusChips(context, rows),
               const SizedBox(width: 6),

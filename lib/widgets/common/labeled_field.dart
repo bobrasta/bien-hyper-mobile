@@ -10,11 +10,11 @@ import '../../utils/format.dart';
 /// fields in the same row.
 const double kFieldHeight = 44;
 
-/// Shorter single-line fields (about 20% down, 44 → 35) for everything
+/// Shorter single-line fields (44 → 36) for everything
 /// under it — used for a page's filter row. The look is otherwise the same.
 class DenseFields extends InheritedWidget {
   const DenseFields({super.key, required super.child});
-  static const double height = 35;
+  static const double height = 36;
 
   static bool of(BuildContext context) => context.dependOnInheritedWidgetOfExactType<DenseFields>() != null;
 
@@ -303,7 +303,7 @@ class _LabeledTextFieldState extends State<LabeledTextField> {
             isDense: true,
             contentPadding: EdgeInsets.symmetric(
               horizontal: 14,
-              // 12 → 7.5 inside DenseFields: the same 9px drop as the boxes.
+              // 12 → 7.5 inside DenseFields: 36px, the same as the boxes.
               vertical: DenseFields.of(context) ? 7.5 : 12,
             ),
             prefixIcon: widget.prefixIcon == null ? null : Icon(widget.prefixIcon, size: 16, color: context.pal.textDim),
