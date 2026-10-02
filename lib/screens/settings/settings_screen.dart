@@ -1169,13 +1169,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ],
                   ),
                 ),
-                AppButton(
+                // Shrinks rather than pushing the name off a phone screen.
+                Flexible(child: FittedBox(fit: BoxFit.scaleDown, child: AppButton(
                   label: _headerCta.$1,
                   icon: _headerCta.$2,
                   variant: BtnVariant.ghost,
                   small: true,
                   onPressed: () => widget.onNavigateTo?.call(_headerCta.$3),
-                ),
+                ))),
               ],
             ),
           ),
@@ -3537,7 +3538,7 @@ class _SCard extends StatelessWidget {
               const SizedBox(width: 8),
             ] else
               const SizedBox(width: 8),
-            Text(title, style: AppTheme.cardTitle),
+            Flexible(child: Text(title, style: AppTheme.cardTitle, maxLines: 1, overflow: TextOverflow.ellipsis)),
             if (trailing != null) ...[const Spacer(), trailing!],
           ],
         ),

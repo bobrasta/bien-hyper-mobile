@@ -5,6 +5,7 @@ import '../../services/public_holiday_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_palette.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/common/phone_layout.dart';
 import '../../widgets/common/error_view.dart';
 
 /// Company-wide leave calendar — ported from HR Redesign spec 1e. Distinct
@@ -132,23 +133,23 @@ class _HrLeaveCalendarScreenState extends State<HrLeaveCalendarScreen> {
 
   Widget _header(BuildContext context) {
     final outThisMonth = _entries.length;
-    return Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-      Container(width: 2, height: 32, decoration: BoxDecoration(color: AppColors.amber, borderRadius: BorderRadius.circular(2))),
-      const SizedBox(width: 12),
-      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    return TitleWithActions(
+      leading: Container(width: 2, height: 32, decoration: BoxDecoration(color: AppColors.amber, borderRadius: BorderRadius.circular(2))),
+      title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('Leave Calendar', style: AppTheme.pageTitle.copyWith(fontSize: 21)),
         const SizedBox(height: 3),
         Text('Approved leave across the team · $outThisMonth ${outThisMonth == 1 ? 'person' : 'people'} out this month', style: AppTheme.bodySub.copyWith(fontSize: 12)),
-      ])),
-      _MonthSwitcher(month: _month, onPrev: () => _changeMonth(-1), onNext: () => _changeMonth(1)),
-      const SizedBox(width: 8),
-      OutlinedButton.icon(
-        onPressed: () => widget.onNavigateTo != null
-            ? widget.onNavigateTo!('my_leave')
-            : ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Use My Leave (Operations) to submit a request.'))),
-        icon: const Icon(Symbols.add, size: 15), label: const Text('Request leave'),
-      ),
-    ]);
+      ]),
+      actions: [
+        _MonthSwitcher(month: _month, onPrev: () => _changeMonth(-1), onNext: () => _changeMonth(1)),
+        OutlinedButton.icon(
+          onPressed: () => widget.onNavigateTo != null
+              ? widget.onNavigateTo!('my_leave')
+              : ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Use My Leave (Operations) to submit a request.'))),
+          icon: const Icon(Symbols.add, size: 15), label: const Text('Request leave'),
+        ),
+      ],
+    );
   }
 
   Widget _calendarGrid(BuildContext context) {

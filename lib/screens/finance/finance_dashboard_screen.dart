@@ -9,6 +9,7 @@ import '../../theme/app_palette.dart';
 import '../../utils/api_error.dart';
 import '../../utils/csv_export.dart';
 import '../../utils/format.dart';
+import '../../widgets/common/phone_layout.dart';
 import '../../widgets/common/error_view.dart';
 
 enum _Period { thisMonth, lastMonth, last7Days, thisQuarter, thisYear }
@@ -217,10 +218,9 @@ class _FinanceDashboardScreenState extends State<FinanceDashboardScreen> {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: EdgeInsets.all(pad),
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-              Container(width: 2, height: 36, decoration: BoxDecoration(color: AppColors.cyan, borderRadius: BorderRadius.circular(2))),
-              const SizedBox(width: 13),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            TitleWithActions(
+              leading: Container(width: 2, height: 36, decoration: BoxDecoration(color: AppColors.cyan, borderRadius: BorderRadius.circular(2))),
+              title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text('Finance Overview', style: AppTheme.pageTitle.copyWith(fontSize: 23)),
                 const SizedBox(height: 3),
                 Text(
@@ -228,11 +228,12 @@ class _FinanceDashboardScreenState extends State<FinanceDashboardScreen> {
                   '${lastPosting != null ? " · last posting ${timeAgo(lastPosting)}" : ""}',
                   style: AppTheme.bodySub.copyWith(fontSize: 12),
                 ),
-              ])),
-              _PeriodSelector(period: _period, onChanged: (p) { setState(() => _period = p); _load(); }),
-              const SizedBox(width: 8),
-              _ExportButton(onTap: _export),
-            ]),
+              ]),
+              actions: [
+                _PeriodSelector(period: _period, onChanged: (p) { setState(() => _period = p); _load(); }),
+                _ExportButton(onTap: _export),
+              ],
+            ),
             const SizedBox(height: 18),
 
             Container(
@@ -324,7 +325,8 @@ class _FinanceDashboardScreenState extends State<FinanceDashboardScreen> {
   Widget _sectionHeader(BuildContext context, IconData icon, Color color, String title, {Widget? trailing}) => Row(children: [
     Icon(icon, size: 13, color: color),
     const SizedBox(width: 8),
-    Text(title.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10.5)),
+    Flexible(flex: 3, child: Text(title.toUpperCase(), style: AppTheme.labelCaps.copyWith(fontSize: 10.5),
+        maxLines: 1, overflow: TextOverflow.ellipsis)),
     const SizedBox(width: 8),
     Expanded(child: Container(width: double.infinity, height: 1, color: context.pal.divider)),
     if (trailing != null) ...[const SizedBox(width: 8), trailing],

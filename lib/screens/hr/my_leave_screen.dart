@@ -92,10 +92,9 @@ class _MyLeaveScreenState extends State<MyLeaveScreen> {
                   const SizedBox(height: 4),
                   Text('Request time off or let HR know you\'re running late', style: AppTheme.bodySub),
                 ]);
-                final actions = Row(mainAxisSize: MainAxisSize.min, children: [
+                final actions = Wrap(spacing: 8, runSpacing: 8, children: [
                   AppButton(label: 'Running Late', icon: Symbols.schedule, variant: BtnVariant.ghost,
                       onPressed: () => setState(() => _showLateDialog = true)),
-                  const SizedBox(width: 8),
                   AppButton(label: 'Request Leave', icon: Symbols.add, variant: BtnVariant.primary,
                       onPressed: () => setState(() => _showRequestDialog = true)),
                 ]);

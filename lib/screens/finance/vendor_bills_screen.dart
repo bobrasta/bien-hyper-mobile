@@ -143,18 +143,18 @@ class _VendorBillsScreenState extends State<VendorBillsScreen> {
         return Padding(
           padding: EdgeInsets.all(pad),
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-              Container(width: 2, height: 36, decoration: BoxDecoration(color: AppColors.amber, borderRadius: BorderRadius.circular(2))),
-              const SizedBox(width: 13),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            TitleWithActions(
+              leading: Container(width: 2, height: 36, decoration: BoxDecoration(color: AppColors.amber, borderRadius: BorderRadius.circular(2))),
+              title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text('Accounts Payable', style: AppTheme.pageTitle.copyWith(fontSize: 23)),
                 const SizedBox(height: 3),
                 Text('Vendor bills & supplier payments · ${_suppliers.length} suppliers on file', style: AppTheme.bodySub.copyWith(fontSize: 12)),
-              ])),
-              OutlinedButton.icon(onPressed: _scrollToPayRun, icon: const Icon(Symbols.send, size: 15), label: const Text('Pay run')),
-              const SizedBox(width: 8),
-              FilledButton.icon(onPressed: () => setState(() => _showCreate = true), icon: const Icon(Symbols.add, size: 16), label: const Text('New bill')),
-            ]),
+              ]),
+              actions: [
+                OutlinedButton.icon(onPressed: _scrollToPayRun, icon: const Icon(Symbols.send, size: 15), label: const Text('Pay run')),
+                FilledButton.icon(onPressed: () => setState(() => _showCreate = true), icon: const Icon(Symbols.add, size: 16), label: const Text('New bill')),
+              ],
+            ),
             const SizedBox(height: 16),
             Expanded(
               child: _loading
@@ -344,7 +344,7 @@ class _VendorBillsScreenState extends State<VendorBillsScreen> {
           Row(crossAxisAlignment: CrossAxisAlignment.baseline, textBaseline: TextBaseline.alphabetic, children: [
             Text(tshFromDouble(dueTotal), style: AppTheme.kpiValue.copyWith(fontSize: 20)),
             const SizedBox(width: 8),
-            Text('${due.length} bill${due.length == 1 ? '' : 's'} due within 7 days', style: AppTheme.bodySub.copyWith(fontSize: 11)),
+            Flexible(child: Text('${due.length} bill${due.length == 1 ? '' : 's'} due within 7 days', style: AppTheme.bodySub.copyWith(fontSize: 11))),
           ]),
           const SizedBox(height: 10),
           Container(width: double.infinity, height: 1, color: context.pal.divider),

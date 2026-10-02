@@ -230,7 +230,8 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
               padding: const EdgeInsets.fromLTRB(18, 14, 18, 15),
               decoration: BoxDecoration(color: context.pal.surface1, borderRadius: BorderRadius.circular(14), border: Border.all(color: context.pal.border)),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                // Phones: the three figures shrink together rather than overflow.
+                fitOnPhone(phone, Row(mainAxisSize: phone ? MainAxisSize.min : MainAxisSize.max, crossAxisAlignment: CrossAxisAlignment.end, children: [
                   Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text('OUTSTANDING', style: AppTheme.labelCaps.copyWith(fontSize: 9.5)),
                     const SizedBox(height: 7),
@@ -242,13 +243,13 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
                     const SizedBox(height: 7),
                     Text(tshFromDouble(collected), style: AppTheme.kpiValue.copyWith(fontSize: 19, color: AppColors.green)),
                   ]),
-                  const Spacer(),
+                  if (phone) const SizedBox(width: 20) else const Spacer(),
                   Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
                     Text('COLLECTION RATE', style: AppTheme.labelCaps.copyWith(fontSize: 9.5)),
                     const SizedBox(height: 7),
                     Text('${collectionPct.toStringAsFixed(0)}%', style: AppTheme.kpiValue.copyWith(fontSize: 19)),
                   ]),
-                ]),
+                ])),
                 const SizedBox(height: 15),
                 ClipRRect(borderRadius: BorderRadius.circular(4), child: Row(children: [
                   Expanded(flex: collected == 0 ? 1 : collected, child: Container(width: double.infinity, height: 8, color: collected == 0 ? context.pal.surface3 : AppColors.green)),

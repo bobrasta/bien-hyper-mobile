@@ -401,10 +401,10 @@ class _HospitalListScreenState extends State<HospitalListScreen> {
                         border: Border(top: BorderSide(color: context.pal.border)),
                       ),
                       child: Row(children: [
-                        Text('Showing ${hospitals.isEmpty ? 0 : (_page - 1) * _pageSize + 1}'
+                        Expanded(child: Text('Showing ${hospitals.isEmpty ? 0 : (_page - 1) * _pageSize + 1}'
                           '–${(_page - 1) * _pageSize + hospitals.length} of $_pageTotal hospitals',
-                          style: AppTheme.bodySub.copyWith(fontSize: 12)),
-                        const Spacer(),
+                          maxLines: 2, overflow: TextOverflow.ellipsis,
+                          style: AppTheme.bodySub.copyWith(fontSize: 12))),
                         if (_lastPage > 1) ...[
                           GestureDetector(
                             onTap: _page > 1 ? () => _goToPage(_page - 1) : null,
@@ -521,11 +521,12 @@ class _TypeChip extends StatelessWidget {
       ),
       child: Row(mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(label.toUpperCase(), style: AppTheme.labelCaps),
+        Flexible(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(label.toUpperCase(), style: AppTheme.labelCaps, maxLines: 1, overflow: TextOverflow.ellipsis),
           const SizedBox(height: 4),
-          Text(value, style: AppTheme.kpiValue.copyWith(fontSize: 20, color: color ?? context.pal.text)),
-        ]),
+          FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft,
+              child: Text(value, style: AppTheme.kpiValue.copyWith(fontSize: 20, color: color ?? context.pal.text))),
+        ])),
         if (color != null) ...[
           const SizedBox(width: 12),
           Container(width: 10, height: 10, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),

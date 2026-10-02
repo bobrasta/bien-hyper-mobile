@@ -101,8 +101,8 @@ class _LocationsScreenState extends State<LocationsScreen> {
             Row(children: [
               Icon(Symbols.warehouse, size: 20, color: AppColors.teal),
               const SizedBox(width: 10),
-              Text('Locations', style: AppTheme.cardTitle.copyWith(fontSize: 15)),
-              const Spacer(),
+              Expanded(child: Text('Locations', style: AppTheme.cardTitle.copyWith(fontSize: 15),
+                  maxLines: 1, overflow: TextOverflow.ellipsis)),
               GestureDetector(
                 onTap: () => setState(() { _showAdd = true; _selected = null; }),
                 child: Container(

@@ -10,6 +10,7 @@ import '../../theme/app_theme.dart';
 import '../../theme/app_palette.dart';
 import '../../utils/api_error.dart';
 import '../../utils/format.dart';
+import '../../widgets/common/phone_layout.dart';
 import '../../widgets/common/error_view.dart';
 import 'financial_statements_dialog.dart';
 
@@ -301,41 +302,39 @@ class _FinanceReportsScreenState extends State<FinanceReportsScreen> with Single
       return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Padding(
           padding: EdgeInsets.fromLTRB(pad, pad, pad, 0),
-          child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            Container(width: 2, height: 36, decoration: BoxDecoration(color: AppColors.cyan, borderRadius: BorderRadius.circular(2))),
-            const SizedBox(width: 13),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          child: TitleWithActions(
+            leading: Container(width: 2, height: 36, decoration: BoxDecoration(color: AppColors.cyan, borderRadius: BorderRadius.circular(2))),
+            title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('Financial Reports', style: AppTheme.pageTitle.copyWith(fontSize: 23)),
               const SizedBox(height: 3),
               Text(periodRelevant ? _periodLabel : 'All-time position, updated on every load', style: AppTheme.bodySub.copyWith(fontSize: 12)),
-            ])),
-            if (can('finance.export_reports')) ...[
-              if (cst.maxWidth < 760)
-                IconButton.outlined(
-                  tooltip: 'Financial statements',
-                  onPressed: () => showFinancialStatementsDialog(context),
-                  icon: const Icon(Symbols.picture_as_pdf, size: 16),
-                )
-              else
-                OutlinedButton.icon(
-                  onPressed: () => showFinancialStatementsDialog(context),
-                  icon: const Icon(Symbols.picture_as_pdf, size: 15),
-                  label: const Text('Financial statements'),
-                ),
-              const SizedBox(width: 8),
+            ]),
+            actions: [
+              if (can('finance.export_reports'))
+                if (cst.maxWidth < 760)
+                  IconButton.outlined(
+                    tooltip: 'Financial statements',
+                    onPressed: () => showFinancialStatementsDialog(context),
+                    icon: const Icon(Symbols.picture_as_pdf, size: 16),
+                  )
+                else
+                  OutlinedButton.icon(
+                    onPressed: () => showFinancialStatementsDialog(context),
+                    icon: const Icon(Symbols.picture_as_pdf, size: 15),
+                    label: const Text('Financial statements'),
+                  ),
+              OutlinedButton.icon(
+                onPressed: _exporting ? null : _export,
+                icon: _exporting ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Symbols.download, size: 15),
+                label: const Text('Export CSV'),
+              ),
+              FilledButton.icon(
+                onPressed: _closing ? null : _closePeriod,
+                icon: _closing ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Symbols.event_repeat, size: 15),
+                label: Text(_closing ? 'Closing…' : 'Close period'),
+              ),
             ],
-            OutlinedButton.icon(
-              onPressed: _exporting ? null : _export,
-              icon: _exporting ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Symbols.download, size: 15),
-              label: const Text('Export CSV'),
-            ),
-            const SizedBox(width: 8),
-            FilledButton.icon(
-              onPressed: _closing ? null : _closePeriod,
-              icon: _closing ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Symbols.event_repeat, size: 15),
-              label: Text(_closing ? 'Closing…' : 'Close period'),
-            ),
-          ]),
+          ),
         ),
         const SizedBox(height: 14),
         Padding(

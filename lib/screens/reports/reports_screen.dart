@@ -384,11 +384,11 @@ class _ReportKpi extends StatelessWidget {
       child: Row(children: [
         Icon(icon, size: 20, color: color ?? context.pal.textDim),
         const SizedBox(width: 12),
-        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(value, style: AppTheme.kpiValue.copyWith(
-            fontSize: 22, color: color ?? context.pal.text)),
-          Text(label.toUpperCase(), style: AppTheme.labelCaps),
-        ]),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft, child: Text(value,
+            style: AppTheme.kpiValue.copyWith(fontSize: 22, color: color ?? context.pal.text))),
+          Text(label.toUpperCase(), style: AppTheme.labelCaps, maxLines: 1, overflow: TextOverflow.ellipsis),
+        ])),
       ]),
     );
   }

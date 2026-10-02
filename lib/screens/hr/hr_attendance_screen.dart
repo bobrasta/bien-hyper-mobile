@@ -176,9 +176,8 @@ class _HrAttendanceScreenState extends State<HrAttendanceScreen> {
           Text('${_weekday(_selectedDate)} · $unmarked of ${_staff.length} still unmarked',
               style: AppTheme.bodySub.copyWith(fontSize: 12)),
           const SizedBox(height: 10),
-          Row(children: [
+          Wrap(spacing: 8, runSpacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
             _DatePill(date: _selectedDate, onTap: _pickDate),
-            const Spacer(),
             IconButton(tooltip: 'Import biometric', onPressed: _importFile,
                 icon: const Icon(Symbols.upload_file, size: 20)),
             FilledButton.icon(onPressed: _markAllPresent, icon: const Icon(Symbols.check_circle, size: 16),
@@ -269,7 +268,8 @@ class _HrAttendanceScreenState extends State<HrAttendanceScreen> {
       Text('MARK TODAY', style: AppTheme.labelCaps.copyWith(fontSize: 10.5)),
       const SizedBox(width: 8),
       Expanded(child: Container(width: double.infinity, height: 1, color: context.pal.divider)),
-      Text('Click a state to set it', style: AppTheme.monoXs.copyWith(fontSize: 10.5)),
+      Flexible(child: Text('Click a state to set it', style: AppTheme.monoXs.copyWith(fontSize: 10.5),
+          maxLines: 1, overflow: TextOverflow.ellipsis)),
     ]),
     const SizedBox(height: 9),
     Container(

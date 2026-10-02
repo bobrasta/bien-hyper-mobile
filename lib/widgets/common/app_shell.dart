@@ -775,8 +775,9 @@ class _PlaceholderScreen extends StatelessWidget {
 
 /// Nested navigator for the shell's content area. The current screen is its
 /// single page (updated in place as the shell rebuilds); anything a screen
-/// pushes stacks on top of it within the content area and switches in place
-/// rather than animating in over the whole window. Dialogs still use the
+/// pushes stacks on top of it within the content area (switching in place on
+/// desktop, with the platform transition on phones) rather than covering the
+/// whole window. Dialogs still use the
 /// root navigator (showDialog's default), so they cover the full window.
 class _ContentNavigator extends StatelessWidget {
   const _ContentNavigator({super.key, required this.navigatorKey, required this.child});
@@ -788,11 +789,14 @@ class _ContentNavigator extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    // Desktop: pages switch in place. Phones keep their platform's own
+    // transition (slide + swipe-back on iOS, Material on Android) so a
+    // detail page reads as "on top of" the list.
     return Theme(
-      data: theme.copyWith(pageTransitionsTheme: const PageTransitionsTheme(builders: {
+      data: theme.copyWith(pageTransitionsTheme: PageTransitionsTheme(builders: {
+        ...theme.pageTransitionsTheme.builders,
         TargetPlatform.linux: _noTransition, TargetPlatform.windows: _noTransition,
-        TargetPlatform.macOS: _noTransition, TargetPlatform.android: _noTransition,
-        TargetPlatform.iOS: _noTransition, TargetPlatform.fuchsia: _noTransition,
+        TargetPlatform.macOS: _noTransition, TargetPlatform.fuchsia: _noTransition,
       })),
       child: Navigator(
         key: navigatorKey,

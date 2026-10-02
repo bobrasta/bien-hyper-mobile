@@ -278,3 +278,38 @@ Widget sideBySideOrStacked(bool phone, List<Widget> children) {
       else c,
   ]);
 }
+
+/// A page title with its action buttons: beside the title on wide screens,
+/// on their own wrapping line under it on phones (so the title never gets
+/// squeezed to a few letters per line).
+class TitleWithActions extends StatelessWidget {
+  const TitleWithActions({super.key, required this.title, this.leading, this.actions = const []});
+
+  /// The title block (title + subtitle column). Not wrapped in Expanded.
+  final Widget title;
+  /// Optional accent bar / icon before the title.
+  final Widget? leading;
+  final List<Widget> actions;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(builder: (context, cst) {
+    final head = Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+      if (leading != null) ...[leading!, const SizedBox(width: 13)],
+      Expanded(child: title),
+      if (!isPhoneWidth(cst.maxWidth))
+        for (final a in actions) ...[const SizedBox(width: 8), a],
+    ]);
+    if (!isPhoneWidth(cst.maxWidth) || actions.isEmpty) return head;
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      head,
+      const SizedBox(height: 10),
+      Wrap(spacing: 8, runSpacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: actions),
+    ]);
+  });
+}
+
+/// On phones, shrinks [child] (a row of figures) to fit instead of
+/// overflowing; elsewhere returns it untouched.
+Widget fitOnPhone(bool phone, Widget child) => phone
+    ? FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft, child: child)
+    : child;
