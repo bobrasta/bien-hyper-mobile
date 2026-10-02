@@ -141,7 +141,7 @@ class _HrAttendanceScreenState extends State<HrAttendanceScreen> {
       return Padding(
         padding: EdgeInsets.all(pad),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          _header(unmarkedCount),
+          _header(unmarkedCount, phone: cst.maxWidth < 600),
           const SizedBox(height: 4),
           Container(width: double.infinity, height: 1, color: context.pal.divider),
           const SizedBox(height: 16),
@@ -168,7 +168,24 @@ class _HrAttendanceScreenState extends State<HrAttendanceScreen> {
     });
   }
 
-  Widget _header(int unmarked) => Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+  Widget _header(int unmarked, {bool phone = false}) => phone
+      // Phones: title, then date + the import icon + "All present" on one row.
+      ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Text('Attendance', style: AppTheme.pageTitle.copyWith(fontSize: 21)),
+          const SizedBox(height: 3),
+          Text('${_weekday(_selectedDate)} · $unmarked of ${_staff.length} still unmarked',
+              style: AppTheme.bodySub.copyWith(fontSize: 12)),
+          const SizedBox(height: 10),
+          Row(children: [
+            _DatePill(date: _selectedDate, onTap: _pickDate),
+            const Spacer(),
+            IconButton(tooltip: 'Import biometric', onPressed: _importFile,
+                icon: const Icon(Symbols.upload_file, size: 20)),
+            FilledButton.icon(onPressed: _markAllPresent, icon: const Icon(Symbols.check_circle, size: 16),
+                label: const Text('All present')),
+          ]),
+        ])
+      : Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
     Container(width: 2, height: 32, decoration: BoxDecoration(color: AppColors.cyan, borderRadius: BorderRadius.circular(2))),
     const SizedBox(width: 12),
     Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

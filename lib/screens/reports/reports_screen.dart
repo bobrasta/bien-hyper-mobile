@@ -256,7 +256,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
                             border: Border(bottom: BorderSide(color: context.pal.divider))),
                           children: [
                             _TClickCell(onTap: navigate, child: Row(children: [
-                              Text(r['name'] as String, style: AppTheme.bodySm),
+                              Flexible(child: Text(r['name'] as String, style: AppTheme.bodySm,
+                                  maxLines: 2, overflow: TextOverflow.ellipsis)),
                               if (r['draft'] == true) ...[
                                 const SizedBox(width: 8),
                                 Container(
