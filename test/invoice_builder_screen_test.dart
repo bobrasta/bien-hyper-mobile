@@ -1,6 +1,7 @@
 import 'package:bienhypermed/models/invoice.dart';
 import 'package:bienhypermed/screens/sales/invoice_builder_screen.dart';
 import 'package:bienhypermed/theme/app_theme.dart';
+import 'package:bienhypermed/widgets/sales/line_items.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -55,6 +56,21 @@ void main() {
     await pump(tester, const InvoiceBuilderScreen(key: ValueKey('q'), initialStatus: 'quotation'));
     expect(find.text('Add quotation'), findsOneWidget);
     expect(find.text('Save quotation'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('line discount in TSh comes off the line and the totals', (tester) async {
+    await pump(tester, const InvoiceBuilderScreen());
+    expect(find.text('DISCOUNT (TSH)'), findsOneWidget);
+    final entry = tester.widget<LineItemTableRow>(find.byType(LineItemTableRow)).entry;
+    entry.qtyCtrl.text = '2';
+    entry.priceCtrl.text = '500000'; // 2 x 500,000 = 1,000,000
+    entry.discCtrl.text = '150000';
+    await tester.pump();
+    expect(find.text('TSh 850K'), findsWidgets);          // line + TOTAL
+    expect(find.text('TSh 1.0M'), findsOneWidget);        // subtotal before discount
+    expect(find.text('- TSh 150K'), findsOneWidget);
+    expect(find.text('Discount'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

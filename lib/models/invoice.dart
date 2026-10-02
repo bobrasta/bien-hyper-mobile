@@ -71,12 +71,15 @@ class InvoiceLineItem {
   final String description;
   final double quantity;
   final int    unitPrice;
+  // TSh off this line; total is already after it.
+  final int    discount;
   final int    total;
 
   const InvoiceLineItem({
     required this.description,
     required this.quantity,
     required this.unitPrice,
+    this.discount = 0,
     required this.total,
   });
 
@@ -84,6 +87,7 @@ class InvoiceLineItem {
     description: j['description'] as String? ?? '',
     quantity:    (j['quantity']   as num? ?? 1).toDouble(),
     unitPrice:   (j['unit_price'] as num? ?? 0).toInt(),
+    discount:    (j['discount']   as num? ?? 0).toInt(),
     total:       (j['total']      as num? ?? 0).toInt(),
   );
 }

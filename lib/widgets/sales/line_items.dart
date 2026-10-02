@@ -14,7 +14,7 @@ import '../common/labeled_field.dart';
 // Column widths shared by the line rows and each builder's header row.
 const double kLineQtyW   = 76;
 const double kLinePriceW = 130;
-const double kLineDiscW  = 76;
+const double kLineDiscW  = 100;
 const double kLineTotalW = 110;
 
 class LineItemEntry {
@@ -22,8 +22,17 @@ class LineItemEntry {
   final uomCtrl   = TextEditingController(text: 'pcs');
   final qtyCtrl   = TextEditingController(text: '1');
   final priceCtrl = TextEditingController();
-  final discCtrl  = TextEditingController(text: '0');
+  // TSh off this line (user, 2026-10-02 — an amount, not a percentage).
+  final discCtrl  = TextEditingController();
   InventoryItem? selectedItem;
+
+  int get qty      => int.tryParse(qtyCtrl.text) ?? 0;
+  int get price    => int.tryParse(priceCtrl.text.replaceAll(',', '')) ?? 0;
+  int get gross    => qty * price;
+  int get discount => int.tryParse(discCtrl.text.replaceAll(',', '').trim()) ?? 0;
+  // What the line comes to after its discount — InvoiceController /
+  // QuotationController work it out the same way (App\Support\LineDiscount).
+  int get net      => gross - discount;
 
   void dispose() {
     descCtrl.dispose(); uomCtrl.dispose();
@@ -47,15 +56,10 @@ class LineItemTableRow extends StatelessWidget {
   final List<InventoryItem> invItems;
   final VoidCallback onChanged;
   final VoidCallback? onRemove;
-  /// Quotations carry a per-line discount; invoices don't.
+  /// Per-line TSh discount column.
   final bool showDiscount;
 
-  int get _lineTotal {
-    final qty = int.tryParse(entry.qtyCtrl.text) ?? 0;
-    final price = int.tryParse(entry.priceCtrl.text.replaceAll(',', '')) ?? 0;
-    final disc = showDiscount ? (double.tryParse(entry.discCtrl.text) ?? 0) : 0;
-    return ((qty * price) * (1 - disc / 100)).round();
-  }
+  int get _lineTotal => showDiscount ? entry.net : entry.gross;
 
   void _pick(InventoryItem? item) {
     entry.selectedItem = item;
@@ -103,7 +107,7 @@ class LineItemTableRow extends StatelessWidget {
       SizedBox(width: kLinePriceW, child: _numField(entry.priceCtrl, onChanged)),
       const SizedBox(width: 8),
       if (showDiscount) ...[
-        SizedBox(width: kLineDiscW, child: _numField(entry.discCtrl, onChanged)),
+        SizedBox(width: kLineDiscW, child: _numField(entry.discCtrl, onChanged, hint: '0')),
         const SizedBox(width: 8),
       ],
       SizedBox(width: kLineTotalW, child: Text(tshFromDouble(_lineTotal.toDouble()), textAlign: TextAlign.right,
@@ -115,9 +119,10 @@ class LineItemTableRow extends StatelessWidget {
   );
 
   // The unified text input, right-aligned for numbers.
-  Widget _numField(TextEditingController ctrl, VoidCallback onChanged) => LabeledTextField(
+  Widget _numField(TextEditingController ctrl, VoidCallback onChanged, {String? hint}) => LabeledTextField(
     label: '',
     controller: ctrl,
+    hint: hint,
     textAlign: TextAlign.right,
     keyboardType: const TextInputType.numberWithOptions(decimal: true),
     onChanged: (_) => onChanged(),
