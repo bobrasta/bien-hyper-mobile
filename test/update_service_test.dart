@@ -69,4 +69,27 @@ void main() {
           keys: const ['11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=']), isFalse);
     });
   });
+
+  group('moveIntoPlace', () {
+    late Directory dir;
+    setUp(() => dir = Directory.systemTemp.createTempSync('upd'));
+    tearDown(() => dir.deleteSync(recursive: true));
+
+    test('replaces a leftover package of the same name', () async {
+      final part = File('${dir.path}/Setup.exe.part')..writeAsStringSync('new');
+      final target = File('${dir.path}/Setup.exe')..writeAsStringSync('old');
+      await moveIntoPlace(part, target, delay: Duration.zero);
+      expect(target.readAsStringSync(), 'new');
+      expect(part.existsSync(), isFalse);
+    });
+
+    test('gives up with the rename error after its retries', () async {
+      final part = File('${dir.path}/Setup.exe.part')..writeAsStringSync('new');
+      final target = File('${dir.path}/Setup.exe');
+      Directory(target.path).createSync(); // can be neither renamed onto nor copied to
+      await expectLater(moveIntoPlace(part, target, attempts: 3, delay: Duration.zero),
+          throwsA(isA<FileSystemException>()));
+      expect(part.existsSync(), isTrue);
+    });
+  });
 }

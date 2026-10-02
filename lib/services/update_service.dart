@@ -296,7 +296,7 @@ class UpdateService {
         throw const _UpdateError('Downloaded update failed its integrity check — it will be retried.');
       }
       await _cleanOldPackages(keep: file);
-      await part.rename(file.path);
+      await moveIntoPlace(part, file);
       state.value = state.value.copyWith(phase: UpdatePhase.ready);
       await _rememberPending();
       _scheduleImmediateIfNeeded();
@@ -456,7 +456,10 @@ nohup "${installDir.path}/$exeName" >/dev/null 2>&1 &
       if (e.response?.statusCode == 404) return 'No update feed published yet.';
       return 'Could not reach the update server.';
     }
-    if (e is FileSystemException) return 'Could not write the update: ${e.message}';
+    if (e is FileSystemException) {
+      final os = e.osError?.message.trim();
+      return 'Could not write the update: ${e.message}${os == null || os.isEmpty ? '' : ' ($os)'}';
+    }
     return e.toString();
   }
 
@@ -473,6 +476,34 @@ class _UpdateError implements Exception {
 
 /// True when [signatureB64] is a valid Ed25519 signature of [manifest] by
 /// any of [UpdateService.trustedKeys] (or [keys], for tests).
+/// Moves a verified download to its final name. On Windows a rename fails
+/// while anything holds either file open — typically antivirus scanning the
+/// freshly written installer, or an old copy of it still in use — so this
+/// retries for a while, then falls back to copying, which only needs to read
+/// the source.
+@visibleForTesting
+Future<void> moveIntoPlace(File part, File target, {int attempts = 8, Duration delay = const Duration(milliseconds: 750)}) async {
+  FileSystemException? last;
+  for (var i = 0; i < attempts; i++) {
+    try {
+      if (await target.exists()) await target.delete();
+      await part.rename(target.path);
+      return;
+    } on FileSystemException catch (e) {
+      last = e;
+      if (i < attempts - 1) await Future<void>.delayed(delay);
+    }
+  }
+  try {
+    await part.copy(target.path);
+  } on FileSystemException {
+    throw last!;
+  }
+  try {
+    await part.delete();
+  } catch (_) {} // a stray .part is cleaned up with the next update
+}
+
 Future<bool> verifyManifestSignature(List<int> manifest, String signatureB64, {List<String>? keys}) async {
   final List<int> sig;
   try {
