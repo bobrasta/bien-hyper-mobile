@@ -18,6 +18,7 @@ import '../../widgets/common/error_view.dart';
 import '../../widgets/common/labeled_field.dart';
 import '../../widgets/common/shimmer_box.dart';
 import 'inventory_item_detail_screen.dart';
+import '../../widgets/common/phone_layout.dart';
 
 class InventoryItemsScreen extends StatefulWidget {
   const InventoryItemsScreen({super.key});
@@ -737,7 +738,7 @@ class _RecordMovementModalState extends State<_RecordMovementModal> {
     onTap: widget.onClose,
     child: Container(
       color: const Color(0xAA06070A), alignment: Alignment.center,
-      child: GestureDetector(
+      child: PhoneModalBox(child: GestureDetector(
         onTap: () {},
         child: Container(
           width: 420,
@@ -839,7 +840,7 @@ class _RecordMovementModalState extends State<_RecordMovementModal> {
             ),
           ]),
         ),
-      ),
+      )),
     ),
   );
 }
@@ -952,7 +953,7 @@ class _ItemFormModalState extends State<_ItemFormModal> {
     onTap: widget.onClose,
     child: Container(
       color: const Color(0xAA06070A), alignment: Alignment.center,
-      child: GestureDetector(
+      child: PhoneModalBox(scroll: false, child: GestureDetector(
         onTap: () {},
         child: Container(
           width: 560,
@@ -1014,27 +1015,26 @@ class _ItemFormModalState extends State<_ItemFormModal> {
                 ]),
                 const SizedBox(height: 14),
                 // Certifications
-                Row(children: [
-                  Text('CERTIFICATIONS', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
-                  const SizedBox(width: 16),
+                // Wraps so the chips drop under the label on a phone.
+                Wrap(spacing: 8, runSpacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: Text('CERTIFICATIONS', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
+                  ),
                   _CheckChip(label: 'CE',  value: _hasCe,  onChanged: (v) => setState(() => _hasCe = v)),
-                  const SizedBox(width: 8),
                   _CheckChip(label: 'FDA', value: _hasFda, onChanged: (v) => setState(() => _hasFda = v)),
-                  const SizedBox(width: 8),
                   _CheckChip(label: 'TBS', value: _hasTbs, onChanged: (v) => setState(() => _hasTbs = v)),
                 ]),
                 const SizedBox(height: 14),
                 // Equipment tracking — when on, delivering this item to a
                 // hospital-linked sales order registers a Machine record
                 // (one per unit) for Service to pick up.
-                Row(children: [
+                Wrap(spacing: 14, runSpacing: 10, crossAxisAlignment: WrapCrossAlignment.end, children: [
                   _CheckChip(label: 'Installable Equipment', value: _createsMachineRecord,
                       onChanged: (v) => setState(() => _createsMachineRecord = v)),
-                  if (_createsMachineRecord) ...[
-                    const SizedBox(width: 14),
+                  if (_createsMachineRecord)
                     SizedBox(width: 140, child: _Field(
                         label: 'Warranty (months)', ctrl: _warrantyCtrl, hint: '12', numeric: true)),
-                  ],
                 ]),
                 if (_isEdit) ...[
                   const SizedBox(height: 14),
@@ -1075,7 +1075,7 @@ class _ItemFormModalState extends State<_ItemFormModal> {
             ),
           ]),
         ),
-      ),
+      )),
     ),
   );
 }
@@ -1162,7 +1162,11 @@ class _Dropdown extends StatelessWidget {
   Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
     Text(label, style: AppTheme.fieldLabel),
     const SizedBox(height: 6),
-    DropdownFieldBox<String>(
+    // No options yet (e.g. no categories set up): an empty, disabled box
+    // instead of crashing on items.first.
+    if (items.isEmpty)
+      DropdownFieldBox<String>(value: null, items: const [], onChanged: null)
+    else DropdownFieldBox<String>(
       value: items.contains(value) ? value : items.first,
       items: items.asMap().entries.map((e) => DropdownMenuItem(
           value: e.value, child: Text(labels != null ? labels![e.key] : e.value),

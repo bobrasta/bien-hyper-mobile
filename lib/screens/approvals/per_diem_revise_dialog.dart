@@ -9,6 +9,7 @@ import '../../utils/api_error.dart';
 import '../../utils/format.dart';
 import '../../widgets/common/app_button.dart';
 import '../../widgets/common/labeled_field.dart';
+import '../../widgets/common/phone_layout.dart';
 
 String _iso(DateTime d) =>
     '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
@@ -168,8 +169,7 @@ class _PerDiemReviseDialogState extends State<PerDiemReviseDialog> {
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Text('Day ${i + 1}', style: AppTheme.bodyStrong.copyWith(fontSize: 12)),
-          const Spacer(),
+          Expanded(child: Text('Day ${i + 1}', style: AppTheme.bodyStrong.copyWith(fontSize: 12), maxLines: 2, overflow: TextOverflow.ellipsis)),
           GestureDetector(
             onTap: () => _pickDate(i),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -219,7 +219,7 @@ class _PerDiemReviseDialogState extends State<PerDiemReviseDialog> {
       child: Container(
         color: const Color(0xAA06070A),
         alignment: Alignment.center,
-        child: GestureDetector(
+        child: PhoneModalBox(scroll: false, child: GestureDetector(
           onTap: () {},
           child: Container(
             width: 640,
@@ -297,8 +297,7 @@ class _PerDiemReviseDialogState extends State<PerDiemReviseDialog> {
                   ]),
                   const SizedBox(height: 16),
                   Row(children: [
-                    Text('ITINERARY', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
-                    const Spacer(),
+                    Expanded(child: Text('ITINERARY', style: AppTheme.labelCaps.copyWith(fontSize: 10), maxLines: 2, overflow: TextOverflow.ellipsis)),
                     GestureDetector(
                       onTap: _addLine,
                       child: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -320,8 +319,7 @@ class _PerDiemReviseDialogState extends State<PerDiemReviseDialog> {
                       border: Border.all(color: AppColors.teal.withValues(alpha: 0.25)),
                     ),
                     child: Row(children: [
-                      Text('NEW TOTAL', style: AppTheme.labelCaps.copyWith(fontSize: 9)),
-                      const Spacer(),
+                      Expanded(child: Text('NEW TOTAL', style: AppTheme.labelCaps.copyWith(fontSize: 9), maxLines: 2, overflow: TextOverflow.ellipsis)),
                       Text(tshShort(_grandTotal),
                           style: AppTheme.bodyStrong.copyWith(color: AppColors.teal, fontSize: 15)),
                     ]),
@@ -343,7 +341,7 @@ class _PerDiemReviseDialogState extends State<PerDiemReviseDialog> {
               ),
             ]),
           ),
-        ),
+        )),
       ),
     ));
   }

@@ -199,8 +199,7 @@ class _TeamPerformanceScreenState extends State<TeamPerformanceScreen> {
         child: Row(children: [
           Icon(Symbols.emoji_events, size: 14, color: AppColors.violet),
           const SizedBox(width: 9),
-          Text('Rep leaderboard', style: AppTheme.bodySm.copyWith(fontSize: 12.5)),
-          const Spacer(),
+          Expanded(child: Text('Rep leaderboard', style: AppTheme.bodySm.copyWith(fontSize: 12.5), maxLines: 2, overflow: TextOverflow.ellipsis)),
           Text('commission owed ${tshFromDouble(d.commissionOwed.toDouble())}', style: AppTheme.monoXs.copyWith(fontSize: 10, color: AppColors.violet)),
         ]),
       ),

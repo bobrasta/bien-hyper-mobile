@@ -212,8 +212,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                     padding: const EdgeInsets.fromLTRB(20, 16, 16, 12),
                     child: Row(children: [
                       const SizedBox(width: 8),
-                      Text('All Reports', style: AppTheme.cardTitle),
-                      const Spacer(),
+                      Expanded(child: Text('All Reports', style: AppTheme.cardTitle, maxLines: 2, overflow: TextOverflow.ellipsis)),
                       AppButton(
                         label: 'New Report', icon: Symbols.add,
                         variant: BtnVariant.primary, small: true,

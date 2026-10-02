@@ -187,8 +187,7 @@ class AppUpdatesCard extends StatelessWidget {
             Row(children: [
               Icon(Symbols.system_update, size: 18, color: context.pal.textMute),
               const SizedBox(width: 8),
-              Text('App updates', style: AppTheme.bodyStrong.copyWith(fontSize: 14)),
-              const Spacer(),
+              Expanded(child: Text('App updates', style: AppTheme.bodyStrong.copyWith(fontSize: 14), maxLines: 2, overflow: TextOverflow.ellipsis)),
               Text('Version ${_svc.currentVersion.value}', style: AppTheme.monoSm),
             ]),
             const SizedBox(height: 16),

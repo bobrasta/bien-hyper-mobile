@@ -45,12 +45,20 @@ class AppCard extends StatelessWidget {
         if (header != null)
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 16, 16, 0),
-            child: Row(
-              children: [
-                Expanded(child: header!),
-                trailing ?? const SizedBox.shrink(),
-              ],
-            ),
+            // Phones: trailing controls (tabs, links) go on their own
+            // swipeable line under the title instead of crushing it.
+            child: LayoutBuilder(builder: (context, cst) => trailing != null && cst.maxWidth < 520
+                ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                    header!,
+                    const SizedBox(height: 8),
+                    SingleChildScrollView(scrollDirection: Axis.horizontal, child: trailing!),
+                  ])
+                : Row(
+                    children: [
+                      Expanded(child: header!),
+                      trailing ?? const SizedBox.shrink(),
+                    ],
+                  )),
           ),
         expandChild
             ? Expanded(child: Padding(padding: padding, child: child))

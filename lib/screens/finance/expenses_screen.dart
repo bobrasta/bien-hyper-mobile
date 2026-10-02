@@ -488,7 +488,7 @@ class _NewExpenseDialogState extends State<_NewExpenseDialog> {
     child: Container(
       color: const Color(0xAA06070A),
       alignment: Alignment.center,
-      child: GestureDetector(
+      child: PhoneModalBox(child: GestureDetector(
         onTap: () {},
         child: Container(
           width: 480,
@@ -504,8 +504,7 @@ class _NewExpenseDialogState extends State<_NewExpenseDialog> {
               child: Row(children: [
                 Icon(Symbols.receipt_long, size: 18, color: AppColors.coral),
                 const SizedBox(width: 10),
-                Text('New Expense', style: AppTheme.bodyStrong),
-                const Spacer(),
+                Expanded(child: Text('New Expense', style: AppTheme.bodyStrong, maxLines: 2, overflow: TextOverflow.ellipsis)),
                 GestureDetector(onTap: widget.onClose, child: Icon(Symbols.close, size: 18, color: context.pal.textDim)),
               ]),
             ),
@@ -566,7 +565,7 @@ class _NewExpenseDialogState extends State<_NewExpenseDialog> {
                       value: _isRecurring, materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       onChanged: (v) => setState(() => _isRecurring = v ?? false))),
                   const SizedBox(width: 8),
-                  Text('Repeats automatically (e.g. rent, subscriptions)', style: AppTheme.bodySm),
+                  Expanded(child: Text('Repeats automatically (e.g. rent, subscriptions)', style: AppTheme.bodySm)),
                 ]),
                 if (_isRecurring) ...[
                   const SizedBox(height: 10),
@@ -612,7 +611,7 @@ class _NewExpenseDialogState extends State<_NewExpenseDialog> {
             ),
           ]),
         ),
-      ),
+      )),
     ),
   );
 }

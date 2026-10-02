@@ -24,6 +24,7 @@ import '../../widgets/charts/map_tiles.dart';
 import '../machines/machine_map_screen.dart';
 
 import '../../theme/app_palette.dart';
+import '../../widgets/common/phone_layout.dart';
 class HospitalListScreen extends StatefulWidget {
   const HospitalListScreen({super.key});
 
@@ -360,6 +361,10 @@ class _HospitalListScreenState extends State<HospitalListScreen> {
               // on narrow windows instead of scrolling sideways.
               LayoutBuilder(builder: (ctx4, cst4) {
                 final cols = _Cols(machines: cst4.maxWidth >= 560, contact: cst4.maxWidth >= 760);
+                // Phones: cards instead of table rows. Below 520 px even the
+                // two-column table (hospital + location) is too tight; above
+                // it the narrowed table still reads well.
+                final phone = cst4.maxWidth < 520;
                 return Container(
                   decoration: BoxDecoration(
                     color: context.pal.surface1,
@@ -367,7 +372,7 @@ class _HospitalListScreenState extends State<HospitalListScreen> {
                     border: Border.all(color: context.pal.border),
                   ),
                   child: Column(children: [
-                    _TableHeader(cols),
+                    if (!phone) _TableHeader(cols) else const SizedBox(height: 10),
                     if (_loading)
                       shimmerList(count: 8)
                     // A background refresh failing while stale-but-valid
@@ -389,6 +394,7 @@ class _HospitalListScreenState extends State<HospitalListScreen> {
                       ...hospitals.map((h) => _HospitalRow(
                         hospital: h,
                         cols: cols,
+                        card: phone,
                         onView: () => setState(() => _viewHospital = h),
                         onEdit: () => setState(() => _editHospital = h),
                       )),
@@ -609,9 +615,11 @@ class _Th extends StatelessWidget {
 /// Whole row is clickable (opens the detail modal) with a hover highlight;
 /// the edit icon keeps its own tap so it doesn't also open the detail.
 class _HospitalRow extends StatefulWidget {
-  const _HospitalRow({required this.hospital, required this.cols, this.onView, this.onEdit});
+  const _HospitalRow({required this.hospital, required this.cols, this.onView, this.onEdit, this.card = false});
   final Hospital hospital;
   final _Cols cols;
+  /// Phone form: a card instead of a table row.
+  final bool card;
   final VoidCallback? onView;
   final VoidCallback? onEdit;
 
@@ -653,6 +661,34 @@ class _HospitalRowState extends State<_HospitalRow> {
     final district = hospital.district == '—' ? '' : hospital.district;
     final region = hospital.region == '—' ? '' : hospital.region;
     final where = [if (region.isNotEmpty) region, if (zone != null) '$zone zone'].join(' · ');
+
+    if (widget.card) {
+      return PhoneRecordCard(
+        title: hospital.name,
+        subtitle: [if (district.isNotEmpty) district, if (where.isNotEmpty) where].join(' · '),
+        badge: PhonePill(_typeLabel(hospital.type), typeColor),
+        meta: [
+          '${hospital.machineCount} machines · ${hospital.machinesOperational} active',
+          if (hospital.contactName.isNotEmpty) hospital.contactName,
+          if (hospital.contactPhone.isNotEmpty) hospital.contactPhone,
+        ],
+        onTap: widget.onView,
+        trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+          if (_hasLocation(hospital))
+            IconButton(
+              onPressed: () => showHospitalLocation(context, hospital),
+              tooltip: 'See on map',
+              icon: Icon(Symbols.location_on, size: 20, color: AppColors.teal),
+            ),
+          if (can('hospitals.manage'))
+            IconButton(
+              onPressed: widget.onEdit,
+              tooltip: 'Edit hospital',
+              icon: Icon(Symbols.edit, size: 19, color: context.pal.textDim),
+            ),
+        ]),
+      );
+    }
 
     return MouseRegion(
       cursor: SystemMouseCursors.click,
@@ -934,7 +970,7 @@ class _AddHospitalDialogState extends State<_AddHospitalDialog> {
     child: Container(
       color: const Color(0xAA06070A),
       alignment: Alignment.center,
-      child: GestureDetector(
+      child: PhoneModalBox(child: GestureDetector(
         onTap: () {},
         child: Container(
           width: 520,
@@ -950,8 +986,7 @@ class _AddHospitalDialogState extends State<_AddHospitalDialog> {
               child: Row(children: [
                 Icon(Symbols.local_hospital, size: 18, color: AppColors.teal),
                 const SizedBox(width: 10),
-                Text('Add Hospital', style: AppTheme.bodyStrong),
-                const Spacer(),
+                Expanded(child: Text('Add Hospital', style: AppTheme.bodyStrong, maxLines: 2, overflow: TextOverflow.ellipsis)),
                 GestureDetector(onTap: widget.onClose,
                     child: Icon(Symbols.close, size: 18, color: context.pal.textDim)),
               ]),
@@ -1040,7 +1075,7 @@ class _AddHospitalDialogState extends State<_AddHospitalDialog> {
             ),
           ]),
         ),
-      ),
+      )),
     ),
   );
 }
@@ -1147,7 +1182,7 @@ class _HospitalDetailSheetState extends State<_HospitalDetailSheet> {
       child: Container(
         color: const Color(0xAA06070A),
         alignment: Alignment.center,
-        child: GestureDetector(
+        child: PhoneModalBox(scroll: false, child: GestureDetector(
           onTap: () {},
           child: Container(
             width: 640,
@@ -1365,7 +1400,7 @@ class _HospitalDetailSheetState extends State<_HospitalDetailSheet> {
               ),
             ]),
           ),
-        ),
+        )),
       ),
     );
   }
@@ -1491,7 +1526,7 @@ class EditHospitalDialogState extends State<EditHospitalDialog> {
     child: Container(
       color: const Color(0xAA06070A),
       alignment: Alignment.center,
-      child: GestureDetector(
+      child: PhoneModalBox(child: GestureDetector(
         onTap: () {},
         child: Container(
           width: 520,
@@ -1602,7 +1637,7 @@ class EditHospitalDialogState extends State<EditHospitalDialog> {
             ),
           ]),
         ),
-      ),
+      )),
     ),
   );
 }

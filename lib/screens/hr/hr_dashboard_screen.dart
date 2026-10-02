@@ -218,15 +218,25 @@ class _HrDashboardScreenState extends State<HrDashboardScreen> {
           delta: activeCases == 0 ? 'clean' : 'needs review', deltaGood: activeCases == 0),
     ];
 
-    return GridView.count(
-      crossAxisCount: wide ? 6 : 3,
-      shrinkWrap: true,
-      mainAxisSpacing: 12,
-      crossAxisSpacing: 12,
-      childAspectRatio: wide ? 2.2 : 1.55,
-      physics: const NeverScrollableScrollPhysics(),
-      children: tiles.map((t) => _DomainTile(data: t)).toList(),
-    );
+    // Phones: two tiles to a row at a fixed height (three columns made
+    // each tile ~110 px wide, too short for its figure and note).
+    return LayoutBuilder(builder: (context, cst) => cst.maxWidth < 600
+        ? GridView(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2, mainAxisSpacing: 12, crossAxisSpacing: 12, mainAxisExtent: 112),
+            children: tiles.map((t) => _DomainTile(data: t)).toList(),
+          )
+        : GridView.count(
+            crossAxisCount: wide ? 6 : 3,
+            shrinkWrap: true,
+            mainAxisSpacing: 12,
+            crossAxisSpacing: 12,
+            childAspectRatio: wide ? 1.9 : 1.55,
+            physics: const NeverScrollableScrollPhysics(),
+            children: tiles.map((t) => _DomainTile(data: t)).toList(),
+          ));
   }
 
   static String _millions(int v) => (v / 1000000).toStringAsFixed(1);

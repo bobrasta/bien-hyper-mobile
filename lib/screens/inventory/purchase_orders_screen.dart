@@ -509,7 +509,7 @@ class _GrnModalState extends State<_GrnModal> {
     onTap: widget.onClose,
     child: Container(
       color: const Color(0xAA06070A), alignment: Alignment.center,
-      child: GestureDetector(
+      child: PhoneModalBox(scroll: false, child: GestureDetector(
         onTap: () {},
         child: Container(
           width: 500,
@@ -589,7 +589,7 @@ class _GrnModalState extends State<_GrnModal> {
             ),
           ]),
         ),
-      ),
+      )),
     ),
   );
 }

@@ -257,8 +257,7 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
           Row(children: [
             Icon(Symbols.history, size: 14, color: AppColors.violet),
             const SizedBox(width: 8),
-            Text('Stage history', style: AppTheme.bodyStrong.copyWith(fontSize: 12.5)),
-            const Spacer(),
+            Expanded(child: Text('Stage history', style: AppTheme.bodyStrong.copyWith(fontSize: 12.5), maxLines: 2, overflow: TextOverflow.ellipsis)),
             Text('${lead.events.length + 1} events · ${lead.daysOpen} days open', style: AppTheme.monoXs.copyWith(fontSize: 10, color: context.pal.textMute)),
           ]),
           const SizedBox(height: 12),

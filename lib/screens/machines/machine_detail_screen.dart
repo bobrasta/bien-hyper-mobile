@@ -21,6 +21,7 @@ import '../../widgets/common/status_badge.dart';
 import '../../widgets/email/compose_modal.dart';
 
 import '../../theme/app_palette.dart';
+import '../../widgets/common/phone_layout.dart';
 class MachineDetailScreen extends StatefulWidget {
   const MachineDetailScreen({super.key, this.machineId = 0, this.onBack});
   final int machineId;
@@ -346,8 +347,7 @@ class _OverviewContent extends StatelessWidget {
           ),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
-              Text('Revenue', style: AppTheme.cardTitle),
-              const Spacer(),
+              Expanded(child: Text('Revenue', style: AppTheme.cardTitle, maxLines: 2, overflow: TextOverflow.ellipsis)),
               Text('TSh ${(machine.revenuePerMonth / 1e6).toStringAsFixed(1)}M / month',
                 style: AppTheme.bodySub.copyWith(color: AppColors.teal)),
             ]),
@@ -413,8 +413,7 @@ class _OverviewContent extends StatelessWidget {
           ),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
-              Text('Specifications', style: AppTheme.cardTitle),
-              const Spacer(),
+              Expanded(child: Text('Specifications', style: AppTheme.cardTitle, maxLines: 2, overflow: TextOverflow.ellipsis)),
               GestureDetector(
                 onTap: onEditSpecs,
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -515,8 +514,7 @@ class _ServiceHistoryContentState extends State<_ServiceHistoryContent> {
   Widget build(BuildContext context) {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
-        Text('${_history.length} service records', style: AppTheme.bodySub),
-        const Spacer(),
+        Expanded(child: Text('${_history.length} service records', style: AppTheme.bodySub, maxLines: 2, overflow: TextOverflow.ellipsis)),
         AppButton(label: 'Log New Service', icon: Symbols.add, variant: BtnVariant.primary, small: true,
             onPressed: widget.onLogService),
       ]),
@@ -855,8 +853,7 @@ class _DocumentsContent extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
-        Text('0 documents', style: AppTheme.bodySub),
-        const Spacer(),
+        Expanded(child: Text('0 documents', style: AppTheme.bodySub, maxLines: 2, overflow: TextOverflow.ellipsis)),
         AppButton(label: 'Upload Document', icon: Symbols.upload_file, variant: BtnVariant.primary, small: true),
       ]),
       const SizedBox(height: 14),
@@ -911,8 +908,7 @@ class _NotesContentState extends State<_NotesContent> {
   Widget build(BuildContext context) {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
-        Text('Machine notes', style: AppTheme.bodySub),
-        const Spacer(),
+        Expanded(child: Text('Machine notes', style: AppTheme.bodySub, maxLines: 2, overflow: TextOverflow.ellipsis)),
         AppButton(label: 'Save Notes', icon: Symbols.save, variant: BtnVariant.primary, small: true,
             onPressed: _saving ? null : _save),
       ]),
@@ -985,7 +981,7 @@ Widget _modalShell(
   child: Container(
     color: const Color(0xAA06070A),
     alignment: Alignment.center,
-    child: GestureDetector(
+    child: PhoneModalBox(child: GestureDetector(
       onTap: () {},
       child: Container(
         width: width,
@@ -1032,7 +1028,7 @@ Widget _modalShell(
           ),
         ]),
       ),
-    ),
+    )),
   ),
 );
 

@@ -238,13 +238,15 @@ class _FinanceDashboardScreenState extends State<FinanceDashboardScreen> {
 
             Container(
               decoration: BoxDecoration(color: context.pal.surface1, borderRadius: BorderRadius.circular(14), border: Border.all(color: context.pal.border)),
-              child: Row(children: [
+              // Phones: the five figures two to a row (five columns broke
+              // every amount one character per line).
+              child: LayoutBuilder(builder: (context, cst) => statStrip(isPhoneWidth(cst.maxWidth), [
                 Expanded(child: _kpiTile('Revenue', Symbols.payments, AppColors.cyan, tshFromDouble(revenue), '${netMarginPct.toStringAsFixed(0)}%', 'net margin')),
                 Expanded(child: _kpiTile('Expenses', Symbols.receipt_long, AppColors.coral, tshFromDouble(totalExpenses), expenseRatio > 1 ? '${expenseRatio.toStringAsFixed(1)}× revenue' : '${(expenseRatio * 100).toStringAsFixed(0)}% of revenue', '${expensesByCategory.length} categories', border: true)),
                 Expanded(child: _kpiTile('Net result', Symbols.balance, netProfit >= 0 ? AppColors.green : AppColors.coral, tshSigned(netProfit), netProfit >= 0 ? 'profit' : 'loss', 'margin ${netMarginPct.toStringAsFixed(0)}%', border: true)),
                 Expanded(child: _kpiTile('Cash flow', Symbols.account_balance_wallet, netCashFlow >= 0 ? AppColors.green : AppColors.coral, tshSigned(netCashFlow), netCashFlow >= 0 ? 'positive' : 'negative', _period.label.toLowerCase(), border: true)),
                 Expanded(child: _kpiTile('AR outstanding', Symbols.hourglass_top, AppColors.green, tshFromDouble(totalOutstanding), overdueCount == 0 ? 'none overdue' : '$overdueCount overdue', 'receivables', border: true)),
-              ]),
+              ])),
             ),
             const SizedBox(height: 14),
 
@@ -275,7 +277,8 @@ class _FinanceDashboardScreenState extends State<FinanceDashboardScreen> {
                     Expanded(flex: 17, child: Column(children: [
                       _chartCard(context),
                       const SizedBox(height: 14),
-                      SizedBox(height: 220, child: _categoryCard(context, expensesByCategory, totalExpenses)),
+                      // Fits five category rows (220 cut the fifth off).
+                      SizedBox(height: 270, child: _categoryCard(context, expensesByCategory, totalExpenses)),
                     ])),
                     const SizedBox(width: 16),
                     Expanded(flex: 7, child: Column(children: [
@@ -287,7 +290,8 @@ class _FinanceDashboardScreenState extends State<FinanceDashboardScreen> {
                 : Column(children: [
                     _chartCard(context),
                     const SizedBox(height: 14),
-                    SizedBox(height: 220, child: _categoryCard(context, expensesByCategory, totalExpenses)),
+                    // Taller when stacked: five category rows at phone text size.
+                    SizedBox(height: 280, child: _categoryCard(context, expensesByCategory, totalExpenses)),
                     const SizedBox(height: 14),
                     _insightCard(context, expenseRatio, expensesByCategory),
                     const SizedBox(height: 14),

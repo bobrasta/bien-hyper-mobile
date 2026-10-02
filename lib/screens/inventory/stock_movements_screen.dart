@@ -372,7 +372,7 @@ class _RecordMovementModalState extends State<_RecordMovementModal> {
     onTap: widget.onClose,
     child: Container(
       color: const Color(0xAA06070A), alignment: Alignment.center,
-      child: GestureDetector(
+      child: PhoneModalBox(child: GestureDetector(
         onTap: () {},
         child: Container(
           width: 440,
@@ -388,8 +388,7 @@ class _RecordMovementModalState extends State<_RecordMovementModal> {
               child: Row(children: [
                 Icon(Symbols.swap_vert, size: 18, color: AppColors.teal),
                 const SizedBox(width: 10),
-                Text('Record Stock Movement', style: AppTheme.bodyStrong),
-                const Spacer(),
+                Expanded(child: Text('Record Stock Movement', style: AppTheme.bodyStrong, maxLines: 2, overflow: TextOverflow.ellipsis)),
                 GestureDetector(onTap: widget.onClose,
                     child: Icon(Symbols.close, size: 18, color: context.pal.textDim)),
               ]),
@@ -509,7 +508,7 @@ class _RecordMovementModalState extends State<_RecordMovementModal> {
             ),
           ]),
         ),
-      ),
+      )),
     ),
   );
 }

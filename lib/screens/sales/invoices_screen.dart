@@ -1047,7 +1047,7 @@ class _PaymentModalState extends State<_PaymentModal> {
     child: Container(
       color: const Color(0xAA06070A),
       alignment: Alignment.center,
-      child: GestureDetector(
+      child: PhoneModalBox(child: GestureDetector(
         onTap: () {},
         child: Container(
           width: 420,
@@ -1134,7 +1134,7 @@ class _PaymentModalState extends State<_PaymentModal> {
             ),
           ]),
         ),
-      ),
+      )),
     ),
   ));
 }

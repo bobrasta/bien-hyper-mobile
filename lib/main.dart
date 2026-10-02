@@ -332,10 +332,20 @@ class HypermedApp extends StatelessWidget {
           builder: (_, sizePref, _) {
             final mq = MediaQuery.of(context);
             final deviceFactor = mq.textScaler.scale(1.0);
+            // Phones: dialogs keep a 16 px side margin instead of Material's
+            // 40 px, which would spend a fifth of the width on empty space.
+            final theme = Theme.of(context);
+            final scoped = mq.size.width < 600
+                ? Theme(
+                    data: theme.copyWith(dialogTheme: theme.dialogTheme.copyWith(
+                        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24))),
+                    child: child!,
+                  )
+                : child!;
             return MediaQuery(
               data: mq.copyWith(
                   textScaler: TextScaler.linear(deviceFactor * sizePref.scale)),
-              child: child!,
+              child: scoped,
             );
           },
         ),

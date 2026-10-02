@@ -61,4 +61,50 @@ void main() {
       expect(overflows, isEmpty);
     });
   }
+
+  // The "new …" forms, opened from their screen's button on a phone: they
+  // must open as a bottom sheet without any layout error.
+  const forms = [
+    ('inventory_items', 'Add'), ('inventory_movements', 'Record'),
+    ('inventory_requisitions', 'New'), ('inventory_locations', 'Add Location'),
+    ('finance_expenses', 'New expense'), ('finance_bills', 'New bill'), ('finance_ledger', 'New'),
+    ('my_leave', 'Request Leave'), ('my_leave', 'Running Late'), ('service', 'New'),
+    ('sales_leads', 'New'), ('vendor_fees', 'Record fee'),
+  ];
+  for (final (key, button) in forms) {
+    testWidgets('$key › $button opens on a phone', (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      userRoleNotifier.value = 'admin';
+      final errors = <String>[];
+      final previous = FlutterError.onError;
+      FlutterError.onError = (e) {
+        final at = RegExp(r'lib/[A-Za-z0-9_/]+\.dart:\d+').firstMatch(e.toString())?.group(0) ?? '';
+        errors.add('${e.exceptionAsString().split('\n').first} $at');
+      };
+      var found = false;
+      try {
+        await tester.pumpWidget(MaterialApp(theme: AppTheme.of(AppThemeMode.dark),
+            home: AppShell(initialScreenKey: key)));
+        for (var i = 0; i < 4; i++) {
+          await tester.pump(const Duration(milliseconds: 300));
+        }
+        final target = find.text(button);
+        found = target.evaluate().isNotEmpty;
+        if (found) {
+          await tester.tap(target.first, warnIfMissed: false);
+          for (var i = 0; i < 4; i++) {
+            await tester.pump(const Duration(milliseconds: 300));
+          }
+        }
+      } finally {
+        FlutterError.onError = previous;
+      }
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(seconds: 1));
+      expect(found, isTrue, reason: 'no "$button" button on $key');
+      expect(errors, isEmpty);
+    });
+  }
 }

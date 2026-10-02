@@ -35,8 +35,7 @@ class _DialogShell extends StatelessWidget {
         Row(children: [
           Icon(icon, size: 18, color: AppColors.teal),
           const SizedBox(width: 10),
-          Text(title, style: AppTheme.bodyStrong),
-          const Spacer(),
+          Expanded(child: Text(title, style: AppTheme.bodyStrong, maxLines: 2, overflow: TextOverflow.ellipsis)),
           TextButton.icon(onPressed: onAdd, icon: const Icon(Symbols.add, size: 16), label: const Text('New')),
           GestureDetector(onTap: () => Navigator.of(context).pop(),
               child: Icon(Symbols.close, size: 18, color: context.pal.textDim)),

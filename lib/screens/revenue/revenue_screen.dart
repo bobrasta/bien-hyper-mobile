@@ -21,6 +21,7 @@ import '../../widgets/common/app_button.dart';
 import '../../widgets/common/status_badge.dart';
 import '../../theme/app_palette.dart';
 import '../../widgets/common/period_filter.dart';
+import '../../widgets/common/phone_layout.dart';
 
 Color _paymentStatusColor(PaymentStatus s) => switch (s) {
   PaymentStatus.paid      => AppColors.teal,
@@ -301,8 +302,7 @@ class _RevenueScreenState extends State<RevenueScreen> {
                           }
                           return Row(children: [
                             const SizedBox(width: 8),
-                            Text('Revenue Trend —Last 12 Months', style: AppTheme.cardTitle),
-                            const Spacer(),
+                            Expanded(child: Text('Revenue Trend —Last 12 Months', style: AppTheme.cardTitle, maxLines: 2, overflow: TextOverflow.ellipsis)),
                             _Legend(color: AppColors.teal,    label: 'Actual'),
                             const SizedBox(width: 12),
                             _Legend(color: AppColors.blue,    label: 'Collected'),
@@ -387,8 +387,7 @@ class _RevenueScreenState extends State<RevenueScreen> {
                   padding: const EdgeInsets.fromLTRB(20, 16, 16, 12),
                   child: Row(children: [
                     const SizedBox(width: 8),
-                    Text('Invoices —June 2025', style: AppTheme.cardTitle),
-                    const Spacer(),
+                    Expanded(child: Text('Invoices —June 2025', style: AppTheme.cardTitle, maxLines: 2, overflow: TextOverflow.ellipsis)),
                     action,
                   ]),
                 );
@@ -1007,7 +1006,7 @@ class _NewInvoiceDialogState extends State<_NewInvoiceDialog> {
     child: Container(
       color: const Color(0xAA06070A),
       alignment: Alignment.center,
-      child: GestureDetector(
+      child: PhoneModalBox(child: GestureDetector(
         onTap: () {},
         child: Container(
           width: 480,
@@ -1023,8 +1022,7 @@ class _NewInvoiceDialogState extends State<_NewInvoiceDialog> {
               child: Row(children: [
                 Icon(Symbols.receipt_long, size: 18, color: AppColors.teal),
                 const SizedBox(width: 10),
-                Text('New Invoice', style: AppTheme.bodyStrong),
-                const Spacer(),
+                Expanded(child: Text('New Invoice', style: AppTheme.bodyStrong, maxLines: 2, overflow: TextOverflow.ellipsis)),
                 GestureDetector(onTap: widget.onClose,
                     child: Icon(Symbols.close, size: 18, color: context.pal.textDim)),
               ]),
@@ -1070,7 +1068,7 @@ class _NewInvoiceDialogState extends State<_NewInvoiceDialog> {
             ),
           ]),
         ),
-      ),
+      )),
     ),
   );
 }
@@ -1105,7 +1103,7 @@ class _InvoiceDetailSheet extends StatelessWidget {
     child: Container(
       color: const Color(0xAA06070A),
       alignment: Alignment.center,
-      child: GestureDetector(
+      child: PhoneModalBox(child: GestureDetector(
         onTap: () {},
         child: Container(
           width: 460,
@@ -1165,7 +1163,7 @@ class _InvoiceDetailSheet extends StatelessWidget {
             ],
           ]),
         ),
-      ),
+      )),
     ),
   );
 }

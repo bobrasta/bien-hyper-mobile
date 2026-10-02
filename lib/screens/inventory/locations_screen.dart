@@ -10,6 +10,7 @@ import '../../utils/api_error.dart';
 import '../../widgets/common/error_view.dart';
 import '../../widgets/common/shimmer_box.dart';
 import '../../widgets/common/labeled_field.dart';
+import '../../widgets/common/phone_layout.dart';
 
 class LocationsScreen extends StatefulWidget {
   const LocationsScreen({super.key});
@@ -439,7 +440,7 @@ class _LocationFormModalState extends State<_LocationFormModal> {
     child: Container(
       color: const Color(0xAA06070A),
       alignment: Alignment.center,
-      child: GestureDetector(
+      child: PhoneModalBox(child: GestureDetector(
         onTap: () {},
         child: Container(
           width: 440,
@@ -511,7 +512,7 @@ class _LocationFormModalState extends State<_LocationFormModal> {
             ),
           ]),
         ),
-      ),
+      )),
     ),
   );
 }

@@ -11,6 +11,7 @@ import '../../utils/api_error.dart';
 import '../../utils/format.dart';
 import '../../widgets/common/app_button.dart';
 import '../../widgets/common/labeled_field.dart';
+import '../../widgets/common/phone_layout.dart';
 
 String _iso(DateTime d) =>
     '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
@@ -191,8 +192,7 @@ class _TravelPlanDialogState extends State<TravelPlanDialog> {
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Text('Day ${i + 1}', style: AppTheme.bodyStrong.copyWith(fontSize: 12)),
-          const Spacer(),
+          Expanded(child: Text('Day ${i + 1}', style: AppTheme.bodyStrong.copyWith(fontSize: 12), maxLines: 2, overflow: TextOverflow.ellipsis)),
           GestureDetector(
             onTap: () => _pickDate(i),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -238,7 +238,7 @@ class _TravelPlanDialogState extends State<TravelPlanDialog> {
     child: Container(
       color: const Color(0xAA06070A),
       alignment: Alignment.center,
-      child: GestureDetector(
+      child: PhoneModalBox(scroll: false, child: GestureDetector(
         onTap: () {},
         child: Container(
           width: 620,
@@ -256,8 +256,7 @@ class _TravelPlanDialogState extends State<TravelPlanDialog> {
               child: Row(children: [
                 Icon(Symbols.map, size: 18, color: AppColors.teal),
                 const SizedBox(width: 10),
-                Text('Submit Travel Plan', style: AppTheme.bodyStrong),
-                const Spacer(),
+                Expanded(child: Text('Submit Travel Plan', style: AppTheme.bodyStrong, maxLines: 2, overflow: TextOverflow.ellipsis)),
                 GestureDetector(onTap: widget.onClose,
                     child: Icon(Symbols.close, size: 18, color: context.pal.textDim)),
               ]),
@@ -302,8 +301,7 @@ class _TravelPlanDialogState extends State<TravelPlanDialog> {
                 const SizedBox(height: 16),
 
                 Row(children: [
-                  Text('ITINERARY', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
-                  const Spacer(),
+                  Expanded(child: Text('ITINERARY', style: AppTheme.labelCaps.copyWith(fontSize: 10), maxLines: 2, overflow: TextOverflow.ellipsis)),
                   GestureDetector(
                     onTap: _addLine,
                     child: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -361,7 +359,7 @@ class _TravelPlanDialogState extends State<TravelPlanDialog> {
             ),
           ]),
         ),
-      ),
+      )),
     ),
   );
 }

@@ -12,6 +12,7 @@ import '../../utils/format.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/common/error_view.dart';
 import '../../widgets/common/labeled_field.dart';
+import '../../widgets/common/phone_layout.dart';
 
 class BankReconciliationScreen extends StatefulWidget {
   const BankReconciliationScreen({super.key});
@@ -236,7 +237,7 @@ class _NewReconDialogState extends State<_NewReconDialog> {
     child: Container(
       color: const Color(0xAA06070A),
       alignment: Alignment.center,
-      child: GestureDetector(
+      child: PhoneModalBox(child: GestureDetector(
         onTap: () {},
         child: Container(
           width: 440,
@@ -252,8 +253,7 @@ class _NewReconDialogState extends State<_NewReconDialog> {
               child: Row(children: [
                 Icon(Symbols.account_balance, size: 18, color: AppColors.teal),
                 const SizedBox(width: 10),
-                Text('New Reconciliation', style: AppTheme.bodyStrong),
-                const Spacer(),
+                Expanded(child: Text('New Reconciliation', style: AppTheme.bodyStrong, maxLines: 2, overflow: TextOverflow.ellipsis)),
                 GestureDetector(onTap: widget.onClose, child: Icon(Symbols.close, size: 18, color: context.pal.textDim)),
               ]),
             ),
@@ -296,7 +296,7 @@ class _NewReconDialogState extends State<_NewReconDialog> {
             ),
           ]),
         ),
-      ),
+      )),
     ),
   );
 }

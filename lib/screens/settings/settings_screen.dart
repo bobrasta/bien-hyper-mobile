@@ -38,6 +38,7 @@ import '../../widgets/common/avatar_widget.dart';
 import '../../theme/app_palette.dart';
 import '../../widgets/common/update_widgets.dart' show AppUpdatesCard;
 import '../../widgets/common/labeled_field.dart';
+import '../../widgets/common/phone_layout.dart';
 
 // e.g. 'sales_manager' -> 'Sales Manager' —shared by the Roles tab and the
 // Invite dialog's role dropdown.
@@ -4330,7 +4331,7 @@ class _InviteDialogState extends State<_InviteDialog> {
     child: Container(
       color: const Color(0xAA06070A),
       alignment: Alignment.center,
-      child: GestureDetector(
+      child: PhoneModalBox(child: GestureDetector(
         onTap: () {},
         child: Container(
           width: 480,
@@ -4358,8 +4359,7 @@ class _InviteDialogState extends State<_InviteDialog> {
                   children: [
                     Icon(Symbols.person_add, size: 18, color: AppColors.teal),
                     const SizedBox(width: 10),
-                    Text('Add Team Member', style: AppTheme.bodyStrong),
-                    const Spacer(),
+                    Expanded(child: Text('Add Team Member', style: AppTheme.bodyStrong, maxLines: 2, overflow: TextOverflow.ellipsis)),
                     GestureDetector(
                       onTap: widget.onClose,
                       child: Icon(
@@ -4480,7 +4480,7 @@ class _InviteDialogState extends State<_InviteDialog> {
             ],
           ),
         ),
-      ),
+      )),
     ),
   );
 }

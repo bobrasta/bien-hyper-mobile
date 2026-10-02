@@ -10,6 +10,7 @@ import '../../utils/api_error.dart';
 import '../../widgets/common/app_button.dart';
 import '../../widgets/common/error_view.dart';
 import '../../widgets/common/labeled_field.dart';
+import '../../widgets/common/phone_layout.dart';
 
 class MyLeaveScreen extends StatefulWidget {
   const MyLeaveScreen({super.key});
@@ -184,8 +185,7 @@ class _LeaveCard extends StatelessWidget {
       Row(children: [
         Icon(Symbols.event, size: 16, color: _statusColor),
         const SizedBox(width: 8),
-        Text(request.displayLabel, style: AppTheme.bodyStrong.copyWith(fontSize: 13.5)),
-        const Spacer(),
+        Expanded(child: Text(request.displayLabel, style: AppTheme.bodyStrong.copyWith(fontSize: 13.5), maxLines: 2, overflow: TextOverflow.ellipsis)),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
           decoration: BoxDecoration(color: _statusColor.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(999)),
@@ -298,7 +298,7 @@ class _RequestLeaveDialogState extends State<_RequestLeaveDialog> {
     child: Container(
       color: const Color(0xAA06070A),
       alignment: Alignment.center,
-      child: GestureDetector(
+      child: PhoneModalBox(child: GestureDetector(
         onTap: () {},
         child: Container(
           width: 460,
@@ -314,8 +314,7 @@ class _RequestLeaveDialogState extends State<_RequestLeaveDialog> {
               child: Row(children: [
                 Icon(Symbols.event, size: 18, color: AppColors.teal),
                 const SizedBox(width: 10),
-                Text('Request Leave', style: AppTheme.bodyStrong),
-                const Spacer(),
+                Expanded(child: Text('Request Leave', style: AppTheme.bodyStrong, maxLines: 2, overflow: TextOverflow.ellipsis)),
                 GestureDetector(onTap: widget.onClose, child: Icon(Symbols.close, size: 18, color: context.pal.textDim)),
               ]),
             ),
@@ -380,7 +379,7 @@ class _RequestLeaveDialogState extends State<_RequestLeaveDialog> {
             ),
           ]),
         ),
-      ),
+      )),
     ),
   );
 }
@@ -433,7 +432,7 @@ class _RunningLateDialogState extends State<_RunningLateDialog> {
     child: Container(
       color: const Color(0xAA06070A),
       alignment: Alignment.center,
-      child: GestureDetector(
+      child: PhoneModalBox(child: GestureDetector(
         onTap: () {},
         child: Container(
           width: 420,
@@ -449,8 +448,7 @@ class _RunningLateDialogState extends State<_RunningLateDialog> {
               child: Row(children: [
                 Icon(Symbols.schedule, size: 18, color: AppColors.amber),
                 const SizedBox(width: 10),
-                Text('Running Late', style: AppTheme.bodyStrong),
-                const Spacer(),
+                Expanded(child: Text('Running Late', style: AppTheme.bodyStrong, maxLines: 2, overflow: TextOverflow.ellipsis)),
                 GestureDetector(onTap: widget.onClose, child: Icon(Symbols.close, size: 18, color: context.pal.textDim)),
               ]),
             ),
@@ -484,7 +482,7 @@ class _RunningLateDialogState extends State<_RunningLateDialog> {
             ),
           ]),
         ),
-      ),
+      )),
     ),
   );
 }

@@ -20,6 +20,7 @@ import '../../widgets/common/status_badge.dart';
 import 'machine_map_screen.dart';
 
 import '../../theme/app_palette.dart';
+import '../../widgets/common/phone_layout.dart';
 
 class MachineListScreen extends StatefulWidget {
   const MachineListScreen({super.key, this.onMachineSelected, this.initialMapView = false});
@@ -1473,7 +1474,7 @@ class _AddMachineDialogState extends State<_AddMachineDialog> {
       child: Container(
         color: const Color(0xAA06070A),
         alignment: Alignment.center,
-        child: GestureDetector(
+        child: PhoneModalBox(scroll: false, child: GestureDetector(
           onTap: () {},
           child: ConstrainedBox(
             constraints: BoxConstraints(maxWidth: 540, maxHeight: maxH),
@@ -1509,8 +1510,7 @@ class _AddMachineDialogState extends State<_AddMachineDialog> {
                             color: AppColors.teal,
                           ),
                           const SizedBox(width: 10),
-                          Text('Add New Machine', style: AppTheme.bodyStrong),
-                          const Spacer(),
+                          Expanded(child: Text('Add New Machine', style: AppTheme.bodyStrong, maxLines: 2, overflow: TextOverflow.ellipsis)),
                           GestureDetector(
                             onTap: widget.onClose,
                             child: Icon(
@@ -1702,7 +1702,7 @@ class _AddMachineDialogState extends State<_AddMachineDialog> {
               ), // Container (dialog box)
             ), // Material
           ), // ConstrainedBox
-        ), // inner GestureDetector
+        )), // inner GestureDetector
       ), // outer Container (backdrop)
     ); // outer GestureDetector
   } // build
@@ -1827,7 +1827,7 @@ class _ReceiveMachineDialogState extends State<_ReceiveMachineDialog> {
       child: Container(
         color: const Color(0xAA06070A),
         alignment: Alignment.center,
-        child: GestureDetector(
+        child: PhoneModalBox(scroll: false, child: GestureDetector(
           onTap: () {},
           child: ConstrainedBox(
             constraints: BoxConstraints(maxWidth: 540, maxHeight: maxH),
@@ -1850,8 +1850,7 @@ class _ReceiveMachineDialogState extends State<_ReceiveMachineDialog> {
                       child: Row(children: [
                         Icon(Symbols.inventory_2, size: 18, color: AppColors.teal),
                         const SizedBox(width: 10),
-                        Text('Receive Machine', style: AppTheme.bodyStrong),
-                        const Spacer(),
+                        Expanded(child: Text('Receive Machine', style: AppTheme.bodyStrong, maxLines: 2, overflow: TextOverflow.ellipsis)),
                         GestureDetector(onTap: widget.onClose,
                             child: Icon(Symbols.close, size: 18, color: context.pal.textDim)),
                       ]),
@@ -1979,7 +1978,7 @@ class _ReceiveMachineDialogState extends State<_ReceiveMachineDialog> {
               ),
             ),
           ),
-        ),
+        )),
       ),
     );
   }

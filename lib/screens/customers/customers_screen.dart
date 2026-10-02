@@ -19,6 +19,7 @@ import '../../theme/app_palette.dart';
 import '../hospitals/hospital_list_screen.dart' show EditHospitalDialog;
 import '../sales/invoices_screen.dart' show showInvoiceDetail;
 import '../sales/quotations_screen.dart' show QuotationDetailScreen;
+import '../../widgets/common/phone_layout.dart';
 
 /// Customers = the client facilities we sell to or service; the people we
 /// talk to there are each customer's contacts.
@@ -297,11 +298,26 @@ class _CustomersScreenState extends State<CustomersScreen> {
 
         if (narrow) {
           if (_showDetailNarrow && _detail != null) {
-            return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              if (_openContact == null)
-                _BackLink(label: 'Back to customers', onTap: () => setState(() => _showDetailNarrow = false)),
-              Expanded(child: detailPane()),
-            ]);
+            // Back (Android button / gesture) steps out one level: an open
+            // contact first, then the customer, before leaving the screen.
+            return PopScope(
+              canPop: false,
+              onPopInvokedWithResult: (didPop, _) {
+                if (didPop) return;
+                setState(() {
+                  if (_openContact != null) {
+                    _openContact = null;
+                  } else {
+                    _showDetailNarrow = false;
+                  }
+                });
+              },
+              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                if (_openContact == null)
+                  _BackLink(label: 'Back to customers', onTap: () => setState(() => _showDetailNarrow = false)),
+                Expanded(child: detailPane()),
+              ]),
+            );
           }
           return listPane;
         }
@@ -736,7 +752,25 @@ class _DocRow extends StatelessWidget {
     child: Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(border: Border(top: BorderSide(color: context.pal.divider))),
-      child: Row(children: [
+      child: LayoutBuilder(builder: (context, cst) => cst.maxWidth < 420
+          // Phones: number + status, then date + amount.
+          ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              Row(children: [
+                Expanded(child: Text(number, style: AppTheme.monoSm.copyWith(fontSize: 12.5),
+                    maxLines: 1, overflow: TextOverflow.ellipsis)),
+                _StatusPill(status),
+              ]),
+              const SizedBox(height: 4),
+              Row(children: [
+                Expanded(child: Text(date, style: AppTheme.bodySub.copyWith(fontSize: 12))),
+                if (extra != null) ...[
+                  Text(extra!, style: AppTheme.monoXs.copyWith(fontSize: 10.5, color: AppColors.amber)),
+                  const SizedBox(width: 8),
+                ],
+                Text(total, style: AppTheme.monoSm.copyWith(fontSize: 12.5)),
+              ]),
+            ])
+          : Row(children: [
         Expanded(flex: 3, child: Text(number, style: AppTheme.monoSm.copyWith(fontSize: 12.5))),
         Expanded(flex: 3, child: Text(date, style: AppTheme.bodySub.copyWith(fontSize: 12))),
         Expanded(flex: 2, child: Align(alignment: Alignment.centerLeft, child: _StatusPill(status))),
@@ -745,7 +779,7 @@ class _DocRow extends StatelessWidget {
           if (extra != null)
             Text(extra!, style: AppTheme.monoXs.copyWith(fontSize: 10.5, color: AppColors.amber)),
         ])),
-      ]),
+      ])),
     ),
   );
 }
@@ -976,8 +1010,7 @@ class _ContactDetail extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
             child: Row(children: [
               const SizedBox(width: 8),
-              Text('Interaction History', style: AppTheme.cardTitle),
-              const Spacer(),
+              Expanded(child: Text('Interaction History', style: AppTheme.cardTitle, maxLines: 2, overflow: TextOverflow.ellipsis)),
               if (loadingDetail)
                 const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
               else
@@ -1406,7 +1439,7 @@ class _ModalShell extends StatelessWidget {
     child: Container(
       color: const Color(0xAA06070A),
       alignment: Alignment.center,
-      child: GestureDetector(
+      child: PhoneModalBox(child: GestureDetector(
         onTap: () {},
         child: Container(
           width: 500,
@@ -1453,7 +1486,7 @@ class _ModalShell extends StatelessWidget {
             ),
           ]),
         ),
-      ),
+      )),
     ),
   );
 }

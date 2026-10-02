@@ -643,7 +643,7 @@ class _NewDealDialogState extends State<_NewDealDialog> {
     child: Container(
       color: const Color(0xAA06070A),
       alignment: Alignment.center,
-      child: GestureDetector(
+      child: PhoneModalBox(child: GestureDetector(
         onTap: () {},
         child: Container(
           width: 500,
@@ -659,8 +659,7 @@ class _NewDealDialogState extends State<_NewDealDialog> {
               child: Row(children: [
                 Icon(Symbols.trending_up, size: 18, color: AppColors.teal),
                 const SizedBox(width: 10),
-                Text('New Deal', style: AppTheme.bodyStrong),
-                const Spacer(),
+                Expanded(child: Text('New Deal', style: AppTheme.bodyStrong, maxLines: 2, overflow: TextOverflow.ellipsis)),
                 GestureDetector(onTap: widget.onClose,
                     child: Icon(Symbols.close, size: 18, color: context.pal.textDim)),
               ]),
@@ -746,7 +745,7 @@ class _NewDealDialogState extends State<_NewDealDialog> {
             ),
           ]),
         ),
-      ),
+      )),
     ),
   );
 }

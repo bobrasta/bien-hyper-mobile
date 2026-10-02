@@ -483,7 +483,7 @@ class _SupplierFormModalState extends State<_SupplierFormModal> {
     onTap: widget.onClose,
     child: Container(
       color: const Color(0xAA06070A), alignment: Alignment.center,
-      child: GestureDetector(
+      child: PhoneModalBox(scroll: false, child: GestureDetector(
         onTap: () {},
         child: Container(
           width: 580,
@@ -614,7 +614,7 @@ class _SupplierFormModalState extends State<_SupplierFormModal> {
             ),
           ]),
         ),
-      ),
+      )),
     ),
   );
 }

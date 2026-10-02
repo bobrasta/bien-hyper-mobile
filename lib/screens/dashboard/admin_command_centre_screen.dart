@@ -108,6 +108,7 @@ class _AdminCommandCentreScreenState extends State<AdminCommandCentreScreen> {
     return LayoutBuilder(builder: (ctx, cst) {
       final pad = cst.maxWidth < 900 ? 16.0 : 28.0;
       final narrow = cst.maxWidth < 1100;
+      final phone = cst.maxWidth < 600;
 
       // Scrolling is fine — this is the front page of the system, so it
       // should show enough of each department to actually be useful rather
@@ -128,7 +129,7 @@ class _AdminCommandCentreScreenState extends State<AdminCommandCentreScreen> {
               // Section 2: "make the map bigger" + "sized for mobile" —
               // taller than before now that the legend/zones/stats bar no
               // longer eat into the map's own visual space.
-              SizedBox(height: 560, child: _MapPanel(hospitals: _hospitals, onNavigateTo: widget.onNavigateTo)),
+              SizedBox(height: phone ? 420 : 560, child: _MapPanel(hospitals: _hospitals, onNavigateTo: widget.onNavigateTo)),
               const SizedBox(height: 16),
               _FleetSummaryCard(hospitals: _hospitals, legend: o.fleetLegend, zones: o.zones, inStock: o.fleetInStock),
               const SizedBox(height: 16),
@@ -141,7 +142,18 @@ class _AdminCommandCentreScreenState extends State<AdminCommandCentreScreen> {
               _FleetSummaryCard(hospitals: _hospitals, legend: o.fleetLegend, zones: o.zones, inStock: o.fleetInStock),
             ],
             const SizedBox(height: 16),
-            SizedBox(height: 340, child: _bottomRow(o)),
+            // Phones: the four department panels stacked, each full width,
+            // instead of three columns squeezed into one 340 px row.
+            if (phone) ...[
+              SizedBox(height: 300, child: _SalesMiniPanel(sales: o.sales)),
+              const SizedBox(height: 16),
+              SizedBox(height: 300, child: _FinanceMiniPanel(finance: o.finance)),
+              const SizedBox(height: 16),
+              SizedBox(height: 170, child: _InventoryMiniPanel(inventory: o.inventory)),
+              const SizedBox(height: 16),
+              SizedBox(height: 170, child: _PeopleMiniPanel(people: o.people)),
+            ] else
+              SizedBox(height: 340, child: _bottomRow(o)),
           ]),
         ),
       );
@@ -254,10 +266,12 @@ class _MapPanelState extends State<_MapPanel> {
       header: Row(children: [
         Icon(Symbols.map, size: 15, color: AppColors.teal),
         const SizedBox(width: 8),
-        Text('Fleet & Service Activity', style: AppTheme.cardTitle),
+        Flexible(child: Text('Fleet & Service Activity', style: AppTheme.cardTitle,
+            maxLines: 1, overflow: TextOverflow.ellipsis)),
         const SizedBox(width: 8),
-        Text('${widget.hospitals.isEmpty ? 0 : totalMachines} machines · ${widget.hospitals.length} hospitals',
-            style: AppTheme.monoXs.copyWith(color: context.pal.textDim)),
+        Flexible(child: Text('${widget.hospitals.isEmpty ? 0 : totalMachines} machines · ${widget.hospitals.length} hospitals',
+            maxLines: 1, overflow: TextOverflow.ellipsis,
+            style: AppTheme.monoXs.copyWith(color: context.pal.textDim))),
       ]),
       trailing: Row(mainAxisSize: MainAxisSize.min, children: [
         _layerPill('Machines', Symbols.memory, _MapLayer.machines),
@@ -620,8 +634,7 @@ class _SalesMiniPanel extends StatelessWidget {
       header: Row(crossAxisAlignment: CrossAxisAlignment.baseline, textBaseline: TextBaseline.alphabetic, children: [
         Icon(Symbols.trending_up, size: 14, color: AppColors.violet),
         const SizedBox(width: 8),
-        Text('Sales', style: AppTheme.cardTitle),
-        const Spacer(),
+        Expanded(child: Text('Sales', style: AppTheme.cardTitle, maxLines: 2, overflow: TextOverflow.ellipsis)),
         Text(pipelineValue, style: AppTheme.monoXs.copyWith(fontSize: 12)),
         const SizedBox(width: 4),
         Text('pipeline', style: AppTheme.bodySub.copyWith(fontSize: 10)),
@@ -752,8 +765,7 @@ class _InventoryMiniPanel extends StatelessWidget {
       header: Row(children: [
         Icon(Symbols.inventory_2, size: 14, color: AppColors.amber),
         const SizedBox(width: 8),
-        Text('Inventory', style: AppTheme.cardTitle),
-        const Spacer(),
+        Expanded(child: Text('Inventory', style: AppTheme.cardTitle, maxLines: 2, overflow: TextOverflow.ellipsis)),
         Text(tshFromDouble((inventory['total_stock_value'] as num? ?? 0).toDouble()), style: AppTheme.monoXs),
       ]),
       padding: const EdgeInsets.fromLTRB(13, 8, 13, 10),

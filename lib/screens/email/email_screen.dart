@@ -12,6 +12,7 @@ import '../../widgets/common/error_view.dart';
 import '../../widgets/common/labeled_field.dart';
 import '../../widgets/email/compose_modal.dart';
 import '../../theme/app_palette.dart';
+import '../../widgets/common/phone_layout.dart';
 
 class EmailScreen extends StatefulWidget {
   const EmailScreen({super.key});
@@ -634,7 +635,7 @@ class _AccountDialogState extends State<_AccountDialog> {
       child: Container(
         color: const Color(0xAA06070A),
         alignment: Alignment.center,
-        child: GestureDetector(
+        child: PhoneModalBox(scroll: false, child: GestureDetector(
           onTap: () {},
           child: ConstrainedBox(
             constraints: BoxConstraints(maxWidth: 520, maxHeight: maxH),
@@ -788,7 +789,7 @@ class _AccountDialogState extends State<_AccountDialog> {
               ),
             ),
           ),
-        ),
+        )),
       ),
     );
   }

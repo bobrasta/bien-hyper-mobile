@@ -100,8 +100,7 @@ class _ComposeModalState extends State<ComposeModal> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: Row(children: [
-              Text('New Message', style: AppTheme.bodyStrong),
-              const Spacer(),
+              Expanded(child: Text('New Message', style: AppTheme.bodyStrong, maxLines: 2, overflow: TextOverflow.ellipsis)),
               GestureDetector(
                 onTap: () => setState(() => _showBcc = !_showBcc),
                 child: Text('BCC', style: AppTheme.bodySub.copyWith(

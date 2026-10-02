@@ -471,8 +471,7 @@ class _AppShellState extends State<AppShell> {
           border: Border(bottom: BorderSide(color: context.pal.border)),
         ),
         child: Row(children: [
-          Text('Menu', style: AppTheme.bodyStrong),
-          const Spacer(),
+          Expanded(child: Text('Menu', style: AppTheme.bodyStrong, maxLines: 2, overflow: TextOverflow.ellipsis)),
           GestureDetector(
             onTap: () => _scaffoldKey.currentState?.closeDrawer(),
             child: Container(

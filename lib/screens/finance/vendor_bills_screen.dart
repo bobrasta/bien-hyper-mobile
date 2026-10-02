@@ -256,7 +256,8 @@ class _VendorBillsScreenState extends State<VendorBillsScreen> {
         ]),
       ),
       const SizedBox(height: 14),
-      Container(
+      // Phones: one card per bill; wider screens keep the table.
+      LayoutBuilder(builder: (context, cst) => isPhoneWidth(cst.maxWidth) ? _billCards(context) : Container(
         decoration: BoxDecoration(color: context.pal.surface1, borderRadius: BorderRadius.circular(14), border: Border.all(color: context.pal.border)),
         clipBehavior: Clip.antiAlias,
         child: Column(children: [
@@ -308,7 +309,45 @@ class _VendorBillsScreenState extends State<VendorBillsScreen> {
             );
           }),
         ]),
-      ),
+      )),
+    ]);
+  }
+
+  Widget _billCards(BuildContext context) {
+    if (_bills.isEmpty) {
+      return Padding(padding: const EdgeInsets.symmetric(vertical: 32),
+          child: Center(child: Text('No vendor bills yet.', style: AppTheme.bodySub)));
+    }
+    final now = DateTime.now();
+    return Column(children: [
+      for (final b in _bills)
+        Builder(builder: (context) {
+          final d = DateTime.tryParse(b.dueDate);
+          final daysDiff = d?.difference(now).inDays;
+          final overdue = b.status == 'overdue' || (daysDiff != null && daysDiff < 0 && b.canPay);
+          final aging = b.isPaid ? 'settled' : b.status == 'cancelled' ? 'voided' : daysDiff == null ? '' : daysDiff >= 0 ? 'in $daysDiff days' : '${-daysDiff} days late';
+          final stColor = switch (b.status) { 'paid' => AppColors.green, 'approved' => AppColors.cyan, 'partial' => AppColors.amber, 'cancelled' => AppColors.textMute, _ => overdue ? AppColors.coral : context.pal.textMute };
+          return PhoneRecordCard(
+            margin: const EdgeInsets.only(bottom: 8),
+            title: b.supplierName ?? '—',
+            subtitle: b.billNumber,
+            badge: PhonePill(b.statusLabel, stColor),
+            meta: ['due ${b.dueDate}${aging.isEmpty ? '' : ' ($aging)'}', 'total ${tshFromDouble(b.total)}'],
+            trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+              Text(b.balanceDue > 0 ? tshFromDouble(b.balanceDue) : 'Paid',
+                  style: AppTheme.bodyStrong.copyWith(fontSize: 14, color: overdue ? AppColors.coral : null)),
+              if (b.canApprove || b.canPay) ...[
+                const SizedBox(width: 8),
+                OutlinedButton(
+                  onPressed: () => setState(() => _selected = b),
+                  style: OutlinedButton.styleFrom(minimumSize: const Size(64, 36), padding: const EdgeInsets.symmetric(horizontal: 12)),
+                  child: Text(b.canApprove ? 'Approve' : 'Pay', style: const TextStyle(fontSize: 12.5)),
+                ),
+              ],
+            ]),
+            onTap: () => setState(() => _selected = b),
+          );
+        }),
     ]);
   }
 
@@ -482,7 +521,7 @@ class _NewBillDialogState extends State<_NewBillDialog> {
     child: Container(
       color: const Color(0xAA06070A),
       alignment: Alignment.center,
-      child: GestureDetector(
+      child: PhoneModalBox(scroll: false, child: GestureDetector(
         onTap: () {},
         child: Container(
           width: 600,
@@ -499,8 +538,7 @@ class _NewBillDialogState extends State<_NewBillDialog> {
               child: Row(children: [
                 Icon(Symbols.receipt_long, size: 18, color: AppColors.coral),
                 const SizedBox(width: 10),
-                Text('New Vendor Bill', style: AppTheme.bodyStrong),
-                const Spacer(),
+                Expanded(child: Text('New Vendor Bill', style: AppTheme.bodyStrong, maxLines: 2, overflow: TextOverflow.ellipsis)),
                 GestureDetector(onTap: widget.onClose, child: Icon(Symbols.close, size: 18, color: context.pal.textDim)),
               ]),
             ),
@@ -545,8 +583,7 @@ class _NewBillDialogState extends State<_NewBillDialog> {
                 ]),
                 const SizedBox(height: 16),
                 Row(children: [
-                  Text('Line Items', style: AppTheme.bodyStrong),
-                  const Spacer(),
+                  Expanded(child: Text('Line Items', style: AppTheme.bodyStrong, maxLines: 2, overflow: TextOverflow.ellipsis)),
                   GestureDetector(
                     onTap: () => setState(() => _lines.add(_BillLineEntry())),
                     child: Container(
@@ -598,7 +635,7 @@ class _NewBillDialogState extends State<_NewBillDialog> {
             ),
           ]),
         ),
-      ),
+      )),
     ),
   );
 }
@@ -711,7 +748,7 @@ class _BillDetailSheetState extends State<_BillDetailSheet> {
       child: Container(
         color: const Color(0xAA06070A),
         alignment: Alignment.center,
-        child: GestureDetector(
+        child: PhoneModalBox(child: GestureDetector(
           onTap: () {},
           child: Container(
             width: 460,
@@ -802,7 +839,7 @@ class _BillDetailSheetState extends State<_BillDetailSheet> {
               ],
             ]),
           ),
-        ),
+        )),
       ),
     );
   }

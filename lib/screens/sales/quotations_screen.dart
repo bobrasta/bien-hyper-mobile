@@ -671,8 +671,7 @@ class _QuotationDetailScreenState extends State<QuotationDetailScreen> {
               Row(children: [
                 Icon(Symbols.receipt_long, size: 14, color: AppColors.teal),
                 const SizedBox(width: 8),
-                Text('Quoted lines', style: AppTheme.bodyStrong.copyWith(fontSize: 12.5)),
-                const Spacer(),
+                Expanded(child: Text('Quoted lines', style: AppTheme.bodyStrong.copyWith(fontSize: 12.5), maxLines: 2, overflow: TextOverflow.ellipsis)),
                 if (qt.discountAmount > 0 && qt.subtotal > 0)
                   Text('discount ${(qt.discountAmount / qt.subtotal * 100).toStringAsFixed(0)}%',
                       style: AppTheme.monoXs.copyWith(fontSize: 10, color: context.pal.textMute)),
@@ -709,8 +708,7 @@ class _QuotationDetailScreenState extends State<QuotationDetailScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
             decoration: BoxDecoration(color: context.pal.surface2, borderRadius: const BorderRadius.vertical(bottom: Radius.circular(14))),
             child: Row(children: [
-              Text('TOTAL QUOTED', style: AppTheme.labelCaps.copyWith(fontSize: 10.5)),
-              const Spacer(),
+              Expanded(child: Text('TOTAL QUOTED', style: AppTheme.labelCaps.copyWith(fontSize: 10.5), maxLines: 2, overflow: TextOverflow.ellipsis)),
               Text(_fmtAmount(qt.totalAmount), style: AppTheme.kpiValue.copyWith(fontSize: 16)),
             ]),
           ),
@@ -760,8 +758,7 @@ class _QuotationDetailScreenState extends State<QuotationDetailScreen> {
             Row(children: [
               Icon(Symbols.verified, size: 15, color: AppColors.violet),
               const SizedBox(width: 8),
-              Text('Approval required', style: AppTheme.bodySm.copyWith(fontSize: 12.5)),
-              const Spacer(),
+              Expanded(child: Text('Approval required', style: AppTheme.bodySm.copyWith(fontSize: 12.5), maxLines: 2, overflow: TextOverflow.ellipsis)),
               Text('sales.approve_order', style: AppTheme.monoXs.copyWith(fontSize: 9, color: context.pal.textMute)),
             ]),
             const SizedBox(height: 9),
@@ -1277,8 +1274,7 @@ class _QuotationBuilderScreenState extends State<QuotationBuilderScreen> {
             Row(children: [
               Icon(over ? Symbols.warning : Symbols.check_circle, size: 15, color: ceilColor),
               const SizedBox(width: 8),
-              Text('Your discount ceiling', style: AppTheme.bodySm.copyWith(fontSize: 12.5)),
-              const Spacer(),
+              Expanded(child: Text('Your discount ceiling', style: AppTheme.bodySm.copyWith(fontSize: 12.5), maxLines: 2, overflow: TextOverflow.ellipsis)),
               Text('max_discount_percent', style: AppTheme.monoXs.copyWith(fontSize: 9.5, color: context.pal.textMute)),
             ]),
             const SizedBox(height: 10),

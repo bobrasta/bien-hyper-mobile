@@ -12,6 +12,7 @@ import '../../theme/app_theme.dart';
 import '../../utils/format.dart';
 import '../../widgets/common/app_button.dart';
 import '../../theme/app_palette.dart';
+import '../../widgets/common/phone_layout.dart';
 
 class SparePartsScreen extends StatefulWidget {
   const SparePartsScreen({super.key});
@@ -143,8 +144,7 @@ class _SparePartsScreenState extends State<SparePartsScreen> {
             return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               if (!narrow)
                 Row(children: [
-                  Text('Parts & Inventory', style: AppTheme.pageTitle),
-                  const Spacer(),
+                  Expanded(child: Text('Parts & Inventory', style: AppTheme.pageTitle, maxLines: 2, overflow: TextOverflow.ellipsis)),
                   AppButton(label: 'Export', icon: Symbols.download, variant: BtnVariant.ghost,
                       onPressed: _exportCsv),
                   const SizedBox(width: 8),
@@ -681,7 +681,7 @@ class _PartFormModalState extends State<_PartFormModal> {
     child: Container(
       color: const Color(0xAA06070A),
       alignment: Alignment.center,
-      child: GestureDetector(
+      child: PhoneModalBox(scroll: false, child: GestureDetector(
         onTap: () {},
         child: Container(
           width: 520,
@@ -779,7 +779,7 @@ class _PartFormModalState extends State<_PartFormModal> {
             ),
           ]),
         ),
-      ),
+      )),
     ),
   );
 }
@@ -841,7 +841,7 @@ class _AdjustStockModalState extends State<_AdjustStockModal> {
       child: Container(
         color: const Color(0xAA06070A),
         alignment: Alignment.center,
-        child: GestureDetector(
+        child: PhoneModalBox(child: GestureDetector(
           onTap: () {},
           child: Container(
             width: 420,
@@ -970,7 +970,7 @@ class _AdjustStockModalState extends State<_AdjustStockModal> {
               ),
             ]),
           ),
-        ),
+        )),
       ),
     );
   }

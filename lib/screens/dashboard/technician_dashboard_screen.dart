@@ -664,7 +664,8 @@ class _TechnicianDashboardScreenState extends State<TechnicianDashboardScreen> {
         final narrow = cst.maxWidth < 640;
         final titleBlock = Row(
           children: [
-            Container(
+            // Shrinks (wrapping the greeting) rather than overflow a phone.
+            Flexible(child: Container(
               // height: 70,
               padding: EdgeInsets.only(left: 12),
               decoration: BoxDecoration(
@@ -701,7 +702,7 @@ class _TechnicianDashboardScreenState extends State<TechnicianDashboardScreen> {
                   ),
                 ],
               ),
-            ),
+            )),
           ],
         );
         final actions = Row(
@@ -982,8 +983,7 @@ class _TechnicianDashboardScreenState extends State<TechnicianDashboardScreen> {
           const SizedBox(height: 18),
           Row(
             children: [
-              Text('Parts used', style: AppTheme.labelCaps),
-              const Spacer(),
+              Expanded(child: Text('Parts used', style: AppTheme.labelCaps, maxLines: 2, overflow: TextOverflow.ellipsis)),
               if (isAssignee)
                 GestureDetector(
                   onTap: () => _showAddPartDialog(t),
@@ -1041,7 +1041,8 @@ class _TechnicianDashboardScreenState extends State<TechnicianDashboardScreen> {
   (Color, String) _slaBadge(Duration? remaining, int totalHours) {
     if (remaining == null) return (AppColors.textDim, 'SLA —');
     if (remaining.isNegative) {
-      return (AppColors.coral, 'SLA overdue by ${_fmtDuration(remaining)}');
+      // "overdue by" already says it's late — show the amount, not "-118 h".
+      return (AppColors.coral, 'SLA overdue by ${_fmtDuration(remaining.abs())}');
     }
     final fracLeft = remaining.inMinutes / (totalHours * 60);
     final color = fracLeft <= 0.25
@@ -1333,8 +1334,7 @@ class _TechnicianDashboardScreenState extends State<TechnicianDashboardScreen> {
           const SizedBox(height: 12),
           Row(
             children: [
-              Text('Net pay', style: AppTheme.bodySub),
-              const Spacer(),
+              Expanded(child: Text('Net pay', style: AppTheme.bodySub, maxLines: 2, overflow: TextOverflow.ellipsis)),
               Text(
                 tshShort(latest.netPay),
                 style: AppTheme.bodyStrong.copyWith(

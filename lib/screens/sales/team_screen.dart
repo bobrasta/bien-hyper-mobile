@@ -11,6 +11,7 @@ import '../../utils/format.dart';
 import '../../widgets/common/avatar_widget.dart';
 import '../../widgets/common/error_view.dart';
 import '../../widgets/common/labeled_field.dart';
+import '../../widgets/common/phone_layout.dart';
 
 // sales.create_subordinate_user has existed in the permission catalog since
 // the original access-control pass, granted to sales_manager, but nothing
@@ -253,7 +254,7 @@ class _AddSubordinateDialogState extends State<_AddSubordinateDialog> {
     child: Container(
       color: const Color(0xAA06070A),
       alignment: Alignment.center,
-      child: GestureDetector(
+      child: PhoneModalBox(child: GestureDetector(
         onTap: () {},
         child: Container(
           width: 440,
@@ -269,8 +270,7 @@ class _AddSubordinateDialogState extends State<_AddSubordinateDialog> {
               child: Row(children: [
                 Icon(Symbols.person_add, size: 18, color: AppColors.violet),
                 const SizedBox(width: 10),
-                Text('Add Subordinate', style: AppTheme.bodyStrong),
-                const Spacer(),
+                Expanded(child: Text('Add Subordinate', style: AppTheme.bodyStrong, maxLines: 2, overflow: TextOverflow.ellipsis)),
                 GestureDetector(onTap: widget.onClose, child: Icon(Symbols.close, size: 18, color: context.pal.textDim)),
               ]),
             ),
@@ -313,7 +313,7 @@ class _AddSubordinateDialogState extends State<_AddSubordinateDialog> {
             ),
           ]),
         ),
-      ),
+      )),
     ),
   );
 }
@@ -366,7 +366,7 @@ class _AssignExistingDialogState extends State<_AssignExistingDialog> {
     child: Container(
       color: const Color(0xAA06070A),
       alignment: Alignment.center,
-      child: GestureDetector(
+      child: PhoneModalBox(scroll: false, child: GestureDetector(
         onTap: () {},
         child: Container(
           width: 460,
@@ -383,8 +383,7 @@ class _AssignExistingDialogState extends State<_AssignExistingDialog> {
               child: Row(children: [
                 Icon(Symbols.link, size: 18, color: AppColors.violet),
                 const SizedBox(width: 10),
-                Text('Assign Existing Rep', style: AppTheme.bodyStrong),
-                const Spacer(),
+                Expanded(child: Text('Assign Existing Rep', style: AppTheme.bodyStrong, maxLines: 2, overflow: TextOverflow.ellipsis)),
                 GestureDetector(onTap: widget.onClose, child: Icon(Symbols.close, size: 18, color: context.pal.textDim)),
               ]),
             ),
@@ -429,7 +428,7 @@ class _AssignExistingDialogState extends State<_AssignExistingDialog> {
             const SizedBox(height: 12),
           ]),
         ),
-      ),
+      )),
     ),
   );
 }

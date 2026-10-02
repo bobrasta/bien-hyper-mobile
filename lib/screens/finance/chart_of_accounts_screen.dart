@@ -616,7 +616,7 @@ class _AccountFormDialogState extends State<_AccountFormDialog> {
     child: Container(
       color: const Color(0xAA06070A),
       alignment: Alignment.center,
-      child: GestureDetector(
+      child: PhoneModalBox(child: GestureDetector(
         onTap: () {},
         child: Container(
           width: 440,
@@ -632,8 +632,7 @@ class _AccountFormDialogState extends State<_AccountFormDialog> {
               child: Row(children: [
                 Icon(Symbols.account_balance, size: 18, color: AppColors.violet),
                 const SizedBox(width: 10),
-                Text(_isEdit ? 'Edit Account' : 'New Account', style: AppTheme.bodyStrong),
-                const Spacer(),
+                Expanded(child: Text(_isEdit ? 'Edit Account' : 'New Account', style: AppTheme.bodyStrong, maxLines: 2, overflow: TextOverflow.ellipsis)),
                 GestureDetector(onTap: widget.onClose, child: Icon(Symbols.close, size: 18, color: context.pal.textDim)),
               ]),
             ),
@@ -688,7 +687,7 @@ class _AccountFormDialogState extends State<_AccountFormDialog> {
             ),
           ]),
         ),
-      ),
+      )),
     ),
   );
 
@@ -772,7 +771,7 @@ class _CategoryFormDialogState extends State<_CategoryFormDialog> {
     child: Container(
       color: const Color(0xAA06070A),
       alignment: Alignment.center,
-      child: GestureDetector(
+      child: PhoneModalBox(child: GestureDetector(
         onTap: () {},
         child: Container(
           width: 420,
@@ -840,7 +839,7 @@ class _CategoryFormDialogState extends State<_CategoryFormDialog> {
             ),
           ]),
         ),
-      ),
+      )),
     ),
   );
 

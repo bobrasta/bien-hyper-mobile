@@ -33,6 +33,7 @@ import '../../widgets/common/scan_or_type_field.dart';
 import '../../widgets/common/shimmer_box.dart';
 import '../../widgets/common/status_badge.dart';
 import '../../widgets/common/labeled_field.dart';
+import '../../widgets/common/phone_layout.dart';
 
 Color _availColor(StaffMember s) => switch (s.availStatus) {
   AvailStatus.available => AppColors.teal,
@@ -1865,7 +1866,7 @@ class _NewTicketModalState extends State<_NewTicketModal> {
     child: Container(
       color: const Color(0xAA06070A),
       alignment: Alignment.center,
-      child: GestureDetector(
+      child: PhoneModalBox(scroll: false, child: GestureDetector(
         onTap: () {},
         child: Container(
           width: 540,
@@ -1883,8 +1884,7 @@ class _NewTicketModalState extends State<_NewTicketModal> {
               child: Row(children: [
                 Icon(Symbols.confirmation_number, size: 18, color: AppColors.teal),
                 const SizedBox(width: 10),
-                Text('Create Service Ticket', style: AppTheme.bodyStrong),
-                const Spacer(),
+                Expanded(child: Text('Create Service Ticket', style: AppTheme.bodyStrong, maxLines: 2, overflow: TextOverflow.ellipsis)),
                 GestureDetector(onTap: widget.onClose,
                     child: Icon(Symbols.close, size: 18, color: context.pal.textDim)),
               ]),
@@ -2101,7 +2101,7 @@ class _NewTicketModalState extends State<_NewTicketModal> {
             ),
           ]),
         ),
-      ),
+      )),
     ),
   );
 }

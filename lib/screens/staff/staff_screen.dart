@@ -17,6 +17,7 @@ import '../../widgets/common/labeled_field.dart';
 import '../../theme/app_palette.dart';
 import '../../services/role_service.dart';
 import '../../models/permission.dart';
+import '../../widgets/common/phone_layout.dart';
 
 // ── Local data models ───────────────────────────────────────────────────────
 class _Task {
@@ -1088,8 +1089,7 @@ class _TeamAvailabilityPane extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
             child: Row(children: [
-              Text('Team Availability', style: AppTheme.bodyStrong.copyWith(fontSize: 13)),
-              const Spacer(),
+              Expanded(child: Text('Team Availability', style: AppTheme.bodyStrong.copyWith(fontSize: 13), maxLines: 2, overflow: TextOverflow.ellipsis)),
               if (onAddStaff != null) ...[
                 GestureDetector(
                   onTap: onAddStaff,
@@ -1157,8 +1157,7 @@ class _TeamAvailabilityPane extends StatelessWidget {
                 Row(children: [
                   Icon(Symbols.auto_fix_high, size: 13, color: AppColors.teal),
                   const SizedBox(width: 6),
-                  Text('Auto-route Rules', style: AppTheme.bodyStrong.copyWith(fontSize: 12)),
-                  const Spacer(),
+                  Expanded(child: Text('Auto-route Rules', style: AppTheme.bodyStrong.copyWith(fontSize: 12), maxLines: 2, overflow: TextOverflow.ellipsis)),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                     decoration: BoxDecoration(
@@ -1601,7 +1600,7 @@ class _NewTaskDialogState extends State<_NewTaskDialog> {
     child: Container(
       color: const Color(0xAA06070A),
       alignment: Alignment.center,
-      child: GestureDetector(
+      child: PhoneModalBox(child: GestureDetector(
         onTap: () {},
         child: Container(
           width: 520,
@@ -1618,8 +1617,7 @@ class _NewTaskDialogState extends State<_NewTaskDialog> {
               child: Row(children: [
                 Icon(Symbols.task_alt, size: 18, color: AppColors.teal),
                 const SizedBox(width: 10),
-                Text('New Task', style: AppTheme.bodyStrong),
-                const Spacer(),
+                Expanded(child: Text('New Task', style: AppTheme.bodyStrong, maxLines: 2, overflow: TextOverflow.ellipsis)),
                 GestureDetector(onTap: widget.onClose,
                     child: Icon(Symbols.close, size: 18, color: context.pal.textDim)),
               ]),
@@ -1740,7 +1738,7 @@ class _NewTaskDialogState extends State<_NewTaskDialog> {
             ),
           ]),
         ),
-      ),
+      )),
     ),
   );
 
@@ -1844,7 +1842,7 @@ class _NewStaffDialogState extends State<_NewStaffDialog> {
     child: Container(
       color: const Color(0xAA06070A),
       alignment: Alignment.center,
-      child: GestureDetector(
+      child: PhoneModalBox(child: GestureDetector(
         onTap: () {},
         child: Container(
           width: 480,
@@ -1860,8 +1858,7 @@ class _NewStaffDialogState extends State<_NewStaffDialog> {
               child: Row(children: [
                 Icon(Symbols.person_add, size: 18, color: AppColors.teal),
                 const SizedBox(width: 10),
-                Text('Add Staff Member', style: AppTheme.bodyStrong),
-                const Spacer(),
+                Expanded(child: Text('Add Staff Member', style: AppTheme.bodyStrong, maxLines: 2, overflow: TextOverflow.ellipsis)),
                 GestureDetector(onTap: widget.onClose,
                     child: Icon(Symbols.close, size: 18, color: context.pal.textDim)),
               ]),
@@ -1934,7 +1931,7 @@ class _NewStaffDialogState extends State<_NewStaffDialog> {
             ),
           ]),
         ),
-      ),
+      )),
     ),
   );
 }

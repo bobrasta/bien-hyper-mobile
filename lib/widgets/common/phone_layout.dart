@@ -313,3 +313,41 @@ class TitleWithActions extends StatelessWidget {
 Widget fitOnPhone(bool phone, Widget child) => phone
     ? FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft, child: child)
     : child;
+
+/// Wraps the card of an in-screen modal (dimmed backdrop + centred card).
+/// On phones the card docks to the bottom like a sheet, never taller than
+/// the screen; the backdrop above it still closes the modal. Elsewhere it's
+/// a no-op.
+///
+/// [scroll]: true for cards that don't scroll by themselves — they get a
+/// scroll view so a long form (or the keyboard) can't push them off-screen.
+/// Pass false for cards with their own scrolling body: they get a height
+/// limit instead, which their Flexible/Expanded body needs.
+class PhoneModalBox extends StatelessWidget {
+  const PhoneModalBox({super.key, required this.child, this.scroll = true});
+  final Widget child;
+  final bool scroll;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(builder: (context, cst) {
+    if (!isPhoneWidth(cst.maxWidth)) return child;
+    return Padding(
+      padding: const EdgeInsets.only(top: 24),
+      child: Align(
+        alignment: Alignment.bottomCenter,
+        child: scroll
+            ? SingleChildScrollView(padding: const EdgeInsets.only(bottom: 4), child: child)
+            : ConstrainedBox(
+                constraints: BoxConstraints(maxHeight: (cst.maxHeight - 28).clamp(0, double.infinity)),
+                child: child,
+              ),
+      ),
+    );
+  });
+}
+
+/// A strip of equal stat tiles (each wrapped in Expanded) as one Row on
+/// wide screens, or two to a row on phones (Expanded unwrapped).
+Widget statStrip(bool phone, List<Widget> tiles) => phone
+    ? PhoneStatGrid(children: [for (final t in tiles) t is Expanded ? t.child : t])
+    : Row(children: tiles);

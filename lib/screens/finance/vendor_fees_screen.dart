@@ -135,8 +135,7 @@ class _VendorFeesScreenState extends State<VendorFeesScreen> with SingleTickerPr
                   ],
                 ])
               : Row(children: [
-            Text('Vendors', style: AppTheme.pageTitle),
-            const Spacer(),
+            Expanded(child: Text('Vendors', style: AppTheme.pageTitle, maxLines: 2, overflow: TextOverflow.ellipsis)),
             if (opsTier) ...[
               AppButton(label: 'New vendor', icon: Symbols.add, variant: BtnVariant.ghost, small: true,
                 onPressed: () => setState(() { _editingVendor = null; _showVendorForm = true; })),
@@ -345,7 +344,7 @@ class _DialogShell extends StatelessWidget {
     child: Container(
       color: const Color(0xAA06070A),
       alignment: Alignment.center,
-      child: GestureDetector(
+      child: PhoneModalBox(scroll: false, child: GestureDetector(
         onTap: () {},
         child: Container(
           width: width,
@@ -371,7 +370,7 @@ class _DialogShell extends StatelessWidget {
               Padding(padding: const EdgeInsets.fromLTRB(20, 0, 20, 16), child: footer!),
           ]),
         ),
-      ),
+      )),
     ),
   );
 }
@@ -676,8 +675,7 @@ class _FeeDetailDialogState extends State<_FeeDetailDialog> {
                   ],
                   const SizedBox(height: 20),
                   Row(children: [
-                    Text('RECEIPTS', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
-                    const Spacer(),
+                    Expanded(child: Text('RECEIPTS', style: AppTheme.labelCaps.copyWith(fontSize: 10), maxLines: 2, overflow: TextOverflow.ellipsis)),
                     if (opsTier && fee.status == VendorFeeStatus.pendingReceipt)
                       AppButton(label: 'Attach', icon: Symbols.add, variant: BtnVariant.ghost, small: true, onPressed: _busy ? null : _uploadReceipt),
                   ]),

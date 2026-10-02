@@ -478,7 +478,7 @@ class _CreatePRModalState extends State<_CreatePRModal> {
     onTap: widget.onClose,
     child: Container(
       color: const Color(0xAA06070A), alignment: Alignment.center,
-      child: GestureDetector(
+      child: PhoneModalBox(scroll: false, child: GestureDetector(
         onTap: () {},
         child: Container(
           width: 560,
@@ -495,8 +495,7 @@ class _CreatePRModalState extends State<_CreatePRModal> {
               child: Row(children: [
                 Icon(Symbols.assignment_add, size: 18, color: AppColors.teal),
                 const SizedBox(width: 10),
-                Text('New Purchase Requisition', style: AppTheme.bodyStrong),
-                const Spacer(),
+                Expanded(child: Text('New Purchase Requisition', style: AppTheme.bodyStrong, maxLines: 2, overflow: TextOverflow.ellipsis)),
                 GestureDetector(onTap: widget.onClose,
                     child: Icon(Symbols.close, size: 18, color: context.pal.textDim)),
               ]),
@@ -509,8 +508,7 @@ class _CreatePRModalState extends State<_CreatePRModal> {
                 _Fld('Notes (optional)', _notesCtrl, 'Reason or additional details'),
                 const SizedBox(height: 16),
                 Row(children: [
-                  Text('Items', style: AppTheme.cardTitle.copyWith(fontSize: 12.5)),
-                  const Spacer(),
+                  Expanded(child: Text('Items', style: AppTheme.cardTitle.copyWith(fontSize: 12.5), maxLines: 2, overflow: TextOverflow.ellipsis)),
                   GestureDetector(
                     onTap: _addLine,
                     child: Container(
@@ -578,7 +576,7 @@ class _CreatePRModalState extends State<_CreatePRModal> {
             ),
           ]),
         ),
-      ),
+      )),
     ),
   );
 }
