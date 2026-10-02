@@ -295,8 +295,7 @@ class UpdateService {
         await part.delete();
         throw const _UpdateError('Downloaded update failed its integrity check — it will be retried.');
       }
-      await _cleanOldPackages(keep: file);
-      await moveIntoPlace(part, file);
+      await finishDownload(part, file);
       state.value = state.value.copyWith(phase: UpdatePhase.ready);
       await _rememberPending();
       _scheduleImmediateIfNeeded();
@@ -365,16 +364,6 @@ class UpdateService {
     return digest.toString() == m.asset!.sha256 ? f : null;
   }
 
-  Future<void> _cleanOldPackages({required File keep}) async {
-    final dir = await _updatesDir();
-    await for (final e in dir.list()) {
-      if (e is File && e.path != keep.path && !e.path.endsWith('.json')) {
-        try {
-          await e.delete();
-        } catch (_) {}
-      }
-    }
-  }
 
   // A package downloaded in a previous session, newer than what's running,
   // gets installed before the UI appears ("install on next start").
@@ -476,6 +465,22 @@ class _UpdateError implements Exception {
 
 /// True when [signatureB64] is a valid Ed25519 signature of [manifest] by
 /// any of [UpdateService.trustedKeys] (or [keys], for tests).
+/// Puts a verified download ([part]) in place as [package], then removes
+/// older packages from the updates folder. The order matters: cleaning first
+/// deleted the .part itself (it isn't [package]), so every update failed
+/// with "Cannot rename file to …" (v1.1.0-v1.1.4).
+@visibleForTesting
+Future<void> finishDownload(File part, File package) async {
+  await moveIntoPlace(part, package);
+  await for (final e in package.parent.list()) {
+    if (e is File && e.path != package.path && !e.path.endsWith('.json')) {
+      try {
+        await e.delete();
+      } catch (_) {}
+    }
+  }
+}
+
 /// Moves a verified download to its final name. On Windows a rename fails
 /// while anything holds either file open — typically antivirus scanning the
 /// freshly written installer, or an old copy of it still in use — so this
