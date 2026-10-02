@@ -16,6 +16,7 @@ import '../../utils/api_error.dart';
 import '../../utils/format.dart';
 import '../../widgets/common/app_button.dart';
 import '../../widgets/common/error_view.dart';
+import '../../widgets/common/phone_layout.dart';
 import '../../widgets/common/shimmer_box.dart';
 import '../../widgets/common/labeled_field.dart';
 import '../../widgets/common/period_filter.dart';
@@ -112,9 +113,31 @@ class _PurchaseOrdersScreenState extends State<PurchaseOrdersScreen> {
     const statuses = ['draft', 'sent', 'acknowledged', 'partially_received', 'received', 'cancelled'];
     const sLabels  = ['Draft', 'Sent', 'Acknowledged', 'Partial GRN', 'Received', 'Cancelled'];
 
-    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+    return LayoutBuilder(builder: (context, cst) {
+    // Phones show the list, or one order in its place; back closes it.
+    final phone       = isPhoneWidth(cst.maxWidth);
+    final phoneDetail = phone && _selected != null;
+    return PopScope(
+      canPop: !phoneDetail,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && phoneDetail) setState(() => _selected = null);
+      },
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       // ── Header ──
-      Container(
+      if (phoneDetail) const SizedBox.shrink()
+      else if (phone) PhonePageHeader(
+        title: 'Purchase Orders',
+        subtitle: 'Track orders to suppliers',
+        primary: PageAction(label: 'New Order', shortLabel: 'New', icon: Symbols.add, onPressed: _newOrder),
+        filters: [
+          PeriodSelector(value: _period, onChanged: (p) { setState(() => _period = p); _load(); }),
+          _StatusChip(label: 'All', active: _statusFilter == null,
+              onTap: () { setState(() => _statusFilter = null); _load(); }),
+          for (final (i, st) in statuses.indexed)
+            _StatusChip(label: sLabels[i], color: _statusColor(st), active: _statusFilter == st,
+                onTap: () { setState(() => _statusFilter = _statusFilter == st ? null : st); _load(); }),
+        ],
+      ) else Container(
         padding: const EdgeInsets.fromLTRB(24, 18, 24, 14),
         decoration: BoxDecoration(border: Border(bottom: BorderSide(color: context.pal.border))),
         child: Row(children: [
@@ -146,10 +169,10 @@ class _PurchaseOrdersScreenState extends State<PurchaseOrdersScreen> {
       Expanded(child: Stack(children: [
         Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           // List
-          Expanded(flex: 3, child: RefreshIndicator(
+          if (!phoneDetail) Expanded(flex: 3, child: RefreshIndicator(
             onRefresh: _load,
             child: Column(children: [
-              Container(
+              if (phone) const SizedBox(height: 10) else Container(
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                 decoration: BoxDecoration(border: Border(bottom: BorderSide(color: context.pal.border))),
                 child: Row(children: [
@@ -172,6 +195,19 @@ class _PurchaseOrdersScreenState extends State<PurchaseOrdersScreen> {
                         itemCount: _orders.length,
                         itemBuilder: (_, i) {
                           final po = _orders[i];
+                          if (phone) {
+                            return PhoneRecordCard(
+                              title: po.supplierName ?? '—',
+                              subtitle: po.poNumber,
+                              badge: PhonePill(po.statusLabel, _statusColor(po.status)),
+                              meta: [formatDate(po.createdAt)],
+                              amount: '${po.currency} ${po.totalAmount.toStringAsFixed(0)}',
+                              onTap: () {
+                                setState(() => _selected = po);
+                                _loadDetail(po.id);
+                              },
+                            );
+                          }
                           return _PORow(
                             po: po, selected: _selected?.id == po.id,
                             statusColor: _statusColor(po.status),
@@ -186,7 +222,7 @@ class _PurchaseOrdersScreenState extends State<PurchaseOrdersScreen> {
           )),
           // Detail
           if (_selected != null) ...[
-            Container(width: 1, color: context.pal.border),
+            if (!phone) Container(width: 1, color: context.pal.border),
             Expanded(flex: 2, child: _PODetailPanel(
               po: _selected!,
               statusColor: _statusColor(_selected!.status),
@@ -212,7 +248,8 @@ class _PurchaseOrdersScreenState extends State<PurchaseOrdersScreen> {
               'Goods received — stock updated'),
           ),
       ])),
-    ]);
+    ]));
+    });
   }
 }
 
@@ -476,6 +513,7 @@ class _GrnModalState extends State<_GrnModal> {
         onTap: () {},
         child: Container(
           width: 500,
+          margin: const EdgeInsets.all(16),
           constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.8),
           decoration: BoxDecoration(
             color: context.pal.surface1, borderRadius: BorderRadius.circular(14),

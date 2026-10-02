@@ -15,6 +15,7 @@ import '../../utils/format.dart';
 import '../../widgets/common/app_button.dart';
 import '../../widgets/common/app_dropdown.dart';
 import '../../widgets/common/error_view.dart';
+import '../../widgets/common/phone_layout.dart';
 import '../../widgets/common/shimmer_box.dart';
 import '../../widgets/common/labeled_field.dart';
 import '../../widgets/common/period_filter.dart';
@@ -86,10 +87,25 @@ class _StockMovementsScreenState extends State<StockMovementsScreen> {
     const types = ['receive', 'issue', 'transfer', 'write_off', 'adjustment', 'return'];
     const typeLabels = ['Receive', 'Issue', 'Transfer', 'Write-off', 'Adjustment', 'Return'];
 
+    return LayoutBuilder(builder: (context, cst) {
+    final phone = isPhoneWidth(cst.maxWidth);
     return Stack(children: [
       Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         // ── Header ───────────────────────────────────────────────────────────
-        Container(
+        if (phone) PhonePageHeader(
+          title: 'Stock Movements',
+          subtitle: 'Full audit trail of all stock in/out',
+          primary: PageAction(label: 'Record Movement', shortLabel: 'Record', icon: Symbols.add,
+              onPressed: () => setState(() => _showRecord = true)),
+          filters: [
+            PeriodSelector(value: _period, onChanged: (p) { setState(() => _period = p); _load(); }),
+            _TypeChip(label: 'All', active: _typeFilter == null,
+                onTap: () { setState(() => _typeFilter = null); _load(); }),
+            for (final (i, t) in types.indexed)
+              _TypeChip(label: typeLabels[i], active: _typeFilter == t, color: _typeColor(t),
+                  onTap: () { setState(() => _typeFilter = _typeFilter == t ? null : t); _load(); }),
+          ],
+        ) else Container(
           padding: const EdgeInsets.fromLTRB(24, 18, 24, 14),
           decoration: BoxDecoration(border: Border(bottom: BorderSide(color: context.pal.border))),
           child: Row(children: [
@@ -121,7 +137,7 @@ class _StockMovementsScreenState extends State<StockMovementsScreen> {
           ]),
         ),
         // ── Table ────────────────────────────────────────────────────────────
-        Container(
+        if (!phone) Container(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
           decoration: BoxDecoration(border: Border(bottom: BorderSide(color: context.pal.border))),
           child: Row(children: [
@@ -146,11 +162,18 @@ class _StockMovementsScreenState extends State<StockMovementsScreen> {
                 : ListView.builder(
                     physics: const AlwaysScrollableScrollPhysics(),
                     itemCount: _movements.length,
-                    itemBuilder: (_, i) => _MovementRow(
-                      movement: _movements[i],
-                      typeColor: _typeColor(_movements[i].type),
-                      typeIcon:  _typeIcon(_movements[i].type),
-                    ),
+                    padding: phone ? const EdgeInsets.only(top: 10) : null,
+                    itemBuilder: (_, i) => phone
+                        ? _MovementCard(
+                            movement: _movements[i],
+                            typeColor: _typeColor(_movements[i].type),
+                            typeIcon:  _typeIcon(_movements[i].type),
+                          )
+                        : _MovementRow(
+                            movement: _movements[i],
+                            typeColor: _typeColor(_movements[i].type),
+                            typeIcon:  _typeIcon(_movements[i].type),
+                          ),
                   ),
         )),
       ]),
@@ -160,6 +183,44 @@ class _StockMovementsScreenState extends State<StockMovementsScreen> {
           onSaved: () { setState(() => _showRecord = false); _load(); },
         ),
     ]);
+    });
+  }
+}
+
+// ── Movement card (phones) ───────────────────────────────────────────────────
+
+/// Item, type icon and signed quantity up top; place, stock change, who and
+/// when underneath — the 8-column row folded into a card.
+class _MovementCard extends StatelessWidget {
+  const _MovementCard({required this.movement, required this.typeColor, required this.typeIcon});
+  final StockMovement movement;
+  final Color typeColor;
+  final IconData typeIcon;
+
+  @override
+  Widget build(BuildContext context) {
+    final sign  = movement.isInbound ? '+' : '';
+    final color = movement.isInbound ? AppColors.teal : AppColors.coral;
+    return PhoneRecordCard(
+      lead: Container(
+        width: 36, height: 36,
+        decoration: BoxDecoration(
+          color: typeColor.withValues(alpha: 0.14),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Icon(typeIcon, size: 18, color: typeColor),
+      ),
+      title: movement.itemName ?? '—',
+      subtitle: '${movement.typeLabel} · ${movement.locationLabel}',
+      badge: Text('$sign${movement.quantity}', style: AppTheme.bodyStrong.copyWith(
+          color: color, fontSize: 15, fontFeatures: const [FontFeature.tabularFigures()])),
+      meta: [
+        '${formatDate(movement.createdAt)} ${formatTime(movement.createdAt)}',
+        '${movement.quantityBefore} → ${movement.quantityAfter}',
+        ?movement.performedByName,
+        if ((movement.notes ?? '').isNotEmpty) movement.notes!,
+      ],
+    );
   }
 }
 
@@ -315,6 +376,7 @@ class _RecordMovementModalState extends State<_RecordMovementModal> {
         onTap: () {},
         child: Container(
           width: 440,
+          margin: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: context.pal.surface1, borderRadius: BorderRadius.circular(14),
             border: Border.all(color: context.pal.borderStrong),

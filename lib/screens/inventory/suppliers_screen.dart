@@ -11,6 +11,7 @@ import '../../widgets/common/app_button.dart';
 import '../../widgets/common/error_view.dart';
 import '../../utils/tin.dart';
 import '../../widgets/common/labeled_field.dart';
+import '../../widgets/common/phone_layout.dart';
 import '../../widgets/common/shimmer_box.dart';
 
 class SuppliersScreen extends StatefulWidget {
@@ -76,10 +77,23 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
     final filtered = _filtered;
     final types = {'manufacturer', 'distributor', 'importer', 'local_vendor'};
 
+    return LayoutBuilder(builder: (context, cst) {
+    final phone = isPhoneWidth(cst.maxWidth);
     return Stack(children: [
       Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         // ── Header ───────────────────────────────────────────────────────────
-        Container(
+        if (phone) PhonePageHeader(
+          title: 'Suppliers',
+          subtitle: '${_suppliers.length} registered suppliers',
+          primary: _canEdit ? PageAction(label: 'Add Supplier', shortLabel: 'Add', icon: Symbols.add,
+              onPressed: () => setState(() => _showAdd = true)) : null,
+          search: SearchField(hint: 'Search…', onChanged: (v) => setState(() => _search = v)),
+          filters: [
+            for (final t in types)
+              _TypeChip(label: _typeLabel(t), active: _typeFilter == t,
+                  onTap: () => setState(() => _typeFilter = _typeFilter == t ? null : t)),
+          ],
+        ) else Container(
           padding: const EdgeInsets.fromLTRB(24, 18, 24, 14),
           decoration: BoxDecoration(border: Border(bottom: BorderSide(color: context.pal.border))),
           child: Row(children: [
@@ -116,7 +130,7 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
               physics: const AlwaysScrollableScrollPhysics(),
               child: Column(children: [
                 // Table header
-                Container(
+                if (phone) const SizedBox(height: 10) else Container(
                   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                   decoration: BoxDecoration(border: Border(bottom: BorderSide(color: context.pal.border))),
                   child: Row(children: [
@@ -139,6 +153,22 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
                       Text('No suppliers found', style: AppTheme.bodySub),
                     ])),
                   )
+                else if (phone)
+                  ...filtered.map((s) => PhoneRecordCard(
+                    title: s.name,
+                    subtitle: s.location,
+                    badge: PhonePill(s.typeLabel, _SupplierRow._typeColor(s.type)),
+                    meta: ['${s.leadTimeDays}d lead time', s.currency, '${s.itemsCount} items',
+                        if (s.rating > 0) '★' * s.rating],
+                    onTap: () => pushPhoneDetail(context, (ctx) => _SupplierDetailPanel(
+                      supplier: s,
+                      onClose: () => Navigator.of(ctx).pop(),
+                      onEdit: _canEdit ? () {
+                        Navigator.of(ctx).pop();
+                        setState(() { _selected = s; _showEdit = true; });
+                      } : null,
+                    )),
+                  ))
                 else
                   ...filtered.map((s) => _SupplierRow(
                     supplier: s, selected: _selected == s,
@@ -148,8 +178,8 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
               ]),
             ),
           )),
-          // Detail panel
-          if (_selected != null) ...[
+          // Detail panel (phones open it as a page instead)
+          if (_selected != null && !phone) ...[
             Container(width: 1, color: context.pal.border),
             Expanded(flex: 2, child: _SupplierDetailPanel(
               supplier: _selected!,
@@ -171,6 +201,7 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
           onSaved: () { setState(() => _showEdit = false); _load(); },
         ),
     ]);
+    });
   }
 
   static String _typeLabel(String t) => switch (t) {
@@ -456,6 +487,7 @@ class _SupplierFormModalState extends State<_SupplierFormModal> {
         onTap: () {},
         child: Container(
           width: 580,
+          margin: const EdgeInsets.all(16),
           constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.88),
           decoration: BoxDecoration(
             color: context.pal.surface1, borderRadius: BorderRadius.circular(14),

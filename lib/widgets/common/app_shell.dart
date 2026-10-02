@@ -81,7 +81,11 @@ import '../../theme/app_palette.dart';
 
 /// Root shell — adapts navigation chrome to three device classes.
 class AppShell extends StatefulWidget {
-  const AppShell({super.key});
+  const AppShell({super.key, this.initialScreenKey});
+
+  /// Screen to open first instead of the role's landing screen (still
+  /// permission-gated). Used by tests to open a given screen directly.
+  final String? initialScreenKey;
 
   @override
   State<AppShell> createState() => _AppShellState();
@@ -106,7 +110,9 @@ class _AppShellState extends State<AppShell> {
   @override
   void initState() {
     super.initState();
-    _activeKey = defaultScreenKey(userRoleNotifier.value);
+    _activeKey = widget.initialScreenKey == null
+        ? defaultScreenKey(userRoleNotifier.value)
+        : _gatedKey(widget.initialScreenKey!);
     BackgroundSync.instance.start();
   }
 

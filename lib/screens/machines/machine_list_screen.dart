@@ -249,6 +249,14 @@ class _MachineListScreenState extends State<MachineListScreen> {
     return list;
   }
 
+  // Disabled entries mirror the desktop buttons that have no action yet.
+  PopupMenuItem<String> _menuItem(String value, IconData icon, String label, {bool enabled = true}) =>
+      PopupMenuItem(value: value, enabled: enabled, child: Row(children: [
+        Icon(icon, size: 18, color: context.pal.textMute),
+        const SizedBox(width: 12),
+        Text(label, style: AppTheme.bodySm),
+      ]));
+
   @override
   Widget build(BuildContext context) {
     // Map view — full-bleed, no table layout needed
@@ -391,12 +399,47 @@ class _MachineListScreenState extends State<MachineListScreen> {
                           ],
                         );
                         if (narrow) {
+                          // Phones: the view toggle stays, the four buttons
+                          // fold into a ⋮ menu (they'd need ~600 px in a row).
+                          final canReceive = hasMachineReceiveAuthority(userRoleNotifier.value);
                           return Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               titleBlock,
                               const SizedBox(height: 12),
-                              actions,
+                              Row(children: [
+                                Container(
+                                  height: 36,
+                                  padding: const EdgeInsets.all(3),
+                                  decoration: BoxDecoration(
+                                    color: context.pal.surface2,
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(color: context.pal.border),
+                                  ),
+                                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                                    _ViewToggleBtn(icon: Symbols.list, label: 'List', active: !_mapView,
+                                        onTap: () => setState(() => _mapView = false)),
+                                    _ViewToggleBtn(icon: Symbols.map, label: 'Map', active: _mapView,
+                                        onTap: () => setState(() => _mapView = true)),
+                                  ]),
+                                ),
+                                const Spacer(),
+                                PopupMenuButton<String>(
+                                  tooltip: 'More actions',
+                                  color: context.pal.surface1,
+                                  icon: Icon(Symbols.more_vert, size: 20, color: context.pal.textMute),
+                                  onSelected: (v) {
+                                    if (v == 'receive') setState(() => _showReceive = true);
+                                  },
+                                  itemBuilder: (_) => [
+                                    if (canReceive)
+                                      _menuItem('receive', Symbols.inventory_2, 'Receive Machine'),
+                                    _menuItem('import', Symbols.upload_file, 'Import CSV', enabled: false),
+                                    _menuItem('export', Symbols.download, 'Export', enabled: false),
+                                    _menuItem('scan', Symbols.qr_code_scanner, 'Scan QR', enabled: false),
+                                  ],
+                                ),
+                              ]),
                             ],
                           );
                         }

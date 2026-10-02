@@ -13,6 +13,7 @@ import '../../widgets/common/app_button.dart';
 import '../../widgets/common/app_dropdown.dart';
 import '../../widgets/common/error_view.dart';
 import '../../widgets/common/labeled_field.dart';
+import '../../widgets/common/phone_layout.dart';
 import '../../widgets/common/shimmer_box.dart';
 
 class RequisitionsScreen extends StatefulWidget {
@@ -91,10 +92,32 @@ class _RequisitionsScreenState extends State<RequisitionsScreen> {
     const statuses = ['draft', 'submitted', 'approved', 'rejected', 'ordered'];
     const sLabels  = ['Draft', 'Submitted', 'Approved', 'Rejected', 'Ordered'];
 
-    return Stack(children: [
+    return LayoutBuilder(builder: (context, cst) {
+    // Phones show the list, or one requisition in its place; back closes it.
+    final phone       = isPhoneWidth(cst.maxWidth);
+    final phoneDetail = phone && _selected != null;
+    return PopScope(
+      canPop: !phoneDetail,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && phoneDetail) setState(() => _selected = null);
+      },
+      child: Stack(children: [
       Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         // ── Header ──
-        Container(
+        if (phoneDetail) const SizedBox.shrink()
+        else if (phone) PhonePageHeader(
+          title: 'Purchase Requisitions',
+          subtitle: 'Internal requests to procure stock',
+          primary: PageAction(label: 'New Requisition', shortLabel: 'New', icon: Symbols.add,
+              onPressed: () => setState(() => _showCreate = true)),
+          filters: [
+            _StatusChip(label: 'All', active: _statusFilter == null,
+                onTap: () { setState(() => _statusFilter = null); _load(); }),
+            for (final (i, st) in statuses.indexed)
+              _StatusChip(label: sLabels[i], color: _statusColor(st), active: _statusFilter == st,
+                  onTap: () { setState(() => _statusFilter = _statusFilter == st ? null : st); _load(); }),
+          ],
+        ) else Container(
           padding: const EdgeInsets.fromLTRB(24, 18, 24, 14),
           decoration: BoxDecoration(border: Border(bottom: BorderSide(color: context.pal.border))),
           child: Row(children: [
@@ -123,11 +146,11 @@ class _RequisitionsScreenState extends State<RequisitionsScreen> {
         ),
         Expanded(child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           // List
-          Expanded(flex: 3, child: RefreshIndicator(
+          if (!phoneDetail) Expanded(flex: 3, child: RefreshIndicator(
             onRefresh: _load,
             child: Column(children: [
               // Table header
-              Container(
+              if (phone) const SizedBox(height: 10) else Container(
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                 decoration: BoxDecoration(border: Border(bottom: BorderSide(color: context.pal.border))),
                 child: Row(children: [
@@ -150,6 +173,18 @@ class _RequisitionsScreenState extends State<RequisitionsScreen> {
                         itemCount: _prs.length,
                         itemBuilder: (_, i) {
                           final pr = _prs[i];
+                          if (phone) {
+                            return PhoneRecordCard(
+                              title: pr.title,
+                              subtitle: pr.prNumber,
+                              badge: PhonePill(pr.statusLabel, _statusColor(pr.status)),
+                              meta: [?pr.requestedByName, formatDate(pr.createdAt)],
+                              onTap: () {
+                                setState(() => _selected = pr);
+                                _loadDetail(pr.id);
+                              },
+                            );
+                          }
                           return _PRRow(
                             pr: pr, selected: _selected?.id == pr.id,
                             statusColor: _statusColor(pr.status),
@@ -164,7 +199,7 @@ class _RequisitionsScreenState extends State<RequisitionsScreen> {
           )),
           // Detail
           if (_selected != null) ...[
-            Container(width: 1, color: context.pal.border),
+            if (!phone) Container(width: 1, color: context.pal.border),
             Expanded(flex: 2, child: _PRDetailPanel(
               pr: _selected!,
               statusColor: _statusColor(_selected!.status),
@@ -187,7 +222,8 @@ class _RequisitionsScreenState extends State<RequisitionsScreen> {
           onClose: () => setState(() => _showCreate = false),
           onSaved: () { setState(() => _showCreate = false); _load(); },
         ),
-    ]);
+    ]));
+    });
   }
 }
 
@@ -446,6 +482,7 @@ class _CreatePRModalState extends State<_CreatePRModal> {
         onTap: () {},
         child: Container(
           width: 560,
+          margin: const EdgeInsets.all(16),
           constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.88),
           decoration: BoxDecoration(
             color: context.pal.surface1, borderRadius: BorderRadius.circular(14),
