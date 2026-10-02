@@ -118,7 +118,7 @@ class _DropdownShellState extends State<_DropdownShell> {
         onTap: _toggle,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 160),
-          height: kFieldHeight, width: widget.width,
+          height: fieldHeightOf(context), width: widget.width,
           padding: const EdgeInsets.symmetric(horizontal: 14),
           decoration: fieldBoxDecoration(context, focused: _open),
           child: Row(children: [

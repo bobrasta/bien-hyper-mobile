@@ -717,7 +717,7 @@ class _NewPurchaseOrderDialogState extends State<_NewPurchaseOrderDialog> {
       SizedBox(width: 140, child: LabeledTextField(label: i == 0 ? 'Unit cost ($_currency)' : '', controller: l.cost,
           keyboardType: TextInputType.number, hint: '0', onChanged: (_) => setState(() {}))),
       const SizedBox(width: 6),
-      SizedBox(width: 32, height: kFieldHeight, child: _lines.length > 1
+      SizedBox(width: 32, height: fieldHeightOf(context), child: _lines.length > 1
           ? IconButton(
               tooltip: 'Remove line',
               icon: Icon(Symbols.close, size: 16, color: context.pal.textDim),

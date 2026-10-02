@@ -131,7 +131,7 @@ class _FilterRow extends StatelessWidget {
     GestureDetector(
       onTap: onSearch,
       child: Container(
-        height: kFieldHeight,
+        height: fieldHeightOf(context),
         padding: const EdgeInsets.symmetric(horizontal: 14),
         decoration: BoxDecoration(color: AppColors.teal, borderRadius: BorderRadius.circular(10)),
         child: Center(child: Text('Search', style: AppTheme.bodySm.copyWith(color: const Color(0xFF06120F), fontWeight: FontWeight.w600))),

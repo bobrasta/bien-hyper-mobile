@@ -97,7 +97,7 @@ class _LogActivityDialogState extends State<_LogActivityDialog> {
     GestureDetector(
       onTap: _pickTime,
       child: Container(
-        height: kFieldHeight,
+        height: fieldHeightOf(context),
         padding: const EdgeInsets.symmetric(horizontal: 14),
         decoration: fieldBoxDecoration(context),
         child: Row(children: [

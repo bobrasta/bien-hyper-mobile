@@ -5,10 +5,10 @@ import '../../theme/app_theme.dart';
 import '../../theme/app_palette.dart';
 import '../../utils/format.dart';
 
-/// Height of a single-line field (14px text + 12px vertical padding +
-/// border) — dropdown/date/static boxes use it so they line up with text
-/// fields in the same row.
-const double kFieldHeight = 44;
+/// Height of a single-line text field at standard density (14px text +
+/// 12px vertical padding + border). Desktop's compact density makes the
+/// text field 8px shorter, so boxes size with [fieldHeightOf], not this.
+const double kFieldHeight = 45;
 
 /// Shorter single-line fields (28px) for everything
 /// under it — used for a page's filter row. The look is otherwise the same.
@@ -22,8 +22,13 @@ class DenseFields extends InheritedWidget {
   bool updateShouldNotify(DenseFields old) => false;
 }
 
-/// [kFieldHeight], or the [DenseFields] height inside one.
-double fieldHeightOf(BuildContext context) => DenseFields.of(context) ? DenseFields.height : kFieldHeight;
+/// The height a LabeledTextField actually draws at here — [kFieldHeight]
+/// adjusted for the theme's visual density (37px on desktop), or the
+/// [DenseFields] height inside one. Dropdown/date/static boxes use it so
+/// they line up with text fields in the same row.
+double fieldHeightOf(BuildContext context) => DenseFields.of(context)
+    ? DenseFields.height
+    : kFieldHeight + Theme.of(context).visualDensity.baseSizeAdjustment.dy;
 
 /// The shared focus-reactive box every text-entry field sits in: a
 /// recessed (`bg`-filled) rounded box with a `borderStrong` outline at rest
@@ -525,7 +530,7 @@ class LabeledDateField extends StatelessWidget {
     GestureDetector(
       onTap: onTap,
       child: Container(
-        height: kFieldHeight,
+        height: fieldHeightOf(context),
         decoration: fieldBoxDecoration(context),
         padding: const EdgeInsets.symmetric(horizontal: 14),
         child: Row(children: [
@@ -555,7 +560,7 @@ class LabeledStaticField extends StatelessWidget {
     Text(label, style: AppTheme.fieldLabel),
     const SizedBox(height: 6),
     Container(
-      height: kFieldHeight,
+      height: fieldHeightOf(context),
       alignment: Alignment.centerLeft,
       decoration: fieldBoxDecoration(context, enabled: false),
       padding: const EdgeInsets.symmetric(horizontal: 14),

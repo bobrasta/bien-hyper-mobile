@@ -629,7 +629,7 @@ class _RecordMovementModalState extends State<_RecordMovementModal> {
                 Text(_isTransfer ? 'FROM LOCATION' : 'LOCATION', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
                 const SizedBox(height: 6),
                 if (_loadingLocations)
-                  const ShimmerBox(height: kFieldHeight, radius: 10)
+                  ShimmerBox(height: fieldHeightOf(context), radius: 10)
                 else
                   DropdownFieldBox<int>(
                     value: _locationId,
@@ -646,7 +646,7 @@ class _RecordMovementModalState extends State<_RecordMovementModal> {
                   Text('TO LOCATION', style: AppTheme.labelCaps.copyWith(fontSize: 10)),
                   const SizedBox(height: 6),
                   if (_loadingLocations)
-                    const ShimmerBox(height: kFieldHeight, radius: 10)
+                    ShimmerBox(height: fieldHeightOf(context), radius: 10)
                   else
                     DropdownFieldBox<int>(
                       value: _toLocationId,
