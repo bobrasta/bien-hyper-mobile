@@ -12,6 +12,7 @@ import '../../utils/api_error.dart';
 import '../../utils/format.dart';
 import '../../utils/pdf_download.dart';
 import '../../utils/whatsapp_share.dart';
+import '../../widgets/common/phone_layout.dart';
 import '../../widgets/common/app_button.dart';
 import '../../widgets/common/error_view.dart';
 import '../../widgets/common/labeled_field.dart';
@@ -144,6 +145,7 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
   Widget build(BuildContext context) {
     return LayoutBuilder(builder: (ctx, cst) {
       final pad = cst.maxWidth < 560 ? 16.0 : 26.0;
+      final phone = isPhoneWidth(cst.maxWidth);
       final totalRaised = _all.fold<int>(0, (s, i) => s + i.total);
       final outstanding = _all.fold<int>(0, (s, i) => s + i.balanceDue);
       final collected = totalRaised - outstanding;
@@ -163,8 +165,20 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
       // row. Everything else — KPI cards and the table — scrolls together,
       // with the table's column header pinned, so small screens keep most of
       // their height for rows.
+      final chips = _StatusChips(current: _statusFilter, counts: {for (final s in PaymentStatus.values) s: _all.where((i) => i.effectiveStatus == s).length}, total: _all.length, onChanged: (s) => setState(() { _statusFilter = s; _applyFilter(); }));
       return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Padding(
+        if (phone) PhonePageHeader(
+          title: 'Invoices',
+          subtitle: '${_all.length} invoices · ${tshFromDouble(outstanding)} outstanding'
+              '${overdueCount > 0 ? ' · $overdueCount overdue' : ''}',
+          primary: hasAccountantAuthority(userRoleNotifier.value)
+              ? PageAction(label: 'New invoice', shortLabel: 'New', icon: Symbols.add, onPressed: _newInvoice)
+              : null,
+          secondary: [PageAction(label: 'Send reminders', icon: Symbols.notifications_active, onPressed: _sendReminders)],
+          search: SearchField(hint: 'Client or INV number…', controller: _searchCtrl),
+          filters: [PeriodSelector(value: _period, onChanged: (p) { setState(() => _period = p); _load(); })],
+          bottom: SingleChildScrollView(scrollDirection: Axis.horizontal, child: chips),
+        ) else Padding(
           padding: EdgeInsets.fromLTRB(pad, pad, pad, 0),
           child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
             Container(width: 2, height: 36, decoration: BoxDecoration(color: AppColors.green, borderRadius: BorderRadius.circular(2))),
@@ -187,18 +201,17 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
               FilledButton.icon(onPressed: _newInvoice, icon: const Icon(Symbols.add, size: 16), label: const Text('New invoice')),
           ]),
         ),
-        const SizedBox(height: 12),
-        Padding(
-          padding: EdgeInsets.symmetric(horizontal: pad),
-          child: Row(children: [
-            Expanded(child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: _StatusChips(current: _statusFilter, counts: {for (final s in PaymentStatus.values) s: _all.where((i) => i.effectiveStatus == s).length}, total: _all.length, onChanged: (s) => setState(() { _statusFilter = s; _applyFilter(); })),
-            )),
-            const SizedBox(width: 8),
-            PeriodSelector(value: _period, onChanged: (p) { setState(() => _period = p); _load(); }),
-          ]),
-        ),
+        if (!phone) ...[
+          const SizedBox(height: 12),
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: pad),
+            child: Row(children: [
+              Expanded(child: SingleChildScrollView(scrollDirection: Axis.horizontal, child: chips)),
+              const SizedBox(width: 8),
+              PeriodSelector(value: _period, onChanged: (p) { setState(() => _period = p); _load(); }),
+            ]),
+          ),
+        ],
         const SizedBox(height: 12),
         Expanded(
           child: _loading
@@ -212,7 +225,7 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
                       SliverToBoxAdapter(child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Padding(
           padding: EdgeInsets.symmetric(horizontal: pad),
-          child: IntrinsicHeight(child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          child: sideBySideOrStacked(phone, [
             Expanded(flex: 11, child: Container(
               padding: const EdgeInsets.fromLTRB(18, 14, 18, 15),
               decoration: BoxDecoration(color: context.pal.surface1, borderRadius: BorderRadius.circular(14), border: Border.all(color: context.pal.border)),
@@ -261,11 +274,14 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
                 )),
               ]),
             )),
-          ])),
+          ]),
         ),
                         const SizedBox(height: 14),
                       ])),
-                      ..._InvoiceTable(items: _filtered, shown: _showCount, onLoadMore: () => setState(() => _showCount += _batch), onSelect: _showDetailModal, total: totalRaised, outstandingTotal: outstanding).slivers(context, pad: pad),
+                      ...(() {
+                        final table = _InvoiceTable(items: _filtered, shown: _showCount, onLoadMore: () => setState(() => _showCount += _batch), onSelect: _showDetailModal, total: totalRaised, outstandingTotal: outstanding);
+                        return phone ? table.phoneSlivers(context) : table.slivers(context, pad: pad);
+                      })(),
                     ]),
         ),
       ]);
@@ -359,6 +375,40 @@ class _InvoiceTable {
 
   Widget _head(String t, {TextAlign align = TextAlign.left}) =>
       Text(t, textAlign: align, maxLines: 1, style: AppTheme.labelCaps.copyWith(fontSize: 10, letterSpacing: 1.1));
+
+  /// Phone list: a card per invoice — client, number and order, status,
+  /// what's still owed and when it's due.
+  List<Widget> phoneSlivers(BuildContext context) {
+    final n = shown < items.length ? shown : items.length;
+    if (items.isEmpty) {
+      return [SliverToBoxAdapter(child: Padding(padding: const EdgeInsets.symmetric(vertical: 40),
+          child: Center(child: Text('No invoices found', style: AppTheme.bodySub))))];
+    }
+    return [
+      SliverList(delegate: SliverChildBuilderDelegate((context, i) {
+        final inv = items[i];
+        final (dueDate, dueNote, _) = _due(context, inv);
+        return PhoneRecordCard(
+          title: inv.displayName,
+          subtitle: [inv.invoiceNumber, ?inv.salesOrderNumber].join(' · '),
+          badge: _StatusBadge(inv.effectiveStatus),
+          meta: ['due $dueDate ($dueNote)', 'total ${tshFromDouble(inv.total)}'],
+          trailing: Text(inv.balanceDue > 0 ? tshFromDouble(inv.balanceDue) : 'Paid',
+              style: AppTheme.bodyStrong.copyWith(fontSize: 14,
+                  color: inv.balanceDue > 0 ? AppColors.amber : AppColors.green)),
+          onTap: () => onSelect(inv),
+        );
+      }, childCount: n)),
+      if (items.length > n)
+        SliverToBoxAdapter(child: LoadMoreRow(shown: n, total: items.length,
+            step: _InvoicesScreenState._batch, onTap: onLoadMore)),
+      SliverToBoxAdapter(child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+        child: Text('${tshFromDouble(total)} raised · ${tshFromDouble(outstandingTotal)} outstanding',
+            style: AppTheme.bodySub.copyWith(fontSize: 11.5)),
+      )),
+    ];
+  }
 
   // Pieces for a CustomScrollView: the column header pins while the page
   // scrolls, rows are built lazily, footer closes the card.

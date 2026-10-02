@@ -40,6 +40,7 @@ class PhonePageHeader extends StatelessWidget {
     this.secondary = const [],
     this.search,
     this.filters = const [],
+    this.bottom,
   });
 
   final String title;
@@ -50,6 +51,9 @@ class PhonePageHeader extends StatelessWidget {
   final Widget? search;
   /// Chips / dropdowns, laid out on one horizontally scrolling line.
   final List<Widget> filters;
+  /// Anything else under the filters (e.g. a screen's own chip strip that
+  /// already scrolls by itself).
+  final Widget? bottom;
 
   @override
   Widget build(BuildContext context) => Container(
@@ -102,6 +106,10 @@ class PhonePageHeader extends StatelessWidget {
       if (filters.isNotEmpty) ...[
         const SizedBox(height: 10),
         PhoneScrollRow(children: filters),
+      ],
+      if (bottom != null) ...[
+        const SizedBox(height: 10),
+        bottom!,
       ],
     ]),
   );
@@ -254,4 +262,19 @@ class PhoneStatGrid extends StatelessWidget {
       for (final c in children) SizedBox(width: w.floorToDouble(), child: c),
     ]);
   });
+}
+
+/// Side-by-side panels on wide screens, stacked on phones. Pass the wide
+/// layout's children as-is (Expanded panels with SizedBox gaps): on phones
+/// each Expanded is unwrapped and each horizontal gap becomes a 12 px one.
+Widget sideBySideOrStacked(bool phone, List<Widget> children) {
+  if (!phone) {
+    return IntrinsicHeight(child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: children));
+  }
+  return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+    for (final c in children)
+      if (c is Expanded) c.child
+      else if (c is SizedBox && c.height == null) const SizedBox(height: 12)
+      else c,
+  ]);
 }

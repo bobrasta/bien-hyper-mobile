@@ -67,16 +67,54 @@ class LineItemTableRow extends StatelessWidget {
     onChanged();
   }
 
+  /// Below this width the row stacks: item on its own line, numbers under it.
+  static const double _stackBelow = 520;
+
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(vertical: 6),
+  Widget build(BuildContext context) => LayoutBuilder(builder: (context, cst) =>
+      cst.maxWidth < _stackBelow ? _stacked(context) : _row(context));
+
+  /// Phone form: the item search full width (× to remove), then
+  /// Qty | Unit price | line total, each labelled since there's no header.
+  Widget _stacked(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(vertical: 10),
     decoration: BoxDecoration(border: Border(bottom: BorderSide(color: context.pal.divider))),
-    child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
-      // Type to search the inventory (name or SKU) and pick from the
-      // dropdown, or keep typing for a custom line that isn't in stock.
-      Expanded(flex: 3, child: Padding(
-        padding: const EdgeInsets.only(right: 8),
-        child: AppSearchableSelectField<InventoryItem>(
+    child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      Row(children: [
+        Expanded(child: _itemField()),
+        if (onRemove != null)
+          IconButton(tooltip: 'Remove line', onPressed: onRemove,
+              icon: Icon(Symbols.close, size: 18, color: context.pal.textDim)),
+      ]),
+      const SizedBox(height: 8),
+      Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+        SizedBox(width: 72, child: _labelled(context, 'QTY', _numField(entry.qtyCtrl, onChanged))),
+        const SizedBox(width: 8),
+        Expanded(child: _labelled(context, 'UNIT PRICE', _numField(entry.priceCtrl, onChanged))),
+        if (showDiscount) ...[
+          const SizedBox(width: 8),
+          SizedBox(width: 64, child: _labelled(context, 'DISC %', _numField(entry.discCtrl, onChanged))),
+        ],
+        const SizedBox(width: 12),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: Text(tshFromDouble(_lineTotal.toDouble()), textAlign: TextAlign.right,
+              style: AppTheme.monoSm.copyWith(fontSize: 13, fontWeight: FontWeight.w600)),
+        ),
+      ]),
+    ]),
+  );
+
+  Widget _labelled(BuildContext context, String label, Widget field) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+      Text(label, style: AppTheme.monoXs.copyWith(fontSize: 9, color: context.pal.textMute)),
+      const SizedBox(height: 4),
+      field,
+    ]);
+
+  // Type to search the inventory (name or SKU) and pick from the
+  // dropdown, or keep typing for a custom line that isn't in stock.
+  Widget _itemField() => AppSearchableSelectField<InventoryItem>(
           key: ObjectKey(entry),
           hint: 'Type an item name or SKU…',
           selectedLabel: entry.descCtrl.text,
@@ -96,7 +134,15 @@ class LineItemTableRow extends StatelessWidget {
             entry.selectedItem = null;
             onChanged();
           },
-        ),
+        );
+
+  Widget _row(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(vertical: 6),
+    decoration: BoxDecoration(border: Border(bottom: BorderSide(color: context.pal.divider))),
+    child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+      Expanded(flex: 3, child: Padding(
+        padding: const EdgeInsets.only(right: 8),
+        child: _itemField(),
       )),
       SizedBox(width: kLineQtyW, child: _numField(entry.qtyCtrl, onChanged)),
       const SizedBox(width: 8),

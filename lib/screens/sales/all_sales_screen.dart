@@ -12,6 +12,7 @@ import '../../theme/app_theme.dart';
 import '../../utils/api_error.dart';
 import '../../utils/format.dart';
 import '../../utils/pdf_download.dart';
+import '../../widgets/common/phone_layout.dart';
 import '../../widgets/common/error_view.dart';
 import '../../widgets/common/labeled_field.dart';
 import '../../widgets/common/period_filter.dart';
@@ -389,11 +390,36 @@ class _AllSalesScreenState extends State<AllSalesScreen> {
 
     return LayoutBuilder(builder: (ctx, cst) {
       final pad = cst.maxWidth < 560 ? 16.0 : 24.0;
+      final phone = isPhoneWidth(cst.maxWidth);
       final tableW = cst.maxWidth - 2 * pad;
       final cols = [for (final c in _cols) if (tableW >= c.minWidth) c];
+      final userFilter = SizedBox(width: 170, child: DropdownFieldBox<String?>(
+        value: users.contains(_addedBy) ? _addedBy : null,
+        active: _addedBy != null,
+        items: [null, ...users].map((u) => DropdownMenuItem(value: u, child: Text(u ?? 'All users', overflow: TextOverflow.ellipsis))).toList(),
+        onChanged: (v) { _addedBy = v; _resetPage(); },
+      ));
+      final shipFilter = SizedBox(width: 160, child: DropdownFieldBox<String?>(
+        value: _shipStatus,
+        active: _shipStatus != null,
+        items: [null, ..._shipStatuses.keys].map((v) => DropdownMenuItem(value: v, child: Text(v == null ? 'Any shipping' : _shipStatuses[v]!))).toList(),
+        onChanged: (v) { _shipStatus = v; _resetPage(); },
+      ));
+      final period = PeriodSelector(value: _period, onChanged: (p) { setState(() { _period = p; _showCount = _batch; }); _load(); });
       return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        if (phone) PhonePageHeader(
+          title: 'All sales',
+          subtitle: 'Tap a sale to open it · long-press for its actions',
+          primary: PageAction(label: 'Add sale', shortLabel: 'Add', icon: Symbols.add, onPressed: _addSale),
+          secondary: [PageAction(label: 'Export as…', icon: Symbols.download,
+              onPressed: _exporting || _loading ? null
+                  : () => _export(Offset(cst.maxWidth - 16, 120)))],
+          search: SearchField(hint: 'Invoice, customer, phone…', controller: _searchCtrl, onChanged: (_) => _resetPage()),
+          filters: [period, userFilter, shipFilter],
+          bottom: PhoneScrollRow(spacing: 8, children: _statusChips(context, rows)),
+        )
         // Fixed: head, status chips and filters. The summary and table scroll together.
-        Padding(
+        else Padding(
           padding: EdgeInsets.fromLTRB(pad, pad, pad, 0),
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
@@ -422,23 +448,13 @@ class _AllSalesScreenState extends State<AllSalesScreen> {
             DenseFields(child: Wrap(spacing: 10, runSpacing: 10, crossAxisAlignment: WrapCrossAlignment.center, children: [
               ..._statusChips(context, rows),
               const SizedBox(width: 6),
-              PeriodSelector(value: _period, onChanged: (p) { setState(() { _period = p; _showCount = _batch; }); _load(); }),
-              SizedBox(width: 170, child: DropdownFieldBox<String?>(
-                value: users.contains(_addedBy) ? _addedBy : null,
-                active: _addedBy != null,
-                items: [null, ...users].map((u) => DropdownMenuItem(value: u, child: Text(u ?? 'All users', overflow: TextOverflow.ellipsis))).toList(),
-                onChanged: (v) { _addedBy = v; _resetPage(); },
-              )),
-              SizedBox(width: 160, child: DropdownFieldBox<String?>(
-                value: _shipStatus,
-                active: _shipStatus != null,
-                items: [null, ..._shipStatuses.keys].map((v) => DropdownMenuItem(value: v, child: Text(v == null ? 'Any shipping' : _shipStatuses[v]!))).toList(),
-                onChanged: (v) { _shipStatus = v; _resetPage(); },
-              )),
+              period,
+              userFilter,
+              shipFilter,
             ])),
           ]),
         ),
-        const SizedBox(height: 14),
+        SizedBox(height: phone ? 12 : 14),
         Expanded(child: _loading
             ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
             : _error != null && _all.isEmpty
@@ -446,9 +462,21 @@ class _AllSalesScreenState extends State<AllSalesScreen> {
                 : CustomScrollView(slivers: [
                     SliverToBoxAdapter(child: Padding(
                       padding: EdgeInsets.fromLTRB(pad, 0, pad, 14),
-                      child: _summary(context, rows),
+                      child: _summary(context, rows, phone: phone),
                     )),
-                    ...sliverTable(
+                    if (phone) ...[
+                      if (rows.isEmpty)
+                        SliverToBoxAdapter(child: Padding(padding: const EdgeInsets.symmetric(vertical: 40),
+                            child: Center(child: Text('No sales found', style: AppTheme.bodySub)))),
+                      SliverList(delegate: SliverChildBuilderDelegate(
+                        (ctx, n) => _saleCard(ctx, rows[n]),
+                        childCount: rows.length < _showCount ? rows.length : _showCount,
+                      )),
+                      if (rows.length > _showCount)
+                        SliverToBoxAdapter(child: LoadMoreRow(shown: _showCount, total: rows.length,
+                            step: _batch, onTap: () => setState(() => _showCount += _batch))),
+                      const SliverToBoxAdapter(child: SizedBox(height: 16)),
+                    ] else ...sliverTable(
                       context,
                       pad: pad,
                       headerHeight: 40,
@@ -467,7 +495,25 @@ class _AllSalesScreenState extends State<AllSalesScreen> {
 
   // Summary above the table: the money, then the payment-status chips
   // (they filter the table) and the payment-method mix.
-  Widget _summary(BuildContext context, List<Invoice> rows) {
+  /// Phone row: customer, invoice number, status, what's due; tap opens
+  /// the sale, long-press opens the same actions menu as right-click.
+  Widget _saleCard(BuildContext context, Invoice i) {
+    final (label, color) = _payStatusOf(context, i);
+    return GestureDetector(
+      onLongPressStart: (d) { InvoiceService.instance.prefetch(i.id); _openMenu(i, d.globalPosition); },
+      child: PhoneRecordCard(
+        title: i.displayName,
+        subtitle: '${i.invoiceNumber} · ${_date(i.issueDate)}',
+        badge: PhonePill(label, color),
+        meta: [_methods(i), if (i.addedBy != null) 'by ${i.addedBy}',
+            if (i.balanceDue > 0) 'due ${_money(i.balanceDue)}'],
+        amount: _money(i.total),
+        onTap: () => showInvoiceDetail(context, i.id, preview: i).then((changed) { if (changed) _load(); }),
+      ),
+    );
+  }
+
+  Widget _summary(BuildContext context, List<Invoice> rows, {bool phone = false}) {
     // Counts and money ignore the status filter, so the chips keep their numbers.
     final base = _payStatus == null ? rows : _withoutStatusFilter();
     final total = base.fold<int>(0, (s, i) => s + i.total);
@@ -493,8 +539,7 @@ class _AllSalesScreenState extends State<AllSalesScreen> {
     final rate = total > 0 ? (paid * 100 / total).round() : 0;
     final overdueDue = base.where((i) => i.chPaymentStatus == 'overdue').fold<int>(0, (s, i) => s + i.balanceDue);
 
-    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      Row(children: [
+    final kpis = [
         kpi('TOTAL SALES', tshFromDouble(total), context.pal.text, '${base.length} sale${base.length == 1 ? '' : 's'} · ${_period.label}'),
         const SizedBox(width: 12),
         kpi('TOTAL PAID', tshFromDouble(paid), AppColors.green, '$rate% collected'),
@@ -503,8 +548,14 @@ class _AllSalesScreenState extends State<AllSalesScreen> {
         const SizedBox(width: 12),
         kpi('PAID BY', methods.isEmpty ? '—' : (methods.entries.toList()..sort((a, b) => b.value - a.value)).first.key,
             context.pal.text, methods.entries.map((e) => '${e.key} ${e.value}').join(' · ')),
-      ]),
-    ]);
+    ];
+    // Phones: the four tiles two to a row (kpi() wraps each in Expanded).
+    if (phone) {
+      return PhoneStatGrid(spacing: 10, children: [
+        for (final k in kpis) if (k is Expanded) k.child,
+      ]);
+    }
+    return Row(children: kpis);
   }
 
   // Payment-status chips (they filter the table), then Drafts and

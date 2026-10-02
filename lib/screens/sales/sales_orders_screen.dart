@@ -9,6 +9,7 @@ import '../../theme/app_palette.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/api_error.dart';
 import '../../utils/format.dart';
+import '../../widgets/common/phone_layout.dart';
 import '../../widgets/common/app_button.dart';
 import '../../widgets/common/error_view.dart';
 import '../../widgets/common/labeled_field.dart';
@@ -122,11 +123,26 @@ class _SalesOrdersScreenState extends State<SalesOrdersScreen> {
   Widget build(BuildContext context) {
     return LayoutBuilder(builder: (ctx, cst) {
       final pad = cst.maxWidth < 560 ? 16.0 : 26.0;
+      final phone = isPhoneWidth(cst.maxWidth);
       final cancelled = _all.where((o) => o.status == 'cancelled');
       final booked = _all.where((o) => o.status != 'cancelled').fold<int>(0, (s, o) => s + o.totalAmount);
       final cancelledTotal = cancelled.fold<int>(0, (s, o) => s + o.totalAmount);
+      final chips = _StatusChips(
+        current: _statusFilter,
+        counts: {for (final s in ['pending', 'confirmed', 'delivering', 'delivered', 'cancelled']) s: _all.where((o) => o.status == s).length},
+        total: _all.length,
+        onChanged: (s) { setState(() { _statusFilter = s; _applyFilter(); }); },
+      );
       return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Padding(
+        if (phone) PhonePageHeader(
+          title: 'Sales Orders',
+          subtitle: '${_all.length} orders · ${tshFromDouble(booked)} booked',
+          primary: PageAction(label: 'New order', shortLabel: 'New', icon: Symbols.add,
+              onPressed: () => widget.onNavigateTo?.call('sales_quotations')),
+          search: SearchField(hint: 'Client or SO number…', controller: _searchCtrl),
+          filters: [PeriodSelector(value: _period, onChanged: (p) { setState(() => _period = p); _load(); })],
+          bottom: SingleChildScrollView(scrollDirection: Axis.horizontal, child: chips),
+        ) else Padding(
           padding: EdgeInsets.fromLTRB(pad, pad, pad, 0),
           child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
             Container(width: 2, height: 36, decoration: BoxDecoration(color: AppColors.cyan, borderRadius: BorderRadius.circular(2))),
@@ -143,22 +159,19 @@ class _SalesOrdersScreenState extends State<SalesOrdersScreen> {
             FilledButton.icon(onPressed: () => widget.onNavigateTo?.call('sales_quotations'), icon: const Icon(Symbols.add, size: 16), label: const Text('New order')),
           ]),
         ),
+        if (!phone) ...[
         const SizedBox(height: 14),
         Padding(
           padding: EdgeInsets.symmetric(horizontal: pad),
           child: Row(children: [
-            _StatusChips(
-              current: _statusFilter,
-              counts: {for (final s in ['pending', 'confirmed', 'delivering', 'delivered', 'cancelled']) s: _all.where((o) => o.status == s).length},
-              total: _all.length,
-              onChanged: (s) { setState(() { _statusFilter = s; _applyFilter(); }); },
-            ),
+            chips,
             const Spacer(),
             Text('Showing ${_filtered.length} of ${_all.length}', style: AppTheme.bodySub.copyWith(fontSize: 11.5)),
             const SizedBox(width: 12),
             PeriodSelector(value: _period, onChanged: (p) { setState(() => _period = p); _load(); }),
           ]),
         ),
+        ],
         const SizedBox(height: 12),
         // Everything below the filters scrolls as one; the table header pins.
         Expanded(
@@ -168,7 +181,10 @@ class _SalesOrdersScreenState extends State<SalesOrdersScreen> {
               // data is already showing shouldn't blow that away.
               : _error != null && _all.isEmpty
                   ? ErrorView(message: _error!, onRetry: _load)
-                  : CustomScrollView(slivers: _OrderTable(items: _filtered, onSelect: _showDetailModal, booked: booked, cancelledTotal: cancelledTotal, cancelledCount: cancelled.length).slivers(context, pad: pad)),
+                  : Builder(builder: (context) {
+                      final table = _OrderTable(items: _filtered, onSelect: _showDetailModal, booked: booked, cancelledTotal: cancelledTotal, cancelledCount: cancelled.length);
+                      return CustomScrollView(slivers: phone ? table.phoneSlivers(context) : table.slivers(context, pad: pad));
+                    }),
         ),
       ]);
     });
@@ -236,6 +252,38 @@ class _OrderTable {
 
   // Slivers for the page's single scroll view: pinned column header, lazy
   // rows, footer at the end (see sliverTable).
+  /// Phone list: a card per order with its fulfilment step.
+  List<Widget> phoneSlivers(BuildContext context) {
+    if (items.isEmpty) {
+      return [SliverToBoxAdapter(child: Padding(padding: const EdgeInsets.symmetric(vertical: 40),
+          child: Center(child: Text('No sales orders found', style: AppTheme.bodySub))))];
+    }
+    return [
+      SliverList(delegate: SliverChildBuilderDelegate((context, i) {
+        final so = items[i];
+        final step = _fulfilmentStep(so);
+        return PhoneRecordCard(
+          title: so.clientName,
+          subtitle: '${so.orderNumber} · ${so.quotationNumber != null ? 'from ${so.quotationNumber}' : 'direct order'}',
+          badge: _StatusBadge(so.status, so.statusLabel),
+          lead: so.needsApproval ? Icon(Symbols.hourglass_top, size: 18, color: AppColors.amber) : null,
+          meta: [
+            so.createdAt.length >= 10 ? so.createdAt.substring(0, 10) : so.createdAt,
+            if (step > 0) '${_fulfilmentLabels[step - 1]} ($step/4)',
+          ],
+          amount: tshFromDouble(so.totalAmount),
+          onTap: () => onSelect(so),
+        );
+      }, childCount: items.length)),
+      SliverToBoxAdapter(child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+        child: Text('${tshFromDouble(booked)} booked'
+            '${cancelledCount > 0 ? ' · $cancelledCount cancelled (${tshFromDouble(cancelledTotal)})' : ''}',
+            style: AppTheme.bodySub.copyWith(fontSize: 11.5)),
+      )),
+    ];
+  }
+
   List<Widget> slivers(BuildContext context, {required double pad}) {
     return sliverTable(
       context,

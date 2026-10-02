@@ -391,7 +391,7 @@ class _InvoiceBuilderScreenState extends State<InvoiceBuilderScreen> {
       padding: const EdgeInsets.all(15),
       decoration: _card(context),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+        Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
           Expanded(child: Text('CLIENT', style: AppTheme.labelCaps.copyWith(fontSize: 11))),
           SizedBox(width: 170, child: LabeledDropdown<String>(
             label: 'Status *',
@@ -412,29 +412,47 @@ class _InvoiceBuilderScreenState extends State<InvoiceBuilderScreen> {
           onSelected: (item) => _pickHospital(item?.value),
         ),
         const SizedBox(height: 12),
-        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Expanded(flex: 2, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        LayoutBuilder(builder: (context, cst) {
+          final name = Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             LabeledTextField(label: 'Client name *', controller: _clientCtrl, hint: 'Name printed on the invoice',
                 hasError: _errors['client'] != null,
                 onChanged: (_) { if (_errors.containsKey('client')) setState(() => _errors.remove('client')); }),
             _error(_errors['client']),
-          ])),
-          const SizedBox(width: 12),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          ]);
+          final tin = Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             LabeledTextField(label: _saleStatus == 'draft' ? 'Client TIN' : 'Client TIN *', controller: _tinCtrl, hint: '123-456-789',
                 keyboardType: TextInputType.number, hasError: _errors['tin'] != null,
                 onChanged: (_) { if (_errors.containsKey('tin')) setState(() => _errors.remove('tin')); }),
             _error(_errors['tin']),
-          ])),
-          const SizedBox(width: 12),
-          Expanded(child: LabeledTextField(label: 'Contact', controller: _contactCtrl, hint: 'Person or phone')),
-          const SizedBox(width: 12),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          ]);
+          final contact = LabeledTextField(label: 'Contact', controller: _contactCtrl, hint: 'Person or phone');
+          final email = Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             LabeledTextField(label: 'Email', controller: _emailCtrl, hint: 'client@hospital.tz',
                 keyboardType: TextInputType.emailAddress, hasError: _errors['email'] != null),
             _error(_errors['email']),
-          ])),
-        ]),
+          ]);
+          // Phones: name full width, then TIN + contact, then email.
+          if (cst.maxWidth < 560) {
+            return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              name,
+              const SizedBox(height: 12),
+              Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Expanded(child: tin), const SizedBox(width: 12), Expanded(child: contact),
+              ]),
+              const SizedBox(height: 12),
+              email,
+            ]);
+          }
+          return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Expanded(flex: 2, child: name),
+            const SizedBox(width: 12),
+            Expanded(child: tin),
+            const SizedBox(width: 12),
+            Expanded(child: contact),
+            const SizedBox(width: 12),
+            Expanded(child: email),
+          ]);
+        }),
       ]),
     ),
     const SizedBox(height: 14),
@@ -448,7 +466,7 @@ class _InvoiceBuilderScreenState extends State<InvoiceBuilderScreen> {
             Row(children: [
               Icon(Symbols.playlist_add, size: 14, color: AppColors.amber),
               const SizedBox(width: 8),
-              Text('Line items', style: AppTheme.bodyStrong.copyWith(fontSize: 12.5)),
+              Flexible(child: Text('Line items', style: AppTheme.bodyStrong.copyWith(fontSize: 12.5))),
               if (_errors['items'] != null) ...[
                 const SizedBox(width: 8),
                 Flexible(child: Text(_errors['items']!, style: TextStyle(fontSize: 11, color: AppColors.coral))),
@@ -458,7 +476,9 @@ class _InvoiceBuilderScreenState extends State<InvoiceBuilderScreen> {
                   style: AppTheme.monoXs.copyWith(fontSize: 10, color: context.pal.textMute)),
             ]),
             const SizedBox(height: 11),
-            Row(children: [
+            // Column labels only where rows are a table; stacked phone rows
+            // label their own fields (see LineItemTableRow).
+            LayoutBuilder(builder: (context, cst) => cst.maxWidth < 520 ? const SizedBox.shrink() : Row(children: [
               Expanded(flex: 3, child: Text('ITEM', style: AppTheme.monoXs.copyWith(fontSize: 9, color: context.pal.textMute))),
               SizedBox(width: kLineQtyW, child: Text('QTY', textAlign: TextAlign.right, style: AppTheme.monoXs.copyWith(fontSize: 9, color: context.pal.textMute))),
               const SizedBox(width: 8),
@@ -466,7 +486,7 @@ class _InvoiceBuilderScreenState extends State<InvoiceBuilderScreen> {
               const SizedBox(width: 8),
               SizedBox(width: kLineTotalW, child: Text('LINE TOTAL', textAlign: TextAlign.right, style: AppTheme.monoXs.copyWith(fontSize: 9, color: context.pal.textMute))),
               const SizedBox(width: 22),
-            ]),
+            ])),
             Padding(padding: const EdgeInsets.symmetric(vertical: 9), child: Container(height: 1, color: context.pal.divider)),
             ..._lines.asMap().entries.map((e) => LineItemTableRow(
               key: ObjectKey(e.value),
@@ -496,29 +516,49 @@ class _InvoiceBuilderScreenState extends State<InvoiceBuilderScreen> {
         Container(
           padding: const EdgeInsets.fromLTRB(15, 12, 15, 14),
           decoration: BoxDecoration(color: context.pal.surface2, borderRadius: const BorderRadius.vertical(bottom: Radius.circular(14))),
-          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Expanded(child: SalesDateField(
+          child: LayoutBuilder(builder: (context, cst) {
+            final issue = SalesDateField(
               label: 'Issue date', selected: _issueDate, firstDate: DateTime(2020),
               onPicked: (d) { if (d != null) setState(() => _issueDate = d); },
-            )),
-            const SizedBox(width: 14),
-            SizedBox(width: 90, child: LabeledTextField(label: 'Payment term', controller: _termCtrl,
+            );
+            final term = LabeledTextField(label: 'Payment term', controller: _termCtrl,
                 keyboardType: TextInputType.number, hasError: _errors['due'] != null,
-                onChanged: (_) => setState(() => _errors.remove('due')))),
-            const SizedBox(width: 8),
-            SizedBox(width: 110, child: _drop<String>(' ', _termType, const {'days': 'Days', 'months': 'Months'},
-                (v) => setState(() => _termType = v))),
-            const SizedBox(width: 14),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                onChanged: (_) => setState(() => _errors.remove('due')));
+            final termType = _drop<String>(' ', _termType, const {'days': 'Days', 'months': 'Months'},
+                (v) => setState(() => _termType = v));
+            final due = Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               LabeledStaticField(label: 'Due date', value: _dueDate == null ? '—' : _fmtDate(_dueDate!)),
               _error(_errors['due']),
-            ])),
-            const SizedBox(width: 14),
-            SizedBox(width: 100, child: _drop<int>('VAT', _taxRate, const {0: 'None', 18: '18%'}, (v) => setState(() => _taxRate = v))),
-            const SizedBox(width: 14),
-            SizedBox(width: 90, child: _drop<String>('Currency', _currency,
-                const {'TZS': 'TZS', 'USD': 'USD', 'EUR': 'EUR', 'KES': 'KES'}, (v) => setState(() => _currency = v))),
-          ]),
+            ]);
+            final vat = _drop<int>('VAT', _taxRate, const {0: 'None', 18: '18%'}, (v) => setState(() => _taxRate = v));
+            final currency = _drop<String>('Currency', _currency,
+                const {'TZS': 'TZS', 'USD': 'USD', 'EUR': 'EUR', 'KES': 'KES'}, (v) => setState(() => _currency = v));
+            // Phones: dates, then the term, then VAT and currency, in pairs.
+            if (cst.maxWidth < 560) {
+              Widget pair(Widget a, Widget b) => Row(crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [Expanded(child: a), const SizedBox(width: 12), Expanded(child: b)]);
+              return Column(children: [
+                pair(issue, due),
+                const SizedBox(height: 12),
+                pair(term, termType),
+                const SizedBox(height: 12),
+                pair(vat, currency),
+              ]);
+            }
+            return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Expanded(child: issue),
+              const SizedBox(width: 14),
+              SizedBox(width: 90, child: term),
+              const SizedBox(width: 8),
+              SizedBox(width: 110, child: termType),
+              const SizedBox(width: 14),
+              Expanded(child: due),
+              const SizedBox(width: 14),
+              SizedBox(width: 100, child: vat),
+              const SizedBox(width: 14),
+              SizedBox(width: 90, child: currency),
+            ]);
+          }),
         ),
       ]),
     ),

@@ -6,6 +6,7 @@ import '../../services/staff_service.dart';
 import '../../theme/app_colors.dart';
 import '../../utils/api_error.dart';
 import '../../utils/format.dart';
+import '../../widgets/common/phone_layout.dart';
 import '../../widgets/common/error_view.dart';
 import '../../widgets/common/labeled_field.dart';
 import '../../theme/app_theme.dart';
@@ -46,6 +47,14 @@ class _SalesScreenState extends State<SalesScreen> {
   bool            _autoOpenedLead = false;
   String? _repFilter;
   String? _machineFilter;
+  // Phone board: each stage takes 86% of the width, the next one peeks in.
+  final _phonePager = PageController(viewportFraction: 0.86);
+
+  @override
+  void dispose() {
+    _phonePager.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -117,8 +126,18 @@ class _SalesScreenState extends State<SalesScreen> {
     return Stack(children: [
       LayoutBuilder(builder: (ctx, cst) {
         final pad = cst.maxWidth < 560 ? 16.0 : 26.0;
+        final phone = isPhoneWidth(cst.maxWidth);
         return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Padding(
+          if (phone) PhonePageHeader(
+            title: 'Sales Pipeline',
+            subtitle: '${openLeads.length} deals · ${tshFromDouble(totalPipeline)} open · $stalled stalled',
+            primary: PageAction(label: 'New lead', shortLabel: 'New', icon: Symbols.add,
+                onPressed: () => setState(() => _showNewDeal = true)),
+            filters: [
+              _filterDropdown(context, 'Rep', Symbols.person, _repFilter, _reps, (v) => setState(() => _repFilter = v)),
+              _filterDropdown(context, 'Machine type', Symbols.medical_services, _machineFilter, _machines, (v) => setState(() => _machineFilter = v)),
+            ],
+          ) else Padding(
             padding: EdgeInsets.fromLTRB(pad, pad, pad, 0),
             child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
               Container(width: 2, height: 36, decoration: BoxDecoration(color: AppColors.violet, borderRadius: BorderRadius.circular(2))),
@@ -135,13 +154,33 @@ class _SalesScreenState extends State<SalesScreen> {
               FilledButton.icon(onPressed: () => setState(() => _showNewDeal = true), icon: const Icon(Symbols.add, size: 16), label: const Text('New lead')),
             ]),
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: phone ? 12 : 16),
           if (_loading)
             const Expanded(child: Center(child: CircularProgressIndicator(strokeWidth: 2)))
           // A background refresh failing while stale-but-valid cached data
           // is already showing shouldn't blow that away.
           else if (_error != null && _leads.isEmpty)
             Expanded(child: ErrorView(message: _error!, onRetry: _load))
+          // Phones: swipe through the stages, one column at a time, with
+          // the next one peeking in so it's clear there's more.
+          else if (phone)
+            Expanded(
+              child: RefreshIndicator(
+                onRefresh: _load,
+                child: PageView(
+                  controller: _phonePager,
+                  padEnds: false,
+                  children: [
+                    for (final stage in _boardStages)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 0, 0, 12),
+                        child: _KanbanColumn(stage: stage, leads: grouped[stage] ?? [], totalOpen: totalPipeline,
+                            onChanged: _load, onAddDeal: () => setState(() => _showNewDeal = true)),
+                      ),
+                  ],
+                ),
+              ),
+            )
           else
             Expanded(
               child: RefreshIndicator(

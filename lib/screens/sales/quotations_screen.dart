@@ -17,6 +17,7 @@ import '../../utils/format.dart';
 import '../../utils/tin.dart';
 import '../../utils/pdf_download.dart';
 import '../../utils/whatsapp_share.dart';
+import '../../widgets/common/phone_layout.dart';
 import '../../widgets/common/error_view.dart';
 import '../../widgets/common/labeled_field.dart';
 import '../../widgets/common/period_filter.dart';
@@ -133,11 +134,25 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
     return Stack(children: [
       LayoutBuilder(builder: (ctx, cst) {
         final pad = cst.maxWidth < 560 ? 16.0 : 26.0;
+        final phone = isPhoneWidth(cst.maxWidth);
         final converted = _all.where((q) => q.status == 'converted').length;
         final totalQuoted = _all.fold<int>(0, (s, q) => s + q.totalAmount);
         final openValue = _all.where((q) => q.status == 'sent' || q.status == 'accepted').fold<int>(0, (s, q) => s + q.totalAmount);
+        final chips = _StatusChips(
+          current: _statusFilter,
+          counts: {for (final s in ['draft', 'sent', 'accepted', 'rejected', 'converted']) s: _all.where((q) => q.status == s).length},
+          total: _all.length,
+          onChanged: (s) { setState(() { _statusFilter = s; _applyFilter(); }); },
+        );
         return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Padding(
+          if (phone) PhonePageHeader(
+            title: 'Quotations',
+            subtitle: '${_all.length} quotations · ${tshFromDouble(totalQuoted)} quoted · $converted converted',
+            primary: PageAction(label: 'New quotation', shortLabel: 'New', icon: Symbols.add, onPressed: () => _openBuilder()),
+            search: SearchField(hint: 'Client or QT number…', controller: _searchCtrl),
+            filters: [PeriodSelector(value: _period, onChanged: (p) { setState(() => _period = p); _load(); })],
+            bottom: chips,
+          ) else Padding(
             padding: EdgeInsets.fromLTRB(pad, pad, pad, 0),
             child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
               Container(width: 2, height: 36, decoration: BoxDecoration(color: AppColors.amber, borderRadius: BorderRadius.circular(2))),
@@ -153,20 +168,17 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
               FilledButton.icon(onPressed: () => _openBuilder(), icon: const Icon(Symbols.add, size: 16), label: const Text('New quotation')),
             ]),
           ),
+          if (!phone) ...[
           const SizedBox(height: 14),
           Padding(
             padding: EdgeInsets.symmetric(horizontal: pad),
             child: Row(children: [
-              Expanded(child: _StatusChips(
-                current: _statusFilter,
-                counts: {for (final s in ['draft', 'sent', 'accepted', 'rejected', 'converted']) s: _all.where((q) => q.status == s).length},
-                total: _all.length,
-                onChanged: (s) { setState(() { _statusFilter = s; _applyFilter(); }); },
-              )),
+              Expanded(child: chips),
               const SizedBox(width: 8),
               PeriodSelector(value: _period, onChanged: (p) { setState(() => _period = p); _load(); }),
             ]),
           ),
+          ],
           const SizedBox(height: 12),
           // Everything below the filters scrolls as one; the table header pins.
           Expanded(
@@ -176,7 +188,10 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
                 // cached data is already showing shouldn't blow that away.
                 : _error != null && _all.isEmpty
                     ? ErrorView(message: _error!, onRetry: _load)
-                    : CustomScrollView(slivers: _QuotationTable(items: _filtered, shown: _showCount, onLoadMore: () => setState(() => _showCount += _batch), onSelect: _showDetailModal, openValue: openValue, convertedCount: converted, totalCount: _all.length).slivers(context, pad: pad)),
+                    : Builder(builder: (context) {
+                        final table = _QuotationTable(items: _filtered, shown: _showCount, onLoadMore: () => setState(() => _showCount += _batch), onSelect: _showDetailModal, openValue: openValue, convertedCount: converted, totalCount: _all.length);
+                        return CustomScrollView(slivers: phone ? table.phoneSlivers(context) : table.slivers(context, pad: pad));
+                      }),
           ),
         ]);
       }),
@@ -254,6 +269,42 @@ class _QuotationTable {
     final days = d.difference(DateTime.now()).inDays;
     if (days < 0) return 'expired';
     return 'in $days days';
+  }
+
+  /// Phone list: a card per quotation, load-more, then the totals line.
+  List<Widget> phoneSlivers(BuildContext context) {
+    final n = shown < items.length ? shown : items.length;
+    final total = items.fold<int>(0, (s, q) => s + q.totalAmount);
+    if (items.isEmpty) {
+      return [SliverToBoxAdapter(child: Padding(padding: const EdgeInsets.symmetric(vertical: 40),
+          child: Center(child: Text('No quotations found', style: AppTheme.bodySub))))];
+    }
+    return [
+      SliverList(delegate: SliverChildBuilderDelegate((context, i) {
+        final qt = items[i];
+        final note = _validNote(qt);
+        return PhoneRecordCard(
+          title: qt.clientName,
+          subtitle: [qt.quotationNumber, ?qt.clientContact].join(' · '),
+          badge: _StatusBadge(qt.status, qt.statusLabel),
+          lead: qt.needsApproval ? Icon(Symbols.hourglass_top, size: 18, color: AppColors.amber) : null,
+          meta: [
+            qt.createdAt.length >= 10 ? qt.createdAt.substring(0, 10) : qt.createdAt,
+            if (qt.validUntil != null) 'valid to ${qt.validUntil}${note.isEmpty ? '' : ' ($note)'}',
+          ],
+          amount: tshFromDouble(qt.totalAmount),
+          onTap: () => onSelect(qt),
+        );
+      }, childCount: n)),
+      if (items.length > n)
+        SliverToBoxAdapter(child: LoadMoreRow(shown: n, total: items.length,
+            step: _QuotationsScreenState._batch, onTap: onLoadMore)),
+      SliverToBoxAdapter(child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+        child: Text('${tshFromDouble(total)} quoted · $convertedCount of $totalCount converted · '
+            '${tshFromDouble(openValue)} still open', style: AppTheme.bodySub.copyWith(fontSize: 11.5)),
+      )),
+    ];
   }
 
   // Slivers for the page's single scroll view: pinned column header, lazy
