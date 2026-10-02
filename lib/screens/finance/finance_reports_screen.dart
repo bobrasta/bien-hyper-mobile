@@ -346,7 +346,8 @@ class _FinanceReportsScreenState extends State<FinanceReportsScreen> with Single
           const SizedBox(height: 10),
           Padding(
             padding: EdgeInsets.symmetric(horizontal: pad),
-            child: Row(children: [
+            // Scrolls sideways on phones instead of overflowing.
+            child: SingleChildScrollView(scrollDirection: Axis.horizontal, child: Row(children: [
               Container(
                 decoration: BoxDecoration(border: Border.all(color: context.pal.border), borderRadius: BorderRadius.circular(8)),
                 clipBehavior: Clip.antiAlias,
@@ -379,7 +380,7 @@ class _FinanceReportsScreenState extends State<FinanceReportsScreen> with Single
                   ]),
                 ),
               ),
-            ]),
+            ])),
           ),
         ],
         const SizedBox(height: 14),
@@ -922,14 +923,13 @@ class _CheckStrip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
       decoration: BoxDecoration(color: color.withValues(alpha: 0.06), border: Border.all(color: color.withValues(alpha: 0.28)), borderRadius: BorderRadius.circular(11)),
       child: Wrap(crossAxisAlignment: WrapCrossAlignment.center, runSpacing: 8, children: [
-        Row(mainAxisSize: MainAxisSize.min, children: [
+        // Wraps (rather than one long row) so it fits phone widths.
+        Wrap(crossAxisAlignment: WrapCrossAlignment.center, spacing: 10, runSpacing: 4, children: [
           Icon(chk.ok ? Symbols.check_circle : Symbols.warning, size: 16, color: color),
-          const SizedBox(width: 10),
           Text(chk.title, style: AppTheme.bodyStrong.copyWith(fontSize: 12.5)),
-          const SizedBox(width: 10),
           Text(chk.note, style: AppTheme.bodySub.copyWith(fontSize: 11.5)),
         ]),
-        Row(mainAxisSize: MainAxisSize.min, children: [
+        Wrap(runSpacing: 6, children: [
           for (final s in chk.stats) ...[
             Container(margin: const EdgeInsets.only(left: 15), padding: const EdgeInsets.only(left: 15), decoration: BoxDecoration(border: Border(left: BorderSide(color: context.pal.divider))),
               child: Row(mainAxisSize: MainAxisSize.min, children: [

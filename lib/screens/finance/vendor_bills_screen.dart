@@ -13,6 +13,7 @@ import '../../theme/app_theme.dart';
 import '../../theme/app_palette.dart';
 import '../../utils/api_error.dart';
 import '../../utils/format.dart';
+import '../../widgets/common/phone_layout.dart';
 import '../../widgets/common/error_view.dart';
 import '../../widgets/common/labeled_field.dart';
 
@@ -214,21 +215,32 @@ class _VendorBillsScreenState extends State<VendorBillsScreen> {
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(color: context.pal.surface1, borderRadius: BorderRadius.circular(14), border: Border.all(color: context.pal.border)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          LayoutBuilder(builder: (context, cst) {
+            final total = Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('OUTSTANDING PAYABLE', style: AppTheme.labelCaps.copyWith(fontSize: 9.5)),
               const SizedBox(height: 5),
               Text(tshFromDouble(_totalPayable), style: AppTheme.kpiValue.copyWith(fontSize: 25)),
-            ]),
-            const Spacer(),
-            _apStat('Due in 7 days', tshFromDouble(dueSoonTotal), AppColors.amber),
-            const SizedBox(width: 22),
-            _apStat('Overdue', tshFromDouble(overdueTotal), AppColors.coral),
-            const SizedBox(width: 22),
-            _apStat('Open bills', '${_open.length}', context.pal.text),
-            const SizedBox(width: 22),
-            _apStat('Paid to date', tshFromDouble(paidToDate), AppColors.green),
-          ]),
+            ]);
+            final stats = [
+              _apStat('Due in 7 days', tshFromDouble(dueSoonTotal), AppColors.amber),
+              _apStat('Overdue', tshFromDouble(overdueTotal), AppColors.coral),
+              _apStat('Open bills', '${_open.length}', context.pal.text),
+              _apStat('Paid to date', tshFromDouble(paidToDate), AppColors.green),
+            ];
+            // Phones: headline total, then the four figures two to a row.
+            if (isPhoneWidth(cst.maxWidth)) {
+              return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                total,
+                const SizedBox(height: 14),
+                PhoneStatGrid(spacing: 12, children: stats),
+              ]);
+            }
+            return Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+              total,
+              const Spacer(),
+              for (final (i, st) in stats.indexed) ...[if (i > 0) const SizedBox(width: 22), st],
+            ]);
+          }),
           const SizedBox(height: 16),
           if (agingTotal > 0) ClipRRect(borderRadius: BorderRadius.circular(4), child: Row(children: buckets.entries.map((e) =>
               Expanded(flex: (e.value == 0 ? 1 : e.value), child: Container(width: double.infinity, height: 8, color: e.value == 0 ? context.pal.surface3 : bucketColors[e.key])),

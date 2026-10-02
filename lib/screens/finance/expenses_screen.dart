@@ -9,6 +9,7 @@ import '../../theme/app_theme.dart';
 import '../../theme/app_palette.dart';
 import '../../utils/api_error.dart';
 import '../../utils/format.dart';
+import '../../widgets/common/phone_layout.dart';
 import '../../widgets/common/app_dropdown.dart';
 import '../../widgets/common/error_view.dart';
 import '../../widgets/common/labeled_field.dart';
@@ -139,6 +140,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
     return Stack(children: [
       LayoutBuilder(builder: (ctx, cst) {
         final pad = cst.maxWidth < 560 ? 16.0 : 26.0;
+        final phone = isPhoneWidth(cst.maxWidth);
         final vatReclaimable = _expenses.fold<double>(0, (s, e) => s + e.taxAmount);
         final vatCount = _expenses.where((e) => e.taxAmount > 0).length;
         final vsLastMonth = _totalLastMonth > 0 ? ((_totalThisMonth - _totalLastMonth) / _totalLastMonth * 100) : 0.0;
@@ -169,7 +171,12 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                       : SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                           Container(
                             decoration: BoxDecoration(color: context.pal.surface1, borderRadius: BorderRadius.circular(14), border: Border.all(color: context.pal.border)),
-                            child: Row(children: [
+                            child: phone ? PhoneStatGrid(children: [
+                              _stat(_period.label, tshFromDouble(_expenses.fold<double>(0, (s, e) => s + e.grossAmount)), context.pal.text, '${_expenses.length} entries'),
+                              _stat('Awaiting approval', tshFromDouble(_awaitingApproval.fold<double>(0, (s, e) => s + e.grossAmount)), AppColors.amber, '${_awaitingApproval.length} pending', border: true),
+                              _stat('VAT reclaimable', tshFromDouble(vatReclaimable), AppColors.cyan, '$vatCount with VAT'),
+                              _stat('vs last month', '${vsLastMonth >= 0 ? '+' : ''}${vsLastMonth.toStringAsFixed(1)}%', vsLastMonth > 0 ? AppColors.coral : AppColors.green, '${tshFromDouble(_totalLastMonth)} last month', border: true),
+                            ]) : Row(children: [
                               Expanded(child: _stat(_period.label, tshFromDouble(_expenses.fold<double>(0, (s, e) => s + e.grossAmount)), context.pal.text, '${_expenses.length} entries · ${tshFromDouble(_totalThisMonth)} this month')),
                               Expanded(child: _stat('Awaiting approval', tshFromDouble(_awaitingApproval.fold<double>(0, (s, e) => s + e.grossAmount)), AppColors.amber, '${_awaitingApproval.length} entries pending', border: true)),
                               Expanded(child: _stat('VAT reclaimable', tshFromDouble(vatReclaimable), AppColors.cyan, '$vatCount entries with VAT', border: true)),
@@ -177,7 +184,19 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                             ]),
                           ),
                           const SizedBox(height: 14),
-                          Row(children: [
+                          if (phone) ...[
+                            SearchField(
+                              hint: 'Search description or reference…',
+                              onChanged: (v) => setState(() => _search = v),
+                            ),
+                            const SizedBox(height: 10),
+                            PhoneScrollRow(spacing: 8, children: [
+                              PeriodSelector(value: _period, onChanged: (p) { setState(() => _period = p); _load(); }),
+                              _categoryDropdown(context),
+                            ]),
+                            const SizedBox(height: 8),
+                            Text('Showing ${_filtered.length} of ${_expenses.length}', style: AppTheme.bodySub.copyWith(fontSize: 11.5)),
+                          ] else Row(children: [
                             PeriodSelector(value: _period, onChanged: (p) { setState(() => _period = p); _load(); }),
                             const SizedBox(width: 8),
                             SearchField(
@@ -191,7 +210,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                             Text('Showing ${_filtered.length} of ${_expenses.length}', style: AppTheme.bodySub.copyWith(fontSize: 11.5)),
                           ]),
                           const SizedBox(height: 14),
-                          _table(context),
+                          if (phone) ..._phoneCards(context) else _table(context),
                         ])),
             ),
           ]),
@@ -262,6 +281,38 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
       decoration: BoxDecoration(color: color.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(5)),
       child: Text(label.toUpperCase(), style: AppTheme.monoXs.copyWith(fontSize: 9.5, color: color)),
     );
+  }
+
+  /// Phone list: one card per expense; pending ones carry approve/reject.
+  List<Widget> _phoneCards(BuildContext context) {
+    final rows = _filtered;
+    if (rows.isEmpty) {
+      return [Padding(padding: const EdgeInsets.symmetric(vertical: 32),
+          child: Center(child: Text('No expenses match this view.', style: AppTheme.bodySub)))];
+    }
+    return [
+      for (final e in rows)
+        PhoneRecordCard(
+            margin: const EdgeInsets.only(bottom: 8),
+            lead: Icon(_categoryIcons[e.categoryName] ?? Symbols.receipt_long, size: 20,
+                color: _categoryColor(e.categoryName)),
+            title: e.name,
+            subtitle: e.categoryName,
+            badge: _statusPill(e.status),
+            meta: [e.expenseDate, e.paymentModeLabel, ?e.reference, ?e.createdByName,
+                if (e.taxAmount > 0) 'VAT ${tshFromDouble(e.taxAmount)}'],
+            amount: tshFromDouble(e.grossAmount),
+            trailing: (e.status == ExpenseStatus.pendingCto || e.status == ExpenseStatus.pendingDirector)
+                ? Row(mainAxisSize: MainAxisSize.min, children: [
+                    Text(tshFromDouble(e.grossAmount), style: AppTheme.bodyStrong.copyWith(fontSize: 13.5)),
+                    IconButton(tooltip: 'Reject', onPressed: () => _reject(e),
+                        icon: Icon(Symbols.close, size: 20, color: AppColors.coral)),
+                    IconButton(tooltip: 'Approve', onPressed: () => _approve(e),
+                        icon: Icon(Symbols.check, size: 20, color: AppColors.green)),
+                  ])
+                : null,
+        ),
+    ];
   }
 
   Widget _table(BuildContext context) {

@@ -143,8 +143,11 @@ class PhoneRecordCard extends StatelessWidget {
     this.selected = false,
     this.onTap,
     this.trailing,
+    this.margin = const EdgeInsets.fromLTRB(12, 0, 12, 8),
   });
 
+  /// Outside spacing; pass `EdgeInsets.only(bottom: 8)` inside padded pages.
+  final EdgeInsetsGeometry margin;
   final String title;
   final String? subtitle;
   /// Small leading visual (icon tile, avatar).
@@ -164,7 +167,7 @@ class PhoneRecordCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final metaText = meta.where((m) => m.trim().isNotEmpty).join('  ·  ');
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+      padding: margin,
       child: Material(
         color: selected ? context.pal.surface2 : context.pal.surface1,
         shape: RoundedRectangleBorder(
@@ -236,4 +239,19 @@ class PhonePill extends StatelessWidget {
     child: Text(label, style: AppTheme.bodySub.copyWith(
         fontSize: 11, fontWeight: FontWeight.w600, color: color)),
   );
+}
+
+/// KPI/stat tiles two to a row — the phone form of a 4-up stat strip.
+class PhoneStatGrid extends StatelessWidget {
+  const PhoneStatGrid({super.key, required this.children, this.spacing = 0});
+  final List<Widget> children;
+  final double spacing;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(builder: (context, cst) {
+    final w = (cst.maxWidth - spacing) / 2;
+    return Wrap(spacing: spacing, runSpacing: spacing, children: [
+      for (final c in children) SizedBox(width: w.floorToDouble(), child: c),
+    ]);
+  });
 }

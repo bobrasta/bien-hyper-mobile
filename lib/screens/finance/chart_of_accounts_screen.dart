@@ -9,6 +9,7 @@ import '../../theme/app_theme.dart';
 import '../../theme/app_palette.dart';
 import '../../utils/api_error.dart';
 import '../../utils/format.dart';
+import '../../widgets/common/phone_layout.dart';
 import '../../widgets/common/error_view.dart';
 import '../../widgets/common/labeled_field.dart';
 
@@ -164,6 +165,7 @@ class _ChartOfAccountsScreenState extends State<ChartOfAccountsScreen> with Sing
     return Stack(children: [
       LayoutBuilder(builder: (ctx, cst) {
         final pad = cst.maxWidth < 560 ? 16.0 : 26.0;
+        final phone = isPhoneWidth(cst.maxWidth);
         final groupCount = _accounts.map((a) => a.categoryType).toSet().length;
         return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Padding(
@@ -176,13 +178,23 @@ class _ChartOfAccountsScreenState extends State<ChartOfAccountsScreen> with Sing
                 const SizedBox(height: 3),
                 Text('${_accounts.length} accounts · $groupCount groups · balances as at ${formatDate(DateTime.now())}', style: AppTheme.bodySub.copyWith(fontSize: 12)),
               ])),
-              OutlinedButton.icon(
-                onPressed: () => setState(() => _hideZero = !_hideZero),
-                icon: Icon(_hideZero ? Symbols.visibility : Symbols.visibility_off, size: 15),
-                label: Text(_hideZero ? 'Show zero balances' : 'Hide zero balances'),
-              ),
-              const SizedBox(width: 8),
-              FilledButton.icon(onPressed: () => setState(() => _showCreate = true), icon: const Icon(Symbols.add, size: 16), label: const Text('New account')),
+              // Phones: the toggle shrinks to an icon, "New account" to "New",
+              // so the title keeps its width.
+              if (phone)
+                IconButton(
+                  tooltip: _hideZero ? 'Show zero balances' : 'Hide zero balances',
+                  onPressed: () => setState(() => _hideZero = !_hideZero),
+                  icon: Icon(_hideZero ? Symbols.visibility : Symbols.visibility_off, size: 20),
+                )
+              else ...[
+                OutlinedButton.icon(
+                  onPressed: () => setState(() => _hideZero = !_hideZero),
+                  icon: Icon(_hideZero ? Symbols.visibility : Symbols.visibility_off, size: 15),
+                  label: Text(_hideZero ? 'Show zero balances' : 'Hide zero balances'),
+                ),
+                const SizedBox(width: 8),
+              ],
+              FilledButton.icon(onPressed: () => setState(() => _showCreate = true), icon: const Icon(Symbols.add, size: 16), label: Text(phone ? 'New' : 'New account')),
             ]),
           ),
           const SizedBox(height: 12),

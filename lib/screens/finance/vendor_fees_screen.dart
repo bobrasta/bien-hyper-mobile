@@ -10,6 +10,7 @@ import '../../theme/app_theme.dart';
 import '../../theme/app_palette.dart';
 import '../../utils/api_error.dart';
 import '../../utils/format.dart';
+import '../../widgets/common/phone_layout.dart';
 import '../../widgets/common/app_button.dart';
 import '../../widgets/common/error_view.dart';
 import '../../widgets/common/labeled_field.dart';
@@ -111,7 +112,29 @@ class _VendorFeesScreenState extends State<VendorFeesScreen> with SingleTickerPr
       Column(children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-          child: Row(children: [
+          child: LayoutBuilder(builder: (context, cst) => isPhoneWidth(cst.maxWidth)
+              // Phones: "Record fee" stays a button, the two "New …" go in a menu.
+              ? Row(children: [
+                  Expanded(child: Text('Vendors', style: AppTheme.pageTitle)),
+                  if (opsTier) ...[
+                    PopupMenuButton<String>(
+                      tooltip: 'More actions',
+                      color: context.pal.surface1,
+                      icon: Icon(Symbols.more_vert, size: 20, color: context.pal.textMute),
+                      onSelected: (v) => setState(() {
+                        if (v == 'vendor') { _editingVendor = null; _showVendorForm = true; }
+                        if (v == 'job') _showCreateJob = true;
+                      }),
+                      itemBuilder: (_) => [
+                        PopupMenuItem(value: 'vendor', child: Text('New vendor', style: AppTheme.bodySm)),
+                        PopupMenuItem(value: 'job', child: Text('New job', style: AppTheme.bodySm)),
+                      ],
+                    ),
+                    AppButton(label: 'Record fee', icon: Symbols.add, variant: BtnVariant.primary, small: true,
+                      onPressed: () => setState(() => _showCreateFee = true)),
+                  ],
+                ])
+              : Row(children: [
             Text('Vendors', style: AppTheme.pageTitle),
             const Spacer(),
             if (opsTier) ...[
@@ -124,7 +147,7 @@ class _VendorFeesScreenState extends State<VendorFeesScreen> with SingleTickerPr
               AppButton(label: 'Record fee', icon: Symbols.add, variant: BtnVariant.primary, small: true,
                 onPressed: () => setState(() => _showCreateFee = true)),
             ],
-          ]),
+          ])),
         ),
         const SizedBox(height: 8),
         TabBar(

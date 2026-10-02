@@ -7,6 +7,7 @@ import '../../theme/app_palette.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/api_error.dart';
 import '../../utils/format.dart';
+import '../../widgets/common/phone_layout.dart';
 import '../../widgets/common/error_view.dart';
 import '../../widgets/common/labeled_field.dart';
 import '../../widgets/common/period_filter.dart';
@@ -88,6 +89,7 @@ class _ReceivablesScreenState extends State<ReceivablesScreen> {
   @override
   Widget build(BuildContext context) => LayoutBuilder(builder: (ctx, cst) {
     final pad = cst.maxWidth < 560 ? 16.0 : 26.0;
+    final phone = isPhoneWidth(cst.maxWidth);
     final s = (_data?['summary'] as Map?)?.cast<String, dynamic>() ?? const {};
     final rows = _rows;
     final rate = s['collection_rate'];
@@ -113,7 +115,16 @@ class _ReceivablesScreenState extends State<ReceivablesScreen> {
                     SliverToBoxAdapter(child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                       Container(
                         decoration: BoxDecoration(color: context.pal.surface1, borderRadius: BorderRadius.circular(14), border: Border.all(color: context.pal.border)),
-                        child: Row(children: [
+                        child: phone ? PhoneStatGrid(children: [
+                          _stat('Outstanding', tshFromDouble(_i(s['outstanding']).toDouble()), AppColors.amber,
+                              '${_i(s['open_invoices'])} open · ${_i(s['customers_owing'])} customers'),
+                          _stat('Overdue', tshFromDouble(_i(s['overdue']).toDouble()), AppColors.coral,
+                              'past due date', border: true),
+                          _stat('No payment yet', '${_i(s['no_payment_invoices'])}', context.pal.text,
+                              'never paid anything'),
+                          _stat('Collected · ${_period.label}', tshFromDouble(_i(s['collected']).toDouble()), AppColors.green,
+                              rate == null ? 'nothing billed' : '$rate% of billed', border: true),
+                        ]) : Row(children: [
                           Expanded(child: _stat('Outstanding', tshFromDouble(_i(s['outstanding']).toDouble()), AppColors.amber,
                               '${_i(s['open_invoices'])} open invoices · ${_i(s['customers_owing'])} customers')),
                           Expanded(child: _stat('Overdue', tshFromDouble(_i(s['overdue']).toDouble()), AppColors.coral,
@@ -125,7 +136,17 @@ class _ReceivablesScreenState extends State<ReceivablesScreen> {
                         ]),
                       ),
                       const SizedBox(height: 14),
-                      Row(children: [
+                      if (phone) ...[
+                        SearchField(hint: 'Search customer or TIN…',
+                            onChanged: (v) => setState(() { _search = v; _showCount = _batch; })),
+                        const SizedBox(height: 10),
+                        Row(children: [
+                          PeriodSelector(value: _period, onChanged: (p) { setState(() => _period = p); _load(); }),
+                          const SizedBox(width: 10),
+                          Expanded(child: Text('Period applies to “Collected”; balances are as of today',
+                              style: AppTheme.bodySub.copyWith(fontSize: 11))),
+                        ]),
+                      ] else Row(children: [
                         PeriodSelector(value: _period, onChanged: (p) { setState(() => _period = p); _load(); }),
                         const SizedBox(width: 8),
                         SearchField(width: 280, hint: 'Search customer or TIN…',
@@ -136,7 +157,7 @@ class _ReceivablesScreenState extends State<ReceivablesScreen> {
                       ]),
                       const SizedBox(height: 14),
                     ])),
-                    ..._table(context, rows, pad: 0),
+                    if (phone) ..._phoneCards(context, rows) else ..._table(context, rows, pad: 0),
                   ])),
       ]),
     );
@@ -158,6 +179,53 @@ class _ReceivablesScreenState extends State<ReceivablesScreen> {
 
   Widget _h(String t, {TextAlign a = TextAlign.left}) =>
       Text(t, textAlign: a, maxLines: 1, style: AppTheme.labelCaps.copyWith(fontSize: 10, letterSpacing: 1.1));
+
+  /// Phone list: one card per customer — balance as the headline, overdue
+  /// days as the badge, the rest as meta; tap opens the statement.
+  List<Widget> _phoneCards(BuildContext context, List<Map<String, dynamic>> rows) {
+    final canPay = hasAccountantAuthority(userRoleNotifier.value);
+    final shown = _showCount < rows.length ? _showCount : rows.length;
+    if (rows.isEmpty) {
+      return [SliverToBoxAdapter(child: Padding(padding: const EdgeInsets.symmetric(vertical: 40),
+          child: Center(child: Text('Nobody owes anything 🎉', style: AppTheme.bodySub))))];
+    }
+    return [
+      SliverList(delegate: SliverChildBuilderDelegate((context, i) {
+        final c = rows[i];
+        final days = _i(c['max_days_overdue']);
+        return PhoneRecordCard(
+          margin: const EdgeInsets.only(bottom: 8),
+          title: '${c['client_name']}',
+          subtitle: c['tin'] != null ? 'TIN ${c['tin']}' : (c['phone'] ?? '').toString(),
+          badge: PhonePill(days == 0 ? 'Not yet due' : '$days days late', _overdueColor(days)),
+          meta: [
+            '${_i(c['open_invoices'])} open',
+            'paid ${tshFromDouble(_i(c['paid']).toDouble())}',
+            'last ${_d(c['last_payment_at'] as String?)}',
+          ],
+          onTap: () => _openStatement(c),
+          trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+            Text(tshFromDouble(_i(c['balance']).toDouble()),
+                style: AppTheme.bodyStrong.copyWith(fontSize: 14, color: AppColors.amber)),
+            if (canPay) ...[
+              const SizedBox(width: 8),
+              OutlinedButton(
+                onPressed: () => _payDue(c),
+                style: OutlinedButton.styleFrom(minimumSize: const Size(64, 36),
+                    padding: const EdgeInsets.symmetric(horizontal: 12)),
+                child: const Text('Pay', style: TextStyle(fontSize: 12.5)),
+              ),
+            ],
+          ]),
+        );
+      }, childCount: shown)),
+      if (rows.length > shown)
+        SliverToBoxAdapter(child: LoadMoreRow(
+          shown: shown, total: rows.length, step: _batch,
+          onTap: () => setState(() => _showCount += _batch))),
+      const SliverToBoxAdapter(child: SizedBox(height: 16)),
+    ];
+  }
 
   List<Widget> _table(BuildContext context, List<Map<String, dynamic>> rows, {required double pad}) {
     final canPay = hasAccountantAuthority(userRoleNotifier.value);
