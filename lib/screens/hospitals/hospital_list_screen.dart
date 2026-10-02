@@ -10,6 +10,8 @@ import '../../models/machine.dart';
 import '../../services/hospital_service.dart';
 import '../../services/machine_service.dart';
 import '../../utils/api_error.dart';
+import '../../utils/csv_export.dart';
+import '../../utils/zones.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/common/error_view.dart';
 import '../../widgets/common/labeled_field.dart';
@@ -19,6 +21,7 @@ import '../../theme/app_theme.dart';
 import '../../utils/tin.dart';
 import '../../widgets/common/app_button.dart';
 import '../../widgets/charts/map_tiles.dart';
+import '../machines/machine_map_screen.dart';
 
 import '../../theme/app_palette.dart';
 class HospitalListScreen extends StatefulWidget {
@@ -30,6 +33,13 @@ class HospitalListScreen extends StatefulWidget {
 
 class _HospitalListScreenState extends State<HospitalListScreen> {
   String?   _typeFilter;
+  // Header filters, all applied server-side. Region values are spelled as
+  // the facility registry import stored them (see _kRegions).
+  String?   _regionFilter;
+  String?   _zoneFilter;
+  bool      _clientsOnly = false;
+  bool      _mapView = false;
+  bool      _exporting = false;
   final _search = TextEditingController();
   bool _showAdd = false;
   Hospital? _viewHospital;
@@ -126,6 +136,9 @@ class _HospitalListScreenState extends State<HospitalListScreen> {
         perPage: _pageSize,
         q: q.isEmpty ? null : q,
         type: _typeFilter,
+        region: _regionFilter,
+        zone: _zoneFilter,
+        hasMachines: _clientsOnly,
       );
       if (mounted) {
         setState(() {
@@ -158,6 +171,36 @@ class _HospitalListScreenState extends State<HospitalListScreen> {
     _loadPage();
   }
 
+  void _setFilters(VoidCallback change) {
+    setState(() { change(); _page = 1; });
+    _loadPage();
+  }
+
+  // Every hospital matching the current search and filters, not just the
+  // page on screen — fetched page by page (search mode caps pages at 50).
+  Future<void> _export() async {
+    setState(() => _exporting = true);
+    try {
+      final q = _search.text.trim();
+      final perPage = q.isEmpty ? 1000 : 50;
+      final all = <Hospital>[];
+      for (var page = 1, last = 1; page <= last; page++) {
+        final r = await HospitalService.instance.listPaged(
+          page: page, perPage: perPage, q: q.isEmpty ? null : q,
+          type: _typeFilter, region: _regionFilter, zone: _zoneFilter, hasMachines: _clientsOnly,
+        );
+        all.addAll(r.items);
+        last = r.lastPage;
+      }
+      final path = await CsvExport.hospitals(all);
+      if (path != null && mounted) showSuccessToast(context, 'Exported ${all.length} hospital(s) to CSV');
+    } catch (e) {
+      if (mounted) showErrorToast(context, e);
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
+
   void _goToPage(int p) {
     if (p < 1 || p > _lastPage || p == _page) return;
     setState(() => _page = p);
@@ -167,6 +210,24 @@ class _HospitalListScreenState extends State<HospitalListScreen> {
   @override
   Widget build(BuildContext context) {
     final hospitals = _pageHospitals;
+
+    // Map view: the client-site fleet map (one pin per hospital with
+    // machines). "Apply to list" with one zone checked filters by it.
+    if (_mapView) {
+      return Stack(children: [
+        MachineMapScreen(
+          onApplyZones: (zones) => _setFilters(() {
+            _mapView = false;
+            _zoneFilter = zones.length == 1 ? zones.first : null;
+          }),
+        ),
+        Positioned(
+          top: 8, left: 12,
+          child: AppButton(label: 'List view', icon: Symbols.list, variant: BtnVariant.ghost, small: true,
+              onPressed: () => setState(() => _mapView = false)),
+        ),
+      ]);
+    }
 
     return Stack(
       children: [
@@ -192,9 +253,11 @@ class _HospitalListScreenState extends State<HospitalListScreen> {
                     style: AppTheme.bodySub),
                 ]);
                 final actions = Row(mainAxisSize: MainAxisSize.min, children: [
-                  AppButton(label: 'Export', icon: Symbols.download, variant: BtnVariant.ghost),
+                  AppButton(label: _exporting ? 'Exporting…' : 'Export', icon: Symbols.download, variant: BtnVariant.ghost,
+                      onPressed: _exporting ? null : _export),
                   const SizedBox(width: 8),
-                  AppButton(label: 'Map View', icon: Symbols.map, variant: BtnVariant.ghost),
+                  AppButton(label: 'Map View', icon: Symbols.map, variant: BtnVariant.ghost,
+                      onPressed: () => setState(() => _mapView = true)),
                   if (can('hospitals.manage')) ...[
                     const SizedBox(width: 8),
                     AppButton(label: 'Add Hospital', icon: Symbols.add, variant: BtnVariant.primary,
@@ -244,25 +307,51 @@ class _HospitalListScreenState extends State<HospitalListScreen> {
                   controller: _search,
                   onChanged: (_) => _onSearchChanged(),
                 );
+                final filters = [
+                  DropdownFieldBox<String?>(
+                    key: const Key('regionFilter'),
+                    width: 170,
+                    value: _regionFilter,
+                    active: _regionFilter != null,
+                    items: [
+                      const DropdownMenuItem(value: null, child: Text('All regions')),
+                      for (final r in _kRegions) DropdownMenuItem(value: r, child: Text(r, overflow: TextOverflow.ellipsis)),
+                    ],
+                    onChanged: (v) => _setFilters(() => _regionFilter = v),
+                  ),
+                  DropdownFieldBox<String?>(
+                    key: const Key('zoneFilter'),
+                    width: 170,
+                    value: _zoneFilter,
+                    active: _zoneFilter != null,
+                    items: [
+                      const DropdownMenuItem(value: null, child: Text('All zones')),
+                      for (final z in zoneLabels.entries) DropdownMenuItem(value: z.key, child: Text(z.value, overflow: TextOverflow.ellipsis)),
+                    ],
+                    onChanged: (v) => _setFilters(() => _zoneFilter = v),
+                  ),
+                  DropdownFieldBox<bool>(
+                    key: const Key('machinesFilter'),
+                    width: 170,
+                    value: _clientsOnly,
+                    active: _clientsOnly,
+                    items: const [
+                      DropdownMenuItem(value: false, child: Text('Any machines')),
+                      DropdownMenuItem(value: true, child: Text('With machines')),
+                    ],
+                    onChanged: (v) => _setFilters(() => _clientsOnly = v ?? false),
+                  ),
+                ];
                 if (narrow) {
                   return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     searchBox,
                     const SizedBox(height: 8),
-                    Wrap(spacing: 8, runSpacing: 6, children: [
-                      _FilterPill(icon: Symbols.location_on, label: 'Region', value: 'All'),
-                      _FilterPill(icon: Symbols.precision_manufacturing, label: 'Machines', value: 'Any'),
-                      AppButton(label: 'Columns', icon: Symbols.view_column, variant: BtnVariant.ghost, small: true),
-                    ]),
+                    Wrap(spacing: 8, runSpacing: 8, children: filters),
                   ]);
                 }
                 return Row(children: [
                   SizedBox(width: 340, child: searchBox),
-                  const SizedBox(width: 10),
-                  _FilterPill(icon: Symbols.location_on, label: 'Region', value: 'All'),
-                  const SizedBox(width: 10),
-                  _FilterPill(icon: Symbols.precision_manufacturing, label: 'Machines', value: 'Any'),
-                  const Spacer(),
-                  AppButton(label: 'Columns', icon: Symbols.view_column, variant: BtnVariant.ghost, small: true),
+                  for (final f in filters) ...[const SizedBox(width: 10), f],
                 ]);
               }),
               const SizedBox(height: 16),
@@ -446,27 +535,6 @@ class _TypeChip extends StatelessWidget {
   );
 }
 
-class _FilterPill extends StatelessWidget {
-  const _FilterPill({required this.icon, required this.label, required this.value});
-  final IconData icon; final String label, value;
-
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
-    decoration: BoxDecoration(
-      color: context.pal.surface1, borderRadius: BorderRadius.circular(8),
-      border: Border.all(color: context.pal.border),
-    ),
-    child: Row(mainAxisSize: MainAxisSize.min, children: [
-      Icon(icon, size: 14, color: context.pal.textMute),
-      const SizedBox(width: 6),
-      Text('$label: ', style: AppTheme.bodySm.copyWith(color: context.pal.textMute, fontSize: 12.5)),
-      Text(value, style: AppTheme.bodySm.copyWith(color: context.pal.text, fontWeight: FontWeight.w500, fontSize: 12.5)),
-      const SizedBox(width: 4),
-    ]),
-  );
-}
-
 // Column weights shared by the header and every row so they always line up.
 // Flex (not fixed widths) spreads the columns across whatever width the table
 // gets; long text ellipsizes instead of pushing neighbours around.
@@ -483,6 +551,15 @@ class _Cols {
   const _Cols({required this.machines, required this.contact});
   final bool machines, contact;
 }
+
+// Mainland regions as the facility registry import spells them — the API's
+// region filter is an exact match.
+const _kRegions = [
+  'Arusha', 'Dar Es Salaam', 'Dodoma', 'Geita', 'Iringa', 'Kagera', 'Katavi', 'Kigoma',
+  'Kilimanjaro', 'Lindi', 'Manyara', 'Mara', 'Mbeya', 'Morogoro', 'Mtwara', 'Mwanza',
+  'Njombe', 'Pwani', 'Rukwa', 'Ruvuma', 'Shinyanga', 'Simiyu', 'Singida', 'Songwe',
+  'Tabora', 'Tanga',
+];
 
 const _zoneLabels = {
   'coastal': 'Coastal', 'northern': 'Northern', 'lake': 'Lake',
@@ -1061,10 +1138,6 @@ class _HospitalDetailSheetState extends State<_HospitalDetailSheet> {
   @override
   Widget build(BuildContext context) {
     final hospital   = widget.hospital;
-    final uptimePct  = hospital.uptimePct;
-    final uptimeColor = uptimePct >= 0.95
-        ? AppColors.teal
-        : uptimePct >= 0.85 ? AppColors.amber : AppColors.coral;
 
     final machines = _machines;
 
@@ -1140,10 +1213,6 @@ class _HospitalDetailSheetState extends State<_HospitalDetailSheet> {
                     Row(children: [
                       _KpiCard(label: 'Total Machines',  value: '${hospital.machineCount}',
                           sub: '${hospital.machinesOperational} operational'),
-                      const SizedBox(width: 12),
-                      _KpiCard(label: 'Uptime',
-                          value: '${(uptimePct * 100).toStringAsFixed(0)}%',
-                          valueColor: uptimeColor),
                       const SizedBox(width: 12),
                       _KpiCard(label: 'Monthly Revenue',
                           value: 'TSh ${hospital.revenueMonthly.toStringAsFixed(1)}M',

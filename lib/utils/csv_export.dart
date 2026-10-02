@@ -4,6 +4,7 @@ import 'package:file_picker/file_picker.dart';
 
 import '../models/chart_of_account.dart';
 import '../models/contact.dart';
+import '../models/hospital.dart';
 import '../models/permission.dart';
 import '../models/service_ticket.dart';
 import '../models/inventory_item.dart';
@@ -215,6 +216,30 @@ class CsvExport {
       buf.writeln(_row([
         e.userName ?? '', e.label, e.effect, e.scope ?? '',
         e.reason ?? '', e.createdByName ?? '', e.createdAt ?? '',
+      ]));
+    }
+    await File(path).writeAsString(buf.toString(), flush: true);
+    return path;
+  }
+
+  static Future<String?> hospitals(List<Hospital> items) async {
+    _checkSupported();
+    final path = await FilePicker.saveFile(
+      dialogTitle: 'Export Hospitals',
+      fileName: 'hospitals_${_today()}.csv',
+      type: FileType.custom,
+      allowedExtensions: ['csv'],
+    );
+    if (path == null) return null;
+
+    final buf = StringBuffer();
+    buf.writeln(_row(['Name', 'Code', 'Type', 'District', 'Region', 'Zone', 'Machines',
+        'Contact', 'Phone', 'Email', 'TIN', 'Address', 'Latitude', 'Longitude']));
+    for (final h in items) {
+      buf.writeln(_row([
+        h.name, h.shortCode, h.type, h.district, h.region, h.zone ?? '', '${h.machineCount}',
+        h.contactName, h.contactPhone, h.contactEmail, h.tin ?? '', h.address ?? '',
+        h.latitude != 0 ? '${h.latitude}' : '', h.longitude != 0 ? '${h.longitude}' : '',
       ]));
     }
     await File(path).writeAsString(buf.toString(), flush: true);

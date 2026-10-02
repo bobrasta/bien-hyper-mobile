@@ -451,7 +451,7 @@ class _MachineMapScreenState extends State<MachineMapScreen> {
               border: Border(bottom: BorderSide(color: context.pal.border))),
             child: Row(
               children: [
-                Text('FILTER BY ZONE', style: AppTheme.monoXs),
+                Flexible(child: Text('FILTER BY ZONE', style: AppTheme.monoXs, overflow: TextOverflow.ellipsis)),
                 const Spacer(),
                 Text('${_checkedZones.length} zone${_checkedZones.length != 1 ? 's' : ''}',
                   style: AppTheme.monoXs.copyWith(color: AppColors.teal)),
@@ -503,11 +503,12 @@ class _MachineMapScreenState extends State<MachineMapScreen> {
             child: Row(children: [
               Icon(Symbols.check_circle, size: 14, color: AppColors.teal),
               const SizedBox(width: 6),
-              Text(
+              Flexible(child: Text(
                 _checkedZones.isEmpty
                     ? 'All ${_sumMachines(_hospitals)} machines visible'
                     : '${_sumMachines(_visibleHospitals)} / ${_sumMachines(_hospitals)} selected',
-                style: AppTheme.bodySm.copyWith(color: AppColors.teal, fontSize: 11.5)),
+                overflow: TextOverflow.ellipsis,
+                style: AppTheme.bodySm.copyWith(color: AppColors.teal, fontSize: 11.5))),
               const Spacer(),
               GestureDetector(
                 onTap: () => setState(() {

@@ -59,6 +59,8 @@ class HospitalService {
     String? q,
     String? type,
     String? region,
+    String? zone,
+    bool hasMachines = false,
   }) async {
     final res = await _dio.get('/hospitals', queryParameters: {
       'page': page,
@@ -66,6 +68,8 @@ class HospitalService {
       'q': ?q,
       'type': ?type,
       'region': ?region,
+      'zone': ?zone,
+      'has_machines': hasMachines ? 1 : null,
     });
     final (data, meta) = ApiClient.unwrapList(res);
     final result = HospitalPage(
@@ -74,7 +78,7 @@ class HospitalService {
       lastPage: (meta?['last_page'] as num?)?.toInt() ?? page,
       total: (meta?['total'] as num?)?.toInt() ?? data.length,
     );
-    if (page == 1 && q == null && type == null && region == null) cachedFirstPage = result;
+    if (page == 1 && q == null && type == null && region == null && zone == null && !hasMachines) cachedFirstPage = result;
     return result;
   }
 
