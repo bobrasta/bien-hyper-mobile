@@ -142,7 +142,8 @@ class InvoiceService {
   Future<List<int>> exportBytes(String format, List<int> ids, {String? saleStatus}) async {
     final res = await _dio.post<List<int>>('/invoices/export',
         data: {'format': format, 'ids': ids, 'period': 'all', 'sale_status': ?saleStatus},
-        options: Options(responseType: ResponseType.bytes));
+        // A year of sales as PDF takes the server ~10-20 s to lay out.
+        options: Options(responseType: ResponseType.bytes, receiveTimeout: const Duration(minutes: 2)));
     return res.data!;
   }
 
