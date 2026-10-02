@@ -107,12 +107,26 @@ class ShimmerTableRow extends StatelessWidget {
 
 /// Returns a column of [count] shimmer list rows — drop-in replacement for a
 /// `CircularProgressIndicator` inside a list/table loading state.
-Widget shimmerList({int count = 8}) => Column(
-      children: List.generate(count, (_) => const ShimmerListRow()),
+Widget shimmerList({int count = 8}) => _clippedSkeleton(
+      List.generate(count, (_) => const ShimmerListRow()),
     );
 
-Widget shimmerTable({int count = 8, int cols = 5}) => Column(
-      children: List.generate(count, (_) => ShimmerTableRow(cols: cols)),
+Widget shimmerTable({int count = 8, int cols = 5}) => _clippedSkeleton(
+      List.generate(count, (_) => ShimmerTableRow(cols: cols)),
+    );
+
+/// Skeleton rows that never overflow: in a bounded box (a short phone
+/// viewport) the rows past the bottom are clipped; inside a scroll view
+/// (unbounded) they lay out in full as before.
+Widget _clippedSkeleton(List<Widget> rows) => LayoutBuilder(
+      builder: (_, cst) {
+        final column = Column(children: rows);
+        if (!cst.hasBoundedHeight) return column;
+        return ClipRect(child: SingleChildScrollView(
+          physics: const NeverScrollableScrollPhysics(),
+          child: column,
+        ));
+      },
     );
 
 // Internal helper — a solid pill/rectangle for building skeletons

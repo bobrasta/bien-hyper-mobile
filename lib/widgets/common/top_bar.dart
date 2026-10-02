@@ -1,7 +1,8 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
-import '../../main.dart' show authTokenNotifier, notificationCountNotifier;
+import '../../main.dart' show authTokenNotifier, notificationCountNotifier, roleDisplayName, userNameNotifier, userRoleNotifier;
 import '../../models/notification.dart';
 import '../../models/search_result.dart';
 import '../../services/auth_service.dart';
@@ -14,8 +15,15 @@ import 'current_user_avatar.dart';
 import 'labeled_field.dart';
 
 class TopBar extends StatefulWidget {
-  const TopBar({super.key, this.onMenuPressed, this.onOpenNotification, this.onOpenSearchResult});
+  const TopBar({super.key, this.onMenuPressed, this.onOpenNotification, this.onOpenSearchResult,
+      this.title, this.compact = false});
   final VoidCallback? onMenuPressed;
+  /// Phone layout: brand + current page [title], search opens full screen,
+  /// theme and log out move into the avatar menu. Navigation lives in the
+  /// shell's bottom tab bar, so there is no hamburger.
+  final bool compact;
+  /// Current page name, shown in the [compact] layout.
+  final String? title;
   /// Called with the tapped notification, or null for "View all".
   final ValueChanged<AppNotification?>? onOpenNotification;
   /// Called with the tapped global-search result.
@@ -151,9 +159,41 @@ class _TopBarState extends State<TopBar> {
     if (confirmed == true) await _logout();
   }
 
+  // Quick-toggle cycles only the original five modes, same as before — the
+  // nine palettes added 2026-09-02 are reached via Settings → Preferences
+  // instead of this button. A theme picked there falls back into the cycle
+  // at aurora on next tap.
+  static void _cycleTheme() => themeNotifier.value = switch (themeNotifier.value) {
+    AppThemeMode.aurora  => AppThemeMode.dark,
+    AppThemeMode.dark    => AppThemeMode.light,
+    AppThemeMode.light   => AppThemeMode.neutral,
+    AppThemeMode.neutral => AppThemeMode.fundify,
+    AppThemeMode.fundify => AppThemeMode.aurora,
+    _                    => AppThemeMode.aurora,
+  };
+
+  static IconData _themeIcon(AppThemeMode mode) => switch (mode) {
+    AppThemeMode.aurora  => Symbols.wb_twilight,
+    AppThemeMode.dark    => Symbols.light_mode,
+    AppThemeMode.light   => Symbols.tonality,
+    AppThemeMode.neutral => Symbols.eco,
+    AppThemeMode.fundify => Symbols.dark_mode,
+    _                    => Symbols.palette,
+  };
+
+  /// Phones and tablets: global search as its own full-screen page, since
+  /// there's no room for the desktop's inline field + dropdown.
+  Future<void> _openFullScreenSearch() async {
+    final r = await Navigator.of(context, rootNavigator: true).push<SearchResult>(
+      MaterialPageRoute(fullscreenDialog: true, builder: (_) => const _FullScreenSearchPage()),
+    );
+    if (r != null && mounted) widget.onOpenSearchResult?.call(r);
+  }
+
   @override
   Widget build(BuildContext context) {
-    final isMobile = widget.onMenuPressed != null;
+    final compact  = widget.compact;
+    final isMobile = widget.onMenuPressed != null || compact;
 
     return Container(
       height: 56,
@@ -161,11 +201,11 @@ class _TopBarState extends State<TopBar> {
         color: context.pal.topbarBg,
         border: Border(bottom: BorderSide(color: context.pal.border)),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: EdgeInsets.only(left: 16, right: compact ? 8 : 16),
       child: Row(
         children: [
-          // ── Hamburger (mobile only) ─────────────────────────────────────────
-          if (isMobile) ...[
+          // ── Hamburger (tablet only) ─────────────────────────────────────────
+          if (isMobile && !compact) ...[
             GestureDetector(
               onTap: widget.onMenuPressed,
               child: Container(
@@ -179,6 +219,14 @@ class _TopBarState extends State<TopBar> {
 
           // ── Brand mark ──────────────────────────────────────────────────────
           _BrandMark(),
+
+          // ── Page title (phone) ──────────────────────────────────────────────
+          if (compact) ...[
+            const SizedBox(width: 10),
+            Expanded(child: Text(widget.title ?? '',
+                style: AppTheme.bodyStrong.copyWith(fontSize: 16),
+                maxLines: 1, overflow: TextOverflow.ellipsis)),
+          ],
 
           // ── Desktop extras ──────────────────────────────────────────────────
           if (!isMobile) ...[
@@ -278,35 +326,19 @@ class _TopBarState extends State<TopBar> {
             ValueListenableBuilder<AppThemeMode>(
               valueListenable: themeNotifier,
               builder: (_, mode, _) => GestureDetector(
-                // Quick-toggle cycles only the original five modes, same as
-                // before — the nine palettes added 2026-09-02 are reached via
-                // Settings → Preferences instead of this button. A theme
-                // picked there falls back into the cycle at aurora on next tap.
-                onTap: () => themeNotifier.value = switch (mode) {
-                  AppThemeMode.aurora  => AppThemeMode.dark,
-                  AppThemeMode.dark    => AppThemeMode.light,
-                  AppThemeMode.light   => AppThemeMode.neutral,
-                  AppThemeMode.neutral => AppThemeMode.fundify,
-                  AppThemeMode.fundify => AppThemeMode.aurora,
-                  _                    => AppThemeMode.aurora,
-                },
-                child: _IconBtn(
-                  icon: switch (mode) {
-                    AppThemeMode.aurora  => Symbols.wb_twilight,
-                    AppThemeMode.dark    => Symbols.light_mode,
-                    AppThemeMode.light   => Symbols.tonality,
-                    AppThemeMode.neutral => Symbols.eco,
-                    AppThemeMode.fundify => Symbols.dark_mode,
-                    _                    => Symbols.palette,
-                  },
-                ),
+                onTap: _cycleTheme,
+                child: _IconBtn(icon: _themeIcon(mode)),
               ),
             ),
             const SizedBox(width: 4),
           ] else ...[
-            const Spacer(),
-            _IconBtn(icon: Symbols.search),
-            const SizedBox(width: 4),
+            if (!compact) const Spacer(),
+            _TapTarget(
+              tooltip: 'Search',
+              onTap: _openFullScreenSearch,
+              child: const _IconBtn(icon: Symbols.search),
+            ),
+            if (!compact) const SizedBox(width: 4),
           ],
 
           // ── Notification bell — OverlayPortal dropdown ──────────────────────
@@ -332,7 +364,8 @@ class _TopBarState extends State<TopBar> {
                       child: Material(
                         color: Colors.transparent,
                         child: SizedBox(
-                          width: 380,
+                          // Never wider than the screen (minus a gutter) on phones.
+                          width: math.min(380, MediaQuery.sizeOf(ctx).width - 16),
                           child: _NotificationPanel(
                             notifications: _notifications,
                             unreadCount: _unreadCount,
@@ -394,13 +427,17 @@ class _TopBarState extends State<TopBar> {
             ),
           ),
 
-          const SizedBox(width: 8),
-          const CurrentUserAvatar(size: 30),
-          const SizedBox(width: 4),
-          GestureDetector(
-            onTap: _confirmLogout,
-            child: _IconBtn(icon: Symbols.logout),
-          ),
+          if (compact)
+            _AccountMenu(onCycleTheme: _cycleTheme, themeIcon: _themeIcon, onLogout: _confirmLogout)
+          else ...[
+            const SizedBox(width: 8),
+            const CurrentUserAvatar(size: 30),
+            const SizedBox(width: 4),
+            GestureDetector(
+              onTap: _confirmLogout,
+              child: _IconBtn(icon: Symbols.logout),
+            ),
+          ],
         ],
       ),
     );
@@ -590,19 +627,22 @@ class _SearchResultsPanel extends StatelessWidget {
     required this.error,
     required this.results,
     required this.onSelect,
+    this.bare = false,
   });
   final String query;
   final bool loading;
   final String? error;
   final List<SearchResult> results;
   final ValueChanged<SearchResult> onSelect;
+  /// Full-screen search: no card chrome, no height cap, roomier rows.
+  final bool bare;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      constraints: const BoxConstraints(maxHeight: 420),
-      margin: const EdgeInsets.only(top: 6),
-      decoration: BoxDecoration(
+      constraints: bare ? null : const BoxConstraints(maxHeight: 420),
+      margin: bare ? null : const EdgeInsets.only(top: 6),
+      decoration: bare ? null : BoxDecoration(
         color: context.pal.surface1,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: context.pal.borderStrong),
@@ -643,15 +683,16 @@ class _SearchResultsPanel extends StatelessWidget {
           );
         }
         return ListView.builder(
-          shrinkWrap: true,
+          shrinkWrap: !bare,
           padding: const EdgeInsets.symmetric(vertical: 6),
           itemCount: results.length,
           itemBuilder: (context, i) {
             final r = results[i];
             return GestureDetector(
+              behavior: HitTestBehavior.opaque,
               onTap: () => onSelect(r),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                padding: EdgeInsets.symmetric(horizontal: bare ? 16 : 14, vertical: bare ? 13 : 10),
                 child: Row(children: [
                   Container(
                     width: 30, height: 30,
@@ -682,6 +723,171 @@ class _SearchResultsPanel extends StatelessWidget {
       }),
     );
   }
+}
+
+/// 44×44 hit area around a smaller visual — the minimum comfortable touch
+/// target on phones, without changing how the icon looks.
+class _TapTarget extends StatelessWidget {
+  const _TapTarget({required this.child, required this.onTap, this.tooltip});
+  final Widget child;
+  final VoidCallback onTap;
+  final String? tooltip;
+
+  @override
+  Widget build(BuildContext context) {
+    final target = GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: SizedBox(width: 44, height: 44, child: Center(child: child)),
+    );
+    return tooltip == null ? target : Tooltip(message: tooltip!, child: target);
+  }
+}
+
+/// Phone top bar: the avatar opens a small account menu (theme, log out)
+/// instead of spending two more icons of a 360 px-wide bar on them.
+class _AccountMenu extends StatelessWidget {
+  const _AccountMenu({required this.onCycleTheme, required this.themeIcon, required this.onLogout});
+  final VoidCallback onCycleTheme;
+  final IconData Function(AppThemeMode) themeIcon;
+  final VoidCallback onLogout;
+
+  @override
+  Widget build(BuildContext context) => PopupMenuButton<String>(
+    tooltip: 'Account',
+    color: context.pal.surface1,
+    position: PopupMenuPosition.under,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(12),
+      side: BorderSide(color: context.pal.borderStrong),
+    ),
+    onSelected: (v) => v == 'theme' ? onCycleTheme() : onLogout(),
+    itemBuilder: (_) => [
+      PopupMenuItem(
+        enabled: false,
+        child: ListenableBuilder(
+          listenable: Listenable.merge([userNameNotifier, userRoleNotifier]),
+          builder: (_, _) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(userNameNotifier.value.isNotEmpty ? userNameNotifier.value : 'User',
+                style: AppTheme.bodyStrong.copyWith(fontSize: 13)),
+            Text(roleDisplayName(userRoleNotifier.value),
+                style: AppTheme.bodySub.copyWith(fontSize: 11)),
+          ]),
+        ),
+      ),
+      const PopupMenuDivider(),
+      PopupMenuItem(value: 'theme', child: Row(children: [
+        Icon(themeIcon(themeNotifier.value), size: 18, color: context.pal.textMute),
+        const SizedBox(width: 12),
+        Text('Switch theme', style: AppTheme.bodySm),
+      ])),
+      PopupMenuItem(value: 'logout', child: Row(children: [
+        Icon(Symbols.logout, size: 18, color: AppColors.coral),
+        const SizedBox(width: 12),
+        Text('Log out', style: AppTheme.bodySm.copyWith(color: AppColors.coral)),
+      ])),
+    ],
+    child: const SizedBox(width: 44, height: 44,
+        child: Center(child: CurrentUserAvatar(size: 30))),
+  );
+}
+
+/// Global search as a full-screen page (phones/tablets). Pops with the
+/// picked [SearchResult]; the top bar hands it to the shell to route.
+class _FullScreenSearchPage extends StatefulWidget {
+  const _FullScreenSearchPage();
+  @override
+  State<_FullScreenSearchPage> createState() => _FullScreenSearchPageState();
+}
+
+class _FullScreenSearchPageState extends State<_FullScreenSearchPage> {
+  final _ctrl = TextEditingController();
+  List<SearchResult> _results = [];
+  bool    _loading = false;
+  String? _error;
+  Timer?  _debounce;
+
+  void _onChanged(String q) {
+    _debounce?.cancel();
+    final query = q.trim();
+    if (query.length < 2) {
+      setState(() { _results = []; _loading = false; _error = null; });
+      return;
+    }
+    setState(() => _loading = true);
+    _debounce = Timer(const Duration(milliseconds: 300), () async {
+      try {
+        final results = await SearchService.instance.search(query);
+        if (mounted && _ctrl.text.trim() == query) {
+          setState(() { _results = results; _loading = false; _error = null; });
+        }
+      } catch (_) {
+        if (mounted) setState(() { _loading = false; _error = 'Search failed.'; });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    backgroundColor: context.pal.bg,
+    body: SafeArea(child: Column(children: [
+      Container(
+        height: 60,
+        padding: const EdgeInsets.only(left: 4, right: 12),
+        decoration: BoxDecoration(
+          color: context.pal.topbarBg,
+          border: Border(bottom: BorderSide(color: context.pal.border)),
+        ),
+        child: Row(children: [
+          _TapTarget(
+            tooltip: 'Back',
+            onTap: () => Navigator.of(context).pop(),
+            child: Icon(Symbols.arrow_back, size: 22, color: context.pal.text),
+          ),
+          Expanded(child: TextField(
+            controller: _ctrl,
+            autofocus: true,
+            textInputAction: TextInputAction.search,
+            style: AppTheme.fieldText.copyWith(fontSize: 16),
+            decoration: InputDecoration(
+              hintText: 'Search machines, hospitals, tickets…',
+              hintStyle: AppTheme.fieldHint.copyWith(fontSize: 15),
+              border: InputBorder.none,
+              enabledBorder: InputBorder.none,
+              focusedBorder: InputBorder.none,
+              filled: false,
+              isDense: true,
+            ),
+            onChanged: _onChanged,
+          )),
+          if (_ctrl.text.isNotEmpty)
+            _TapTarget(
+              tooltip: 'Clear',
+              onTap: () { _ctrl.clear(); _onChanged(''); },
+              child: Icon(Symbols.close, size: 20, color: context.pal.textDim),
+            ),
+        ]),
+      ),
+      Expanded(child: Material(
+        color: Colors.transparent,
+        child: _SearchResultsPanel(
+          bare: true,
+          query: _ctrl.text.trim(),
+          loading: _loading,
+          error: _error,
+          results: _results,
+          onSelect: (r) => Navigator.of(context).pop(r),
+        ),
+      )),
+    ])),
+  );
 }
 
 class _IconBtn extends StatelessWidget {

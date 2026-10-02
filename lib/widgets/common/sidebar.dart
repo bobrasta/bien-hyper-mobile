@@ -148,6 +148,37 @@ const _inventoryChildren = [
   (key: 'inventory_flagged',      icon: Symbols.warning,             label: 'Flagged Units'),
 ];
 
+/// Human label + icon for a screen key, as the menu names it — used by the
+/// mobile top bar (page title) and bottom tab bar. Keys outside the menu
+/// (detail pages, group parents) get their nearest sensible name.
+({String label, IconData icon})? navEntryFor(String key) {
+  const aliases = {
+    'detail': 'Machine', 'machines_map': 'Machine Map',
+    'sales': 'Leads', 'sales_dashboard': 'Sales', 'inventory': 'Items',
+    'finance_dashboard': 'Finance',
+    'sales_orders': 'Sales Orders', 'hr_dashboard': 'HR',
+  };
+  if (aliases.containsKey(key)) {
+    final base = navEntryFor(switch (key) {
+      'detail' || 'machines_map' => 'machines',
+      'sales' => 'sales_leads',
+      'inventory' => 'inventory_items',
+      'sales_orders' => 'sales_invoices',
+      'hr_dashboard' => 'hr_directory',
+      'sales_dashboard' => 'sales',
+      _ => 'finance',
+    });
+    return (label: aliases[key]!, icon: base?.icon ?? Symbols.apps);
+  }
+  for (final d in [..._operations, ..._business, ..._hr, ..._system]) {
+    if (d.key == key) return (label: d.label, icon: d.icon);
+  }
+  for (final c in [..._salesChildren, ..._financeChildren, ..._tenderingChildren, ..._inventoryChildren]) {
+    if (c.key == key) return (label: c.label, icon: c.icon);
+  }
+  return null;
+}
+
 class Sidebar extends StatelessWidget {
   const Sidebar({
     super.key,

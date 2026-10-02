@@ -73,6 +73,10 @@ class ServiceTicketScreen extends StatefulWidget {
 
 class _ServiceTicketScreenState extends State<ServiceTicketScreen> {
   int _selectedIdx = 0;
+  // Phones show list *or* detail. The list is the default; a tap (or a
+  // deep link to one ticket) opens the detail, back returns to the list.
+  // Wide layouts ignore this — they always show both panels.
+  bool _phoneDetailOpen = false;
   TicketStatus? _filter;
   bool _myAssignmentsOnly = false;
   int? _technicianFilter;
@@ -135,6 +139,7 @@ class _ServiceTicketScreenState extends State<ServiceTicketScreen> {
             ? -1
             : cachedList.indexWhere((t) => t.dbId == widget.initialTicketId);
         _selectedIdx = wanted >= 0 ? wanted : 0;
+        _phoneDetailOpen = wanted >= 0;
         final cachedDetail = TicketService.cachedById[cachedList[_selectedIdx].dbId];
         if (cachedDetail != null) {
           _detailTicket = cachedDetail;
@@ -218,7 +223,10 @@ class _ServiceTicketScreenState extends State<ServiceTicketScreen> {
             ? -1
             : data.indexWhere((t) => t.dbId == widget.initialTicketId);
         final idx = wanted >= 0 ? wanted : 0;
-        setState(() { _tickets = data; _loading = false; _selectedIdx = idx; _loadedDbId = null; });
+        setState(() {
+          _tickets = data; _loading = false; _selectedIdx = idx; _loadedDbId = null;
+          if (wanted >= 0) _phoneDetailOpen = true;
+        });
         if (data.isNotEmpty) _loadDetail(data[idx]);
       }
     } catch (e) {
@@ -373,7 +381,7 @@ class _ServiceTicketScreenState extends State<ServiceTicketScreen> {
   }
 
   void _selectTicket(int idx) {
-    setState(() => _selectedIdx = idx);
+    setState(() { _selectedIdx = idx; _phoneDetailOpen = true; });
     final tickets = _filtered;
     if (idx >= 0 && idx < tickets.length) _loadDetail(tickets[idx]);
   }
@@ -659,17 +667,30 @@ class _ServiceTicketScreenState extends State<ServiceTicketScreen> {
     final idx = tickets.isEmpty ? 0 : _selectedIdx.clamp(0, tickets.length - 1);
     final ticket = tickets.isEmpty ? null : tickets[idx];
 
-    return Stack(children: [
+    return LayoutBuilder(builder: (context, outer) {
+    // Same cut-off as the two-panel switch below.
+    final phone       = outer.maxWidth < 600;
+    final phoneDetail = phone && _phoneDetailOpen && ticket != null;
+    // Back (Android button / gesture) closes an open ticket before leaving.
+    return PopScope(
+      canPop: !phoneDetail,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && phoneDetail) setState(() => _phoneDetailOpen = false);
+      },
+      child: Stack(children: [
       Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        // ── Header ───────────────────────────────────────────────────────────
-        Container(
-          padding: const EdgeInsets.fromLTRB(24, 18, 24, 14),
+        // ── Header (hidden behind an open ticket on phones) ──────────────────
+        if (!phoneDetail) Container(
+          padding: phone
+              ? const EdgeInsets.fromLTRB(16, 12, 16, 10)
+              : const EdgeInsets.fromLTRB(24, 18, 24, 14),
           decoration: BoxDecoration(border: Border(bottom: BorderSide(color: context.pal.border))),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             LayoutBuilder(builder: (ctx, cst) {
               final narrow = cst.maxWidth < 560;
-              final titleRow = Row(children: [
-                Text('Service Tickets', style: AppTheme.pageTitle),
+              final titleRow = Row(mainAxisSize: narrow ? MainAxisSize.max : MainAxisSize.min, children: [
+                Flexible(child: Text('Service Tickets', style: AppTheme.pageTitle,
+                    maxLines: 1, overflow: TextOverflow.ellipsis)),
                 const SizedBox(width: 10),
                 _Badge('${_tickets.length}', AppColors.tealSoft, AppColors.teal),
               ]);
@@ -680,13 +701,21 @@ class _ServiceTicketScreenState extends State<ServiceTicketScreen> {
                 AppButton(label: 'Export', icon: Symbols.download, variant: BtnVariant.ghost, onPressed: _exportCsv),
               ]);
               if (narrow) {
-                return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  titleRow, const SizedBox(height: 10), actions,
+                // One row: title, export icon, New.
+                return Row(children: [
+                  Expanded(child: titleRow),
+                  IconButton(
+                    tooltip: 'Export',
+                    onPressed: _exportCsv,
+                    icon: Icon(Symbols.download, size: 20, color: context.pal.textMute),
+                  ),
+                  AppButton(label: 'New', icon: Symbols.add, variant: BtnVariant.primary,
+                      onPressed: () => setState(() => _showNew = true)),
                 ]);
               }
               return Row(children: [titleRow, const Spacer(), actions]);
             }),
-            const SizedBox(height: 12),
+            SizedBox(height: phone ? 10 : 12),
             LayoutBuilder(builder: (ctx, cst) {
               final narrow = cst.maxWidth < 560;
               final searchBox = SearchField(
@@ -696,7 +725,7 @@ class _ServiceTicketScreenState extends State<ServiceTicketScreen> {
               );
               final techDropdown = _technicianDropdown(context);
               if (narrow) {
-                return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                   searchBox, const SizedBox(height: 8), techDropdown,
                 ]);
               }
@@ -706,15 +735,25 @@ class _ServiceTicketScreenState extends State<ServiceTicketScreen> {
                 SizedBox(width: 220, child: techDropdown),
               ]);
             }),
-            const SizedBox(height: 12),
-            Wrap(spacing: 6, runSpacing: 6, children: [
-              _FilterTab('All',         active: _filter == null,                       onTap: () => _setFilter(null)),
-              _FilterTab('Open',        active: _filter == TicketStatus.open,          onTap: () => _setFilter(TicketStatus.open)),
-              _FilterTab('In Progress', active: _filter == TicketStatus.inProgress,    onTap: () => _setFilter(TicketStatus.inProgress)),
-              _FilterTab('Resolved',    active: _filter == TicketStatus.resolved,      onTap: () => _setFilter(TicketStatus.resolved)),
-              _FilterTab('Overdue',     active: _filter == TicketStatus.overdue,       onTap: () => _setFilter(TicketStatus.overdue), danger: true),
-              _FilterTab('My Assignments', active: _myAssignmentsOnly,                 onTap: _setMyAssignmentsOnly),
-            ]),
+            SizedBox(height: phone ? 10 : 12),
+            Builder(builder: (_) {
+              final tabs = [
+                _FilterTab('All',         active: _filter == null,                       onTap: () => _setFilter(null)),
+                _FilterTab('Open',        active: _filter == TicketStatus.open,          onTap: () => _setFilter(TicketStatus.open)),
+                _FilterTab('In Progress', active: _filter == TicketStatus.inProgress,    onTap: () => _setFilter(TicketStatus.inProgress)),
+                _FilterTab('Resolved',    active: _filter == TicketStatus.resolved,      onTap: () => _setFilter(TicketStatus.resolved)),
+                _FilterTab('Overdue',     active: _filter == TicketStatus.overdue,       onTap: () => _setFilter(TicketStatus.overdue), danger: true),
+                _FilterTab('My Assignments', active: _myAssignmentsOnly,                 onTap: _setMyAssignmentsOnly),
+              ];
+              // Phones: one swipeable line instead of 2–3 wrapped rows.
+              if (!phone) return Wrap(spacing: 6, runSpacing: 6, children: tabs);
+              return SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(children: [
+                  for (final t in tabs) Padding(padding: const EdgeInsets.only(right: 6), child: t),
+                ]),
+              );
+            }),
           ]),
         ),
 
@@ -727,17 +766,18 @@ class _ServiceTicketScreenState extends State<ServiceTicketScreen> {
 
             // On narrow: show list when no selection (or ticket==null), detail otherwise
             if (!showBothPanels) {
-              if (ticket == null || _selectedIdx < 0) {
+              if (ticket == null || !_phoneDetailOpen) {
                 return _buildTicketList(tickets, idx);
               }
               return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 GestureDetector(
-                  onTap: () => setState(() { _selectedIdx = -1; }),
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => setState(() => _phoneDetailOpen = false),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                     decoration: BoxDecoration(border: Border(bottom: BorderSide(color: context.pal.border))),
                     child: Row(children: [
-                      Icon(Symbols.arrow_back, size: 16, color: AppColors.teal),
+                      Icon(Symbols.arrow_back, size: 18, color: AppColors.teal),
                       const SizedBox(width: 8),
                       Text('Back to list', style: AppTheme.bodySm.copyWith(color: AppColors.teal)),
                     ]),
@@ -832,7 +872,8 @@ class _ServiceTicketScreenState extends State<ServiceTicketScreen> {
             _fetchPerDiem();
           },
         ),
-    ]);
+    ]));
+    });
   }
 }
 
@@ -1435,8 +1476,8 @@ class _TicketDetailPanel extends StatelessWidget {
                   child: Row(children: [
                     Icon(Symbols.checklist, size: 16, color: context.pal.textDim),
                     const SizedBox(width: 8),
-                    Text('No checklist items yet.',
-                      style: AppTheme.bodySub.copyWith(fontSize: 12.5)),
+                    Flexible(child: Text('No checklist items yet.',
+                      style: AppTheme.bodySub.copyWith(fontSize: 12.5))),
                   ]),
                 )
               : Column(
@@ -2242,8 +2283,9 @@ class _SectionCard extends StatelessWidget {
       Row(children: [
         Icon(icon, size: 16, color: context.pal.textMute),
         const SizedBox(width: 8),
-        Text(title, style: AppTheme.cardTitle),
-        const Spacer(),
+        // Shrinks before the trailing actions do on a phone-width card.
+        Expanded(child: Text(title, style: AppTheme.cardTitle,
+            maxLines: 1, overflow: TextOverflow.ellipsis)),
         ?trailing,
       ]),
       const SizedBox(height: 12),

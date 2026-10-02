@@ -1,4 +1,5 @@
 ﻿import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import '../../screens/approvals/approvals_screen.dart';
 import '../../screens/customers/customers_screen.dart';
@@ -73,7 +74,8 @@ import 'update_widgets.dart' show UpdateBanner;
 
 import '../../theme/app_palette.dart';
 // ── Breakpoints (content-area width) ──────────────────────────────────────────
-//   < 720   → Mobile   : bottom tab bar + drawer overflow
+//   < 720   → Mobile   : page-title top bar + role-aware bottom tab bar
+//                        (4 tabs + More → drawer with the full menu)
 //   720–1099 → Tablet  : 64 px icon-rail sidebar + compact top bar (+ drawer)
 //   ≥ 1100  → Desktop  : full 232 px labeled sidebar + full top bar
 
@@ -131,6 +133,14 @@ class _AppShellState extends State<AppShell> {
         ? key
         : defaultScreenKey(userRoleNotifier.value);
   }
+
+  bool _isAllowed(String key) => _gatedKey(key) == key;
+
+  // The content navigator's key, renewed whenever _navEpoch moves so a fresh
+  // navigator never inherits the old one's pushed pages (a reused GlobalKey
+  // would carry its state across). Lets the back button pop pushed pages.
+  GlobalKey<NavigatorState> _contentNavKey = GlobalKey<NavigatorState>();
+  int _contentNavKeyEpoch = 0;
 
   void _navigate(String key) {
     setState(() {
@@ -249,10 +259,17 @@ class _AppShellState extends State<AppShell> {
 
   // Pages a screen pushes (Navigator.push — builders, detail pages) open
   // inside the content area, so the sidebar and top bar stay put.
-  Widget _content() => _ContentNavigator(
-    key: ValueKey('content-$_navEpoch'),
-    child: _buildScreen(),
-  );
+  Widget _content() {
+    if (_contentNavKeyEpoch != _navEpoch) {
+      _contentNavKey = GlobalKey<NavigatorState>();
+      _contentNavKeyEpoch = _navEpoch;
+    }
+    return _ContentNavigator(
+      key: ValueKey('content-$_navEpoch'),
+      navigatorKey: _contentNavKey,
+      child: _buildScreen(),
+    );
+  }
 
   Widget _buildScreen() => switch (_activeKey) {
     'dashboard' => UnifiedDashboardScreen(onNavigateTo: _navigate),
@@ -348,18 +365,98 @@ class _AppShellState extends State<AppShell> {
     return _activeKey;
   }
 
-  // "More" tab is active when the current screen isn't in the 4 primary tabs
-  bool get _moreActive {
-    const primary = {'dashboard', 'machines', 'machines_map', 'detail', 'service', 'revenue'};
-    return !primary.contains(_activeKey);
+  // ── Mobile bottom tabs ────────────────────────────────────────────────────
+
+  /// Bottom-tab candidates in priority order. Each user gets Home, their
+  /// role's landing screen, then the first others they're allowed into —
+  /// four in all — so a tab never bounces someone back to their default
+  /// screen (the old fixed Machines/Service/Revenue set did, for HR,
+  /// finance, CS and technicians).
+  static const _tabPriority = [
+    'service', 'machines', 'approvals',
+    'sales_leads', 'sales_history', 'customers',
+    'inventory_items', 'revenue', 'finance_receivables', 'finance_expenses',
+    'hr_directory', 'hr_approvals', 'hr_attendance',
+    'staff', 'my_leave', 'notifications',
+  ];
+
+  /// Screen key a landing key resolves to in the tab bar.
+  static String _tabKeyOf(String key) => switch (key) {
+    'inventory' => 'inventory_items',
+    'sales'     => 'sales_leads',
+    'finance'   => 'finance_dashboard',
+    _           => key,
+  };
+
+  List<String> get _mobileTabs {
+    final home    = _isAllowed('dashboard') ? 'dashboard' : defaultScreenKey(userRoleNotifier.value);
+    final landing = _tabKeyOf(defaultScreenKey(userRoleNotifier.value));
+    final tabs = <String>[home];
+    // A *_dashboard landing is what Home already shows (department delegation).
+    for (final k in [if (!landing.endsWith('dashboard')) landing, ..._tabPriority]) {
+      if (tabs.length == 4) break;
+      if (!tabs.contains(k) && _isAllowed(k)) tabs.add(k);
+    }
+    return tabs;
   }
+
+  /// Which tab (if any) owns the current screen.
+  String? _activeTab(List<String> tabs) {
+    final k = switch (_activeKey) {
+      'detail' || 'machines_map' => 'machines',
+      _ => _tabKeyOf(_activeKey),
+    };
+    if (tabs.contains(k)) return k;
+    if (k.endsWith('dashboard') && tabs.first == 'dashboard') return 'dashboard';
+    return null;
+  }
+
+  String get _pageTitle => _activeKey == 'dashboard'
+      ? 'Home'
+      : navEntryFor(_activeKey)?.label ?? 'Hypermed';
+
+  // ── Back button (Android / phones & tablets) ──────────────────────────────
+
+  /// Back steps out in order: open drawer → the screen itself (a page it
+  /// pushed, or its own PopScope — e.g. Service closing an open ticket on a
+  /// phone) → machine detail → home tab → leave the app.
+  Future<void> _handleBack() async {
+    final scaffold = _scaffoldKey.currentState;
+    if (scaffold?.isDrawerOpen ?? false) {
+      scaffold!.closeDrawer();
+      return;
+    }
+    // maybePop is false only when the screen has nothing to close itself.
+    final nav = _contentNavKey.currentState;
+    if (nav != null && await nav.maybePop()) return;
+    if (!mounted) return;
+    if (_activeKey == 'detail') {
+      setState(() => _activeKey = 'machines');
+      return;
+    }
+    final home = _mobileTabs.first;
+    if (_activeKey != home) {
+      _navigate(home);
+      return;
+    }
+    SystemNavigator.pop();
+  }
+
+  Widget _withBackHandling(Widget child) => PopScope(
+    canPop: false,
+    onPopInvokedWithResult: (didPop, _) {
+      if (!didPop) _handleBack();
+    },
+    child: child,
+  );
 
   // ── Shared drawer ─────────────────────────────────────────────────────────
 
   Widget _buildDrawer() => Drawer(
     width: 272,
     backgroundColor: context.pal.sidebarBg,
-    child: Column(children: [
+    // Clear the status bar and the gesture bar on phones.
+    child: SafeArea(child: Column(children: [
       // Drawer header with close button
       Container(
         height: 56,
@@ -368,7 +465,7 @@ class _AppShellState extends State<AppShell> {
           border: Border(bottom: BorderSide(color: context.pal.border)),
         ),
         child: Row(children: [
-          Text('Navigation', style: AppTheme.bodyStrong),
+          Text('Menu', style: AppTheme.bodyStrong),
           const Spacer(),
           GestureDetector(
             onTap: () => _scaffoldKey.currentState?.closeDrawer(),
@@ -394,7 +491,7 @@ class _AppShellState extends State<AppShell> {
           },
         ),
       ),
-    ]),
+    ])),
   );
 
   // ── Trial banner ──────────────────────────────────────────────────────────
@@ -447,15 +544,19 @@ class _AppShellState extends State<AppShell> {
   );
 
   /// Tablet (720–1099 px) — 64 px icon rail + compact top bar + drawer.
-  Widget _buildTablet() => Scaffold(
+  Widget _buildTablet() => _withBackHandling(Scaffold(
     key: _scaffoldKey,
     backgroundColor: context.pal.bg,
     appBar: PreferredSize(
-      preferredSize: const Size.fromHeight(56),
-      child: TopBar(
-        onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
-        onOpenNotification: _openNotification,
-        onOpenSearchResult: _openSearchResult,
+      preferredSize: Size.fromHeight(56 + MediaQuery.paddingOf(context).top),
+      child: Container(
+        color: context.pal.topbarBg,
+        padding: EdgeInsets.only(top: MediaQuery.paddingOf(context).top),
+        child: TopBar(
+          onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
+          onOpenNotification: _openNotification,
+          onOpenSearchResult: _openSearchResult,
+        ),
       ),
     ),
     drawer: _buildDrawer(),
@@ -478,37 +579,47 @@ class _AppShellState extends State<AppShell> {
         ],
       ),
     ),
-  );
+  ));
 
-  /// Mobile (< 720 px) — bottom tab bar + drawer for overflow.
-  Widget _buildMobile() => Scaffold(
-    key: _scaffoldKey,
-    backgroundColor: context.pal.bg,
-    appBar: PreferredSize(
-      preferredSize: const Size.fromHeight(56),
-      child: TopBar(
-        onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
-        onOpenNotification: _openNotification,
-        onOpenSearchResult: _openSearchResult,
+  /// Mobile (< 720 px) — page-title top bar, role-aware bottom tabs, and the
+  /// full menu in a drawer behind "More".
+  Widget _buildMobile() {
+    final tabs = _mobileTabs;
+    return _withBackHandling(Scaffold(
+      key: _scaffoldKey,
+      backgroundColor: context.pal.bg,
+      appBar: PreferredSize(
+        // Status-bar inset + 56 px bar, so the bar never sits under the clock.
+        preferredSize: Size.fromHeight(56 + MediaQuery.paddingOf(context).top),
+        child: Container(
+          color: context.pal.topbarBg,
+          padding: EdgeInsets.only(top: MediaQuery.paddingOf(context).top),
+          child: TopBar(
+            compact: true,
+            title: _pageTitle,
+            onOpenNotification: _openNotification,
+            onOpenSearchResult: _openSearchResult,
+          ),
+        ),
       ),
-    ),
-    drawer: _buildDrawer(),
-    bottomNavigationBar: _BottomTabBar(
-      activeKey: _activeKey,
-      moreActive: _moreActive,
-      onSelect: (k) => _navigate(k),
-      onMore: () => _scaffoldKey.currentState?.openDrawer(),
-    ),
-    body: DecoratedBox(
-      decoration: _bgDecoration(context),
-      child: Column(
-        children: [
-          _trialBanner(),
-          Expanded(child: ClipRect(child: _content())),
-        ],
+      drawer: _buildDrawer(),
+      bottomNavigationBar: _BottomTabBar(
+        tabs: tabs,
+        activeTab: _activeTab(tabs),
+        onSelect: (k) => _navigate(k),
+        onMore: () => _scaffoldKey.currentState?.openDrawer(),
       ),
-    ),
-  );
+      body: DecoratedBox(
+        decoration: _bgDecoration(context),
+        child: Column(
+          children: [
+            _trialBanner(),
+            Expanded(child: ClipRect(child: _content())),
+          ],
+        ),
+      ),
+    ));
+  }
 
   // ── Root build ────────────────────────────────────────────────────────────
 
@@ -526,75 +637,64 @@ class _AppShellState extends State<AppShell> {
 
 class _BottomTabBar extends StatelessWidget {
   const _BottomTabBar({
-    required this.activeKey,
-    required this.moreActive,
+    required this.tabs,
+    required this.activeTab,
     required this.onSelect,
     required this.onMore,
   });
 
-  final String activeKey;
-  final bool moreActive;
+  /// Screen keys for the primary tabs (up to 4); "More" is always last.
+  final List<String> tabs;
+  /// The tab owning the current screen, or null → "More" is active.
+  final String? activeTab;
   final ValueChanged<String> onSelect;
   final VoidCallback onMore;
 
-  bool _active(String key) {
-    if (key == 'dashboard') return activeKey == 'dashboard';
-    if (key == 'machines')  return activeKey == 'machines' || activeKey == 'detail';
-    return activeKey == key;
-  }
+  static ({String label, IconData icon}) _entry(String key) => key == 'dashboard'
+      ? (label: 'Home', icon: Symbols.space_dashboard)
+      : navEntryFor(key) ?? (label: key, icon: Symbols.apps);
 
   @override
   Widget build(BuildContext context) {
     // Bottom safe area so the bar clears the iOS home indicator / Android gesture bar.
-    final bottomInset = MediaQuery.of(context).padding.bottom;
+    final bottomInset = MediaQuery.paddingOf(context).bottom;
 
     return Container(
       height: 64 + bottomInset,
-      padding: EdgeInsets.only(bottom: bottomInset),
+      padding: EdgeInsets.only(bottom: bottomInset, left: 4, right: 4),
       decoration: BoxDecoration(
-        color: context.pal.bg,
+        color: context.pal.topbarBg,
         border: Border(top: BorderSide(color: context.pal.border)),
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          _BottomTab(
-            icon: Symbols.space_dashboard,
-            label: 'Home',
-            active: _active('dashboard'),
-            onTap: () => onSelect('dashboard'),
-          ),
-          _BottomTab(
-            icon: Symbols.precision_manufacturing,
-            label: 'Machines',
-            active: _active('machines'),
-            onTap: () => onSelect('machines'),
-          ),
-          _BottomTab(
-            icon: Symbols.build_circle,
-            label: 'Service',
-            active: _active('service'),
-            onTap: () => onSelect('service'),
-          ),
-          _BottomTab(
-            icon: Symbols.payments,
-            label: 'Revenue',
-            active: _active('revenue'),
-            onTap: () => onSelect('revenue'),
-          ),
-          _BottomTab(
+          for (final k in tabs)
+            Expanded(child: _BottomTab(
+              icon: _entry(k).icon,
+              label: _entry(k).label,
+              active: activeTab == k,
+              onTap: () {
+                HapticFeedback.selectionClick();
+                onSelect(k);
+              },
+            )),
+          Expanded(child: _BottomTab(
             icon: Symbols.menu,
             label: 'More',
-            active: moreActive,
-            onTap: onMore,
-          ),
+            active: activeTab == null,
+            onTap: () {
+              HapticFeedback.selectionClick();
+              onMore();
+            },
+          )),
         ],
       ),
     );
   }
 }
 
+/// Material 3-style destination: a soft pill behind the (filled) icon marks
+/// the active tab, so it reads at a glance, not just by colour.
 class _BottomTab extends StatelessWidget {
   const _BottomTab({
     required this.icon,
@@ -609,33 +709,47 @@ class _BottomTab extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => GestureDetector(
-    onTap: onTap,
-    behavior: HitTestBehavior.opaque,
-    child: SizedBox(
-      width: 60,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            icon,
-            size: 22,
-            color: active ? AppColors.teal : context.pal.textMute,
-          ),
-          const SizedBox(height: 3),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 9.5,
-              fontWeight: FontWeight.w500,
-              color: active ? AppColors.teal : context.pal.textMute,
+  Widget build(BuildContext context) {
+    final color = active ? AppColors.teal : context.pal.textMute;
+    return Semantics(
+      button: true,
+      selected: active,
+      label: label,
+      excludeSemantics: true,
+      child: GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeOut,
+              width: active ? 56 : 40,
+              height: 30,
+              decoration: BoxDecoration(
+                color: active ? AppColors.teal.withValues(alpha: 0.16) : Colors.transparent,
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Icon(icon, size: 22, color: color, fill: active ? 1 : 0),
             ),
-          ),
-        ],
+            const SizedBox(height: 4),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontFamily: 'TildaSans',
+                fontSize: 11.5,
+                fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+                color: color,
+              ),
+            ),
+          ],
+        ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 // ── Placeholder ───────────────────────────────────────────────────────────────
@@ -659,7 +773,8 @@ class _PlaceholderScreen extends StatelessWidget {
 /// rather than animating in over the whole window. Dialogs still use the
 /// root navigator (showDialog's default), so they cover the full window.
 class _ContentNavigator extends StatelessWidget {
-  const _ContentNavigator({super.key, required this.child});
+  const _ContentNavigator({super.key, required this.navigatorKey, required this.child});
+  final GlobalKey<NavigatorState> navigatorKey;
   final Widget child;
 
   static const _noTransition = _InstantPageTransitions();
@@ -674,6 +789,7 @@ class _ContentNavigator extends StatelessWidget {
         TargetPlatform.iOS: _noTransition, TargetPlatform.fuchsia: _noTransition,
       })),
       child: Navigator(
+        key: navigatorKey,
         pages: [MaterialPage(key: const ValueKey('screen'), child: child)],
         onDidRemovePage: (_) {},
       ),

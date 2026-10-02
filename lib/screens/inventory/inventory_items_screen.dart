@@ -135,46 +135,73 @@ class _InventoryItemsScreenState extends State<InventoryItemsScreen> {
     final categories = <String, int>{};
     for (final p in _allItems) { categories[p.category] = (categories[p.category] ?? 0) + 1; }
 
+    final chips = [
+      _Chip(label: 'All',       count: '${_allItems.length}', active: _stockFilter == 'all',
+          onTap: () => setState(() { _stockFilter = 'all'; _showCount = _pageSize; })),
+      const SizedBox(width: 6),
+      _Chip(label: 'Low Stock', count: '$lowCount', color: AppColors.amber,
+          active: _stockFilter == 'low',
+          onTap: () => setState(() { _stockFilter = 'low'; _showCount = _pageSize; })),
+      const SizedBox(width: 6),
+      _Chip(label: 'Out',       count: '$outCount', color: AppColors.coral,
+          active: _stockFilter == 'out',
+          onTap: () => setState(() { _stockFilter = 'out'; _showCount = _pageSize; })),
+      const SizedBox(width: 14),
+      if (categories.isNotEmpty)
+        _CategoryFilterDropdown(
+          categories: categories,
+          value: _categoryFilter,
+          onChanged: (v) => setState(() { _categoryFilter = v; _showCount = _pageSize; }),
+        ),
+    ];
+
+    return LayoutBuilder(builder: (context, cst) {
+    // Phones: cards instead of the 6-column table, detail as its own page
+    // instead of a side panel, filters on a swipeable row, search full width.
+    final narrow = cst.maxWidth < 600;
     return Stack(children: [
       Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         // ── Header ──
         Container(
-          padding: const EdgeInsets.fromLTRB(24, 18, 24, 14),
+          padding: narrow
+              ? const EdgeInsets.fromLTRB(16, 14, 16, 12)
+              : const EdgeInsets.fromLTRB(24, 18, 24, 14),
           decoration: BoxDecoration(border: Border(bottom: BorderSide(color: context.pal.border))),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
-              Text('Inventory Items', style: AppTheme.pageTitle),
-              const Spacer(),
-              AppButton(label: 'Export', icon: Symbols.download, variant: BtnVariant.ghost, onPressed: _exportCsv),
-              const SizedBox(width: 8),
-              AppButton(label: 'Add Item', icon: Symbols.add, variant: BtnVariant.primary,
+              Expanded(child: Text('Inventory Items', style: AppTheme.pageTitle,
+                  maxLines: 1, overflow: TextOverflow.ellipsis)),
+              if (narrow)
+                IconButton(
+                  tooltip: 'Export',
+                  onPressed: _exportCsv,
+                  icon: Icon(Symbols.download, size: 20, color: context.pal.textMute),
+                )
+              else ...[
+                AppButton(label: 'Export', icon: Symbols.download, variant: BtnVariant.ghost, onPressed: _exportCsv),
+                const SizedBox(width: 8),
+              ],
+              AppButton(label: narrow ? 'Add' : 'Add Item', icon: Symbols.add, variant: BtnVariant.primary,
                   onPressed: () => setState(() => _showAdd = true)),
             ]),
             const SizedBox(height: 4),
             Text('${_allItems.length} SKUs · $lowCount low · $outCount out of stock',
                 style: AppTheme.bodySub),
             const SizedBox(height: 12),
-            Row(children: [
-              _Chip(label: 'All',       count: '${_allItems.length}', active: _stockFilter == 'all',
-                  onTap: () => setState(() { _stockFilter = 'all'; _showCount = _pageSize; })),
-              const SizedBox(width: 6),
-              _Chip(label: 'Low Stock', count: '$lowCount', color: AppColors.amber,
-                  active: _stockFilter == 'low',
-                  onTap: () => setState(() { _stockFilter = 'low'; _showCount = _pageSize; })),
-              const SizedBox(width: 6),
-              _Chip(label: 'Out',       count: '$outCount', color: AppColors.coral,
-                  active: _stockFilter == 'out',
-                  onTap: () => setState(() { _stockFilter = 'out'; _showCount = _pageSize; })),
-              const SizedBox(width: 14),
-              if (categories.isNotEmpty)
-                _CategoryFilterDropdown(
-                  categories: categories,
-                  value: _categoryFilter,
-                  onChanged: (v) => setState(() { _categoryFilter = v; _showCount = _pageSize; }),
-                ),
-              const Spacer(),
-              _SearchBox(onChanged: (v) => setState(() { _search = v; _showCount = _pageSize; })),
-            ]),
+            if (narrow) ...[
+              SearchField(hint: 'Search name, SKU, manufacturer…',
+                  onChanged: (v) => setState(() { _search = v; _showCount = _pageSize; })),
+              const SizedBox(height: 10),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(children: chips),
+              ),
+            ] else
+              Row(children: [
+                ...chips,
+                const Spacer(),
+                _SearchBox(onChanged: (v) => setState(() { _search = v; _showCount = _pageSize; })),
+              ]),
           ]),
         ),
         // ── Two-panel body ──
@@ -185,7 +212,7 @@ class _InventoryItemsScreenState extends State<InventoryItemsScreen> {
               physics: const AlwaysScrollableScrollPhysics(),
               child: Column(children: [
                 // Table header
-                Container(
+                if (!narrow) Container(
                   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                   decoration: BoxDecoration(border: Border(bottom: BorderSide(color: context.pal.border))),
                   child: Row(children: [
@@ -209,7 +236,16 @@ class _InventoryItemsScreenState extends State<InventoryItemsScreen> {
                     ])),
                   )
                 else ...[
-                  ...items.map((p) => _ItemRow(
+                  if (narrow) ...[
+                    const SizedBox(height: 8),
+                    ...items.map((p) => _ItemCard(
+                      item: p,
+                      catLabel: _catLabel(p.category), catColor: _catColor(p.category),
+                      onTap:    () => _openDetailPage(p),
+                      onEdit:   () => setState(() { _selected = p; _showEdit = true; }),
+                      onDelete: () => _deactivate(p),
+                    )),
+                  ] else ...items.map((p) => _ItemRow(
                     item: p, selected: _selected == p,
                     catLabel: _catLabel(p.category), catColor: _catColor(p.category),
                     onTap:    () => setState(() => _selected = _selected == p ? null : p),
@@ -237,8 +273,8 @@ class _InventoryItemsScreenState extends State<InventoryItemsScreen> {
               ]),
             ),
           )),
-          // Detail panel
-          if (_selected != null) ...[
+          // Detail panel (wide only — phones open it as a page)
+          if (_selected != null && !narrow) ...[
             Container(width: 1, color: context.pal.border),
             Expanded(flex: 2, child: _ItemDetailPanel(
               item:    _selected!,
@@ -270,6 +306,24 @@ class _InventoryItemsScreenState extends State<InventoryItemsScreen> {
           onSaved: () { setState(() => _showMove = false); _load(); },
         ),
     ]);
+    });
+  }
+
+  /// Phone detail: the same panel as a full page in the content area, so
+  /// back (button or gesture) returns to the list where it was scrolled.
+  /// Edit / Record movement close the page and open their sheet on the list.
+  void _openDetailPage(InventoryItem p) {
+    Navigator.of(context).push(MaterialPageRoute(builder: (ctx) => Scaffold(
+      backgroundColor: ctx.pal.bg,
+      body: _ItemDetailPanel(
+        item:     p,
+        catLabel: _catLabel(p.category),
+        catColor: _catColor(p.category),
+        onClose:  () => Navigator.of(ctx).pop(),
+        onEdit:   () { Navigator.of(ctx).pop(); setState(() { _selected = p; _showEdit = true; }); },
+        onMove:   () { Navigator.of(ctx).pop(); setState(() { _selected = p; _showMove = true; }); },
+      ),
+    )));
   }
 }
 
@@ -350,6 +404,97 @@ class _ItemRow extends StatelessWidget {
                 child: Icon(Symbols.delete_outline, size: 15, color: AppColors.coral)),
           ])),
         ]),
+      ),
+    );
+  }
+}
+
+// ── Item card (phones) ───────────────────────────────────────────────────────
+
+/// One item as a two-line card: name + stock on top, category · cost below.
+/// Edit / deactivate sit in a ⋮ menu instead of 15 px icons.
+class _ItemCard extends StatelessWidget {
+  const _ItemCard({
+    required this.item, required this.catLabel, required this.catColor,
+    required this.onTap, this.onEdit, this.onDelete,
+  });
+  final InventoryItem item;
+  final String catLabel;
+  final Color catColor;
+  final VoidCallback onTap;
+  final VoidCallback? onEdit, onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final stockColor = item.isOutOfStock
+        ? AppColors.coral : item.isLowStock ? AppColors.amber : AppColors.teal;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+      child: Material(
+        color: context.pal.surface1,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: context.pal.border),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 4, 12),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(item.name, style: AppTheme.bodyStrong.copyWith(fontSize: 14),
+                    maxLines: 2, overflow: TextOverflow.ellipsis),
+                if (item.manufacturer != null) ...[
+                  const SizedBox(height: 2),
+                  Text(item.manufacturer!, style: AppTheme.bodySub.copyWith(fontSize: 12),
+                      maxLines: 1, overflow: TextOverflow.ellipsis),
+                ],
+                const SizedBox(height: 8),
+                Wrap(spacing: 6, runSpacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: stockColor.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      if (item.isOutOfStock || item.isLowStock) ...[
+                        Icon(item.isOutOfStock ? Symbols.error : Symbols.warning, size: 12, color: stockColor),
+                        const SizedBox(width: 3),
+                      ],
+                      Text('${item.stockQty} ${item.unitOfMeasure}',
+                          style: AppTheme.monoXs.copyWith(color: stockColor, fontWeight: FontWeight.w700)),
+                    ]),
+                  ),
+                  if (catLabel.isNotEmpty)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: catColor.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(catLabel, style: AppTheme.monoXs.copyWith(color: catColor, fontSize: 10)),
+                    ),
+                  Text(tshFromDouble(item.unitCost),
+                      style: AppTheme.bodyStrong.copyWith(fontSize: 12.5)),
+                ]),
+              ])),
+              PopupMenuButton<String>(
+                tooltip: 'More actions',
+                color: context.pal.surface1,
+                icon: Icon(Symbols.more_vert, size: 20, color: context.pal.textDim),
+                onSelected: (v) => (v == 'edit' ? onEdit : onDelete)?.call(),
+                itemBuilder: (_) => [
+                  PopupMenuItem(value: 'edit', child: Text('Edit', style: AppTheme.bodySm)),
+                  PopupMenuItem(value: 'delete', child: Text('Deactivate',
+                      style: AppTheme.bodySm.copyWith(color: AppColors.coral))),
+                ],
+              ),
+            ]),
+          ),
+        ),
       ),
     );
   }
@@ -596,6 +741,7 @@ class _RecordMovementModalState extends State<_RecordMovementModal> {
         onTap: () {},
         child: Container(
           width: 420,
+          margin: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: context.pal.surface1, borderRadius: BorderRadius.circular(14),
             border: Border.all(color: context.pal.borderStrong),
@@ -810,6 +956,7 @@ class _ItemFormModalState extends State<_ItemFormModal> {
         onTap: () {},
         child: Container(
           width: 560,
+          margin: const EdgeInsets.all(16),
           constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.88),
           decoration: BoxDecoration(
             color: context.pal.surface1, borderRadius: BorderRadius.circular(14),
@@ -1050,9 +1197,9 @@ class _CategoryFilterDropdown extends StatelessWidget {
       width: 220,
       value: value,
       items: [
-          DropdownMenuItem(value: null, child: Text('All Categories ($total)')),
+          DropdownMenuItem(value: null, child: Text('All Categories ($total)', overflow: TextOverflow.ellipsis)),
           ...categories.entries.map((e) =>
-              DropdownMenuItem(value: e.key, child: Text('${e.key} (${e.value})'))),
+              DropdownMenuItem(value: e.key, child: Text('${e.key} (${e.value})', overflow: TextOverflow.ellipsis))),
         ],
       onChanged: onChanged,
       active: value != null,
