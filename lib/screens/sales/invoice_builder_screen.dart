@@ -35,9 +35,15 @@ String _isoDate(DateTime d) =>
 /// [duplicateFrom] pre-fills a new sale from an existing one. Pops with
 /// the saved [Invoice] (null when it was saved as a quotation).
 class InvoiceBuilderScreen extends StatefulWidget {
-  const InvoiceBuilderScreen({super.key, this.editing, this.duplicateFrom});
+  const InvoiceBuilderScreen({super.key, this.editing, this.duplicateFrom, this.initialStatus = 'final', this.onDone});
   final Invoice? editing;
   final Invoice? duplicateFrom;
+  // final | draft | quotation | proforma — the sidebar's Add sale / Add
+  // draft / Add quotation open the form on one of these.
+  final String initialStatus;
+  // Set when the form is a sidebar page rather than a pushed route: called
+  // with the saved status instead of popping (there's nothing to pop to).
+  final ValueChanged<String>? onDone;
 
   @override
   State<InvoiceBuilderScreen> createState() => _InvoiceBuilderScreenState();
@@ -82,6 +88,7 @@ class _InvoiceBuilderScreenState extends State<InvoiceBuilderScreen> {
     InventoryService.instance.list().then((items) {
       if (mounted) setState(() => _invItems = items);
     }).catchError((_) {});
+    _saleStatus = widget.initialStatus;
     final src = widget.editing ?? widget.duplicateFrom;
     if (src != null) _prefill(src);
     _terms.load(src?.termItems).then((_) { if (mounted) setState(() {}); });
@@ -244,7 +251,7 @@ class _InvoiceBuilderScreenState extends State<InvoiceBuilderScreen> {
         });
         if (!mounted) return;
         showSuccessToast(context, 'Saved as quotation ${q.quotationNumber} — it is on the Quotations page.');
-        Navigator.of(context).pop<Invoice>(null);
+        _finish(null);
         return;
       }
 
@@ -282,16 +289,28 @@ class _InvoiceBuilderScreenState extends State<InvoiceBuilderScreen> {
           },
         });
       }
-      if (mounted) Navigator.of(context).pop<Invoice>(inv);
+      if (!mounted) return;
+      if (widget.onDone != null) showSuccessToast(context, '${inv.invoiceNumber} saved.');
+      _finish(inv);
     } catch (e) {
       // Server-side messages (e.g. the client's credit limit) are shown as-is.
       if (mounted) setState(() { _saving = false; _errors = {'_server': friendlyError(e)}; });
     }
   }
 
+  void _finish(Invoice? inv) {
+    if (widget.onDone != null) {
+      widget.onDone!(_saleStatus);
+    } else {
+      Navigator.of(context).pop<Invoice>(inv);
+    }
+  }
+
   String get _title => _isEdit
       ? 'Edit ${widget.editing!.invoiceNumber}'
-      : widget.duplicateFrom != null ? 'Duplicate of ${widget.duplicateFrom!.invoiceNumber}' : 'Add sale';
+      : widget.duplicateFrom != null
+          ? 'Duplicate of ${widget.duplicateFrom!.invoiceNumber}'
+          : switch (_saleStatus) { 'draft' => 'Add draft', 'quotation' => 'Add quotation', 'proforma' => 'Add proforma', _ => 'Add sale' };
 
   String get _saveLabel => switch (_saleStatus) {
     'draft'     => 'Save draft',

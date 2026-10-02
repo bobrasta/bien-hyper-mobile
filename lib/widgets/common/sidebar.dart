@@ -79,14 +79,20 @@ const _hr = [
 // screen too (UnifiedDashboardScreen's department delegation) — a third
 // entry for the identical screen would be the same duplication we removed
 // from HR.
+// Order set by the user (2026-10-02), Clickhuduma style: All sales first,
+// then add/list pairs for sales, drafts and quotations.
 const _salesChildren = [
+  (key: 'sales_history',       icon: Symbols.point_of_sale,  label: 'All sales'),
+  (key: 'sales_new',           icon: Symbols.add_shopping_cart, label: 'Add sale'),
+  (key: 'sales_new_draft',     icon: Symbols.edit_note,      label: 'Add draft'),
+  (key: 'sales_drafts',        icon: Symbols.draft,          label: 'List drafts'),
+  (key: 'sales_new_quotation', icon: Symbols.note_add,       label: 'Add quotation'),
+  (key: 'sales_quotations',    icon: Symbols.request_quote,  label: 'List quotations'),
   (key: 'sales_leads',       icon: Symbols.trending_up,   label: 'Leads'),
-  (key: 'sales_quotations',  icon: Symbols.request_quote, label: 'Quotations'),
   // Sales Orders hidden from the menu for now (user, 2026-09-30); the screen
   // still exists and notifications/search can still open it.
   // (key: 'sales_orders',      icon: Symbols.shopping_cart, label: 'Sales Orders'),
   (key: 'sales_invoices',    icon: Symbols.receipt_long,  label: 'Invoices'),
-  (key: 'sales_history',     icon: Symbols.point_of_sale, label: 'All sales'),
   // sales.create_subordinate_user-gated — filtered out below for anyone who
   // doesn't hold it (a plain 'sales' rep), so these only ever appear for a
   // sales_manager building their own team / reviewing team performance.
@@ -394,7 +400,7 @@ class _SalesGroupState extends State<_SalesGroup> {
               setState(() => _open = false);
             } else {
               setState(() => _open = true);
-              widget.onSelect('sales_leads');
+              widget.onSelect('sales_history');
             }
           },
           child: Container(

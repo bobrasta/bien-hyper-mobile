@@ -25,7 +25,9 @@ import 'invoices_screen.dart' show showInvoiceDetail, showRecordPayment, showCre
 /// action menu (right-click a row, or its Actions button). Drafts and
 /// proformas are listed on their own tabs.
 class AllSalesScreen extends StatefulWidget {
-  const AllSalesScreen({super.key});
+  const AllSalesScreen({super.key, this.initialKind = 'final'});
+  // final | draft | proforma — "List drafts" in the sidebar opens on draft.
+  final String initialKind;
 
   @override
   State<AllSalesScreen> createState() => _AllSalesScreenState();
@@ -107,7 +109,8 @@ class _AllSalesScreenState extends State<AllSalesScreen> {
   @override
   void initState() {
     super.initState();
-    final cached = InvoiceService.cachedDefaultList;
+    _kind = widget.initialKind;
+    final cached = _kind == 'final' ? InvoiceService.cachedDefaultList : null;
     if (cached != null) {
       _all = cached;
       _loading = false;

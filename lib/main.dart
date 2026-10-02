@@ -146,7 +146,7 @@ Set<String>? _legacyAllowedScreenKeys(String role) => switch (role) {
 String defaultScreenKey(String role) => switch (role) {
   'cto' || 'team_leader'           => 'approvals',
   'technician'                    => 'service',
-  'sales_manager' || 'sales'      => 'sales',
+  'sales_manager' || 'sales'      => 'sales_dashboard',
   'cs'                             => 'customers',
   'storekeeper'                    => 'inventory',
   // Not 'approvals' — the PO chain they created doesn't route back through

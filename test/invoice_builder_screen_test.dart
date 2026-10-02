@@ -45,4 +45,16 @@ void main() {
     expect(find.text('Quotation'), findsNothing); // not offered when editing
     expect(tester.takeException(), isNull);
   });
+
+  // Sidebar "Add draft" / "Add quotation" open the form on that status.
+  testWidgets('opens on the status the sidebar asked for', (tester) async {
+    await pump(tester, const InvoiceBuilderScreen(initialStatus: 'draft'));
+    expect(find.text('Add draft'), findsOneWidget);
+    expect(find.text('Save draft'), findsOneWidget);
+
+    await pump(tester, const InvoiceBuilderScreen(key: ValueKey('q'), initialStatus: 'quotation'));
+    expect(find.text('Add quotation'), findsOneWidget);
+    expect(find.text('Save quotation'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }
