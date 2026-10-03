@@ -17,6 +17,7 @@ import '../finance/finance_dashboard_screen.dart';
 import '../hr/hr_dashboard_screen.dart';
 import '../sales/sales_dashboard_screen.dart';
 import 'admin_command_centre_screen.dart';
+import 'cto_dashboard_screen.dart';
 import 'technician_dashboard_screen.dart';
 
 // Single-department roles (hr, finance, sales, technician, admin) never see
@@ -27,6 +28,7 @@ import 'technician_dashboard_screen.dart';
 // several `screens.*` permissions at once) still get the generic
 // multi-section summary below, since there's no single "their" screen to
 // delegate to — that's the one legitimate use of the section-card system.
+// (CTO now has its own CtoDashboardScreen — see build().)
 const _departmentDelegates = {'hr', 'finance_manager', 'finance', 'sales_manager', 'sales'};
 
 /// Renders whatever ordered section list `GET /dashboard/unified` returns
@@ -53,7 +55,7 @@ class _UnifiedDashboardScreenState extends State<UnifiedDashboardScreen> {
     // their own full screen instead (see build()) — no need to fetch the
     // generic section list none of them will ever show.
     final role = userRoleNotifier.value;
-    if (!hasDirectorAuthority(role) && role != 'technician' && !_departmentDelegates.contains(role)) _load();
+    if (!hasDirectorAuthority(role) && role != 'technician' && role != 'cto' && !_departmentDelegates.contains(role)) _load();
   }
 
   Future<void> _load() async {
@@ -70,6 +72,9 @@ class _UnifiedDashboardScreenState extends State<UnifiedDashboardScreen> {
   Widget build(BuildContext context) {
     if (hasDirectorAuthority(userRoleNotifier.value)) {
       return AdminCommandCentreScreen(onNavigateTo: widget.onNavigateTo);
+    }
+    if (userRoleNotifier.value == 'cto') {
+      return CtoDashboardScreen(onNavigateTo: widget.onNavigateTo);
     }
     if (userRoleNotifier.value == 'technician') {
       return TechnicianDashboardScreen(onNavigateTo: widget.onNavigateTo);
