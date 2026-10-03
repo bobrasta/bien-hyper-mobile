@@ -696,7 +696,10 @@ class _QuotationDetailScreenState extends State<QuotationDetailScreen> {
                   const SizedBox(width: 8),
                   SizedBox(width: 90, child: Text(_fmtAmount(item.unitPrice), textAlign: TextAlign.right, style: AppTheme.monoSm.copyWith(fontSize: 12, color: context.pal.textDim))),
                   const SizedBox(width: 8),
-                  SizedBox(width: 56, child: Text(item.discountPercent > 0 ? '${item.discountPercent.toStringAsFixed(0)}%' : '—', textAlign: TextAlign.right, style: AppTheme.monoXs.copyWith(fontSize: 11, color: item.discountPercent > 0 ? AppColors.amber : context.pal.textMute))),
+                  SizedBox(width: 76, child: Text(
+                      item.discountAmount > 0 ? '-${_fmtAmount(item.discountAmount)}' : item.discountPercent > 0 ? '${item.discountPercent.toStringAsFixed(0)}%' : '—',
+                      textAlign: TextAlign.right,
+                      style: AppTheme.monoXs.copyWith(fontSize: 11, color: item.discountAmount > 0 || item.discountPercent > 0 ? AppColors.amber : context.pal.textMute))),
                   const SizedBox(width: 8),
                   SizedBox(width: 96, child: Text(_fmtAmount(item.totalPrice), textAlign: TextAlign.right, style: AppTheme.monoSm.copyWith(fontSize: 12.5))),
                 ]),
@@ -974,18 +977,10 @@ class _QuotationBuilderScreenState extends State<QuotationBuilderScreen> {
 
   void _recalc() { if (mounted) setState(() {}); }
 
-  int get _subtotal => _lines.fold(0, (s, l) {
-    final qty = int.tryParse(l.qtyCtrl.text) ?? 0;
-    final price = int.tryParse(l.priceCtrl.text.replaceAll(',', '')) ?? 0;
-    return s + (qty * price);
-  });
+  int get _subtotal => _lines.fold(0, (s, l) => s + l.gross);
 
-  int get _discountAmount => _lines.fold(0, (s, l) {
-    final qty = int.tryParse(l.qtyCtrl.text) ?? 0;
-    final price = int.tryParse(l.priceCtrl.text.replaceAll(',', '')) ?? 0;
-    final disc = double.tryParse(l.discCtrl.text) ?? 0;
-    return s + ((qty * price) * disc / 100).round();
-  });
+  // Per-line TSh discounts (user, 2026-10-02).
+  int get _discountAmount => _lines.fold(0, (s, l) => s + l.discount);
 
   double get _effectiveDiscountPercent => _subtotal > 0 ? (_discountAmount / _subtotal * 100) : 0;
 
@@ -1015,6 +1010,12 @@ class _QuotationBuilderScreenState extends State<QuotationBuilderScreen> {
       if (price == null || price <= 0) errs['price_$i'] = 'Enter a valid price for item ${i + 1}';
       final qty = int.tryParse(l.qtyCtrl.text);
       if (qty == null || qty <= 0) errs['qty_$i'] = 'Enter a valid quantity for item ${i + 1}';
+      final disc = l.discCtrl.text.trim();
+      if (disc.isNotEmpty && int.tryParse(disc.replaceAll(',', '')) == null) {
+        errs['items'] = 'Enter the discount for item ${i + 1} in TSh, e.g. 5000';
+      } else if (l.discount < 0 || l.net < 0) {
+        errs['items'] = 'The discount on item ${i + 1} is more than the line amount';
+      }
     }
     setState(() => _errors = errs);
     return errs.isEmpty;
@@ -1039,7 +1040,8 @@ class _QuotationBuilderScreenState extends State<QuotationBuilderScreen> {
         'unit_of_measure':   l.uomCtrl.text.trim().isNotEmpty ? l.uomCtrl.text.trim() : 'pcs',
         'quantity':          int.tryParse(l.qtyCtrl.text) ?? 1,
         'unit_price':        int.tryParse(l.priceCtrl.text.replaceAll(',', '')) ?? 0,
-        'discount_percent':  double.tryParse(l.discCtrl.text) ?? 0,
+        'discount_percent':  0,
+        'discount_amount':   l.discount,
       }).toList(),
     });
   }
@@ -1200,7 +1202,7 @@ class _QuotationBuilderScreenState extends State<QuotationBuilderScreen> {
                 const SizedBox(width: 8),
                 SizedBox(width: kLinePriceW, child: Text('UNIT PRICE', textAlign: TextAlign.right, style: AppTheme.monoXs.copyWith(fontSize: 9, color: context.pal.textMute))),
                 const SizedBox(width: 8),
-                SizedBox(width: kLineDiscW, child: Text('DISC %', textAlign: TextAlign.right, style: AppTheme.monoXs.copyWith(fontSize: 9, color: context.pal.textMute))),
+                SizedBox(width: kLineDiscW, child: Text('DISCOUNT (TSH)', textAlign: TextAlign.right, style: AppTheme.monoXs.copyWith(fontSize: 9, color: context.pal.textMute))),
                 const SizedBox(width: 8),
                 SizedBox(width: kLineTotalW, child: Text('LINE TOTAL', textAlign: TextAlign.right, style: AppTheme.monoXs.copyWith(fontSize: 9, color: context.pal.textMute))),
                 const SizedBox(width: 22),

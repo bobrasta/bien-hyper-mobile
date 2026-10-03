@@ -919,7 +919,8 @@ class _InvoiceDetailDialogState extends State<_InvoiceDetailDialog> {
                       style: AppTheme.bodySm.copyWith(fontWeight: FontWeight.w500))),
                   Text(
                     '${item.quantity.toStringAsFixed(item.quantity == item.quantity.truncate() ? 0 : 1)}'
-                    ' × ${_fmt(item.unitPrice)}',
+                    ' × ${_fmt(item.unitPrice)}'
+                    '${item.discount > 0 ? '  − ${_fmt(item.discount)} discount' : ''}',
                     style: AppTheme.bodySub.copyWith(fontSize: 11),
                   ),
                   const SizedBox(width: 12),

@@ -9,6 +9,7 @@ class QuotationItem {
     required this.quantity,
     required this.unitPrice,
     required this.discountPercent,
+    this.discountAmount = 0,
     required this.totalPrice,
     required this.itemSku,
   });
@@ -20,6 +21,8 @@ class QuotationItem {
   final int quantity;
   final int unitPrice;
   final double discountPercent;
+  // TSh off the line (newer lines); discountPercent is the older kind.
+  final int discountAmount;
   final int totalPrice;
   final String? itemSku;
 
@@ -31,6 +34,7 @@ class QuotationItem {
     quantity:          j['quantity'] as int,
     unitPrice:         j['unit_price'] as int,
     discountPercent:   (j['discount_percent'] as num?)?.toDouble() ?? 0,
+    discountAmount:    (j['discount_amount'] as num?)?.toInt() ?? 0,
     totalPrice:        j['total_price'] as int,
     itemSku:           j['item_sku'] as String?,
   );

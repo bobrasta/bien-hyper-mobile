@@ -120,6 +120,7 @@ class _InvoiceBuilderScreenState extends State<InvoiceBuilderScreen> {
           e.descCtrl.text = li.description;
           e.qtyCtrl.text = li.quantity == li.quantity.roundToDouble() ? '${li.quantity.toInt()}' : '${li.quantity}';
           e.priceCtrl.text = '${li.unitPrice}';
+          if (li.discount > 0) e.discCtrl.text = '${li.discount}';
           return e;
         }));
     }
@@ -134,6 +135,7 @@ class _InvoiceBuilderScreenState extends State<InvoiceBuilderScreen> {
   void _attach(LineItemEntry l) {
     l.qtyCtrl.addListener(_recalc);
     l.priceCtrl.addListener(_recalc);
+    l.discCtrl.addListener(_recalc);
   }
 
   void _recalc() { if (mounted) setState(() {}); }
@@ -149,11 +151,10 @@ class _InvoiceBuilderScreenState extends State<InvoiceBuilderScreen> {
     super.dispose();
   }
 
-  int get _subtotal => _lines.fold(0, (s, l) {
-    final qty = int.tryParse(l.qtyCtrl.text) ?? 0;
-    final price = int.tryParse(l.priceCtrl.text.replaceAll(',', '')) ?? 0;
-    return s + qty * price;
-  });
+  // Before line discounts; _subtotal is after them (what VAT is charged on).
+  int get _gross => _lines.fold(0, (s, l) => s + l.gross);
+  int get _discount => _lines.fold(0, (s, l) => s + l.discount);
+  int get _subtotal => _gross - _discount;
   // Same rounding as InvoiceController@store.
   int get _tax => (_subtotal * _taxRate / 100).round();
   int get _shipping => int.tryParse(_shipCtrl.text.replaceAll(',', '').trim()) ?? 0;
@@ -202,6 +203,12 @@ class _InvoiceBuilderScreenState extends State<InvoiceBuilderScreen> {
       final price = int.tryParse(l.priceCtrl.text.replaceAll(',', ''));
       if (qty == null || qty <= 0) errs['items'] = 'Line ${i + 1}: enter a quantity';
       if (price == null || price < 0) errs['items'] = 'Line ${i + 1}: enter a unit price';
+      final disc = l.discCtrl.text.trim();
+      if (disc.isNotEmpty && int.tryParse(disc.replaceAll(',', '')) == null) {
+        errs['items'] = 'Line ${i + 1}: enter the discount in TSh, e.g. 5000';
+      } else if (l.discount < 0 || l.net < 0) {
+        errs['items'] = 'Line ${i + 1}: the discount is more than the line amount';
+      }
     }
     if (_term == null || _term! < 0) errs['due'] = 'Enter the payment term (e.g. 30 days)';
     if (_shipCtrl.text.trim().isNotEmpty && int.tryParse(_shipCtrl.text.replaceAll(',', '').trim()) == null) {
@@ -228,6 +235,7 @@ class _InvoiceBuilderScreenState extends State<InvoiceBuilderScreen> {
             'description': l.descCtrl.text.trim(),
             'quantity':    int.tryParse(l.qtyCtrl.text) ?? 1,
             'unit_price':  int.tryParse(l.priceCtrl.text.replaceAll(',', '')) ?? 0,
+            'discount':    l.discount,
           })
       .toList();
 
@@ -247,7 +255,10 @@ class _InvoiceBuilderScreenState extends State<InvoiceBuilderScreen> {
           'currency':       _currency,
           'notes':          _text(_notesCtrl),
           'term_items':     _terms.toJson(),
-          'items': _linePayload.map((l) => {...l, 'unit_of_measure': 'pcs', 'discount_percent': 0}).toList(),
+          'items': _linePayload.map((l) => {
+            for (final e in l.entries) if (e.key != 'discount') e.key: e.value,
+            'unit_of_measure': 'pcs', 'discount_percent': 0, 'discount_amount': l['discount'],
+          }).toList(),
         });
         if (!mounted) return;
         showSuccessToast(context, 'Saved as quotation ${q.quotationNumber} — it is on the Quotations page.');
@@ -484,6 +495,8 @@ class _InvoiceBuilderScreenState extends State<InvoiceBuilderScreen> {
               const SizedBox(width: 8),
               SizedBox(width: kLinePriceW, child: Text('UNIT PRICE', textAlign: TextAlign.right, style: AppTheme.monoXs.copyWith(fontSize: 9, color: context.pal.textMute))),
               const SizedBox(width: 8),
+              SizedBox(width: kLineDiscW, child: Text('DISCOUNT (TSH)', textAlign: TextAlign.right, style: AppTheme.monoXs.copyWith(fontSize: 9, color: context.pal.textMute))),
+              const SizedBox(width: 8),
               SizedBox(width: kLineTotalW, child: Text('LINE TOTAL', textAlign: TextAlign.right, style: AppTheme.monoXs.copyWith(fontSize: 9, color: context.pal.textMute))),
               const SizedBox(width: 22),
             ])),
@@ -492,7 +505,6 @@ class _InvoiceBuilderScreenState extends State<InvoiceBuilderScreen> {
               key: ObjectKey(e.value),
               entry: e.value,
               invItems: _invItems,
-              showDiscount: false,
               onRemove: _lines.length > 1
                   ? () => setState(() { _lines[e.key].dispose(); _lines.removeAt(e.key); })
                   : null,
@@ -625,7 +637,8 @@ class _InvoiceBuilderScreenState extends State<InvoiceBuilderScreen> {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('TOTALS', style: AppTheme.labelCaps.copyWith(fontSize: 11)),
         const SizedBox(height: 10),
-        _totalsRow(context, 'Subtotal', tshFromDouble(_subtotal.toDouble())),
+        _totalsRow(context, 'Subtotal', tshFromDouble(_gross.toDouble())),
+        if (_discount > 0) _totalsRow(context, 'Discount', '- ${tshFromDouble(_discount.toDouble())}'),
         _totalsRow(context, _taxRate == 0 ? 'VAT' : 'VAT $_taxRate%', tshFromDouble(_tax.toDouble())),
         if (_shipping > 0) _totalsRow(context, 'Delivery', tshFromDouble(_shipping.toDouble())),
         Padding(padding: const EdgeInsets.symmetric(vertical: 6), child: Container(height: 1, color: context.pal.divider)),

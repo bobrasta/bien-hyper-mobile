@@ -92,4 +92,19 @@ void main() {
       expect(part.existsSync(), isTrue);
     });
   });
+
+  // Regression: cleanup ran before the move and deleted the .part itself.
+  test('finishDownload keeps the new package and drops old ones', () async {
+    final dir = Directory.systemTemp.createTempSync('upd');
+    addTearDown(() => dir.deleteSync(recursive: true));
+    File('${dir.path}/Hypermed-Setup-1.1.3.exe').writeAsStringSync('old');
+    File('${dir.path}/pending.json').writeAsStringSync('{}');
+    final part = File('${dir.path}/Hypermed-Setup-1.1.5.exe.part')..writeAsStringSync('new');
+    final pkg = File('${dir.path}/Hypermed-Setup-1.1.5.exe');
+
+    await finishDownload(part, pkg);
+
+    expect(pkg.readAsStringSync(), 'new');
+    expect(dir.listSync().map((e) => e.uri.pathSegments.last).toSet(), {'Hypermed-Setup-1.1.5.exe', 'pending.json'});
+  });
 }
