@@ -525,11 +525,15 @@ class _CtoDashboardScreenState extends State<CtoDashboardScreen> {
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       _header(o, compact: true),
       const SizedBox(height: 14),
-      GridView.count(
-        crossAxisCount: 2, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
-        mainAxisSpacing: 8, crossAxisSpacing: 8, childAspectRatio: 1.55,
+      // Fixed tile height: an aspect ratio made the tiles ~280 px tall on
+      // tablets (this layout runs up to 1100 px). Four across once there's room.
+      LayoutBuilder(builder: (context, cst) => GridView(
+        shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: cst.maxWidth >= 600 ? 4 : 2,
+          mainAxisSpacing: 8, crossAxisSpacing: 8, mainAxisExtent: cst.maxWidth >= 600 ? 130 : 115),
         children: tiles,
-      ),
+      )),
       const SizedBox(height: 14),
       section('Awaiting you', trailing: Expanded(child: Row(children: [
         CtoChip('${_pending.length}', color: AppColors.violet, size: 10.5),

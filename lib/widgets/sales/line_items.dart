@@ -79,7 +79,8 @@ class LineItemTableRow extends StatelessWidget {
       cst.maxWidth < _stackBelow ? _stacked(context) : _row(context));
 
   /// Phone form: the item search full width (× to remove), then
-  /// Qty | Unit price | line total, each labelled since there's no header.
+  /// Qty | Unit price, then Discount | line total — each field labelled
+  /// since there's no column header.
   Widget _stacked(BuildContext context) => Container(
     padding: const EdgeInsets.symmetric(vertical: 10),
     decoration: BoxDecoration(border: Border(bottom: BorderSide(color: context.pal.divider))),
@@ -95,11 +96,13 @@ class LineItemTableRow extends StatelessWidget {
         SizedBox(width: 72, child: _labelled(context, 'QTY', _numField(entry.qtyCtrl, onChanged))),
         const SizedBox(width: 8),
         Expanded(child: _labelled(context, 'UNIT PRICE', _numField(entry.priceCtrl, onChanged))),
-        if (showDiscount) ...[
-          const SizedBox(width: 8),
-          SizedBox(width: 64, child: _labelled(context, 'DISC %', _numField(entry.discCtrl, onChanged))),
-        ],
-        const SizedBox(width: 12),
+      ]),
+      const SizedBox(height: 8),
+      // Discount (TSh off this line) with the line total beside it.
+      Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+        if (showDiscount)
+          SizedBox(width: 140, child: _labelled(context, 'DISCOUNT (TSH)', _numField(entry.discCtrl, onChanged, hint: '0'))),
+        const Spacer(),
         Padding(
           padding: const EdgeInsets.only(bottom: 10),
           child: Text(tshFromDouble(_lineTotal.toDouble()), textAlign: TextAlign.right,
